@@ -12,7 +12,6 @@ on top of the original 6-module spec.
 **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS v4 · React Router ·
 Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 
-## What's new vs. the Next.js/Prisma version
 
 - **Real-time everywhere** — Socket.io pushes unit lock/unlock, lead stage
   changes, new commissions, and notifications to every connected client
@@ -38,9 +37,7 @@ Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 
 ### 1. MongoDB — must run as a replica set
 
-Commission generation uses a multi-document Mongoose transaction (Commission +
-CPProfile + Notification writes must all succeed together). This requires
-MongoDB to be a replica set.
+### prerequsites
 
 **Local, single-node replica set (dev):**
 ```bash
@@ -89,20 +86,16 @@ All seeded users share the password: **`Password123!`**
 | Channel Partner | `cp1@truvi.app` | Approved, Silver tier |
 | Channel Partner | `cp7@truvi.app` | Approved, Diamond tier |
 
-## Try the real-time features
-
-Open two browser windows — one logged in as a Developer (`dev1@truvi.app`)
-on a project detail page, one as a CP (`cp1@truvi.app`) on the dashboard.
-Lock a unit as the CP; watch it update instantly on the Developer's screen
-with no refresh.
+- Real-time inventory synchronization
+- Live notifications
+- Socket.io powered updates
 
 ## Optional: enabling real integrations
 
-- **Email**: set `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` in
-  `server/.env`. Without these, emails are logged to the console instead of sent.
-- **Payments**: set `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` (test mode) in
-  `server/.env`. Without these, the Lead Marketplace and Premium membership
-  purchase flows run in simulated mode (same behavior as the Next.js MVP).
+Optional
+
+- SMTP credentials
+- Razorpay credentials
 
 ## Project structure
 
