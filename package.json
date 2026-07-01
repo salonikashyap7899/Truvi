@@ -1,0 +1,8 @@
+{
+  "name": "truvi-mern",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server run start"
+  }
+}

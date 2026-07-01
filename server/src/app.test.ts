@@ -1,0 +1,35 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createApp } from "./app";
+
+describe("createApp production hosting", () => {
+  const originalEnv = process.env.NODE_ENV;
+  let server: ReturnType<ReturnType<typeof createApp>["listen"]> | undefined;
+
+  beforeAll(() => {
+    process.env.NODE_ENV = "production";
+  });
+
+  afterAll(() => {
+    process.env.NODE_ENV = originalEnv;
+    server?.close();
+  });
+
+  it("serves the built frontend for non-API routes", async () => {
+    const app = createApp();
+    server = app.listen(0);
+
+    await new Promise<void>((resolve) => {
+      server?.once("listening", () => resolve());
+    });
+
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Server did not bind to a port");
+
+    const response = await fetch(`http://127.0.0.1:${address.port}/dashboard`);
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("<div id=\"root\">");
+  });
+});
