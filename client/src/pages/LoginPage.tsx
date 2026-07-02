@@ -22,7 +22,8 @@ export default function LoginPage() {
         navigate("/pending-approval");
       } else if (user.role === "ADMIN") navigate("/admin/dashboard");
       else if (user.role === "DEVELOPER") navigate("/developer/dashboard");
-      else navigate("/cp/dashboard");
+      else if (user.role === "CP") navigate("/cp/dashboard");
+      else navigate("/buyer/dashboard");
     } catch (err: any) {
       setError(err?.response?.data?.error || "Invalid email or password");
     } finally {

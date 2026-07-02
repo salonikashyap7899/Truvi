@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 export interface TokenPayload {
   userId: string;
-  role: "ADMIN" | "DEVELOPER" | "CP";
+  role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
 }
 

@@ -15,6 +15,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   const filter: Record<string, unknown> = status ? { status } : {};
 
   if (user.role === "CP") filter.cpId = user.userId;
+  else if (user.role === "BUYER") filter.buyerId = user.userId;
   else if (user.role === "DEVELOPER") {
     const myProjectIds = await Project.find({ developerId: user.userId }).distinct("_id");
     filter.projectId = { $in: myProjectIds };
@@ -29,19 +30,37 @@ router.get("/", async (req: AuthedRequest, res) => {
   res.json({ siteVisits });
 });
 
-router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
+router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => {
   const parsed = createSiteVisitSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
+  if (req.user!.role === "CP") {
+    if (!parsed.data.leadId) return res.status(400).json({ error: "leadId is required for CP site visits" });
+
+    const siteVisit = await SiteVisit.create({
+      leadId: parsed.data.leadId,
+      projectId: parsed.data.projectId,
+      cpId: req.user!.userId,
+      scheduledAt: new Date(parsed.data.scheduledAt),
+      reportNotes: parsed.data.notes || undefined,
+    });
+
+    await Lead.findByIdAndUpdate(parsed.data.leadId, { stage: "SITE_VISIT" }).catch(() => null);
+
+    return res.status(201).json({ siteVisit });
+  }
+
+  const project = await Project.findById(parsed.data.projectId);
+  if (!project || project.approvalStatus !== "APPROVED") {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
   const siteVisit = await SiteVisit.create({
-    leadId: parsed.data.leadId,
     projectId: parsed.data.projectId,
-    cpId: req.user!.userId,
+    buyerId: req.user!.userId,
     scheduledAt: new Date(parsed.data.scheduledAt),
     reportNotes: parsed.data.notes || undefined,
   });
-
-  await Lead.findByIdAndUpdate(parsed.data.leadId, { stage: "SITE_VISIT" }).catch(() => null);
 
   res.status(201).json({ siteVisit });
 });

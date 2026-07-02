@@ -43,6 +43,8 @@ export interface Project {
   commissionPercent: number;
   unitCount?: number;
   leadCount?: number;
+  isSaved?: boolean;
+  isCompared?: boolean;
 }
 
 export interface PriceHistoryEntry {

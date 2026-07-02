@@ -32,7 +32,7 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
  * Also enforces the approval gate for DEVELOPER/CP (ADMIN is exempt,
  * since it's seeded, never self-signup, and never PENDING).
  */
-export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP">) {
+export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER">) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
     if (!roles.includes(req.user.role)) {

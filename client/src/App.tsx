@@ -21,6 +21,7 @@ import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
 
 import CPDashboardPage from "@/pages/cp/CPDashboardPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
+import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 
 export default function App() {
   return (
@@ -50,6 +51,9 @@ export default function App() {
         {/* CP */}
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
         <Route path="/cp/marketplace" element={<ProtectedRoute roles={["CP"]}><MarketplacePage /></ProtectedRoute>} />
+
+        {/* Buyer */}
+        <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

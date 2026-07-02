@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Project } from "../models/Project";
 import { Unit } from "../models/Unit";
 import { Lead } from "../models/Lead";
+import { User } from "../models/User";
 import { createProjectSchema } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
@@ -17,11 +18,9 @@ router.get("/", async (req: AuthedRequest, res) => {
   const user = req.user!;
 
   const filter: Record<string, unknown> =
-    user.role === "CP"
-      ? { approvalStatus: "APPROVED", ...(city ? { city } : {}) }
-      : user.role === "DEVELOPER"
+    user.role === "DEVELOPER"
       ? { developerId: user.userId }
-      : {};
+      : { approvalStatus: "APPROVED", ...(city ? { city } : {}) };
 
   const projects = await Project.find(filter)
     .populate("developerId", "name developerProfile")
@@ -37,11 +36,22 @@ router.get("/", async (req: AuthedRequest, res) => {
   const unitCountMap = new Map(unitCounts.map((u) => [String(u._id), u.count]));
   const leadCountMap = new Map(leadCounts.map((l) => [String(l._id), l.count]));
 
-  const enriched = projects.map((p) => ({
-    ...p,
-    unitCount: unitCountMap.get(String(p._id)) || 0,
-    leadCount: leadCountMap.get(String(p._id)) || 0,
-  }));
+  const buyerProfile =
+    user.role === "BUYER"
+      ? await User.findById(user.userId).select("buyerProfile.savedProjectIds buyerProfile.compareProjectIds")
+      : null;
+
+  const enriched = projects.map((p) => {
+    const isSaved = buyerProfile?.buyerProfile?.savedProjectIds.some((id) => String(id) === String(p._id));
+    const isCompared = buyerProfile?.buyerProfile?.compareProjectIds.some((id) => String(id) === String(p._id));
+    return {
+      ...p,
+      unitCount: unitCountMap.get(String(p._id)) || 0,
+      leadCount: leadCountMap.get(String(p._id)) || 0,
+      isSaved: Boolean(isSaved),
+      isCompared: Boolean(isCompared),
+    };
+  });
 
   res.json({ projects: enriched });
 });
@@ -49,6 +59,10 @@ router.get("/", async (req: AuthedRequest, res) => {
 router.get("/:id", async (req, res) => {
   const project = await Project.findById(req.params.id).populate("developerId", "name developerProfile");
   if (!project) return res.status(404).json({ error: "Project not found" });
+  const userRole = req.user?.role;
+  if (userRole && userRole !== "ADMIN" && userRole !== "DEVELOPER" && project.approvalStatus !== "APPROVED") {
+    return res.status(404).json({ error: "Project not found" });
+  }
   const units = await Unit.find({ projectId: project._id }).sort({ unitNumber: 1 });
   res.json({ project, units });
 });

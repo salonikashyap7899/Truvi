@@ -8,6 +8,7 @@ import { getEnv } from "./config/env";
 
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
+import buyerRoutes from "./routes/buyer";
 import projectRoutes from "./routes/projects";
 import unitRoutes from "./routes/units";
 import leadRoutes from "./routes/leads";
@@ -47,6 +48,7 @@ export function createApp() {
 
   app.use("/api/auth", authRoutes);
   app.use("/api/admin", adminRoutes);
+  app.use("/api/buyer", buyerRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/units", unitRoutes);
   app.use("/api/leads", leadRoutes);

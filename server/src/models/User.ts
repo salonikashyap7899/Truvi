@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from "mongoose";
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 
@@ -28,13 +28,21 @@ export interface IUser extends Document {
     companyName: string;
     reraNumber?: string;
   };
+
+  // Buyer-specific values and saved project state.
+  buyerProfile?: {
+    savedProjectIds: Types.ObjectId[];
+    compareProjectIds: Types.ObjectId[];
+    loanEligibilityNotes?: string;
+    investmentGoals?: string;
+  };
 }
 
 const userSchema = new Schema<IUser>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ["ADMIN", "DEVELOPER", "CP"], required: true },
+  role: { type: String, enum: ["ADMIN", "DEVELOPER", "CP", "BUYER"], required: true },
   approvalStatus: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: "PENDING" },
   phone: { type: String },
   createdAt: { type: Date, default: Date.now },
@@ -50,6 +58,12 @@ const userSchema = new Schema<IUser>({
   developerProfile: {
     companyName: { type: String },
     reraNumber: { type: String },
+  },
+  buyerProfile: {
+    savedProjectIds: { type: [{ type: Schema.Types.ObjectId, ref: "Project" }], default: [] },
+    compareProjectIds: { type: [{ type: Schema.Types.ObjectId, ref: "Project" }], default: [] },
+    loanEligibilityNotes: { type: String },
+    investmentGoals: { type: String },
   },
 });
 

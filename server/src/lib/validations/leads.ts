@@ -16,7 +16,7 @@ export const updateLeadStageSchema = z.object({
 });
 
 export const createSiteVisitSchema = z.object({
-  leadId: z.string().min(1),
+  leadId: z.string().min(1).optional(),
   projectId: z.string().min(1),
   scheduledAt: z.string().min(1),
   notes: z.string().optional(),

@@ -71,6 +71,13 @@ export default function SignupPage() {
           >
             I&apos;m a Channel Partner
           </button>
+          <button
+            type="button"
+            onClick={() => setValue("role", "BUYER")}
+            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "BUYER" ? "bg-[#3A2E26] text-white" : "text-neutral-500"}`}
+          >
+            I&apos;m a Buyer
+          </button>
         </div>
 
         {success ? (

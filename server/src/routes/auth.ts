@@ -46,6 +46,7 @@ router.post("/signup", async (req, res) => {
     approvalStatus: "PENDING",
     ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
     ...(role === "CP" ? { cpProfile: { isPremium: false, conversionRatio: 0, totalBookings: 0 } } : {}),
+    ...(role === "BUYER" ? { buyerProfile: { savedProjectIds: [], compareProjectIds: [] } } : {}),
   });
 
   return res.status(201).json({
