@@ -97,6 +97,61 @@ Optional
 - SMTP credentials
 - Razorpay credentials
 
+## Deploying to Render
+
+This project deploys as **two separate services**: this Render Web Service
+runs the API only (Root Directory: `server`); the React app is built and
+hosted separately (Vercel, Netlify, a Render Static Site, etc.). Because of
+that split, the two origins need to be told about each other explicitly —
+this isn't optional wiring, CORS and the auth cookie both depend on it.
+
+**Prerequisites:**
+- Push this repo to GitHub/GitLab (Render deploys from a connected git repo).
+  This project isn't a git repo yet — run `git init`, commit, and push before
+  connecting it in Render.
+- A MongoDB Atlas connection string (Atlas is a replica set by default, which
+  commission generation's transaction requires — see `server/.env.example`).
+
+**Option A — Blueprint (recommended):** In the Render dashboard, "New +" →
+"Blueprint", point it at this repo. It reads [render.yaml](render.yaml) and
+creates the API service with Root Directory `server`, the right build/start
+commands, health check, and a persistent Disk for `server/uploads` (see
+"Known limitation" below) pre-wired. You'll be prompted for `MONGO_URI` and
+`CLIENT_URL` (required — see below) plus any optional secrets (`SMTP_*`,
+`RAZORPAY_*`); `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are auto-generated.
+
+**Option B — Manual Web Service:**
+| Setting | Value |
+|---|---|
+| Root Directory | `server` |
+| Build Command | `npm install && npm run build` |
+| Start Command | `npm start` |
+| Health Check Path | `/health` |
+
+Then add the env vars from `server/.env.example` in the Render dashboard
+(`MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `NODE_ENV=production`
+at minimum).
+
+**Required — wiring the two origins together:**
+- `CLIENT_URL` on this Render service **must** be set to your deployed
+  frontend's exact origin (e.g. `https://truvi.vercel.app`). It's used for
+  the CORS allow-list and the Socket.io handshake; leaving it unset falls
+  back to this API's own URL, which won't match your frontend's origin and
+  CORS will silently reject requests from it.
+- `VITE_API_URL` — set at build time wherever the frontend is hosted —
+  **must** point at this API's Render URL, since there's no same-origin
+  fallback to rely on once client and server are on different domains.
+- The refresh-token cookie is `SameSite=None; Secure` in production to
+  survive this cross-site setup, which requires HTTPS on both ends (Render
+  and Vercel/Netlify give you this by default).
+
+**Known limitation:** Render's filesystem is otherwise ephemeral, so
+anything written to `server/uploads` (brochures, price lists, site-visit
+photos) would normally be lost on every redeploy/restart. `render.yaml`
+attaches a persistent Disk (`UPLOAD_DIR=/var/data/uploads`, paid plans only)
+to avoid that; on the free plan, drop the `disk:` block and `UPLOAD_DIR` and
+either accept the ephemeral storage or migrate `uploadService.ts` to S3.
+
 ## Project structure
 
 ```

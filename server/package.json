@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "postinstall": "npm run build",
     "start": "node dist/server.js",
     "seed": "tsx src/seed/seed.ts",
     "test": "vitest run",

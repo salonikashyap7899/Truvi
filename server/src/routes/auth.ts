@@ -7,10 +7,17 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
 
 const router = Router();
 
+const isProduction = process.env.NODE_ENV === "production";
+
+// The frontend is deployed on a different origin than this API in production
+// (server-only Render deploy — see README), so the refresh cookie must be
+// sent cross-site. SameSite=None requires Secure, which is only true in
+// production; locally both run on localhost (different ports but the same
+// site), where "lax" already works fine.
 const REFRESH_COOKIE_OPTS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
+  secure: isProduction,
+  sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
   maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 };
 

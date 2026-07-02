@@ -4,6 +4,7 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import fs from "fs";
 import path from "path";
+import { getEnv } from "./config/env";
 
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
@@ -20,13 +21,21 @@ import notificationRoutes from "./routes/notifications";
 import leaderboardRoutes from "./routes/leaderboard";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+import { getAllowedOrigins } from "./config/origins";
 
 export function createApp() {
   const app = express();
-  const uploadsDir = path.resolve(__dirname, "../../uploads");
+  const env = getEnv();
+  const uploadsDir = env.uploadDir
+    ? path.resolve(env.uploadDir)
+    : path.resolve(__dirname, "../../uploads");
   const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
-  app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173", credentials: true }));
+  // Render (and most PaaS) terminate TLS at a proxy in front of the app —
+  // trust the first hop so req.secure/req.ip and secure cookies work.
+  app.set("trust proxy", 1);
+
+  app.use(cors({ origin: getAllowedOrigins(), credentials: true }));
   app.use(express.json());
   app.use(cookieParser());
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));

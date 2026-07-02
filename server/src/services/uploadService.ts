@@ -2,7 +2,9 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const UPLOAD_DIR = path.resolve(__dirname, "../../uploads");
+const UPLOAD_DIR = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.resolve(__dirname, "../../uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -37,6 +39,6 @@ export const upload = multer({
  * any calling code.
  */
 export function fileUrl(filename: string): string {
-  const base = process.env.PUBLIC_URL || "http://localhost:5000";
+  const base = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:5000";
   return `${base}/uploads/${filename}`;
 }

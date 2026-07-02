@@ -1,0 +1,34 @@
+services:
+  # Server-only deploy: the frontend is built/hosted separately (Vercel,
+  # Netlify, a separate static site, etc.) and points VITE_API_URL at this
+  # service's URL. Because of that, CLIENT_URL below is REQUIRED, not
+  # optional — it's the CORS allow-list origin and it's also what the
+  # refresh-token cookie's cross-site (SameSite=None) flow depends on lining
+  # up with. Set it to your deployed frontend's exact origin.
+  - type: web
+    name: truvi
+    env: node
+    rootDir: server
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+    disk:
+      name: truvi-uploads
+      mountPath: /var/data/uploads
+      sizeGB: 1
