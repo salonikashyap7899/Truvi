@@ -73,7 +73,7 @@ function Row({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ComparePage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { remove, clear, selectedIds: storeIds } = useCompareStore();
 
@@ -116,7 +116,7 @@ export default function ComparePage() {
   function removeProject(id: string) {
     remove(id); // also clear from global store
     const next = ids.filter((x) => x !== id);
-    setIds(next);
+    setSearchParams({ ids: next.join(",") });
     setProjects((prev) => prev.filter((p) => p._id !== id));
     if (next.length < 2) {
       toast("Select at least 2 properties to compare.");

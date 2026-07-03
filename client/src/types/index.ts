@@ -49,7 +49,6 @@ export interface Project {
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
-  reraNumber?: string;
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: string;
   isVerified?: boolean;

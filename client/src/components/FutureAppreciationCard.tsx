@@ -101,7 +101,7 @@ export default function FutureAppreciationCard({ projectId }: FutureAppreciation
                   borderRadius: 6,
                   fontSize: 11,
                 }}
-                formatter={(v: number) => [`${(v - 100).toFixed(1)}%`, "Gain"]}
+                formatter={(v) => [`${((v as number) - 100).toFixed(1)}%`, "Gain"]}
                 labelStyle={{ color: "#94a3b8" }}
               />
             </AreaChart>

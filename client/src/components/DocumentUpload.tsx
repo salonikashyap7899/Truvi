@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Upload, Trash2, FileText, Loader2 } from "lucide-react";
 import { format } from "date-fns";

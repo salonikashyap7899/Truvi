@@ -787,7 +787,7 @@ function InvestmentsTab({
                     borderRadius: 8,
                     fontSize: 12,
                   }}
-                  formatter={(value: number) => [`₹${value.toFixed(1)}L`]}
+                  formatter={(value) => [`₹${(value as number).toFixed(1)}L`]}
                   labelStyle={{ color: "#e2e8f0" }}
                 />
                 <Bar dataKey="Purchase" radius={[4, 4, 0, 0]}>
