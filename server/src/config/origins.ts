@@ -1,19 +1,21 @@
 /**
  * Origins allowed to make cross-origin (and Socket.io) requests to this
- * server. Combines any explicitly configured CLIENT_URL value(s) — comma
- * separated if there's more than one, e.g. a custom domain alongside the
- * default onrender.com one — with Render's auto-injected RENDER_EXTERNAL_URL,
- * so CORS and the Socket.io handshake work on first deploy without knowing
- * the public URL in advance.
+ * server. Supports Replit's proxied preview domains (*.replit.dev / *.repl.co),
+ * any explicitly configured CLIENT_URL value(s), and Render's RENDER_EXTERNAL_URL.
  */
-export function getAllowedOrigins(): string[] {
+export function getAllowedOrigins(): string[] | boolean {
+  const replitDomains = process.env.REPLIT_DOMAINS;
+  if (replitDomains) {
+    return true;
+  }
+
   const configured =
     process.env.CLIENT_URL?.split(",")
       .map((origin) => origin.trim())
       .filter(Boolean) ?? [];
 
   if (process.env.RENDER_EXTERNAL_URL) configured.push(process.env.RENDER_EXTERNAL_URL);
-  if (configured.length === 0) configured.push("http://localhost:5173");
+  if (configured.length === 0) configured.push("http://localhost:5173", "http://localhost:5000");
 
   return configured;
 }
