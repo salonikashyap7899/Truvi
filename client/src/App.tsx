@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import AskTruvi from "@/components/AskTruvi";
 
 import HomePage from "@/pages/HomePage";
 import JoinPage from "@/pages/JoinPage";
@@ -29,6 +30,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster richColors position="top-right" theme="dark" />
+      <AskTruvi />
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<HomePage />} />
