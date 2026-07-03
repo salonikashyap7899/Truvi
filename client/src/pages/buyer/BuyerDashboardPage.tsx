@@ -10,13 +10,43 @@ import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { PlusCircle, CalendarDays, Heart, FolderOpen, FileDown, FileText } from "lucide-react";
+import {
+  PlusCircle,
+  CalendarDays,
+  Heart,
+  FolderOpen,
+  FileDown,
+  FileText,
+  TrendingUp,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { format } from "date-fns";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 import type { Project, SiteVisit, SharedDocument, BuyerDocument } from "@/types";
 
 // ─── types & constants ────────────────────────────────────────────────────────
 
-type Tab = "saved" | "visits" | "documents";
+type Tab = "saved" | "visits" | "documents" | "investments";
+
+interface Investment {
+  _id: string;
+  propertyName: string;
+  purchasePrice: number;
+  purchaseDate: string;
+  currentValue: number;
+  rentalIncome: number;
+  createdAt: string;
+}
 
 const VISIT_STATUS_LABEL: Record<string, string> = {
   SCHEDULED: "Pending",
@@ -69,6 +99,11 @@ export default function BuyerDashboardPage() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsFetched, setDocsFetched] = useState(false);
 
+  // Investments
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [investmentsLoading, setInvestmentsLoading] = useState(false);
+  const [investmentsFetched, setInvestmentsFetched] = useState(false);
+
   // Load saved properties on mount
   useEffect(() => {
     api
@@ -110,12 +145,23 @@ export default function BuyerDashboardPage() {
       .finally(() => setDocsLoading(false));
   }, [tab, docsFetched]);
 
+  // Lazy-load investments
+  useEffect(() => {
+    if (tab !== "investments" || investmentsFetched) return;
+    setInvestmentsLoading(true);
+    api
+      .get("/investments")
+      .then((res) => { setInvestments(res.data.investments || []); setInvestmentsFetched(true); })
+      .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load investments"))
+      .finally(() => setInvestmentsLoading(false));
+  }, [tab, investmentsFetched]);
+
   function handleUnsave(projectId: string, saved: boolean) {
     if (!saved) setSavedProjects((prev) => prev.filter((p) => p._id !== projectId));
   }
 
   function handleVisitBooked() {
-    setVisitsFetched(false); // invalidate so next open re-fetches
+    setVisitsFetched(false);
   }
 
   function refreshMyDocs() {
@@ -143,7 +189,7 @@ export default function BuyerDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-7 flex gap-1 border-b border-neutral-800">
+      <div className="mt-7 flex gap-1 border-b border-neutral-800 overflow-x-auto">
         <TabButton active={tab === "saved"} onClick={() => setTab("saved")}>
           <Heart size={14} className="mr-1.5" />
           Saved
@@ -167,6 +213,16 @@ export default function BuyerDashboardPage() {
         <TabButton active={tab === "documents"} onClick={() => setTab("documents")}>
           <FolderOpen size={14} className="mr-1.5" />
           Documents
+        </TabButton>
+
+        <TabButton active={tab === "investments"} onClick={() => setTab("investments")}>
+          <TrendingUp size={14} className="mr-1.5" />
+          Investments
+          {investmentsFetched && investments.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+              {investments.length}
+            </span>
+          )}
         </TabButton>
       </div>
 
@@ -195,6 +251,13 @@ export default function BuyerDashboardPage() {
             onRefreshMyDocs={refreshMyDocs}
           />
         )}
+        {tab === "investments" && (
+          <InvestmentsTab
+            investments={investments}
+            loading={investmentsLoading}
+            onUpdate={setInvestments}
+          />
+        )}
       </section>
 
       <CompareBar />
@@ -216,7 +279,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+      className={`flex shrink-0 items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
         active
           ? "border-blue-500 text-white"
           : "border-transparent text-neutral-500 hover:text-neutral-300"
@@ -489,6 +552,494 @@ function DocumentsTab({
           <span className="text-xs text-neutral-500">— your KYC documents</span>
         </div>
         <DocumentUpload docs={myDocs} loading={false} onRefresh={onRefreshMyDocs} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Investment Tracker tab ───────────────────────────────────────────────────
+
+function formatINR(n: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function calcMetrics(inv: Investment) {
+  const purchaseDate = new Date(inv.purchaseDate);
+  const now = new Date();
+  const months =
+    (now.getFullYear() - purchaseDate.getFullYear()) * 12 +
+    (now.getMonth() - purchaseDate.getMonth());
+  const cumulativeRental = (inv.rentalIncome || 0) * Math.max(months, 0);
+  const appreciation = inv.currentValue - inv.purchasePrice;
+  const appreciationPct =
+    inv.purchasePrice > 0 ? (appreciation / inv.purchasePrice) * 100 : 0;
+  const totalReturn = appreciation + cumulativeRental;
+  const roi =
+    inv.purchasePrice > 0 ? (totalReturn / inv.purchasePrice) * 100 : 0;
+  return { appreciationPct, roi, cumulativeRental, months };
+}
+
+const EMPTY_FORM = {
+  propertyName: "",
+  purchasePrice: "",
+  purchaseDate: "",
+  currentValue: "",
+  rentalIncome: "",
+};
+
+function InvestmentsTab({
+  investments,
+  loading,
+  onUpdate,
+}: {
+  investments: Investment[];
+  loading: boolean;
+  onUpdate: (invs: Investment[]) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Investment | null>(null);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+
+  function openAdd() {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setShowForm(true);
+  }
+
+  function openEdit(inv: Investment) {
+    setEditing(inv);
+    setForm({
+      propertyName: inv.propertyName,
+      purchasePrice: String(inv.purchasePrice),
+      purchaseDate: inv.purchaseDate.slice(0, 10),
+      currentValue: String(inv.currentValue),
+      rentalIncome: inv.rentalIncome ? String(inv.rentalIncome) : "",
+    });
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditing(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.propertyName || !form.purchasePrice || !form.purchaseDate || !form.currentValue) {
+      toast.error("Please fill in all required fields.");
+      return;
+    }
+    setSubmitting(true);
+    const payload = {
+      propertyName: form.propertyName.trim(),
+      purchasePrice: Number(form.purchasePrice),
+      purchaseDate: form.purchaseDate,
+      currentValue: Number(form.currentValue),
+      rentalIncome: form.rentalIncome ? Number(form.rentalIncome) : 0,
+    };
+    try {
+      if (editing) {
+        const res = await api.put(`/investments/${editing._id}`, payload);
+        onUpdate(investments.map((i) => (i._id === editing._id ? res.data.investment : i)));
+        toast.success("Investment updated.");
+      } else {
+        const res = await api.post("/investments", payload);
+        onUpdate([res.data.investment, ...investments]);
+        toast.success("Investment added.");
+      }
+      closeForm();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save investment.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Remove this investment?")) return;
+    try {
+      await api.delete(`/investments/${id}`);
+      onUpdate(investments.filter((i) => i._id !== id));
+      toast.success("Investment removed.");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to remove investment.");
+    }
+  }
+
+  if (loading) return <p className="text-sm text-neutral-500">Loading investments…</p>;
+
+  // Portfolio summary
+  const totalInvested = investments.reduce((s, i) => s + i.purchasePrice, 0);
+  const totalCurrentValue = investments.reduce((s, i) => s + i.currentValue, 0);
+  const totalRental = investments.reduce((inv, i) => {
+    const { cumulativeRental } = calcMetrics(i);
+    return inv + cumulativeRental;
+  }, 0);
+  const portfolioROI =
+    totalInvested > 0
+      ? (((totalCurrentValue - totalInvested) + totalRental) / totalInvested) * 100
+      : 0;
+
+  const chartData = investments.map((inv) => {
+    const { appreciationPct } = calcMetrics(inv);
+    return {
+      name: inv.propertyName.length > 14
+        ? inv.propertyName.slice(0, 13) + "…"
+        : inv.propertyName,
+      "Purchase": inv.purchasePrice / 1_00_000,
+      "Current": inv.currentValue / 1_00_000,
+      appreciationPct,
+    };
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* ── Summary ─────────────────────────────────────────────── */}
+      {investments.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <SummaryCard label="Total Invested" value={formatINR(totalInvested)} />
+            <SummaryCard label="Current Value" value={formatINR(totalCurrentValue)} />
+            <SummaryCard
+              label="Rental Income"
+              value={formatINR(totalRental)}
+              sub="cumulative"
+            />
+            <SummaryCard
+              label="Portfolio ROI"
+              value={`${portfolioROI >= 0 ? "+" : ""}${portfolioROI.toFixed(1)}%`}
+              highlight={portfolioROI >= 0 ? "green" : "red"}
+            />
+          </div>
+
+          {/* Chart */}
+          <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+            <p className="mb-4 text-sm font-medium text-neutral-300">
+              Purchase vs Current Value (₹ Lakh)
+            </p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={chartData} barGap={4} barCategoryGap="30%">
+                <XAxis
+                  dataKey="name"
+                  tick={{ fill: "#9ca3af", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "#6b7280", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${v}L`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1e2a3b",
+                    border: "1px solid #334155",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(value: number) => [`₹${value.toFixed(1)}L`]}
+                  labelStyle={{ color: "#e2e8f0" }}
+                />
+                <Bar dataKey="Purchase" radius={[4, 4, 0, 0]}>
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill="#3b82f6" />
+                  ))}
+                </Bar>
+                <Bar dataKey="Current" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={entry.appreciationPct >= 0 ? "#22c55e" : "#ef4444"}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-3 flex items-center gap-4 text-xs text-neutral-500">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
+                Purchase Price
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-green-500" />
+                Current Value
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Header row ──────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">
+          {investments.length === 0 ? "My Investments" : `${investments.length} Investment${investments.length !== 1 ? "s" : ""}`}
+        </h2>
+        <Button size="sm" onClick={openAdd}>
+          <PlusCircle size={14} className="mr-1.5" />
+          Add Investment
+        </Button>
+      </div>
+
+      {/* ── Cards ───────────────────────────────────────────────── */}
+      {investments.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-[#121A2B] py-16 text-center">
+          <span className="text-4xl">📈</span>
+          <p className="mt-4 text-base font-medium text-neutral-300">No investments tracked yet</p>
+          <p className="mt-1 text-sm text-neutral-500">Add a property you've purchased to track its performance.</p>
+          <Button size="sm" className="mt-5" onClick={openAdd}>
+            Add Investment
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {investments.map((inv) => (
+            <InvestmentCard
+              key={inv._id}
+              investment={inv}
+              onEdit={() => openEdit(inv)}
+              onDelete={() => handleDelete(inv._id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Form modal ──────────────────────────────────────────── */}
+      {showForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-[#121A2B] p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-base font-semibold">
+                {editing ? "Edit Investment" : "Add Investment"}
+              </h3>
+              <button
+                onClick={closeForm}
+                className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1">
+                  Property Name / Reference <span className="text-red-400">*</span>
+                </label>
+                <input
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                  placeholder="e.g. Prestige Lakeside – Unit 4B"
+                  value={form.propertyName}
+                  onChange={(e) => setForm((f) => ({ ...f, propertyName: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-neutral-400 mb-1">
+                    Purchase Price (₹) <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    placeholder="5000000"
+                    value={form.purchasePrice}
+                    onChange={(e) => setForm((f) => ({ ...f, purchasePrice: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-400 mb-1">
+                    Purchase Date <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                    value={form.purchaseDate}
+                    onChange={(e) => setForm((f) => ({ ...f, purchaseDate: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-neutral-400 mb-1">
+                    Current Est. Value (₹) <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    placeholder="6500000"
+                    value={form.currentValue}
+                    onChange={(e) => setForm((f) => ({ ...f, currentValue: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-400 mb-1">
+                    Monthly Rental (₹)
+                    <span className="ml-1 text-neutral-600">optional</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    placeholder="25000"
+                    value={form.rentalIncome}
+                    onChange={(e) => setForm((f) => ({ ...f, rentalIncome: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button type="button" variant="secondary" className="flex-1" onClick={closeForm}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1" disabled={submitting}>
+                  {submitting ? "Saving…" : editing ? "Save Changes" : "Add Investment"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: "green" | "red";
+}) {
+  const valueClass =
+    highlight === "green"
+      ? "text-green-400"
+      : highlight === "red"
+      ? "text-red-400"
+      : "text-white";
+
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-4">
+      <p className="text-xs text-neutral-500">{label}</p>
+      <p className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</p>
+      {sub && <p className="text-[10px] text-neutral-600">{sub}</p>}
+    </div>
+  );
+}
+
+function InvestmentCard({
+  investment,
+  onEdit,
+  onDelete,
+}: {
+  investment: Investment;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { appreciationPct, roi, cumulativeRental, months } = calcMetrics(investment);
+  const isPositive = roi >= 0;
+
+  return (
+    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
+      {/* Name + actions */}
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-semibold leading-tight">{investment.propertyName}</h3>
+        <div className="flex shrink-0 gap-1">
+          <button
+            onClick={onEdit}
+            className="rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-blue-400 transition-colors"
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-red-400 transition-colors"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* ROI badge */}
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            isPositive
+              ? "bg-green-500/15 text-green-400"
+              : "bg-red-500/15 text-red-400"
+          }`}
+        >
+          <TrendingUp size={11} />
+          ROI {isPositive ? "+" : ""}{roi.toFixed(1)}%
+        </span>
+        <span
+          className={`text-xs ${
+            appreciationPct >= 0 ? "text-green-500" : "text-red-500"
+          }`}
+        >
+          {appreciationPct >= 0 ? "▲" : "▼"} {Math.abs(appreciationPct).toFixed(1)}% appreciation
+        </span>
+      </div>
+
+      {/* Price row */}
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-neutral-500">Purchased</p>
+          <p className="font-medium text-white">{formatINR(investment.purchasePrice)}</p>
+        </div>
+        <div>
+          <p className="text-neutral-500">Current Value</p>
+          <p className={`font-medium ${investment.currentValue >= investment.purchasePrice ? "text-green-400" : "text-red-400"}`}>
+            {formatINR(investment.currentValue)}
+          </p>
+        </div>
+      </div>
+
+      {/* Rental + date */}
+      <div className="grid grid-cols-2 gap-2 text-xs border-t border-neutral-800 pt-3">
+        <div>
+          <p className="text-neutral-500">Rental Income</p>
+          <p className="font-medium text-white">
+            {investment.rentalIncome
+              ? `${formatINR(investment.rentalIncome)}/mo`
+              : "—"}
+          </p>
+          {investment.rentalIncome > 0 && months > 0 && (
+            <p className="text-[10px] text-neutral-600">
+              {formatINR(cumulativeRental)} cumulative
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="text-neutral-500">Purchase Date</p>
+          <p className="font-medium text-white">
+            {(() => {
+              try {
+                return format(new Date(investment.purchaseDate), "dd MMM yyyy");
+              } catch {
+                return investment.purchaseDate;
+              }
+            })()}
+          </p>
+          {months > 0 && (
+            <p className="text-[10px] text-neutral-600">{months} month{months !== 1 ? "s" : ""} ago</p>
+          )}
+        </div>
       </div>
     </div>
   );
