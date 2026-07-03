@@ -7,6 +7,7 @@ import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
+import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -87,6 +88,7 @@ export default function ProjectDetailPage() {
   if (!project) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
 
   const trustScore = project.trustScore ?? mockScoreFromId(project._id);
+  const legalRisk = project.legalRiskLevel ?? mockRiskFromId(project._id);
 
   return (
     <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
@@ -95,8 +97,11 @@ export default function ProjectDetailPage() {
         {project.location}, {project.city} · <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>{project.approvalStatus}</Badge>
       </p>
 
-      <div className="mt-6 inline-block">
+      <div className="mt-6 flex flex-wrap gap-4">
         <TrustScoreWidget score={trustScore} />
+        <div className="w-full sm:w-72">
+          <LegalRiskCard level={legalRisk} />
+        </div>
       </div>
 
       <section className="mt-8">

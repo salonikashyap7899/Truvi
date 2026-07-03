@@ -10,6 +10,7 @@ import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
+import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import type { Project } from "@/types";
 
 export default function BuyerProjectsPage() {
@@ -146,6 +147,10 @@ function ProjectCard({
 
         <TrustScoreWidget
           score={project.trustScore ?? mockScoreFromId(project._id)}
+          compact
+        />
+        <LegalRiskCard
+          level={project.legalRiskLevel ?? mockRiskFromId(project._id)}
           compact
         />
 
