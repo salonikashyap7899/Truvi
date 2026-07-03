@@ -1,0 +1,67 @@
+Here's #10 and #11 broken into individual prompts — paste one at a time.
+
+---
+
+**10a. Truvi Trust Score**
+
+> Add a "Truvi Trust Score" widget to the property detail page. Show an overall trust score out of 100 as a circular gauge/progress visual, with a label (e.g. "Excellent" / "Good" / "Fair" / "Poor") based on the score range. Add a `trust_score` field to the properties table (use mock/placeholder values for now). Add a short one-line explanation below the score.
+
+---
+
+**10b. Legal Risk**
+
+> Add a "Legal Risk" card to the property detail page showing a risk level (Low / Medium / High) with a color-coded badge (green/yellow/red) and a short explanatory note (e.g. "Clear title, no pending litigation"). Add a `legal_risk_level` field to the properties table, using placeholder data for now.
+
+---
+
+**10c. Price Fairness Meter**
+
+> Add a "Price Fairness Meter" widget to the property detail page — a horizontal slider/meter showing where the listed price falls between "Underpriced," "Fair," and "Overpriced," based on comparison to average locality price. Show the actual listed price and the estimated fair price range below the meter. Use placeholder/mock comparison data for now.
+
+---
+
+**10d. Nearby Amenities**
+
+> Add a "Nearby Amenities" section to the property detail page showing categorized nearby amenities (schools, hospitals, transit/metro, malls, restaurants) as an icon list, each with approximate distance. Use mock data structured as an array of `{ category, name, distance }` for now, laid out so it can later be swapped for real map/places API data.
+
+---
+
+**10e. Flood Risk**
+
+> Add a "Flood Risk" card to the property detail page showing a risk level (Low / Medium / High) with a color-coded badge and a short note about the locality's flood history/risk. Add a `flood_risk_level` field to the properties table, using placeholder data for now.
+
+---
+
+**10f. Crime Index**
+
+> Add a "Crime Index" card to the property detail page showing a safety score or level (Low / Medium / High risk) for the locality, with a short note. Add a `crime_index_level` field to the properties table, using placeholder data for now.
+
+---
+
+**10g. Future Appreciation**
+
+> Add a "Future Appreciation" card to the property detail page showing a projected price appreciation percentage over the next 3–5 years, displayed as a stat with a small upward trend line/sparkline chart. Use placeholder/mock projection data for now.
+
+---
+
+**10h. Owner History**
+
+> Add an "Owner History" card to the property detail page showing the number of previous owners and how long the current owner has held the property, displayed as a simple timeline (e.g. Owner 1: 2015–2019, Owner 2: 2019–Present). Use placeholder/mock data for now, structured as an array of `{ owner_label, start_year, end_year }`.
+
+---
+
+**10i. RERA Details**
+
+> Add a "RERA Details" card to the property detail page showing the RERA registration number, current status (Registered / Pending / Not Registered) as a color-coded badge, and validity/expiry date. Add `rera_number`, `rera_status`, and `rera_validity_date` fields to the properties table, using placeholder data for now.
+
+---
+
+**11a. Ask Truvi AI — Chat UI**
+
+> Add a floating "Ask Truvi AI" button fixed to the bottom-right corner of the app, visible on all pages. Clicking it opens a chat panel (modal on desktop, bottom sheet on mobile) with a header "Ask Truvi AI," a scrollable message area with user/AI message bubbles, a text input box, and a send button. Include a loading/typing indicator while waiting for a response. Style it consistently with the app's design system. For now, wire it to a placeholder function that echoes back a mock response — don't connect the real AI yet.
+
+---
+
+**11b. Ask Truvi AI — Property Context Integration**
+
+> Connect the "Ask Truvi AI" chat to a real AI response using the Claude API. When opened from a property detail page, pass the current property's context (price, location, trust score, legal risk, RERA status, price fairness, and other available detail-page data) into the system prompt so the AI can answer specific questions like "Is this a good investment?" or "Why is the legal risk medium?" grounded in that property's data. When opened from any other page, use a general system prompt about helping users with property buying questions. Stream the AI's response into the chat panel as it's generated.
