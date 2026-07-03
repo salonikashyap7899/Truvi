@@ -21,7 +21,6 @@ export interface IProject extends Document {
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
-  reraNumber?: string;
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: Date;
   isVerified: boolean;
@@ -46,7 +45,6 @@ const projectSchema = new Schema<IProject>({
   legalRiskLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
   floodRiskLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
   crimeIndexLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
-  reraNumber: { type: String },
   reraStatus: { type: String, enum: ["REGISTERED", "PENDING", "NOT_REGISTERED"] },
   reraValidityDate: { type: Date },
   isVerified: { type: Boolean, default: false },
