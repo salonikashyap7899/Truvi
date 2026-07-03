@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { HeartButton } from "@/components/HeartButton";
+import { CompareCheckbox } from "@/components/CompareCheckbox";
+import { CompareBar } from "@/components/CompareBar";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { PlusCircle } from "lucide-react";
@@ -18,7 +20,6 @@ export default function BuyerDashboardPage() {
     setLoading(true);
     try {
       const res = await api.get("/buyer/dashboard");
-      // Mark all dashboard results as saved (they are by definition)
       setSavedProjects(
         (res.data.savedProjects || []).map((p: Project) => ({ ...p, isSaved: true }))
       );
@@ -35,21 +36,20 @@ export default function BuyerDashboardPage() {
 
   function handleToggle(projectId: string, saved: boolean) {
     if (!saved) {
-      // Remove from list immediately when unsaved
       setSavedProjects((prev) => prev.filter((p) => p._id !== projectId));
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10 pb-28">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Saved Properties</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            {user?.name ? `${user.name}'s` : "Your"} shortlist — tap the heart to remove, or{" "}
+            {user?.name ? `${user.name}'s` : "Your"} shortlist — tap ♥ to remove · tick Compare to compare side-by-side · or{" "}
             <Link to="/buyer/projects" className="text-rose-400 hover:underline">
-              browse more properties
+              browse more
             </Link>
             .
           </p>
@@ -80,6 +80,8 @@ export default function BuyerDashboardPage() {
           </div>
         )}
       </section>
+
+      <CompareBar />
     </main>
   );
 }
@@ -121,7 +123,6 @@ function SavedProjectCard({
             {project.approvalStatus}
           </Badge>
         </div>
-        {/* Heart is always filled here (these are saved). Clicking removes from list. */}
         <HeartButton
           projectId={project._id}
           initialSaved={true}
@@ -148,18 +149,21 @@ function SavedProjectCard({
         {project.priceListUrl && <span>Price list available</span>}
       </div>
 
-      {/* Actions */}
-      <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        <Button size="sm" onClick={requestSiteVisit}>
-          Request Site Visit
-        </Button>
-        {project.brochureUrl && (
-          <a href={project.brochureUrl} target="_blank" rel="noreferrer">
-            <Button size="sm" variant="secondary">
-              View Brochure
-            </Button>
-          </a>
-        )}
+      {/* Actions + compare */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={requestSiteVisit}>
+            Request Site Visit
+          </Button>
+          {project.brochureUrl && (
+            <a href={project.brochureUrl} target="_blank" rel="noreferrer">
+              <Button size="sm" variant="secondary">
+                View Brochure
+              </Button>
+            </a>
+          )}
+        </div>
+        <CompareCheckbox projectId={project._id} />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
+import { useCompareStore } from "@/store/compareStore";
 import { disconnectSocket, getSocket } from "@/lib/socket";
 import type { User } from "@/types";
 
@@ -31,6 +32,7 @@ export function useAuth() {
     await api.post("/auth/logout").catch(() => null);
     disconnectSocket();
     clearAuth();
+    useCompareStore.getState().clear(); // prevent stale selections carrying across sessions
   }, [clearAuth]);
 
   return { user, accessToken, login, signup, logout, isAuthenticated: !!accessToken };

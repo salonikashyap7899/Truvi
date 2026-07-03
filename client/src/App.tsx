@@ -23,6 +23,7 @@ import CPDashboardPage from "@/pages/cp/CPDashboardPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
 import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
+import ComparePage from "@/pages/buyer/ComparePage";
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
         {/* Buyer */}
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />
         <Route path="/buyer/projects" element={<ProtectedRoute roles={["BUYER"]}><BuyerProjectsPage /></ProtectedRoute>} />
+        <Route path="/buyer/compare" element={<ProtectedRoute roles={["BUYER"]}><ComparePage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

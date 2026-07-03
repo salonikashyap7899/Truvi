@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { HeartButton } from "@/components/HeartButton";
+import { CompareCheckbox } from "@/components/CompareCheckbox";
+import { CompareBar } from "@/components/CompareBar";
 import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
 import type { Project } from "@/types";
@@ -36,13 +38,13 @@ export default function BuyerProjectsPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10 pb-28">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Browse Properties</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            Tap the heart to save a property. Find it later in{" "}
+            Tap ♥ to save · tick Compare to compare side-by-side · find saved in{" "}
             <Link to="/buyer/dashboard" className="text-rose-400 hover:underline">
               Saved Properties
             </Link>
@@ -83,6 +85,8 @@ export default function BuyerProjectsPage() {
           ))}
         </div>
       )}
+
+      <CompareBar />
     </main>
   );
 }
@@ -150,18 +154,21 @@ function ProjectCard({
         {project.priceListUrl && <span>Price list available</span>}
       </div>
 
-      {/* Actions */}
-      <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        <Button size="sm" onClick={requestSiteVisit}>
-          Request Site Visit
-        </Button>
-        {project.brochureUrl && (
-          <a href={project.brochureUrl} target="_blank" rel="noreferrer">
-            <Button size="sm" variant="secondary">
-              View Brochure
-            </Button>
-          </a>
-        )}
+      {/* Actions + compare */}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={requestSiteVisit}>
+            Request Site Visit
+          </Button>
+          {project.brochureUrl && (
+            <a href={project.brochureUrl} target="_blank" rel="noreferrer">
+              <Button size="sm" variant="secondary">
+                View Brochure
+              </Button>
+            </a>
+          )}
+        </div>
+        <CompareCheckbox projectId={project._id} />
       </div>
     </div>
   );

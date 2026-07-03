@@ -3,6 +3,7 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import { User } from "../models/User";
 import { Project } from "../models/Project";
+import { Unit } from "../models/Unit";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 
 const router = Router();
@@ -63,6 +64,36 @@ router.delete("/save/:projectId", requireRole("BUYER"), async (req: AuthedReques
   await user.save();
 
   res.json({ savedProjectIds: user.buyerProfile.savedProjectIds });
+});
+
+// Returns the requested projects (by comma-separated IDs) enriched with their units,
+// for the side-by-side comparison table. Max 4 IDs; only APPROVED projects are returned.
+router.get("/compare", requireRole("BUYER"), async (req: AuthedRequest, res) => {
+  const idsParam = (req.query.ids as string) || "";
+  const ids = idsParam
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => mongoose.isValidObjectId(s))
+    .slice(0, 4);
+
+  if (ids.length < 2) {
+    return res.status(400).json({ error: "Provide at least 2 valid project IDs" });
+  }
+
+  const projects = await Project.find({ _id: { $in: ids }, approvalStatus: "APPROVED" })
+    .populate("developerId", "name developerProfile")
+    .lean();
+
+  const unitsByProject = await Promise.all(
+    projects.map((p) => Unit.find({ projectId: p._id }).lean())
+  );
+
+  const result = projects.map((p, i) => ({
+    ...p,
+    units: unitsByProject[i],
+  }));
+
+  res.json({ projects: result });
 });
 
 // Returns all APPROVED projects with an `isSaved` flag for the heart icon state
