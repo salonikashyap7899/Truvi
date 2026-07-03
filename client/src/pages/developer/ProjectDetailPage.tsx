@@ -13,6 +13,8 @@ import NearbyAmenities from "@/components/NearbyAmenities";
 import FloodRiskCard, { mockFloodRiskFromId } from "@/components/FloodRiskCard";
 import CrimeIndexCard, { mockCrimeFromId } from "@/components/CrimeIndexCard";
 import FutureAppreciationCard from "@/components/FutureAppreciationCard";
+import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
+import ReraDetailsCard, { mockReraFromId } from "@/components/ReraDetailsCard";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -96,6 +98,12 @@ export default function ProjectDetailPage() {
   const legalRisk = project.legalRiskLevel ?? mockRiskFromId(project._id);
   const floodRisk = project.floodRiskLevel ?? mockFloodRiskFromId(project._id);
   const crimeIndex = project.crimeIndexLevel ?? mockCrimeFromId(project._id);
+  const ownerHistory = mockOwnerHistoryFromId(project._id);
+  const reraInfo = {
+    reraNumber: project.reraNumber ?? mockReraFromId(project._id).reraNumber,
+    reraStatus: project.reraStatus ?? mockReraFromId(project._id).reraStatus,
+    reraValidityDate: project.reraValidityDate ?? mockReraFromId(project._id).reraValidityDate,
+  };
 
   return (
     <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
@@ -120,6 +128,12 @@ export default function ProjectDetailPage() {
         </div>
         <div className="w-full sm:max-w-lg">
           <FutureAppreciationCard projectId={project._id} />
+        </div>
+        <div className="w-full sm:w-72">
+          <OwnerHistoryCard owners={ownerHistory} />
+        </div>
+        <div className="w-full sm:w-72">
+          <ReraDetailsCard info={reraInfo} />
         </div>
       </div>
 
