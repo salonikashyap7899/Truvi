@@ -49,3 +49,15 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+PORT = "3001"
+HOST = "0.0.0.0"
+NODE_ENV = "development"
+SMTP_FROM = "Truvi <no-reply@truvi.app>"
