@@ -1,0 +1,41 @@
+Here are the six features broken into separate prompts — paste them one at a time, in order, so each builds cleanly on the last.
+
+---
+
+**1. Saved Properties**
+
+> Add a "Saved Properties" feature to my real estate app. Let logged-in buyers click a heart/bookmark icon on property cards (listing page and detail page) to save/unsave a property. Create a Supabase table `saved_properties` (user_id, property_id, created_at). Add a "Saved Properties" page/tab showing all properties the buyer has saved, in the same card layout used elsewhere in the app, with a way to remove them from there too. Show a filled vs outline heart icon based on saved state.
+
+---
+
+**2. Compare Properties**
+
+> Add a "Compare Properties" feature. On property cards and the saved properties page, add a "Compare" checkbox (max 4 selections at a time, show a toast if they try to add a 5th). Add a floating "Compare (n)" button that appears once 2+ are selected, opening a comparison page. On that page, show selected properties side-by-side in a table with rows for price, area/sqft, location, bedrooms, bathrooms, and amenities. Allow removing a property from the comparison view.
+
+---
+
+**3. Site Visit Request**
+
+> Add a "Request Site Visit" feature. On each property detail page, add a "Request Site Visit" button that opens a modal/form with fields: preferred date, preferred time slot, contact number, and notes. Create a Supabase table `site_visit_requests` (user_id, property_id, preferred_date, time_slot, contact_number, notes, status default 'Pending', created_at). Add a "My Site Visits" tab in the buyer dashboard listing all their requests with property name, date/time, and a status badge (Pending / Confirmed / Completed).
+
+---
+
+**4. Documents**
+
+> Add a "Documents" feature to the buyer dashboard. Create a "Documents" tab with two sections: (1) "Shared Documents" — property-related files (brochures, floor plans, legal papers) shared by agents/builders, shown as a downloadable list with property name and file type; (2) "My Documents" — where buyers upload their own KYC documents (ID proof, address proof, income proof) via file upload, each showing an upload status (Uploaded / Under Review / Verified). Create Supabase tables `shared_documents` (property_id, file_url, file_name, file_type, created_at) and `buyer_documents` (user_id, doc_type, file_url, status default 'Uploaded', created_at), and use Supabase Storage for the actual files.
+
+---
+
+**5. Loan Eligibility Calculator**
+
+> Add a "Loan Eligibility" tool to the buyer dashboard. Create a form with inputs: monthly income, existing monthly EMIs/obligations, desired loan tenure (years), and interest rate (%, default a reasonable current rate). On submit, calculate and display the estimated eligible loan amount and estimated monthly EMI using standard loan eligibility logic (e.g. max EMI as a percentage of net income after obligations, then reverse-calculate principal from EMI formula). Show results in a clear card with a breakdown. Let buyers save a calculation to a Supabase table `loan_eligibility_checks` (user_id, income, obligations, tenure, interest_rate, eligible_amount, estimated_emi, created_at) and view/compare past saved calculations in a list below the form.
+
+---
+
+**6. Investment Tracker**
+
+> Add an "Investment Tracker" tab to the buyer dashboard. Let buyers add a property they've purchased with fields: property name/reference, purchase price, purchase date, current estimated value, rental income (monthly, optional). Create a Supabase table `investments` (user_id, property_name, purchase_price, purchase_date, current_value, rental_income, created_at). Show each investment as a card displaying appreciation % and overall ROI (calculated from purchase price vs current value, plus cumulative rental income if provided). Add a summary section at the top of the tab showing total invested, total current value, and overall portfolio ROI, with a simple chart if a charting library is already available in the project.
+
+---
+
+A tip: after each prompt runs, check the preview and fix anything odd before moving to the next one — Lovable tends to do better with one feature at a time than a giant combined build.
