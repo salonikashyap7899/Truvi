@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
+import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import type { Project } from "@/types";
 
 export default function BuyerProjectsPage() {
@@ -153,6 +154,7 @@ function ProjectCard({
           level={project.legalRiskLevel ?? mockRiskFromId(project._id)}
           compact
         />
+        <PriceFairnessMeter projectId={project._id} compact />
 
         {/* Actions + compare */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">

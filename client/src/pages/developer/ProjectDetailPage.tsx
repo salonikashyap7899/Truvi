@@ -8,6 +8,7 @@ import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
+import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -101,6 +102,9 @@ export default function ProjectDetailPage() {
         <TrustScoreWidget score={trustScore} />
         <div className="w-full sm:w-72">
           <LegalRiskCard level={legalRisk} />
+        </div>
+        <div className="w-full sm:max-w-lg">
+          <PriceFairnessMeter projectId={project._id} />
         </div>
       </div>
 
