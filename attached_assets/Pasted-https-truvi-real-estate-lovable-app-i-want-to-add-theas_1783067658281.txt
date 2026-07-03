@@ -1,0 +1,165 @@
+https://truvi-real-estate.lovable.app  i want to add thease features in my this project so give me promt for implement all these features in my this projectOrchestrated comprehensive implementation strategy for feature integrationOrchestrated comprehensive implementation strategy for feature integrationHere's a ready-to-paste prompt for Lovable to build out the buyer dashboard:
+
+Prompt:
+
+Add a "Buyer Dashboard" section to my real estate app (truvi-real-estate) with the following features, accessible from the main navigation as a dashboard the logged-in buyer lands on:
+
+Saved Properties – Let buyers bookmark/heart properties from listing and detail pages. Show a grid/list of all saved properties in the dashboard with a way to remove them. Persist saves per logged-in user.
+Compare Properties – Let buyers select 2–4 saved (or any) properties and view them side-by-side in a comparison table showing price, area/sqft, location, bedrooms/bathrooms, amenities, and other key specs. Add a "Compare" checkbox/button on property cards.
+Site Visit Request – Add a "Request Site Visit" button on each property detail page that opens a form (preferred date, time slot, contact number, notes). Store requests and show their status (Pending / Confirmed / Completed) in the dashboard under a "My Site Visits" tab.
+Documents – Create a "Documents" tab in the dashboard where buyers can view/download property-related documents (brochures, floor plans, legal papers) shared by the agent/builder, and upload their own KYC documents (ID proof, address proof, income proof) with upload status tracking.
+Loan Eligibility – Add a "Loan Eligibility Calculator" tool where buyers input income, existing EMIs, loan tenure, and interest rate to get an estimated eligible loan amount and monthly EMI. Show results with a simple breakdown, and optionally let them save/compare multiple scenarios.
+Investment Tracker – Add an "Investment Tracker" tab where buyers can log properties they've purchased/invested in, tracking purchase price, current estimated value, appreciation %, rental income (if any), and overall ROI. Show this as a summary dashboard with cards/charts.
+
+Design requirements:
+
+Add a left sidebar or tab navigation in the dashboard: Overview, Saved Properties, Compare, Site Visits, Documents, Loan Eligibility, Investment Tracker.
+Keep it consistent with the existing app's design system (colors, fonts, spacing).
+Make all sections mobile-responsive.
+Use placeholder/mock data first if backend tables don't exist yet, then wire up to Supabase (or existing backend) with proper tables for saved_properties, site_visit_requests, documents, and investments.
+
+
+
+Want me to break this into separate smaller prompts (one per feature) in case Lovable struggles with one big request at once?Yeah sureHere are the six features broken into separate prompts — paste them one at a time, in order, so each builds cleanly on the last.
+
+1. Saved Properties
+
+Add a "Saved Properties" feature to my real estate app. Let logged-in buyers click a heart/bookmark icon on property cards (listing page and detail page) to save/unsave a property. Create a Supabase table saved_properties (user_id, property_id, created_at). Add a "Saved Properties" page/tab showing all properties the buyer has saved, in the same card layout used elsewhere in the app, with a way to remove them from there too. Show a filled vs outline heart icon based on saved state.
+
+
+2. Compare Properties
+
+Add a "Compare Properties" feature. On property cards and the saved properties page, add a "Compare" checkbox (max 4 selections at a time, show a toast if they try to add a 5th). Add a floating "Compare (n)" button that appears once 2+ are selected, opening a comparison page. On that page, show selected properties side-by-side in a table with rows for price, area/sqft, location, bedrooms, bathrooms, and amenities. Allow removing a property from the comparison view.
+
+
+3. Site Visit Request
+
+Add a "Request Site Visit" feature. On each property detail page, add a "Request Site Visit" button that opens a modal/form with fields: preferred date, preferred time slot, contact number, and notes. Create a Supabase table site_visit_requests (user_id, property_id, preferred_date, time_slot, contact_number, notes, status default 'Pending', created_at). Add a "My Site Visits" tab in the buyer dashboard listing all their requests with property name, date/time, and a status badge (Pending / Confirmed / Completed).
+
+
+4. Documents
+
+Add a "Documents" feature to the buyer dashboard. Create a "Documents" tab with two sections: (1) "Shared Documents" — property-related files (brochures, floor plans, legal papers) shared by agents/builders, shown as a downloadable list with property name and file type; (2) "My Documents" — where buyers upload their own KYC documents (ID proof, address proof, income proof) via file upload, each showing an upload status (Uploaded / Under Review / Verified). Create Supabase tables shared_documents (property_id, file_url, file_name, file_type, created_at) and buyer_documents (user_id, doc_type, file_url, status default 'Uploaded', created_at), and use Supabase Storage for the actual files.
+
+
+5. Loan Eligibility Calculator
+
+Add a "Loan Eligibility" tool to the buyer dashboard. Create a form with inputs: monthly income, existing monthly EMIs/obligations, desired loan tenure (years), and interest rate (%, default a reasonable current rate). On submit, calculate and display the estimated eligible loan amount and estimated monthly EMI using standard loan eligibility logic (e.g. max EMI as a percentage of net income after obligations, then reverse-calculate principal from EMI formula). Show results in a clear card with a breakdown. Let buyers save a calculation to a Supabase table loan_eligibility_checks (user_id, income, obligations, tenure, interest_rate, eligible_amount, estimated_emi, created_at) and view/compare past saved calculations in a list below the form.
+
+
+6. Investment Tracker
+
+Add an "Investment Tracker" tab to the buyer dashboard. Let buyers add a property they've purchased with fields: property name/reference, purchase price, purchase date, current estimated value, rental income (monthly, optional). Create a Supabase table investments (user_id, property_name, purchase_price, purchase_date, current_value, rental_income, created_at). Show each investment as a card displaying appreciation % and overall ROI (calculated from purchase price vs current value, plus cumulative rental income if provided). Add a summary section at the top of the tab showing total invested, total current value, and overall portfolio ROI, with a simple chart if a charting library is already available in the project.
+
+
+A tip: after each prompt runs, check the preview and fix anything odd before moving to the next one — Lovable tends to do better with one feature at a time than a giant combined build.Give me for all these alsoArchitected comprehensive feature prompts across platform sectionsArchitected comprehensive feature prompts across platform sectionsHere are prompts for the remaining features from these notes, grouped logically.
+
+7. Homepage "Verified" Section with 3 CTAs
+
+Add a "Verified" section to the homepage with a heading and three primary call-to-action buttons/cards: "Search Property", "Verify Property", and "List Property". Each CTA should link to its respective page/flow:
+
+"Search Property" → the existing property search/listing page.
+"Verify Property" → a new page where users can submit a property (by ID, address, or link) to request verification, with a form and a "Submit for Verification" button.
+"List Property" → the existing (or new) property listing flow for sellers/builders/brokers.
+Style this section prominently near the top of the homepage, consistent with the existing design system, and make it mobile-responsive.
+
+
+
+8. Verified Badges (Projects, Builders, Brokers) + Legal Verification
+
+Add a "Verified" badge system across the app:
+
+Add a is_verified boolean and verification_type field to the properties/projects, builders, and brokers tables (create these tables if they don't exist).
+Show a green "Verified" checkmark badge on property cards, project pages, builder profiles, and broker profiles when is_verified is true.
+Add a "Legal Verification" section on property/project detail pages showing legal verification status (Verified / Pending / Not Verified) with a short description and the date it was verified.
+Add an admin-only view or table (can be a simple internal page for now) where verification status can be toggled, to simulate the verification workflow.
+
+
+
+9. RERA Status + Market Price Analysis + AI Property Score
+
+Add three new sections to the property detail page:
+
+RERA Status — Show RERA registration number, status (Registered / Pending / Not Registered), and validity date, pulled from a rera_status field on the property.
+Market Price Analysis — Show a comparison of the listed price against the average market price for similar properties in that locality (use mock/placeholder data for now), displayed as a simple chart or price-range indicator (e.g. "Below Market" / "Fair Price" / "Above Market").
+AI Property Score — Show an overall score (e.g. out of 100) as a circular progress/gauge widget, summarizing the property's investment quality, with a one-line AI-generated explanation. Use placeholder logic/mock data for now, structured so it can later be replaced by a real AI scoring call.
+
+
+
+10. Property Details Page — Trust & Risk Panel
+
+Add a "Trust & Risk" panel to the property detail page with the following sub-sections, each as its own card/widget:
+
+Truvi Trust Score — overall score (out of 100) with a gauge/badge visual.
+Legal Risk — risk level indicator (Low / Medium / High) with a short explanation.
+Price Fairness Meter — a horizontal meter/slider showing where the price falls between "Underpriced," "Fair," and "Overpriced."
+Nearby Amenities — list/icons of nearby schools, hospitals, transit, malls, etc. (use map/places data if available, otherwise mock data).
+Flood Risk — risk level (Low / Medium / High) with a short note.
+Crime Index — a score or level (Low / Medium / High) for the locality.
+Future Appreciation — a projected appreciation % over the next 3–5 years, shown as a simple stat or small trend chart.
+Owner History — number of previous owners and years held, shown as a simple timeline or list.
+RERA Details — RERA number, status, and validity (can reuse the RERA Status component from the previous feature).
+Lay these out as a responsive grid of cards below the main property info, using placeholder/mock data wired to real fields where they exist in the database, with TODO comments where an external data source would be needed later.
+
+
+
+11. Ask Truvi AI (Chatbot Integration)
+
+Add an "Ask Truvi AI" feature — a floating chat button (bottom-right corner, visible across the app) labeled "Ask Truvi AI" that opens a chat panel/modal. In the chat panel, let users ask questions about a property, locality, or general buying process, and show streamed AI responses. Give the AI context about the current property when opened from a property detail page (price, location, trust score, RERA status, etc.) so it can answer specific questions like "Is this a good investment?" or "Why is the legal risk medium?". Use a clean chat UI (message bubbles, input box, loading indicator) consistent with the app's design system, and make it mobile-responsive as a bottom sheet on smaller screens.
+
+
+Same advice as before — run these one at a time and check the preview between each, especially #10 and #11 since they touch a lot of UI at once.Give me separateDecomposed complex panels into granular, manageable promptsDecomposed complex panels into granular, manageable promptsHere's #10 and #11 broken into individual prompts — paste one at a time.
+
+10a. Truvi Trust Score
+
+Add a "Truvi Trust Score" widget to the property detail page. Show an overall trust score out of 100 as a circular gauge/progress visual, with a label (e.g. "Excellent" / "Good" / "Fair" / "Poor") based on the score range. Add a trust_score field to the properties table (use mock/placeholder values for now). Add a short one-line explanation below the score.
+
+
+10b. Legal Risk
+
+Add a "Legal Risk" card to the property detail page showing a risk level (Low / Medium / High) with a color-coded badge (green/yellow/red) and a short explanatory note (e.g. "Clear title, no pending litigation"). Add a legal_risk_level field to the properties table, using placeholder data for now.
+
+
+10c. Price Fairness Meter
+
+Add a "Price Fairness Meter" widget to the property detail page — a horizontal slider/meter showing where the listed price falls between "Underpriced," "Fair," and "Overpriced," based on comparison to average locality price. Show the actual listed price and the estimated fair price range below the meter. Use placeholder/mock comparison data for now.
+
+
+10d. Nearby Amenities
+
+Add a "Nearby Amenities" section to the property detail page showing categorized nearby amenities (schools, hospitals, transit/metro, malls, restaurants) as an icon list, each with approximate distance. Use mock data structured as an array of { category, name, distance } for now, laid out so it can later be swapped for real map/places API data.
+
+
+10e. Flood Risk
+
+Add a "Flood Risk" card to the property detail page showing a risk level (Low / Medium / High) with a color-coded badge and a short note about the locality's flood history/risk. Add a flood_risk_level field to the properties table, using placeholder data for now.
+
+
+10f. Crime Index
+
+Add a "Crime Index" card to the property detail page showing a safety score or level (Low / Medium / High risk) for the locality, with a short note. Add a crime_index_level field to the properties table, using placeholder data for now.
+
+
+10g. Future Appreciation
+
+Add a "Future Appreciation" card to the property detail page showing a projected price appreciation percentage over the next 3–5 years, displayed as a stat with a small upward trend line/sparkline chart. Use placeholder/mock projection data for now.
+
+
+10h. Owner History
+
+Add an "Owner History" card to the property detail page showing the number of previous owners and how long the current owner has held the property, displayed as a simple timeline (e.g. Owner 1: 2015–2019, Owner 2: 2019–Present). Use placeholder/mock data for now, structured as an array of { owner_label, start_year, end_year }.
+
+
+10i. RERA Details
+
+Add a "RERA Details" card to the property detail page showing the RERA registration number, current status (Registered / Pending / Not Registered) as a color-coded badge, and validity/expiry date. Add rera_number, rera_status, and rera_validity_date fields to the properties table, using placeholder data for now.
+
+
+11a. Ask Truvi AI — Chat UI
+
+Add a floating "Ask Truvi AI" button fixed to the bottom-right corner of the app, visible on all pages. Clicking it opens a chat panel (modal on desktop, bottom sheet on mobile) with a header "Ask Truvi AI," a scrollable message area with user/AI message bubbles, a text input box, and a send button. Include a loading/typing indicator while waiting for a response. Style it consistently with the app's design system. For now, wire it to a placeholder function that echoes back a mock response — don't connect the real AI yet.
+
+
+11b. Ask Truvi AI — Property Context Integration
+
+Connect the "Ask Truvi AI" chat to a real AI response using the Claude API. When opened from a property detail page, pass the current property's context (price, location, trust score, legal risk, RERA status, price fairness, and other available detail-page data) into the system prompt so the AI can answer specific questions like "Is this a good investment?" or "Why is the legal risk medium?" grounded in that property's data. When opened from any other page, use a general system prompt about helping users with property buying questions. Stream the AI's response into the chat panel as it's generated.
