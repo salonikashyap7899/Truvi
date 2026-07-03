@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { HeartButton } from "@/components/HeartButton";
 import { CompareCheckbox } from "@/components/CompareCheckbox";
 import { CompareBar } from "@/components/CompareBar";
+import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
 import type { Project } from "@/types";
@@ -44,21 +45,19 @@ export default function BuyerProjectsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Browse Properties</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            Tap ♥ to save · tick Compare to compare side-by-side · find saved in{" "}
+            Tap ♥ to save · tick Compare to compare · find saved in{" "}
             <Link to="/buyer/dashboard" className="text-rose-400 hover:underline">
               Saved Properties
             </Link>
             .
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link to="/buyer/dashboard">
-            <Button variant="secondary" size="sm">
-              <Bookmark size={15} className="mr-1.5" />
-              Saved
-            </Button>
-          </Link>
-        </div>
+        <Link to="/buyer/dashboard">
+          <Button variant="secondary" size="sm">
+            <Bookmark size={15} className="mr-1.5" />
+            Saved
+          </Button>
+        </Link>
       </div>
 
       {/* Search */}
@@ -98,78 +97,77 @@ function ProjectCard({
   project: Project;
   onToggle: (id: string, saved: boolean) => void;
 }) {
+  const [modalOpen, setModalOpen] = useState(false);
+
   const devName =
     typeof project.developerId === "object"
       ? (project.developerId as any).name
       : null;
 
-  async function requestSiteVisit() {
-    try {
-      await api.post("/site-visits", {
-        projectId: project._id,
-        scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-        notes: "Buyer requested a site visit via Truvi",
-      });
-      toast.success("Site visit request submitted.");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to request a site visit");
-    }
-  }
-
   return (
-    <div className="relative rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
-      {/* Featured badge + heart */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
-          {project.listingTier === "FEATURED" && (
-            <Badge variant="featured">Featured</Badge>
-          )}
-          <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
-            {project.approvalStatus}
-          </Badge>
+    <>
+      <div className="relative rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
+        {/* Featured badge + heart */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            {project.listingTier === "FEATURED" && (
+              <Badge variant="featured">Featured</Badge>
+            )}
+            <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
+              {project.approvalStatus}
+            </Badge>
+          </div>
+          <HeartButton
+            projectId={project._id}
+            initialSaved={!!project.isSaved}
+            onToggle={onToggle}
+          />
         </div>
-        <HeartButton
+
+        {/* Info */}
+        <div>
+          <h3 className="text-base font-semibold leading-tight">{project.name}</h3>
+          <p className="mt-0.5 text-sm text-neutral-400">
+            {project.location}, {project.city}
+          </p>
+          {devName && (
+            <p className="mt-0.5 text-xs text-neutral-500">by {devName}</p>
+          )}
+        </div>
+
+        <p className="text-sm text-neutral-300 line-clamp-2">{project.description}</p>
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+          {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
+          <span>Commission: {project.commissionPercent}%</span>
+          {project.priceListUrl && <span>Price list available</span>}
+        </div>
+
+        {/* Actions + compare */}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => setModalOpen(true)}>
+              Request Site Visit
+            </Button>
+            {project.brochureUrl && (
+              <a href={project.brochureUrl} target="_blank" rel="noreferrer">
+                <Button size="sm" variant="secondary">
+                  View Brochure
+                </Button>
+              </a>
+            )}
+          </div>
+          <CompareCheckbox projectId={project._id} />
+        </div>
+      </div>
+
+      {modalOpen && (
+        <SiteVisitModal
           projectId={project._id}
-          initialSaved={!!project.isSaved}
-          onToggle={onToggle}
+          projectName={project.name}
+          onClose={() => setModalOpen(false)}
         />
-      </div>
-
-      {/* Info */}
-      <div>
-        <h3 className="text-base font-semibold leading-tight">{project.name}</h3>
-        <p className="mt-0.5 text-sm text-neutral-400">
-          {project.location}, {project.city}
-        </p>
-        {devName && (
-          <p className="mt-0.5 text-xs text-neutral-500">by {devName}</p>
-        )}
-      </div>
-
-      <p className="text-sm text-neutral-300 line-clamp-2">{project.description}</p>
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-        {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
-        <span>Commission: {project.commissionPercent}%</span>
-        {project.priceListUrl && <span>Price list available</span>}
-      </div>
-
-      {/* Actions + compare */}
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={requestSiteVisit}>
-            Request Site Visit
-          </Button>
-          {project.brochureUrl && (
-            <a href={project.brochureUrl} target="_blank" rel="noreferrer">
-              <Button size="sm" variant="secondary">
-                View Brochure
-              </Button>
-            </a>
-          )}
-        </div>
-        <CompareCheckbox projectId={project._id} />
-      </div>
-    </div>
+      )}
+    </>
   );
 }

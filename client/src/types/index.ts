@@ -83,11 +83,14 @@ export interface Lead {
 
 export interface SiteVisit {
   _id: string;
-  leadId: string | { _id: string; clientName: string; clientPhone: string };
+  leadId?: string | { _id: string; clientName: string; clientPhone: string };
   projectId: string | { _id: string; name: string };
-  cpId: string | { _id: string; name: string };
+  cpId?: string | { _id: string; name: string };
+  buyerId?: string | { _id: string; name: string };
   scheduledAt: string;
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  timeSlot?: string;
+  contactNumber?: string;
+  status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
   geoVerifiedLat?: number;
   geoVerifiedLng?: number;
   attendanceConfirmed: boolean;

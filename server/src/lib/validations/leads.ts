@@ -19,6 +19,12 @@ export const createSiteVisitSchema = z.object({
   leadId: z.string().min(1).optional(),
   projectId: z.string().min(1),
   scheduledAt: z.string().min(1),
+  timeSlot: z.string().optional(),
+  contactNumber: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number")
+    .optional()
+    .or(z.literal("")),
   notes: z.string().optional(),
 });
 

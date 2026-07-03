@@ -59,6 +59,8 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
     projectId: parsed.data.projectId,
     buyerId: req.user!.userId,
     scheduledAt: new Date(parsed.data.scheduledAt),
+    timeSlot: parsed.data.timeSlot || undefined,
+    contactNumber: parsed.data.contactNumber || undefined,
     reportNotes: parsed.data.notes || undefined,
   });
 

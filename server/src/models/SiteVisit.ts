@@ -1,6 +1,6 @@
 import { Schema, model, Document, Types } from "mongoose";
 
-export type SiteVisitStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+export type SiteVisitStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 
 export interface ISiteVisit extends Document {
   _id: Types.ObjectId;
@@ -9,6 +9,8 @@ export interface ISiteVisit extends Document {
   cpId?: Types.ObjectId | null;
   buyerId?: Types.ObjectId | null;
   scheduledAt: Date;
+  timeSlot?: string;
+  contactNumber?: string;
   status: SiteVisitStatus;
   geoVerifiedLat?: number;
   geoVerifiedLng?: number;
@@ -23,7 +25,9 @@ const siteVisitSchema = new Schema<ISiteVisit>({
   cpId: { type: Schema.Types.ObjectId, ref: "User", default: null },
   buyerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
   scheduledAt: { type: Date, required: true },
-  status: { type: String, enum: ["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"], default: "SCHEDULED" },
+  timeSlot: { type: String },
+  contactNumber: { type: String },
+  status: { type: String, enum: ["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"], default: "SCHEDULED" },
   geoVerifiedLat: { type: Number },
   geoVerifiedLng: { type: Number },
   attendanceConfirmed: { type: Boolean, default: false },
