@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
+import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -85,12 +86,18 @@ export default function ProjectDetailPage() {
 
   if (!project) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
 
+  const trustScore = project.trustScore ?? mockScoreFromId(project._id);
+
   return (
     <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">{project.name}</h1>
       <p className="mt-1 text-sm text-neutral-400">
         {project.location}, {project.city} · <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>{project.approvalStatus}</Badge>
       </p>
+
+      <div className="mt-6 inline-block">
+        <TrustScoreWidget score={trustScore} />
+      </div>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium">Brochure / price list</h2>

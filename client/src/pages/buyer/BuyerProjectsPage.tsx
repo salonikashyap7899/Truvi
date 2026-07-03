@@ -9,6 +9,7 @@ import { CompareBar } from "@/components/CompareBar";
 import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
+import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import type { Project } from "@/types";
 
 export default function BuyerProjectsPage() {
@@ -142,6 +143,11 @@ function ProjectCard({
           <span>Commission: {project.commissionPercent}%</span>
           {project.priceListUrl && <span>Price list available</span>}
         </div>
+
+        <TrustScoreWidget
+          score={project.trustScore ?? mockScoreFromId(project._id)}
+          compact
+        />
 
         {/* Actions + compare */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">

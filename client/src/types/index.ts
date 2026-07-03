@@ -45,6 +45,7 @@ export interface Project {
   leadCount?: number;
   isSaved?: boolean;
   isCompared?: boolean;
+  trustScore?: number;
 }
 
 export interface PriceHistoryEntry {
