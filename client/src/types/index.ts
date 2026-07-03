@@ -48,6 +48,7 @@ export interface Project {
   trustScore?: number;
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
 }
 
 export interface PriceHistoryEntry {

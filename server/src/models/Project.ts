@@ -20,6 +20,7 @@ export interface IProject extends Document {
   trustScore?: number;
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
   createdAt: Date;
 }
 
@@ -39,6 +40,7 @@ const projectSchema = new Schema<IProject>({
   trustScore: { type: Number, min: 0, max: 100 },
   legalRiskLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
   floodRiskLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
+  crimeIndexLevel: { type: String, enum: ["LOW", "MEDIUM", "HIGH"] },
   createdAt: { type: Date, default: Date.now },
 });
 

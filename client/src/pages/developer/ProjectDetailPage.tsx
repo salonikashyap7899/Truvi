@@ -11,6 +11,8 @@ import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import FloodRiskCard, { mockFloodRiskFromId } from "@/components/FloodRiskCard";
+import CrimeIndexCard, { mockCrimeFromId } from "@/components/CrimeIndexCard";
+import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -93,6 +95,7 @@ export default function ProjectDetailPage() {
   const trustScore = project.trustScore ?? mockScoreFromId(project._id);
   const legalRisk = project.legalRiskLevel ?? mockRiskFromId(project._id);
   const floodRisk = project.floodRiskLevel ?? mockFloodRiskFromId(project._id);
+  const crimeIndex = project.crimeIndexLevel ?? mockCrimeFromId(project._id);
 
   return (
     <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
@@ -109,8 +112,14 @@ export default function ProjectDetailPage() {
         <div className="w-full sm:w-72">
           <FloodRiskCard level={floodRisk} />
         </div>
+        <div className="w-full sm:w-72">
+          <CrimeIndexCard level={crimeIndex} />
+        </div>
         <div className="w-full sm:max-w-lg">
           <PriceFairnessMeter projectId={project._id} />
+        </div>
+        <div className="w-full sm:max-w-lg">
+          <FutureAppreciationCard projectId={project._id} />
         </div>
       </div>
 
