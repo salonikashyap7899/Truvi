@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, Bot, User, Sparkles, ChevronDown } from "lucide-react";
+import { X, Send, Bot, User, Sparkles } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -8,36 +9,20 @@ interface Message {
   ts: number;
 }
 
-const MOCK_RESPONSES: string[] = [
-  "Based on current market trends in this micro-market, I'd recommend reviewing the price per sq. ft. against comparable ready-to-move listings within a 2 km radius.",
-  "RERA registration is mandatory for projects above 500 sq. mt. in most states. A 'Pending' status means the developer has applied but approval is awaited — it's worth verifying the timeline.",
-  "The trust score is computed from four signals: RERA compliance, legal encumbrance status, builder track record, and community reviews. A score above 75 is considered healthy.",
-  "For this price bracket, an appreciation of 6–9% CAGR over 5 years is realistic in a Tier-1 metro, assuming infrastructure development plans proceed on schedule.",
-  "Owner history with frequent changes (3+ owners in under 10 years) can indicate distress sales. I'd suggest requesting the chain of title documents before proceeding.",
-  "Flood risk for this locality is mapped from historical IMD data and NDMA zone classifications. Medium risk typically means waterlogging during peak monsoon — check drainage infrastructure.",
-  "A CP's commission is usually 1.5–3% of the agreement value, paid by the developer. Always confirm it is documented in the Channel Partner Agreement before site visits.",
-  "I'm still learning! For complex legal or financial decisions, please consult a certified real estate attorney or SEBI-registered advisor.",
-];
-
 let msgCounter = 0;
 function uid() {
   return `msg-${Date.now()}-${++msgCounter}`;
 }
 
-function mockReply(userText: string): Promise<string> {
-  const lower = userText.toLowerCase();
-  const match = MOCK_RESPONSES.find((r) => {
-    if (lower.includes("rera")) return r.toLowerCase().includes("rera");
-    if (lower.includes("trust")) return r.toLowerCase().includes("trust score");
-    if (lower.includes("flood")) return r.toLowerCase().includes("flood");
-    if (lower.includes("owner") || lower.includes("history")) return r.toLowerCase().includes("owner");
-    if (lower.includes("appreciat") || lower.includes("cagr")) return r.toLowerCase().includes("appreciation");
-    if (lower.includes("commission") || lower.includes("cp")) return r.toLowerCase().includes("cp");
-    if (lower.includes("price") || lower.includes("value")) return r.toLowerCase().includes("price per");
-    return false;
-  });
-  const reply = match ?? MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)];
-  return new Promise((res) => setTimeout(() => res(reply), 900 + Math.random() * 800));
+async function fetchAIReply(message: string, propertyContext?: Record<string, unknown>): Promise<string> {
+  try {
+    const res = await api.post("/ai/chat", { message, propertyContext });
+    return res.data.reply as string;
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { reply?: string } } };
+    if (axiosErr?.response?.data?.reply) return axiosErr.response.data.reply;
+    return "I'm having trouble connecting right now. Please try again in a moment.";
+  }
 }
 
 function TypingDots() {
@@ -56,7 +41,11 @@ function TypingDots() {
   );
 }
 
-export default function AskTruvi() {
+interface AskTruviProps {
+  propertyContext?: Record<string, unknown>;
+}
+
+export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -87,7 +76,7 @@ export default function AskTruvi() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
     try {
-      const reply = await mockReply(text);
+      const reply = await fetchAIReply(text, propertyContext);
       setMessages((prev) => [...prev, { id: uid(), role: "ai", text: reply, ts: Date.now() }]);
     } finally {
       setLoading(false);
@@ -226,7 +215,7 @@ export default function AskTruvi() {
             </button>
           </div>
           <p className="mt-1.5 text-center text-[10px] text-neutral-700">
-            Placeholder responses · Real AI coming soon
+            Powered by AI · Not a substitute for professional advice
           </p>
         </div>
       </div>

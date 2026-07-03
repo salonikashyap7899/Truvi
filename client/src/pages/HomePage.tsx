@@ -52,6 +52,56 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Feature 7: Verified CTA section */}
+      <section className="px-6 py-16 md:px-16 bg-[#F2ECE4]">
+        <div className="mx-auto max-w-4xl text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+            ✓ Truvi Verified
+          </span>
+          <h2 className="mt-4 font-serif text-3xl font-semibold">Transact with confidence</h2>
+          <p className="mx-auto mt-3 max-w-xl text-[#6b5c4f]">
+            Every project on Truvi is RERA-checked, legally screened, and trust-scored — so you always know what you're buying into.
+          </p>
+          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+            {[
+              {
+                icon: "🔍",
+                title: "Search Property",
+                desc: "Browse verified, RERA-compliant projects with live inventory.",
+                href: "/buyer/projects",
+                cta: "Explore listings",
+              },
+              {
+                icon: "🛡️",
+                title: "Verify Property",
+                desc: "Run a trust and legal check on any property before you commit.",
+                href: "/verify",
+                cta: "Start verification",
+              },
+              {
+                icon: "🏗️",
+                title: "List Property",
+                desc: "List your project with full compliance tools and CP network access.",
+                href: "/join",
+                cta: "List on Truvi",
+              },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl border border-[#e0d4c4] bg-white p-6 text-left hover:shadow-md transition-shadow">
+                <span className="text-3xl">{item.icon}</span>
+                <h3 className="mt-3 font-serif text-lg font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm text-[#6b5c4f]">{item.desc}</p>
+                <Link
+                  to={item.href}
+                  className="mt-4 inline-block rounded-full bg-[#3A2E26] px-4 py-2 text-sm text-white hover:bg-[#2a201a] transition-colors"
+                >
+                  {item.cta} →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="bg-[#3A2E26] px-6 py-16 text-center text-white md:px-16">
         <h2 className="font-serif text-3xl font-semibold">Ready to build on Truvi?</h2>
         <Link to="/join" className="mt-6 inline-block rounded-full bg-white px-6 py-3 text-[#3A2E26] hover:bg-neutral-100">

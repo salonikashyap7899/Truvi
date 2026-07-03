@@ -24,6 +24,8 @@ export interface IProject extends Document {
   reraNumber?: string;
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: Date;
+  isVerified: boolean;
+  verifiedAt?: Date;
   createdAt: Date;
 }
 
@@ -47,6 +49,8 @@ const projectSchema = new Schema<IProject>({
   reraNumber: { type: String },
   reraStatus: { type: String, enum: ["REGISTERED", "PENDING", "NOT_REGISTERED"] },
   reraValidityDate: { type: Date },
+  isVerified: { type: Boolean, default: false },
+  verifiedAt: { type: Date },
   createdAt: { type: Date, default: Date.now },
 });
 

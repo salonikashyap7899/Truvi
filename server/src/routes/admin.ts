@@ -66,6 +66,7 @@ const patchProjectSchema = z.object({
   approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]).optional(),
   listingTier: z.enum(["STANDARD", "FEATURED"]).optional(),
   featuredUntil: z.string().datetime().optional().nullable(),
+  isVerified: z.boolean().optional(),
 });
 
 router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
@@ -77,6 +78,10 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.approvalStatus) update.approvalStatus = data.approvalStatus;
   if (data.listingTier) update.listingTier = data.listingTier;
   if (data.featuredUntil !== undefined) update.featuredUntil = data.featuredUntil ? new Date(data.featuredUntil) : null;
+  if (data.isVerified !== undefined) {
+    update.isVerified = data.isVerified;
+    update.verifiedAt = data.isVerified ? new Date() : null;
+  }
 
   const project = await Project.findByIdAndUpdate(projectId, update, { new: true });
   if (!project) return res.status(404).json({ error: "Project not found" });

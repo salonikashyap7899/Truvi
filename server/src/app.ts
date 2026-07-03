@@ -23,6 +23,7 @@ import leaderboardRoutes from "./routes/leaderboard";
 import documentRoutes from "./routes/documents";
 import investmentRoutes from "./routes/investments";
 import loanCheckRoutes from "./routes/loanChecks";
+import aiChatRoutes from "./routes/aiChat";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -66,6 +67,7 @@ export function createApp() {
   app.use("/api/documents", documentRoutes);
   app.use("/api/investments", investmentRoutes);
   app.use("/api/loan-checks", loanCheckRoutes);
+  app.use("/api/ai/chat", aiChatRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));

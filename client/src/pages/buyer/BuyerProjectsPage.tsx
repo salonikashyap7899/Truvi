@@ -119,6 +119,11 @@ function ProjectCard({
             <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
               {project.approvalStatus}
             </Badge>
+            {project.isVerified && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-400 border border-green-800">
+                ✓ Verified
+              </span>
+            )}
           </div>
           <HeartButton
             projectId={project._id}

@@ -52,6 +52,8 @@ export interface Project {
   reraNumber?: string;
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: string;
+  isVerified?: boolean;
+  verifiedAt?: string;
 }
 
 export interface PriceHistoryEntry {
