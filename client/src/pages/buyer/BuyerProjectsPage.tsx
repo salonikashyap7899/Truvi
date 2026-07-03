@@ -4,87 +4,90 @@ import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { HeartButton } from "@/components/HeartButton";
-import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { PlusCircle } from "lucide-react";
+import { Bookmark, Search } from "lucide-react";
 import type { Project } from "@/types";
 
-export default function BuyerDashboardPage() {
-  const user = useAuthStore((s) => s.user);
-  const [savedProjects, setSavedProjects] = useState<Project[]>([]);
+export default function BuyerProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function loadSavedProjects() {
-    setLoading(true);
-    try {
-      const res = await api.get("/buyer/dashboard");
-      // Mark all dashboard results as saved (they are by definition)
-      setSavedProjects(
-        (res.data.savedProjects || []).map((p: Project) => ({ ...p, isSaved: true }))
-      );
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to load saved projects");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    loadSavedProjects();
+    api
+      .get("/buyer/projects")
+      .then((res) => setProjects(res.data.projects))
+      .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load projects"))
+      .finally(() => setLoading(false));
   }, []);
 
   function handleToggle(projectId: string, saved: boolean) {
-    if (!saved) {
-      // Remove from list immediately when unsaved
-      setSavedProjects((prev) => prev.filter((p) => p._id !== projectId));
-    }
+    setProjects((prev) =>
+      prev.map((p) => (p._id === projectId ? { ...p, isSaved: saved } : p))
+    );
   }
+
+  const filtered = projects.filter(
+    (p) =>
+      search === "" ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.city.toLowerCase().includes(search.toLowerCase()) ||
+      p.location.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Saved Properties</h1>
+          <h1 className="text-2xl font-semibold">Browse Properties</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            {user?.name ? `${user.name}'s` : "Your"} shortlist — tap the heart to remove, or{" "}
-            <Link to="/buyer/projects" className="text-rose-400 hover:underline">
-              browse more properties
+            Tap the heart to save a property. Find it later in{" "}
+            <Link to="/buyer/dashboard" className="text-rose-400 hover:underline">
+              Saved Properties
             </Link>
             .
           </p>
         </div>
-        <Link to="/buyer/projects">
-          <Button size="sm">
-            <PlusCircle size={15} className="mr-1.5" />
-            Browse Properties
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/buyer/dashboard">
+            <Button variant="secondary" size="sm">
+              <Bookmark size={15} className="mr-1.5" />
+              Saved
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Content */}
-      <section className="mt-8">
-        {loading ? (
-          <p className="text-sm text-neutral-500">Loading saved properties…</p>
-        ) : savedProjects.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {savedProjects.map((project) => (
-              <SavedProjectCard
-                key={project._id}
-                project={project}
-                onToggle={handleToggle}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Search */}
+      <div className="relative mt-6 max-w-sm">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+        <input
+          type="text"
+          placeholder="Search by name, city or area…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-9 w-full rounded-lg border border-neutral-700 bg-[#121A2B] pl-9 pr-3 text-sm text-white placeholder:text-neutral-500 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
+
+      {/* Grid */}
+      {loading ? (
+        <p className="mt-10 text-sm text-neutral-500">Loading properties…</p>
+      ) : filtered.length === 0 ? (
+        <p className="mt-10 text-sm text-neutral-500">No properties found.</p>
+      ) : (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((project) => (
+            <ProjectCard key={project._id} project={project} onToggle={handleToggle} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
 
-function SavedProjectCard({
+function ProjectCard({
   project,
   onToggle,
 }: {
@@ -103,7 +106,7 @@ function SavedProjectCard({
         scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
         notes: "Buyer requested a site visit via Truvi",
       });
-      toast.success("Site visit request submitted. The channel partner will follow up soon.");
+      toast.success("Site visit request submitted.");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to request a site visit");
     }
@@ -111,7 +114,7 @@ function SavedProjectCard({
 
   return (
     <div className="relative rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
-      {/* Badges + heart */}
+      {/* Featured badge + heart */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           {project.listingTier === "FEATURED" && (
@@ -121,10 +124,9 @@ function SavedProjectCard({
             {project.approvalStatus}
           </Badge>
         </div>
-        {/* Heart is always filled here (these are saved). Clicking removes from list. */}
         <HeartButton
           projectId={project._id}
-          initialSaved={true}
+          initialSaved={!!project.isSaved}
           onToggle={onToggle}
         />
       </div>
@@ -161,21 +163,6 @@ function SavedProjectCard({
           </a>
         )}
       </div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-[#121A2B] py-16 text-center">
-      <span className="text-4xl">🏠</span>
-      <p className="mt-4 text-base font-medium text-neutral-300">No saved properties yet</p>
-      <p className="mt-1 text-sm text-neutral-500">
-        Browse properties and tap the heart icon to save ones you love.
-      </p>
-      <Link to="/buyer/projects" className="mt-5">
-        <Button size="sm">Browse Properties</Button>
-      </Link>
     </div>
   );
 }

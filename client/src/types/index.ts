@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "DEVELOPER" | "CP";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";

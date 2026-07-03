@@ -56,7 +56,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   res.json({ projects: enriched });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: AuthedRequest, res) => {
   const project = await Project.findById(req.params.id).populate("developerId", "name developerProfile");
   if (!project) return res.status(404).json({ error: "Project not found" });
   const userRole = req.user?.role;

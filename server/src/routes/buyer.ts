@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import mongoose from "mongoose";
 import { User } from "../models/User";
 import { Project } from "../models/Project";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -25,6 +26,15 @@ router.post("/save", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const parsed = saveProjectSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
+  if (!mongoose.isValidObjectId(parsed.data.projectId)) {
+    return res.status(400).json({ error: "Invalid projectId" });
+  }
+
+  const project = await Project.findById(parsed.data.projectId).lean();
+  if (!project || project.approvalStatus !== "APPROVED") {
+    return res.status(404).json({ error: "Project not found or not available" });
+  }
+
   const user = await User.findById(req.user!.userId);
   if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -35,6 +45,46 @@ router.post("/save", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   await user.save();
 
   res.json({ savedProjectIds: user.buyerProfile.savedProjectIds });
+});
+
+router.delete("/save/:projectId", requireRole("BUYER"), async (req: AuthedRequest, res) => {
+  const { projectId } = req.params;
+  if (!mongoose.isValidObjectId(projectId)) {
+    return res.status(400).json({ error: "Invalid projectId" });
+  }
+
+  const user = await User.findById(req.user!.userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  user.buyerProfile = user.buyerProfile || { savedProjectIds: [], compareProjectIds: [] };
+  user.buyerProfile.savedProjectIds = user.buyerProfile.savedProjectIds.filter(
+    (id) => String(id) !== projectId
+  );
+  await user.save();
+
+  res.json({ savedProjectIds: user.buyerProfile.savedProjectIds });
+});
+
+// Returns all APPROVED projects with an `isSaved` flag for the heart icon state
+router.get("/projects", requireRole("BUYER"), async (req: AuthedRequest, res) => {
+  const user = await User.findById(req.user!.userId).lean();
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const savedSet = new Set(
+    (user.buyerProfile?.savedProjectIds || []).map((id) => String(id))
+  );
+
+  const projects = await Project.find({ approvalStatus: "APPROVED" })
+    .populate("developerId", "name developerProfile")
+    .sort({ listingTier: -1, createdAt: -1 })
+    .lean();
+
+  const result = projects.map((p) => ({
+    ...p,
+    isSaved: savedSet.has(String(p._id)),
+  }));
+
+  res.json({ projects: result });
 });
 
 router.post("/compare", requireRole("BUYER"), async (req: AuthedRequest, res) => {
