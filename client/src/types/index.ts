@@ -122,6 +122,31 @@ export interface Commission {
   createdAt: string;
 }
 
+export type SharedDocFileType = "BROCHURE" | "FLOOR_PLAN" | "PRICE_LIST" | "LEGAL" | "OTHER";
+export type BuyerDocType = "ID_PROOF" | "ADDRESS_PROOF" | "INCOME_PROOF";
+export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED";
+
+export interface SharedDocument {
+  _id: string;
+  projectId: string | { _id: string; name: string };
+  uploadedById?: string | { _id: string; name: string };
+  fileName: string;
+  fileUrl: string;
+  fileType: SharedDocFileType;
+  description?: string;
+  createdAt: string | null;
+}
+
+export interface BuyerDocument {
+  _id: string;
+  buyerId: string;
+  docType: BuyerDocType;
+  fileName: string;
+  fileUrl: string;
+  status: BuyerDocStatus;
+  createdAt: string;
+}
+
 export interface Notification {
   _id: string;
   userId: string;

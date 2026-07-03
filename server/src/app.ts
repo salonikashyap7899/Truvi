@@ -20,6 +20,7 @@ import uploadRoutes from "./routes/uploads";
 import revenueRoutes from "./routes/revenue";
 import notificationRoutes from "./routes/notifications";
 import leaderboardRoutes from "./routes/leaderboard";
+import documentRoutes from "./routes/documents";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -60,6 +61,7 @@ export function createApp() {
   app.use("/api/revenue", revenueRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/leaderboard", leaderboardRoutes);
+  app.use("/api/documents", documentRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));
