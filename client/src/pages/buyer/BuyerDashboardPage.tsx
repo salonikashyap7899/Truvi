@@ -21,6 +21,10 @@ import {
   Pencil,
   Trash2,
   X,
+  Calculator,
+  Save,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -36,7 +40,18 @@ import type { Project, SiteVisit, SharedDocument, BuyerDocument } from "@/types"
 
 // ─── types & constants ────────────────────────────────────────────────────────
 
-type Tab = "saved" | "visits" | "documents" | "investments";
+type Tab = "saved" | "visits" | "documents" | "investments" | "loan";
+
+interface LoanCheck {
+  _id: string;
+  income: number;
+  obligations: number;
+  tenure: number;
+  interestRate: number;
+  eligibleAmount: number;
+  estimatedEmi: number;
+  createdAt: string;
+}
 
 interface Investment {
   _id: string;
@@ -104,6 +119,11 @@ export default function BuyerDashboardPage() {
   const [investmentsLoading, setInvestmentsLoading] = useState(false);
   const [investmentsFetched, setInvestmentsFetched] = useState(false);
 
+  // Loan checks
+  const [loanChecks, setLoanChecks] = useState<LoanCheck[]>([]);
+  const [loanChecksLoading, setLoanChecksLoading] = useState(false);
+  const [loanChecksFetched, setLoanChecksFetched] = useState(false);
+
   // Load saved properties on mount
   useEffect(() => {
     api
@@ -155,6 +175,17 @@ export default function BuyerDashboardPage() {
       .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load investments"))
       .finally(() => setInvestmentsLoading(false));
   }, [tab, investmentsFetched]);
+
+  // Lazy-load loan checks
+  useEffect(() => {
+    if (tab !== "loan" || loanChecksFetched) return;
+    setLoanChecksLoading(true);
+    api
+      .get("/loan-checks")
+      .then((res) => { setLoanChecks(res.data.checks || []); setLoanChecksFetched(true); })
+      .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load loan history"))
+      .finally(() => setLoanChecksLoading(false));
+  }, [tab, loanChecksFetched]);
 
   function handleUnsave(projectId: string, saved: boolean) {
     if (!saved) setSavedProjects((prev) => prev.filter((p) => p._id !== projectId));
@@ -224,6 +255,11 @@ export default function BuyerDashboardPage() {
             </span>
           )}
         </TabButton>
+
+        <TabButton active={tab === "loan"} onClick={() => setTab("loan")}>
+          <Calculator size={14} className="mr-1.5" />
+          Loan Calculator
+        </TabButton>
       </div>
 
       {/* Tab content */}
@@ -256,6 +292,14 @@ export default function BuyerDashboardPage() {
             investments={investments}
             loading={investmentsLoading}
             onUpdate={setInvestments}
+          />
+        )}
+        {tab === "loan" && (
+          <LoanCalculatorTab
+            checks={loanChecks}
+            loading={loanChecksLoading}
+            onSave={(check) => setLoanChecks((prev) => [check, ...prev])}
+            onDelete={(id) => setLoanChecks((prev) => prev.filter((c) => c._id !== id))}
           />
         )}
       </section>
@@ -1040,6 +1084,285 @@ function InvestmentCard({
             <p className="text-[10px] text-neutral-600">{months} month{months !== 1 ? "s" : ""} ago</p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Loan Eligibility Calculator tab ─────────────────────────────────────────
+
+const DEFAULT_RATE = 8.5;
+const MAX_EMI_RATIO = 0.5; // up to 50% of net income can go to EMI
+
+function calcLoanEligibility(income: number, obligations: number, tenure: number, rate: number) {
+  const netIncome = income - obligations;
+  const maxEmi = Math.max(netIncome * MAX_EMI_RATIO, 0);
+  const r = rate / 12 / 100;
+  const n = tenure * 12;
+  // Principal P = EMI × [(1 - (1+r)^-n) / r]
+  const eligibleAmount = r > 0 ? maxEmi * ((1 - Math.pow(1 + r, -n)) / r) : maxEmi * n;
+  // Confirm EMI back-calculated from eligible amount
+  const estimatedEmi =
+    r > 0
+      ? (eligibleAmount * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1)
+      : eligibleAmount / n;
+  return {
+    maxEmi,
+    eligibleAmount: Math.round(eligibleAmount),
+    estimatedEmi: Math.round(estimatedEmi),
+  };
+}
+
+function LoanCalculatorTab({
+  checks,
+  loading,
+  onSave,
+  onDelete,
+}: {
+  checks: LoanCheck[];
+  loading: boolean;
+  onSave: (check: LoanCheck) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [form, setForm] = useState({
+    income: "",
+    obligations: "",
+    tenure: "20",
+    interestRate: String(DEFAULT_RATE),
+  });
+  const [result, setResult] = useState<{
+    maxEmi: number;
+    eligibleAmount: number;
+    estimatedEmi: number;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
+
+  function handleCalculate(e: React.FormEvent) {
+    e.preventDefault();
+    const income = Number(form.income);
+    const obligations = Number(form.obligations);
+    const tenure = Number(form.tenure);
+    const rate = Number(form.interestRate);
+    if (!income || income <= 0) { toast.error("Enter a valid monthly income"); return; }
+    if (obligations < 0) { toast.error("Obligations cannot be negative"); return; }
+    if (obligations >= income) { toast.error("Obligations exceed income — no eligibility"); return; }
+    setResult(calcLoanEligibility(income, obligations, tenure, rate));
+  }
+
+  async function handleSave() {
+    if (!result) return;
+    setSaving(true);
+    try {
+      const res = await api.post("/loan-checks", {
+        income: Number(form.income),
+        obligations: Number(form.obligations),
+        tenure: Number(form.tenure),
+        interestRate: Number(form.interestRate),
+        eligibleAmount: result.eligibleAmount,
+        estimatedEmi: result.estimatedEmi,
+      });
+      onSave(res.data.check);
+      toast.success("Calculation saved");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not save calculation");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await api.delete(`/loan-checks/${id}`);
+      onDelete(id);
+      toast.success("Removed");
+    } catch {
+      toast.error("Could not remove");
+    }
+  }
+
+  return (
+    <div className="space-y-8 max-w-3xl">
+      {/* ── Calculator form ─────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Calculator size={16} className="text-blue-400" />
+          <h2 className="text-base font-semibold">Loan Eligibility Calculator</h2>
+        </div>
+
+        <form onSubmit={handleCalculate} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Monthly Income (₹) <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                placeholder="100000"
+                value={form.income}
+                onChange={(e) => { setForm((f) => ({ ...f, income: e.target.value })); setResult(null); }}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Existing Monthly EMIs / Obligations (₹)
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                placeholder="0"
+                value={form.obligations}
+                onChange={(e) => { setForm((f) => ({ ...f, obligations: e.target.value })); setResult(null); }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Loan Tenure (years) <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                value={form.tenure}
+                onChange={(e) => { setForm((f) => ({ ...f, tenure: e.target.value })); setResult(null); }}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">
+                Interest Rate (% p.a.) <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                min={0.1}
+                max={30}
+                step={0.05}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                value={form.interestRate}
+                onChange={(e) => { setForm((f) => ({ ...f, interestRate: e.target.value })); setResult(null); }}
+                required
+              />
+              <p className="mt-0.5 text-[10px] text-neutral-600">Typical home loan rate: 8–9% p.a.</p>
+            </div>
+          </div>
+
+          <Button type="submit" size="sm">
+            <Calculator size={14} className="mr-1.5" />
+            Calculate Eligibility
+          </Button>
+        </form>
+
+        {/* ── Result card ─────────────────────────────────────────────── */}
+        {result && (
+          <div className="mt-6 rounded-xl border border-blue-500/30 bg-blue-500/5 p-5 space-y-4">
+            <p className="text-xs font-medium text-blue-400 uppercase tracking-wider">Your Eligibility</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white">{formatINR(result.eligibleAmount)}</p>
+                <p className="mt-0.5 text-xs text-neutral-400">Eligible Loan Amount</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white">{formatINR(result.estimatedEmi)}</p>
+                <p className="mt-0.5 text-xs text-neutral-400">Estimated Monthly EMI</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white">{formatINR(result.maxEmi)}</p>
+                <p className="mt-0.5 text-xs text-neutral-400">Max Eligible EMI</p>
+              </div>
+            </div>
+
+            {/* Breakdown */}
+            <div className="border-t border-neutral-800 pt-3 grid grid-cols-2 gap-2 text-xs text-neutral-400">
+              <div>Monthly income: <span className="text-white">{formatINR(Number(form.income))}</span></div>
+              <div>Existing obligations: <span className="text-white">{formatINR(Number(form.obligations) || 0)}</span></div>
+              <div>Tenure: <span className="text-white">{form.tenure} years ({Number(form.tenure) * 12} EMIs)</span></div>
+              <div>Interest rate: <span className="text-white">{form.interestRate}% p.a.</span></div>
+            </div>
+
+            <p className="text-[10px] text-neutral-600">
+              * Based on max 50% of net income (after existing obligations) going towards EMI. Final eligibility may vary by lender.
+            </p>
+
+            <Button size="sm" variant="secondary" onClick={handleSave} disabled={saving}>
+              <Save size={13} className="mr-1.5" />
+              {saving ? "Saving…" : "Save this calculation"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Saved history ────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+        <button
+          className="flex w-full items-center justify-between"
+          onClick={() => setHistoryOpen((o) => !o)}
+        >
+          <div className="flex items-center gap-2">
+            <Save size={14} className="text-neutral-400" />
+            <span className="text-sm font-semibold">Saved Calculations</span>
+            {checks.length > 0 && (
+              <span className="rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+                {checks.length}
+              </span>
+            )}
+          </div>
+          {historyOpen ? <ChevronUp size={14} className="text-neutral-500" /> : <ChevronDown size={14} className="text-neutral-500" />}
+        </button>
+
+        {historyOpen && (
+          <div className="mt-4">
+            {loading ? (
+              <p className="text-sm text-neutral-500">Loading…</p>
+            ) : checks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-neutral-800 py-8 text-center">
+                <p className="text-sm text-neutral-500">No saved calculations yet.</p>
+                <p className="text-xs text-neutral-600 mt-1">Run a calculation above and click "Save".</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {checks.map((c) => {
+                  const date = (() => { try { return format(new Date(c.createdAt), "dd MMM yyyy, h:mm a"); } catch { return "—"; } })();
+                  return (
+                    <div
+                      key={c._id}
+                      className="rounded-xl border border-neutral-800 bg-[#0f1624] p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="space-y-1 text-xs">
+                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-neutral-400">
+                          <span>Income: <span className="text-white">{formatINR(c.income)}</span></span>
+                          <span>Obligations: <span className="text-white">{formatINR(c.obligations)}</span></span>
+                          <span>Tenure: <span className="text-white">{c.tenure}y</span></span>
+                          <span>Rate: <span className="text-white">{c.interestRate}%</span></span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                          <span className="font-semibold text-white">
+                            Eligible: {formatINR(c.eligibleAmount)}
+                          </span>
+                          <span className="text-neutral-400">
+                            EMI: {formatINR(c.estimatedEmi)}/mo
+                          </span>
+                        </div>
+                        <p className="text-neutral-600">{date}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(c._id)}
+                        className="self-start sm:self-center shrink-0 rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-red-400 transition-colors"
+                        aria-label="Delete"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
