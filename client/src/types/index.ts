@@ -47,6 +47,7 @@ export interface Project {
   isCompared?: boolean;
   trustScore?: number;
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
 }
 
 export interface PriceHistoryEntry {
