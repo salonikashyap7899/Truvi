@@ -293,6 +293,13 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
     if (open) setTimeout(() => inputRef.current?.focus(), 150);
   }, [open]);
 
+  // Landing page CTAs (and any other component) can open the assistant
+  useEffect(() => {
+    const openHandler = () => setOpen(true);
+    window.addEventListener("open-ask-truvi", openHandler);
+    return () => window.removeEventListener("open-ask-truvi", openHandler);
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));

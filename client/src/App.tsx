@@ -19,6 +19,7 @@ import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import PendingApprovalPage from "@/pages/PendingApprovalPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
+import LegalPage from "@/pages/LegalPage";
 
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import AdminListingsPage from "@/pages/admin/AdminListingsPage";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/legal" element={<LegalPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/pending-approval" element={<PendingApprovalPage />} />
