@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
 
+import LandingPage from "@/pages/LandingPage";
 import HomePage from "@/pages/HomePage";
 import JoinPage from "@/pages/JoinPage";
 import AboutPage from "@/pages/AboutPage";
@@ -37,7 +38,8 @@ export default function App() {
       <AISalesCopilot />
       <Routes>
         {/* Public marketing pages */}
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/home" element={<HomePage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/login" element={<LoginPage />} />
