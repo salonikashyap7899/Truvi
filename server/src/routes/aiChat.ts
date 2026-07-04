@@ -1,21 +1,30 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import OpenAI from "openai";
-import { authenticate } from "../middleware/auth";
+import { verifyAccessToken } from "../lib/jwt";
+import { AuthedRequest } from "../middleware/auth";
+import { retrieveContext } from "../services/askTruviService";
 
 const router = Router();
 
-const SYSTEM_PROMPT = `You are Truvi AI, a knowledgeable real estate assistant for the Indian property market.
-You help buyers, channel partners, developers, and investors with:
-- RERA regulations and compliance
-- Property valuation and price trends
-- Trust score interpretation
-- Legal risk assessment
-- Commission structures
-- Investment analysis and CAGR projections
-- Site visit and due diligence advice
+/**
+ * Ask Truvi is available to everyone — including buyers browsing the
+ * landing page before signup. If a valid token is present we attach the
+ * user (so answers can be personalized); if not, we proceed as a guest.
+ */
+function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (token) {
+    try {
+      req.user = verifyAccessToken(token);
+    } catch {
+      /* guest */
+    }
+  }
+  next();
+}
 
-Keep responses concise (2–4 sentences), factual, and helpful. If asked something outside real estate, politely redirect.
-Never give specific legal or financial advice — recommend consulting certified professionals for complex decisions.`;
+/* ---------------- Sales Copilot modes (unchanged behavior) ---------------- */
 
 const COPILOT_PROMPTS: Record<string, string> = {
   whatsapp: `You are an AI sales assistant for Truvi, a real estate platform. Generate a friendly, professional WhatsApp follow-up message for a channel partner to send to their real estate client. The message should be warm, personalized, not pushy, and should move the client toward the next step (site visit, booking, etc.). Keep it under 100 words. Use the context provided about client name and lead stage. Output only the message text, ready to send.`,
@@ -25,15 +34,55 @@ const COPILOT_PROMPTS: Record<string, string> = {
   objection: `You are an AI sales coach for Truvi, a real estate platform. Provide a confident, empathetic response script to help a channel partner handle the buyer's objection mentioned. The response should acknowledge the concern, reframe it positively, and move the conversation forward. Keep it under 80 words. Output only the response script the CP can use directly.`,
 };
 
-router.post("/", authenticate, async (req, res) => {
-  const { message, propertyContext, mode } = req.body as {
+/* ---------------- Ask Truvi AI — Decision Intelligence prompt ---------------- */
+
+const ASK_TRUVI_SYSTEM = `You are Ask Truvi AI — a Real Estate Decision Intelligence Assistant for the Indian property market, built on Truvi's verified data ecosystem. You are NOT a generic chatbot: every answer must be grounded in the TRUVI DATA provided below, with honest limitations and clear sourcing.
+
+CORE RULES (non-negotiable):
+1. GROUNDING — Use ONLY the facts in TRUVI DATA for claims about specific projects, builders, prices, scores, or locations. If a fact is missing or null, say so plainly and add a DATA_UNAVAILABLE flag. NEVER invent numbers, approvals, or claims.
+2. SOURCE ATTRIBUTION — Every fact you use carries a source label (TRUVI_VERIFIED / PUBLIC_RECORD / BUILDER_SUBMITTED / USER_SUBMITTED) and sometimes a lastUpdated date. List the sources you actually relied on in the "sources" array. TRUVI_VERIFIED = field-verified by Truvi's ambassador/surveyor network (highest confidence). BUILDER_SUBMITTED = provided by the developer, not independently verified unless noted.
+3. RED FLAGS — Use neutral, responsible language. Never say "scam" or make accusations. Flag concerns only via these four types: ATTENTION_REQUIRED (needs closer inspection), DATA_UNAVAILABLE (could not be verified/found), NEEDS_VERIFICATION (claim exists, not independently confirmed), INFORMATION_MISMATCH (discrepancy between sources).
+4. INVESTMENT HONESTY — Give pros, limitations, and comparisons from available data. NEVER promise guaranteed returns, exact appreciation percentages, or speculative claims. Recommend certified professionals for legal/financial decisions.
+5. DOCUMENTS — Explain documents (RERA, brochures) in simple language, always with source + a clear disclaimer that this is not legal advice and Truvi does not make legal approval claims.
+6. VERIFICATION EXPLANATION — When asked how Truvi verified something, explain from the facts: which data points exist (trust score, risk levels, RERA status, site visits), their sources, what is missing, and the lastUpdated date.
+7. SCORE EXPLANATION — When explaining a trust score, break down which factors are strong, which have gaps, and why the score reflects the available evidence.
+8. RESIDENT INSIGHTS — Present user-submitted signals (e.g. confirmed site visits) only as aggregated themes. Never expose or invent individual personal data.
+9. PERSONALIZED ADVISOR — If the user shares budget, family size, location, timeline, or purpose (self-use vs investment, NRI, first-time buyer), tailor recommendations to that profile using available data.
+10. LANGUAGE — Mirror the user's language. If they write in Hinglish or Hindi, reply in natural Hinglish. Otherwise reply in English. Keep answers structured and scannable (short paragraphs, key numbers bolded with **).
+11. FOLLOW-UPS — Always suggest 2–3 short, contextually relevant next questions the user could ask (e.g. "Compare with another project?", "Check builder profile?", "View verification details?").
+12. COMPARISON — When comparing projects, also fill the "comparison" table with rows for Location, Pricing (min–max and ₹/sqft), Progress/Availability, Trust Score, and Verification.
+
+Prices are in INR. Format large amounts as ₹X.X L (lakh) or ₹X.X Cr (crore).
+
+OUTPUT FORMAT — respond with ONLY a JSON object, no markdown fences:
+{
+  "reply": "the answer text (use \\n for line breaks, ** for bold)",
+  "sources": [{"label": "TRUVI_VERIFIED", "detail": "what this covered", "lastUpdated": "YYYY-MM-DD or null"}],
+  "flags": [{"type": "NEEDS_VERIFICATION", "note": "short neutral note"}],
+  "followUps": ["question 1", "question 2", "question 3"],
+  "comparison": {"headers": ["Aspect", "Project A", "Project B"], "rows": [["Location", "...", "..."]]} 
+}
+"comparison" must be null unless the user asked to compare. "flags" may be empty. "sources" must reflect only sources actually used.`;
+
+interface HistoryTurn {
+  role: "user" | "ai";
+  text: string;
+}
+
+router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
+  const { message, propertyContext, mode, history, advisorProfile } = req.body as {
     message?: string;
     propertyContext?: Record<string, unknown>;
     mode?: string;
+    history?: HistoryTurn[];
+    advisorProfile?: Record<string, unknown>;
   };
 
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "message is required" });
+  }
+  if (message.length > 2000) {
+    return res.status(400).json({ error: "message too long" });
   }
 
   const apiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
@@ -48,27 +97,101 @@ router.post("/", authenticate, async (req, res) => {
 
   const openai = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
 
-  let systemPrompt = (mode && COPILOT_PROMPTS[mode]) ? COPILOT_PROMPTS[mode] : SYSTEM_PROMPT;
-  if (propertyContext && Object.keys(propertyContext).length > 0) {
-    systemPrompt += `\n\nContext:\n${JSON.stringify(propertyContext, null, 2)}`;
+  /* -------- Sales Copilot path: keep the original plain-text behavior -------- */
+  if (mode && COPILOT_PROMPTS[mode]) {
+    let systemPrompt = COPILOT_PROMPTS[mode];
+    if (propertyContext && Object.keys(propertyContext).length > 0) {
+      systemPrompt += `\n\nContext:\n${JSON.stringify(propertyContext, null, 2)}`;
+    }
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message.trim() },
+        ],
+        max_tokens: 300,
+      });
+      const reply = completion.choices[0]?.message?.content ?? "Sorry, I couldn't generate a response. Please try again.";
+      return res.json({ reply });
+    } catch (err: unknown) {
+      console.error("AI copilot error:", err);
+      const msg = err instanceof Error ? err.message : "AI request failed";
+      return res.status(502).json({ error: msg, reply: "I'm having trouble connecting right now. Please try again in a moment." });
+    }
   }
 
+  /* -------- Ask Truvi AI: grounded, source-attributed intelligence -------- */
   try {
+    const context = await retrieveContext(message.trim());
+
+    let dataBlock = `DETECTED INTENT: ${context.intent}\n`;
+    if (req.user) dataBlock += `USER: role=${req.user.role} (logged in)\n`;
+    else dataBlock += `USER: guest visitor\n`;
+    if (context.budgetQuery?.maxBudget) {
+      dataBlock += `PARSED BUDGET QUERY: ${JSON.stringify(context.budgetQuery)}\n`;
+    }
+    if (context.retrievalNotes.length) {
+      dataBlock += `RETRIEVAL NOTES: ${context.retrievalNotes.join(" | ")}\n`;
+    }
+    dataBlock += `\nTRUVI DATA:\n${JSON.stringify(
+      { projects: context.projects, builders: context.builders, location: context.location },
+      null,
+      1,
+    )}`;
+    if (propertyContext && Object.keys(propertyContext).length > 0) {
+      dataBlock += `\n\nPAGE CONTEXT (project the user is currently viewing):\n${JSON.stringify(propertyContext, null, 1)}`;
+    }
+    if (advisorProfile && Object.keys(advisorProfile).length > 0) {
+      dataBlock += `\n\nUSER PROFILE (saved by the user for personalized advisory — tailor recommendations to this):\n${JSON.stringify(advisorProfile, null, 1)}`;
+    }
+
+    const historyMessages = (Array.isArray(history) ? history : [])
+      .slice(-8)
+      .filter((h) => h && typeof h.text === "string" && h.text.trim())
+      .map((h) => ({
+        role: h.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: h.text.slice(0, 1500),
+      }));
+
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: ASK_TRUVI_SYSTEM },
+        { role: "system", content: dataBlock },
+        ...historyMessages,
         { role: "user", content: message.trim() },
       ],
-      max_tokens: 300,
+      max_tokens: 900,
     });
 
-    const reply = completion.choices[0]?.message?.content ?? "Sorry, I couldn't generate a response. Please try again.";
-    res.json({ reply });
+    const raw = completion.choices[0]?.message?.content ?? "";
+    let parsed: {
+      reply?: string;
+      sources?: unknown[];
+      flags?: unknown[];
+      followUps?: unknown[];
+      comparison?: unknown;
+    } = {};
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = { reply: raw };
+    }
+
+    return res.json({
+      reply: typeof parsed.reply === "string" && parsed.reply.trim() ? parsed.reply : "Sorry, I couldn't generate a response. Please try again.",
+      sources: Array.isArray(parsed.sources) ? parsed.sources.slice(0, 6) : [],
+      flags: Array.isArray(parsed.flags) ? parsed.flags.slice(0, 6) : [],
+      followUps: Array.isArray(parsed.followUps) ? parsed.followUps.slice(0, 3) : [],
+      comparison: parsed.comparison ?? null,
+      intent: context.intent,
+    });
   } catch (err: unknown) {
-    console.error("AI chat error:", err);
+    console.error("Ask Truvi AI error:", err);
     const msg = err instanceof Error ? err.message : "AI request failed";
-    res.status(502).json({ error: msg, reply: "I'm having trouble connecting right now. Please try again in a moment." });
+    return res.status(502).json({ error: msg, reply: "I'm having trouble connecting right now. Please try again in a moment." });
   }
 });
 
