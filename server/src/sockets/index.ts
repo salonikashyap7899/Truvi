@@ -57,3 +57,7 @@ export function emitNotification(userId: string, notification: unknown) {
 export function emitCommissionUpdate(cpId: string, commission: unknown) {
   getIO().to(`user:${cpId}`).emit("commission:update", commission);
 }
+
+export function emitToRole(role: string, event: string, data: unknown) {
+  getIO().to(`role:${role}`).emit(event, data);
+}

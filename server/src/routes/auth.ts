@@ -1,9 +1,11 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { User } from "../models/User";
+import { Notification } from "../models/Notification";
 import { signupSchema, loginSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
+import { emitNotification, emitToRole } from "../sockets";
 
 const router = Router();
 
@@ -48,6 +50,30 @@ router.post("/signup", async (req, res) => {
     ...(role === "CP" ? { cpProfile: { isPremium: false, conversionRatio: 0, totalBookings: 0 } } : {}),
     ...(role === "BUYER" ? { buyerProfile: { savedProjectIds: [], compareProjectIds: [] } } : {}),
   });
+
+  // Notify all admins about the new pending account in real-time
+  try {
+    const admins = await User.find({ role: "ADMIN" }).select("_id");
+    const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
+    const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
+    await Promise.all(
+      admins.map(async (admin) => {
+        const notification = await Notification.create({ userId: admin._id, message });
+        emitNotification(String(admin._id), notification);
+      })
+    );
+    // Also emit a role-level event so the admin dashboard list refreshes live
+    emitToRole("ADMIN", "user:pending", {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      approvalStatus: user.approvalStatus,
+      developerProfile: user.developerProfile,
+    });
+  } catch (err) {
+    console.error("Failed to notify admins on signup:", err);
+  }
 
   return res.status(201).json({
     message: "Account created. An admin will review and approve your account before you can access the platform.",

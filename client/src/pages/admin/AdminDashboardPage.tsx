@@ -5,6 +5,7 @@ import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { formatINR, nameOf } from "@/lib/utils";
+import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import type { User, Project } from "@/types";
 
@@ -36,6 +37,16 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Real-time: new signup appears instantly in the pending list
+  useSocketEvent<User>("user:pending", (newUser) => {
+    setPendingUsers((prev) => {
+      if (prev.some((u) => u._id === newUser._id)) return prev;
+      return [newUser, ...prev];
+    });
+    setStats((s) => ({ ...s, totalUsers: s.totalUsers + 1 }));
+    toast.info(`New account pending approval: ${newUser.name}`);
+  });
 
   async function approveUser(userId: string, approvalStatus: "APPROVED" | "REJECTED") {
     await api.patch("/admin/users", { userId, approvalStatus });

@@ -14,7 +14,7 @@ router.use(authenticate);
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const { role, approvalStatus } = req.query;
-  const filter: Record<string, unknown> = { role: role || { $in: ["DEVELOPER", "CP"] } };
+  const filter: Record<string, unknown> = { role: role || { $in: ["DEVELOPER", "CP", "BUYER"] } };
   if (approvalStatus) filter.approvalStatus = approvalStatus;
 
   const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
