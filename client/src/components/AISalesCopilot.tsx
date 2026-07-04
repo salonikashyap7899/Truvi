@@ -102,37 +102,37 @@ export default function AISalesCopilot() {
       {/* Panel */}
       <div
         className={`
-          fixed z-50 flex flex-col bg-[#0D1626] shadow-2xl shadow-black/60
+          fixed z-50 flex flex-col bg-card shadow-2xl shadow-black/60
           transition-all duration-300 ease-out
-          bottom-0 left-0 right-0 rounded-t-2xl border-t border-x border-neutral-800
-          sm:bottom-6 sm:right-6 sm:left-auto sm:w-[420px] sm:rounded-2xl sm:border sm:border-neutral-800
+          bottom-0 left-0 right-0 rounded-t-2xl border-t border-x border-white/10
+          sm:bottom-6 sm:right-6 sm:left-auto sm:w-[420px] sm:rounded-2xl sm:border sm:border-white/10
           ${open ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
         style={{ maxHeight: "90vh" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3 shrink-0">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-600/20">
               <Sparkles size={14} className="text-purple-400" />
             </div>
             <div>
               <p className="text-sm font-semibold text-white">AI Sales Copilot</p>
-              <p className="text-[10px] text-neutral-500">Your personal sales assistant</p>
+              <p className="text-[10px] text-muted-foreground">Your personal sales assistant</p>
             </div>
           </div>
-          <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-white transition-colors">
+          <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors">
             <X size={16} />
           </button>
         </div>
 
         {/* Mode tabs */}
-        <div className="flex border-b border-neutral-800 shrink-0">
+        <div className="flex border-b border-white/10 shrink-0">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => { setMode(tab.id); setOutput(""); }}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-purple-500 text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-purple-500 text-white" : "text-muted-foreground hover:text-foreground/90"}`}
             >
               {tab.emoji} {tab.label}
             </button>
@@ -144,16 +144,16 @@ export default function AISalesCopilot() {
           {mode === "whatsapp" && (
             <>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Client Name</label>
-                <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+                <label className="text-xs text-muted-foreground mb-1 block">Client Name</label>
+                <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Project Interested In</label>
-                <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+                <label className="text-xs text-muted-foreground mb-1 block">Project Interested In</label>
+                <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Lead Stage</label>
-                <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none">
+                <label className="text-xs text-muted-foreground mb-1 block">Lead Stage</label>
+                <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none">
                   {["GENERATED","CONTACTED","SITE_VISIT","NEGOTIATION","BOOKING"].map((s) => (
                     <option key={s} value={s}>{s.replace("_", " ")}</option>
                   ))}
@@ -165,33 +165,33 @@ export default function AISalesCopilot() {
           {mode === "pitch" && (
             <>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Project Name</label>
-                <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+                <label className="text-xs text-muted-foreground mb-1 block">Project Name</label>
+                <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Location</label>
-                <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+                <label className="text-xs text-muted-foreground mb-1 block">Location</label>
+                <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
               </div>
               <div>
-                <label className="text-xs text-neutral-400 mb-1 block">Starting Price</label>
-                <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+                <label className="text-xs text-muted-foreground mb-1 block">Starting Price</label>
+                <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
               </div>
             </>
           )}
 
           {mode === "objection" && (
             <div>
-              <label className="text-xs text-neutral-400 mb-1 block">Select the buyer's objection</label>
-              <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none">
+              <label className="text-xs text-muted-foreground mb-1 block">Select the buyer's objection</label>
+              <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none">
                 {COMMON_OBJECTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
               <div className="mt-2">
-                <label className="text-xs text-neutral-400 mb-1 block">Or type a custom objection</label>
+                <label className="text-xs text-muted-foreground mb-1 block">Or type a custom objection</label>
                 <input
                   value={COMMON_OBJECTIONS.includes(objection) ? "" : objection}
                   onChange={(e) => setObjection(e.target.value || COMMON_OBJECTIONS[0])}
                   placeholder="Type a custom objection…"
-                  className="w-full rounded-lg border border-neutral-700 bg-[#121A2B] px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors"
+                  className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors"
                 />
               </div>
             </div>
@@ -203,32 +203,32 @@ export default function AISalesCopilot() {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-purple-300">Generated Script</p>
                 <div className="flex gap-2">
-                  <button onClick={generate} className="text-neutral-500 hover:text-white transition-colors" title="Regenerate">
+                  <button onClick={generate} className="text-muted-foreground hover:text-white transition-colors" title="Regenerate">
                     <RefreshCw size={13} />
                   </button>
-                  <button onClick={copyOutput} className="text-neutral-500 hover:text-white transition-colors" title="Copy">
+                  <button onClick={copyOutput} className="text-muted-foreground hover:text-white transition-colors" title="Copy">
                     {copied ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap">{output}</p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{output}</p>
             </div>
           )}
 
           {loading && (
-            <div className="rounded-xl border border-neutral-800 bg-[#121A2B] p-4 flex items-center gap-3">
+            <div className="rounded-xl border border-white/10 glass p-4 flex items-center gap-3">
               <div className="flex gap-1">
                 {[0,1,2].map((i) => (
                   <span key={i} className="h-2 w-2 rounded-full bg-purple-400" style={{ animation: `truvi-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
                 ))}
               </div>
-              <p className="text-xs text-neutral-500">Generating…</p>
+              <p className="text-xs text-muted-foreground">Generating…</p>
             </div>
           )}
         </div>
 
         {/* Generate button */}
-        <div className="shrink-0 border-t border-neutral-800 px-4 py-3">
+        <div className="shrink-0 border-t border-white/10 px-4 py-3">
           <button
             onClick={generate}
             disabled={loading}

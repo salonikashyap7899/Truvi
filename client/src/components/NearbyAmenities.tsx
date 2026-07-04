@@ -109,10 +109,10 @@ export default function NearbyAmenities({ amenities, projectId }: NearbyAmenitie
   );
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+    <div className="rounded-2xl border border-white/10 glass p-5">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-semibold text-white">Nearby Amenities</p>
-        <span className="text-[10px] text-neutral-600 uppercase tracking-wide">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
           Placeholder distances
         </span>
       </div>
@@ -131,7 +131,7 @@ export default function NearbyAmenities({ amenities, projectId }: NearbyAmenitie
                 <span className={`inline-flex items-center justify-center rounded-lg p-1.5 ${meta.bg}`}>
                   <Icon size={13} className={meta.color} />
                 </span>
-                <span className="text-xs font-medium text-neutral-400">{meta.label}</span>
+                <span className="text-xs font-medium text-muted-foreground">{meta.label}</span>
               </div>
 
               {/* Amenity rows */}
@@ -139,10 +139,10 @@ export default function NearbyAmenities({ amenities, projectId }: NearbyAmenitie
                 {items.map((item, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/50 px-3 py-2"
+                    className="flex items-center justify-between rounded-lg border border-white/10 bg-card/50 px-3 py-2"
                   >
-                    <span className="text-xs text-neutral-300 truncate pr-2">{item.name}</span>
-                    <span className="text-[11px] text-neutral-500 shrink-0 font-medium">
+                    <span className="text-xs text-foreground/90 truncate pr-2">{item.name}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0 font-medium">
                       {item.distance}
                     </span>
                   </div>

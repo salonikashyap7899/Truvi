@@ -19,8 +19,8 @@ export function CompareBar() {
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-neutral-700 bg-[#1A2436] px-5 py-3 shadow-2xl shadow-black/50 backdrop-blur-sm">
-      <span className="text-sm text-neutral-300">
+    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 shadow-2xl shadow-black/50 backdrop-blur-sm">
+      <span className="text-sm text-foreground/90">
         {count} {count === 1 ? "property" : "properties"} selected
       </span>
       <Button size="sm" onClick={openComparePage} className="gap-1.5">
@@ -30,7 +30,7 @@ export function CompareBar() {
       <button
         onClick={clear}
         aria-label="Clear selection"
-        className="ml-1 flex items-center gap-1 text-xs text-neutral-500 hover:text-white transition-colors"
+        className="ml-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-white transition-colors"
       >
         <X size={13} />
         Clear

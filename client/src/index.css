@@ -2,7 +2,7 @@
 @import "./styles/landing.css";
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html, body, #root {

@@ -104,9 +104,9 @@ export default function PriceFairnessMeter({ projectId, compact = false }: Price
 
   if (compact) {
     return (
-      <div className="rounded-xl border border-neutral-800 bg-[#121A2B] px-3 py-2.5">
+      <div className="rounded-xl border border-white/10 glass px-3 py-2.5">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-neutral-400 font-medium">Price Fairness</span>
+          <span className="text-xs text-muted-foreground font-medium">Price Fairness</span>
           <span
             className="text-xs font-semibold rounded-full px-2 py-0.5"
             style={{ color: meta.color, background: meta.light + "40" }}
@@ -120,11 +120,11 @@ export default function PriceFairnessMeter({ projectId, compact = false }: Price
   }
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 w-full">
+    <div className="rounded-2xl border border-white/10 glass p-5 w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-neutral-500">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Price Fairness Meter
           </p>
           <p className="mt-0.5 text-sm font-semibold" style={{ color: meta.color }}>
@@ -132,8 +132,8 @@ export default function PriceFairnessMeter({ projectId, compact = false }: Price
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-neutral-500 uppercase tracking-wide">Est. Fair Range</p>
-          <p className="text-xs font-medium text-neutral-300">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Est. Fair Range</p>
+          <p className="text-xs font-medium text-foreground/90">
             {formatINR(data.fairMin)} – {formatINR(data.fairMax)}/sqft
           </p>
         </div>
@@ -145,23 +145,23 @@ export default function PriceFairnessMeter({ projectId, compact = false }: Price
       {/* Price row */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
         <div>
-          <span className="text-neutral-500">Listed price </span>
+          <span className="text-muted-foreground">Listed price </span>
           <span className="font-semibold text-white">
             {formatINR(data.listedPerSqft)}/sqft
           </span>
         </div>
         <div className="text-right">
-          <span className="text-neutral-500">Locality avg </span>
-          <span className="font-semibold text-neutral-300">
+          <span className="text-muted-foreground">Locality avg </span>
+          <span className="font-semibold text-foreground/90">
             {formatINR(Math.round((data.fairMin + data.fairMax) / 2))}/sqft
           </span>
         </div>
       </div>
 
       {/* Explanation */}
-      <p className="mt-3 text-xs text-neutral-400 leading-relaxed border-t border-neutral-800 pt-3">
+      <p className="mt-3 text-xs text-muted-foreground leading-relaxed border-t border-white/10 pt-3">
         {data.zoneSub}
-        <span className="ml-1 text-neutral-600">(Placeholder comparison data)</span>
+        <span className="ml-1 text-muted-foreground">(Placeholder comparison data)</span>
       </p>
     </div>
   );
@@ -206,11 +206,11 @@ function MeterBar({
         </div>
         {/* Bright zone dividers */}
         <div
-          className="absolute top-0 bottom-0 w-px bg-neutral-700"
+          className="absolute top-0 bottom-0 w-px bg-white/15"
           style={{ left: "33.3%" }}
         />
         <div
-          className="absolute top-0 bottom-0 w-px bg-neutral-700"
+          className="absolute top-0 bottom-0 w-px bg-white/15"
           style={{ left: "66.6%" }}
         />
         {/* Needle */}
@@ -226,7 +226,7 @@ function MeterBar({
 
       {/* Zone labels */}
       {showLabels && (
-        <div className="mt-1.5 flex text-[10px] text-neutral-600">
+        <div className="mt-1.5 flex text-[10px] text-muted-foreground">
           <span className="w-1/3 text-left">Underpriced</span>
           <span className="w-1/3 text-center">Fair Value</span>
           <span className="w-1/3 text-right">Overpriced</span>

@@ -25,10 +25,10 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">Platform Settings</h1>
-      <Card className="mt-6 max-w-md border-neutral-800 bg-[#121A2B] text-white">
-        <Label className="text-neutral-300">Platform fee (% of booking value, billed to Developer)</Label>
+      <Card className="mt-6 max-w-md border-white/10 glass text-white">
+        <Label className="text-foreground/90">Platform fee (% of booking value, billed to Developer)</Label>
         <Input
           type="number"
           step="0.05"
@@ -36,9 +36,9 @@ export default function AdminSettingsPage() {
           max={5}
           value={feePercent}
           onChange={(e) => setFeePercent(e.target.value === "" ? "" : Number(e.target.value))}
-          className="border-neutral-700 bg-neutral-900 text-white"
+          className="border-white/15 bg-card text-white"
         />
-        <p className="mt-2 text-xs text-neutral-500">Recommended range: 0.5–1%. This is never deducted from CP commissions.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Recommended range: 0.5–1%. This is never deducted from CP commissions.</p>
         <Button className="mt-4" disabled={loading} onClick={save}>
           {loading ? "Saving…" : "Save"}
         </Button>

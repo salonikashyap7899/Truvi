@@ -202,12 +202,12 @@ export default function BuyerDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10 pb-28">
+    <main className="min-h-screen p-6 text-white md:p-10 pb-28">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Buyer Dashboard</h1>
-          <p className="mt-1 text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             {user?.name ? `Welcome back, ${user.name}` : "Your properties at a glance"}
           </p>
         </div>
@@ -220,12 +220,12 @@ export default function BuyerDashboardPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-7 flex gap-1 border-b border-neutral-800 overflow-x-auto">
+      <div className="mt-7 flex gap-1 border-b border-white/10 overflow-x-auto">
         <TabButton active={tab === "saved"} onClick={() => setTab("saved")}>
           <Heart size={14} className="mr-1.5" />
           Saved
           {savedProjects.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+            <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] leading-none">
               {savedProjects.length}
             </span>
           )}
@@ -235,7 +235,7 @@ export default function BuyerDashboardPage() {
           <CalendarDays size={14} className="mr-1.5" />
           Site Visits
           {visitsFetched && siteVisits.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+            <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] leading-none">
               {siteVisits.length}
             </span>
           )}
@@ -250,7 +250,7 @@ export default function BuyerDashboardPage() {
           <TrendingUp size={14} className="mr-1.5" />
           Investments
           {investmentsFetched && investments.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+            <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] leading-none">
               {investments.length}
             </span>
           )}
@@ -326,7 +326,7 @@ function TabButton({
       className={`flex shrink-0 items-center px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
         active
           ? "border-blue-500 text-white"
-          : "border-transparent text-neutral-500 hover:text-neutral-300"
+          : "border-transparent text-muted-foreground hover:text-foreground/90"
       }`}
     >
       {children}
@@ -347,7 +347,7 @@ function SavedTab({
   onToggle: (id: string, saved: boolean) => void;
   onVisitBooked: () => void;
 }) {
-  if (loading) return <p className="text-sm text-neutral-500">Loading saved properties…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading saved properties…</p>;
   if (projects.length === 0) return <SavedEmptyState />;
 
   return (
@@ -379,7 +379,7 @@ function SavedProjectCard({
 
   return (
     <>
-      <div className="relative rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
+      <div className="relative rounded-2xl border border-white/10 glass p-5 flex flex-col gap-3 hover:border-white/20 transition-colors">
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             {project.listingTier === "FEATURED" && <Badge variant="featured">Featured</Badge>}
@@ -392,13 +392,13 @@ function SavedProjectCard({
 
         <div>
           <h3 className="text-base font-semibold leading-tight">{project.name}</h3>
-          <p className="mt-0.5 text-sm text-neutral-400">{project.location}, {project.city}</p>
-          {devName && <p className="mt-0.5 text-xs text-neutral-500">by {devName}</p>}
+          <p className="mt-0.5 text-sm text-muted-foreground">{project.location}, {project.city}</p>
+          {devName && <p className="mt-0.5 text-xs text-muted-foreground">by {devName}</p>}
         </div>
 
-        <p className="text-sm text-neutral-300 line-clamp-2">{project.description}</p>
+        <p className="text-sm text-foreground/90 line-clamp-2">{project.description}</p>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
           <span>Commission: {project.commissionPercent}%</span>
           {project.priceListUrl && <span>Price list available</span>}
@@ -431,10 +431,10 @@ function SavedProjectCard({
 
 function SavedEmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-[#121A2B] py-16 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 glass py-16 text-center">
       <span className="text-4xl">🏠</span>
-      <p className="mt-4 text-base font-medium text-neutral-300">No saved properties yet</p>
-      <p className="mt-1 text-sm text-neutral-500">Browse and tap ♥ to save ones you love.</p>
+      <p className="mt-4 text-base font-medium text-foreground/90">No saved properties yet</p>
+      <p className="mt-1 text-sm text-muted-foreground">Browse and tap ♥ to save ones you love.</p>
       <Link to="/buyer/projects" className="mt-5">
         <Button size="sm">Browse Properties</Button>
       </Link>
@@ -453,14 +453,14 @@ function VisitsTab({
   loading: boolean;
   onRefresh: () => void;
 }) {
-  if (loading) return <p className="text-sm text-neutral-500">Loading site visits…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading site visits…</p>;
 
   if (visits.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-[#121A2B] py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 glass py-16 text-center">
         <span className="text-4xl">📅</span>
-        <p className="mt-4 text-base font-medium text-neutral-300">No site visits yet</p>
-        <p className="mt-1 text-sm text-neutral-500">Request one from any property card.</p>
+        <p className="mt-4 text-base font-medium text-foreground/90">No site visits yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">Request one from any property card.</p>
         <Link to="/buyer/projects" className="mt-5">
           <Button size="sm">Browse Properties</Button>
         </Link>
@@ -482,18 +482,18 @@ function VisitsTab({
         return (
           <div
             key={v._id}
-            className="flex flex-col gap-2 rounded-2xl border border-neutral-800 bg-[#121A2B] p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-2xl border border-white/10 glass p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="space-y-0.5">
               <p className="font-medium text-white">{projectName}</p>
-              <p className="text-sm text-neutral-400">
+              <p className="text-sm text-muted-foreground">
                 {date}{v.timeSlot && <> · {v.timeSlot}</>}
               </p>
               {v.contactNumber && (
-                <p className="text-xs text-neutral-500">Contact: {v.contactNumber}</p>
+                <p className="text-xs text-muted-foreground">Contact: {v.contactNumber}</p>
               )}
               {v.reportNotes && (
-                <p className="text-xs text-neutral-500 line-clamp-1">Notes: {v.reportNotes}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">Notes: {v.reportNotes}</p>
               )}
             </div>
             <Badge variant={statusVariant} className="self-start sm:self-center shrink-0">
@@ -504,7 +504,7 @@ function VisitsTab({
       })}
       <button
         onClick={onRefresh}
-        className="mt-2 text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+        className="mt-2 text-xs text-muted-foreground hover:text-foreground/90 transition-colors"
       >
         Refresh
       </button>
@@ -525,7 +525,7 @@ function DocumentsTab({
   loading: boolean;
   onRefreshMyDocs: () => void;
 }) {
-  if (loading) return <p className="text-sm text-neutral-500">Loading documents…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading documents…</p>;
 
   return (
     <div className="space-y-8">
@@ -534,12 +534,12 @@ function DocumentsTab({
         <div className="flex items-center gap-2 mb-4">
           <FileDown size={16} className="text-blue-400" />
           <h2 className="text-base font-semibold">Shared Documents</h2>
-          <span className="text-xs text-neutral-500">— files shared by agents &amp; builders</span>
+          <span className="text-xs text-muted-foreground">— files shared by agents &amp; builders</span>
         </div>
 
         {sharedDocs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-neutral-800 bg-[#121A2B] px-5 py-10 text-center">
-            <p className="text-sm text-neutral-500">No documents shared yet. Check back after your agent uploads project materials.</p>
+          <div className="rounded-2xl border border-dashed border-white/10 glass px-5 py-10 text-center">
+            <p className="text-sm text-muted-foreground">No documents shared yet. Check back after your agent uploads project materials.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -552,10 +552,10 @@ function DocumentsTab({
               return (
                 <div
                   key={doc._id}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-neutral-800 bg-[#121A2B] px-4 py-3"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-white/10 glass px-4 py-3"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <FileText size={16} className="shrink-0 text-neutral-500" />
+                    <FileText size={16} className="shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
                       <a
                         href={doc.fileUrl}
@@ -565,7 +565,7 @@ function DocumentsTab({
                       >
                         {doc.fileName}
                       </a>
-                      <p className="text-xs text-neutral-500">{projectName}</p>
+                      <p className="text-xs text-muted-foreground">{projectName}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -576,7 +576,7 @@ function DocumentsTab({
                       rel="noreferrer"
                       download
                       aria-label="Download"
-                      className="rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-blue-400 transition-colors"
+                      className="rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-blue-400 transition-colors"
                     >
                       <FileDown size={14} />
                     </a>
@@ -593,7 +593,7 @@ function DocumentsTab({
         <div className="flex items-center gap-2 mb-4">
           <FolderOpen size={16} className="text-amber-400" />
           <h2 className="text-base font-semibold">My Documents</h2>
-          <span className="text-xs text-neutral-500">— your KYC documents</span>
+          <span className="text-xs text-muted-foreground">— your KYC documents</span>
         </div>
         <DocumentUpload docs={myDocs} loading={false} onRefresh={onRefreshMyDocs} />
       </div>
@@ -715,7 +715,7 @@ function InvestmentsTab({
     }
   }
 
-  if (loading) return <p className="text-sm text-neutral-500">Loading investments…</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Loading investments…</p>;
 
   // Portfolio summary
   const totalInvested = investments.reduce((s, i) => s + i.purchasePrice, 0);
@@ -762,8 +762,8 @@ function InvestmentsTab({
           </div>
 
           {/* Chart */}
-          <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
-            <p className="mb-4 text-sm font-medium text-neutral-300">
+          <div className="rounded-2xl border border-white/10 glass p-5">
+            <p className="mb-4 text-sm font-medium text-foreground/90">
               Purchase vs Current Value (₹ Lakh)
             </p>
             <ResponsiveContainer width="100%" height={200}>
@@ -805,7 +805,7 @@ function InvestmentsTab({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-3 flex items-center gap-4 text-xs text-neutral-500">
+            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
                 Purchase Price
@@ -832,10 +832,10 @@ function InvestmentsTab({
 
       {/* ── Cards ───────────────────────────────────────────────── */}
       {investments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-[#121A2B] py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 glass py-16 text-center">
           <span className="text-4xl">📈</span>
-          <p className="mt-4 text-base font-medium text-neutral-300">No investments tracked yet</p>
-          <p className="mt-1 text-sm text-neutral-500">Add a property you've purchased to track its performance.</p>
+          <p className="mt-4 text-base font-medium text-foreground/90">No investments tracked yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Add a property you've purchased to track its performance.</p>
           <Button size="sm" className="mt-5" onClick={openAdd}>
             Add Investment
           </Button>
@@ -856,14 +856,14 @@ function InvestmentsTab({
       {/* ── Form modal ──────────────────────────────────────────── */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-[#121A2B] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/15 glass p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-base font-semibold">
                 {editing ? "Edit Investment" : "Add Investment"}
               </h3>
               <button
                 onClick={closeForm}
-                className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white transition-colors"
+                className="rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
@@ -871,11 +871,11 @@ function InvestmentsTab({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs text-neutral-400 mb-1">
+                <label className="block text-xs text-muted-foreground mb-1">
                   Property Name / Reference <span className="text-red-400">*</span>
                 </label>
                 <input
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                   placeholder="e.g. Prestige Lakeside – Unit 4B"
                   value={form.propertyName}
                   onChange={(e) => setForm((f) => ({ ...f, propertyName: e.target.value }))}
@@ -885,13 +885,13 @@ function InvestmentsTab({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Purchase Price (₹) <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="number"
                     min={0}
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                     placeholder="5000000"
                     value={form.purchasePrice}
                     onChange={(e) => setForm((f) => ({ ...f, purchasePrice: e.target.value }))}
@@ -899,12 +899,12 @@ function InvestmentsTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Purchase Date <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="date"
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                     value={form.purchaseDate}
                     onChange={(e) => setForm((f) => ({ ...f, purchaseDate: e.target.value }))}
                     required
@@ -914,13 +914,13 @@ function InvestmentsTab({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Current Est. Value (₹) <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="number"
                     min={0}
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                     placeholder="6500000"
                     value={form.currentValue}
                     onChange={(e) => setForm((f) => ({ ...f, currentValue: e.target.value }))}
@@ -928,14 +928,14 @@ function InvestmentsTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-neutral-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Monthly Rental (₹)
-                    <span className="ml-1 text-neutral-600">optional</span>
+                    <span className="ml-1 text-muted-foreground">optional</span>
                   </label>
                   <input
                     type="number"
                     min={0}
-                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                     placeholder="25000"
                     value={form.rentalIncome}
                     onChange={(e) => setForm((f) => ({ ...f, rentalIncome: e.target.value }))}
@@ -978,10 +978,10 @@ function SummaryCard({
       : "text-white";
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-4">
-      <p className="text-xs text-neutral-500">{label}</p>
+    <div className="rounded-2xl border border-white/10 glass p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className={`mt-1 text-lg font-semibold ${valueClass}`}>{value}</p>
-      {sub && <p className="text-[10px] text-neutral-600">{sub}</p>}
+      {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -999,20 +999,20 @@ function InvestmentCard({
   const isPositive = roi >= 0;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5 flex flex-col gap-3 hover:border-neutral-600 transition-colors">
+    <div className="rounded-2xl border border-white/10 glass p-5 flex flex-col gap-3 hover:border-white/20 transition-colors">
       {/* Name + actions */}
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold leading-tight">{investment.propertyName}</h3>
         <div className="flex shrink-0 gap-1">
           <button
             onClick={onEdit}
-            className="rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-blue-400 transition-colors"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-blue-400 transition-colors"
           >
             <Pencil size={13} />
           </button>
           <button
             onClick={onDelete}
-            className="rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-red-400 transition-colors"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-red-400 transition-colors"
           >
             <Trash2 size={13} />
           </button>
@@ -1043,11 +1043,11 @@ function InvestmentCard({
       {/* Price row */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-neutral-500">Purchased</p>
+          <p className="text-muted-foreground">Purchased</p>
           <p className="font-medium text-white">{formatINR(investment.purchasePrice)}</p>
         </div>
         <div>
-          <p className="text-neutral-500">Current Value</p>
+          <p className="text-muted-foreground">Current Value</p>
           <p className={`font-medium ${investment.currentValue >= investment.purchasePrice ? "text-green-400" : "text-red-400"}`}>
             {formatINR(investment.currentValue)}
           </p>
@@ -1055,22 +1055,22 @@ function InvestmentCard({
       </div>
 
       {/* Rental + date */}
-      <div className="grid grid-cols-2 gap-2 text-xs border-t border-neutral-800 pt-3">
+      <div className="grid grid-cols-2 gap-2 text-xs border-t border-white/10 pt-3">
         <div>
-          <p className="text-neutral-500">Rental Income</p>
+          <p className="text-muted-foreground">Rental Income</p>
           <p className="font-medium text-white">
             {investment.rentalIncome
               ? `${formatINR(investment.rentalIncome)}/mo`
               : "—"}
           </p>
           {investment.rentalIncome > 0 && months > 0 && (
-            <p className="text-[10px] text-neutral-600">
+            <p className="text-[10px] text-muted-foreground">
               {formatINR(cumulativeRental)} cumulative
             </p>
           )}
         </div>
         <div>
-          <p className="text-neutral-500">Purchase Date</p>
+          <p className="text-muted-foreground">Purchase Date</p>
           <p className="font-medium text-white">
             {(() => {
               try {
@@ -1081,7 +1081,7 @@ function InvestmentCard({
             })()}
           </p>
           {months > 0 && (
-            <p className="text-[10px] text-neutral-600">{months} month{months !== 1 ? "s" : ""} ago</p>
+            <p className="text-[10px] text-muted-foreground">{months} month{months !== 1 ? "s" : ""} ago</p>
           )}
         </div>
       </div>
@@ -1184,7 +1184,7 @@ function LoanCalculatorTab({
   return (
     <div className="space-y-8 max-w-3xl">
       {/* ── Calculator form ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-6">
+      <div className="rounded-2xl border border-white/10 glass p-6">
         <div className="flex items-center gap-2 mb-5">
           <Calculator size={16} className="text-blue-400" />
           <h2 className="text-base font-semibold">Loan Eligibility Calculator</h2>
@@ -1193,13 +1193,13 @@ function LoanCalculatorTab({
         <form onSubmit={handleCalculate} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs text-muted-foreground mb-1">
                 Monthly Income (₹) <span className="text-red-400">*</span>
               </label>
               <input
                 type="number"
                 min={0}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                 placeholder="100000"
                 value={form.income}
                 onChange={(e) => { setForm((f) => ({ ...f, income: e.target.value })); setResult(null); }}
@@ -1207,34 +1207,34 @@ function LoanCalculatorTab({
               />
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs text-muted-foreground mb-1">
                 Existing Monthly EMIs / Obligations (₹)
               </label>
               <input
                 type="number"
                 min={0}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none"
                 placeholder="0"
                 value={form.obligations}
                 onChange={(e) => { setForm((f) => ({ ...f, obligations: e.target.value })); setResult(null); }}
               />
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs text-muted-foreground mb-1">
                 Loan Tenure (years) <span className="text-red-400">*</span>
               </label>
               <input
                 type="number"
                 min={1}
                 max={30}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                 value={form.tenure}
                 onChange={(e) => { setForm((f) => ({ ...f, tenure: e.target.value })); setResult(null); }}
                 required
               />
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">
+              <label className="block text-xs text-muted-foreground mb-1">
                 Interest Rate (% p.a.) <span className="text-red-400">*</span>
               </label>
               <input
@@ -1242,12 +1242,12 @@ function LoanCalculatorTab({
                 min={0.1}
                 max={30}
                 step={0.05}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                 value={form.interestRate}
                 onChange={(e) => { setForm((f) => ({ ...f, interestRate: e.target.value })); setResult(null); }}
                 required
               />
-              <p className="mt-0.5 text-[10px] text-neutral-600">Typical home loan rate: 8–9% p.a.</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Typical home loan rate: 8–9% p.a.</p>
             </div>
           </div>
 
@@ -1264,27 +1264,27 @@ function LoanCalculatorTab({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="text-center">
                 <p className="text-2xl font-bold text-white">{formatINR(result.eligibleAmount)}</p>
-                <p className="mt-0.5 text-xs text-neutral-400">Eligible Loan Amount</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Eligible Loan Amount</p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold text-white">{formatINR(result.estimatedEmi)}</p>
-                <p className="mt-0.5 text-xs text-neutral-400">Estimated Monthly EMI</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Estimated Monthly EMI</p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold text-white">{formatINR(result.maxEmi)}</p>
-                <p className="mt-0.5 text-xs text-neutral-400">Max Eligible EMI</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Max Eligible EMI</p>
               </div>
             </div>
 
             {/* Breakdown */}
-            <div className="border-t border-neutral-800 pt-3 grid grid-cols-2 gap-2 text-xs text-neutral-400">
+            <div className="border-t border-white/10 pt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
               <div>Monthly income: <span className="text-white">{formatINR(Number(form.income))}</span></div>
               <div>Existing obligations: <span className="text-white">{formatINR(Number(form.obligations) || 0)}</span></div>
               <div>Tenure: <span className="text-white">{form.tenure} years ({Number(form.tenure) * 12} EMIs)</span></div>
               <div>Interest rate: <span className="text-white">{form.interestRate}% p.a.</span></div>
             </div>
 
-            <p className="text-[10px] text-neutral-600">
+            <p className="text-[10px] text-muted-foreground">
               * Based on max 50% of net income (after existing obligations) going towards EMI. Final eligibility may vary by lender.
             </p>
 
@@ -1297,31 +1297,31 @@ function LoanCalculatorTab({
       </div>
 
       {/* ── Saved history ────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+      <div className="rounded-2xl border border-white/10 glass p-5">
         <button
           className="flex w-full items-center justify-between"
           onClick={() => setHistoryOpen((o) => !o)}
         >
           <div className="flex items-center gap-2">
-            <Save size={14} className="text-neutral-400" />
+            <Save size={14} className="text-muted-foreground" />
             <span className="text-sm font-semibold">Saved Calculations</span>
             {checks.length > 0 && (
-              <span className="rounded-full bg-neutral-700 px-1.5 py-0.5 text-[10px] leading-none">
+              <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] leading-none">
                 {checks.length}
               </span>
             )}
           </div>
-          {historyOpen ? <ChevronUp size={14} className="text-neutral-500" /> : <ChevronDown size={14} className="text-neutral-500" />}
+          {historyOpen ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
         </button>
 
         {historyOpen && (
           <div className="mt-4">
             {loading ? (
-              <p className="text-sm text-neutral-500">Loading…</p>
+              <p className="text-sm text-muted-foreground">Loading…</p>
             ) : checks.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-neutral-800 py-8 text-center">
-                <p className="text-sm text-neutral-500">No saved calculations yet.</p>
-                <p className="text-xs text-neutral-600 mt-1">Run a calculation above and click "Save".</p>
+              <div className="rounded-xl border border-dashed border-white/10 py-8 text-center">
+                <p className="text-sm text-muted-foreground">No saved calculations yet.</p>
+                <p className="text-xs text-muted-foreground mt-1">Run a calculation above and click "Save".</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1330,10 +1330,10 @@ function LoanCalculatorTab({
                   return (
                     <div
                       key={c._id}
-                      className="rounded-xl border border-neutral-800 bg-[#0f1624] p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                      className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="space-y-1 text-xs">
-                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-neutral-400">
+                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-muted-foreground">
                           <span>Income: <span className="text-white">{formatINR(c.income)}</span></span>
                           <span>Obligations: <span className="text-white">{formatINR(c.obligations)}</span></span>
                           <span>Tenure: <span className="text-white">{c.tenure}y</span></span>
@@ -1343,15 +1343,15 @@ function LoanCalculatorTab({
                           <span className="font-semibold text-white">
                             Eligible: {formatINR(c.eligibleAmount)}
                           </span>
-                          <span className="text-neutral-400">
+                          <span className="text-muted-foreground">
                             EMI: {formatINR(c.estimatedEmi)}/mo
                           </span>
                         </div>
-                        <p className="text-neutral-600">{date}</p>
+                        <p className="text-muted-foreground">{date}</p>
                       </div>
                       <button
                         onClick={() => handleDelete(c._id)}
-                        className="self-start sm:self-center shrink-0 rounded-full p-1.5 text-neutral-500 hover:bg-white/10 hover:text-red-400 transition-colors"
+                        className="self-start sm:self-center shrink-0 rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-red-400 transition-colors"
                         aria-label="Delete"
                       >
                         <Trash2 size={13} />

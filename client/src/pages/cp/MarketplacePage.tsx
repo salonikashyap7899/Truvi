@@ -83,16 +83,16 @@ export default function MarketplacePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">Lead Marketplace</h1>
-      <p className="mt-1 text-sm text-neutral-400">Purchase leads directly, or subscribe to Premium for priority access.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Purchase leads directly, or subscribe to Premium for priority access.</p>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {(Object.keys(LEAD_PRICES) as LeadType[]).map((type) => (
-          <Card key={type} className="border-neutral-800 bg-[#121A2B] text-white">
+          <Card key={type} className="border-white/10 glass text-white">
             <Badge variant="info">{type.replace("_", " ")}</Badge>
             <p className="mt-2 text-2xl font-semibold">{formatINR(LEAD_PRICES[type])}</p>
-            <p className="mt-1 text-xs text-neutral-500">Real Razorpay checkout if configured, simulated otherwise.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Real Razorpay checkout if configured, simulated otherwise.</p>
             <Button className="mt-4 w-full" disabled={loading === type} onClick={() => purchase(type)}>
               {loading === type ? "Processing…" : "Purchase"}
             </Button>
@@ -102,9 +102,9 @@ export default function MarketplacePage() {
 
       <section className="mt-10">
         <h2 className="text-lg font-medium">CP Premium Membership</h2>
-        <Card className="mt-3 max-w-md border-neutral-800 bg-[#121A2B] text-white">
-          <p className="text-2xl font-semibold">{formatINR(CP_PREMIUM_MONTHLY_PRICE)}<span className="text-sm text-neutral-400">/month</span></p>
-          <ul className="mt-3 space-y-1 text-sm text-neutral-400">
+        <Card className="mt-3 max-w-md border-white/10 glass text-white">
+          <p className="text-2xl font-semibold">{formatINR(CP_PREMIUM_MONTHLY_PRICE)}<span className="text-sm text-muted-foreground">/month</span></p>
+          <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
             <li>· Priority badge on the leaderboard</li>
             <li>· Priority placement in lead-assignment queue</li>
             <li>· Premium tag on your profile</li>

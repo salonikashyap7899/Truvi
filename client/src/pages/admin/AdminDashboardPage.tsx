@@ -60,33 +60,33 @@ export default function AdminDashboardPage() {
     load();
   }
 
-  if (loading) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Admin Command Center</h1>
-          <p className="mt-1 text-sm text-neutral-400">Platform-wide oversight: approvals, listings, revenue.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: approvals, listings, revenue.</p>
         </div>
         <NotificationBell />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Total Users</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Total Users</CardTitle>
           <CardValue>{stats.totalUsers}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Total Projects</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Total Projects</CardTitle>
           <CardValue>{stats.totalProjects}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Platform Fee Revenue</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Platform Fee Revenue</CardTitle>
           <CardValue>{formatINR(stats.platformFees)}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Lead Marketplace Revenue</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Lead Marketplace Revenue</CardTitle>
           <CardValue>{formatINR(stats.cpCommissions)}</CardValue>
         </Card>
       </div>
@@ -94,12 +94,12 @@ export default function AdminDashboardPage() {
       <section className="mt-10">
         <h2 className="text-lg font-medium">Pending account approvals ({pendingUsers.length})</h2>
         <div className="mt-3 space-y-3">
-          {pendingUsers.length === 0 && <p className="text-sm text-neutral-500">Nothing pending.</p>}
+          {pendingUsers.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
           {pendingUsers.map((u) => (
-            <Card key={u._id} className="flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white">
+            <Card key={u._id} className="flex items-center justify-between border-white/10 glass text-white">
               <div>
                 <p className="font-medium">{u.name} <Badge variant="info">{u.role}</Badge></p>
-                <p className="text-sm text-neutral-400">{u.email} {u.developerProfile?.companyName ? `· ${u.developerProfile.companyName}` : ""}</p>
+                <p className="text-sm text-muted-foreground">{u.email} {u.developerProfile?.companyName ? `· ${u.developerProfile.companyName}` : ""}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => approveUser(u._id, "APPROVED")}>Approve</Button>
@@ -113,12 +113,12 @@ export default function AdminDashboardPage() {
       <section className="mt-10">
         <h2 className="text-lg font-medium">Pending project approvals ({pendingProjects.length})</h2>
         <div className="mt-3 space-y-3">
-          {pendingProjects.length === 0 && <p className="text-sm text-neutral-500">Nothing pending.</p>}
+          {pendingProjects.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
           {pendingProjects.map((p) => (
-            <Card key={p._id} className="flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white">
+            <Card key={p._id} className="flex items-center justify-between border-white/10 glass text-white">
               <div>
                 <p className="font-medium">{p.name}</p>
-                <p className="text-sm text-neutral-400">{p.city} · by {nameOf(p.developerId)}</p>
+                <p className="text-sm text-muted-foreground">{p.city} · by {nameOf(p.developerId)}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => approveProject(p._id, "APPROVED")}>Approve</Button>

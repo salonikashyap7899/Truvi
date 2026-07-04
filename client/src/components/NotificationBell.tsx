@@ -44,14 +44,14 @@ export function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-neutral-800 bg-[#121A2B] p-2 shadow-xl">
-          <p className="px-2 py-1 text-xs font-medium text-neutral-400">Notifications</p>
+        <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-white/10 glass p-2 shadow-xl">
+          <p className="px-2 py-1 text-xs font-medium text-muted-foreground">Notifications</p>
           <div className="max-h-80 overflow-y-auto">
-            {notifications.length === 0 && <p className="p-3 text-sm text-neutral-500">No notifications yet.</p>}
+            {notifications.length === 0 && <p className="p-3 text-sm text-muted-foreground">No notifications yet.</p>}
             {notifications.map((n) => (
               <div key={n._id} className="rounded-md p-2 text-sm hover:bg-white/5">
                 <p className="text-white">{n.message}</p>
-                <p className="mt-0.5 text-xs text-neutral-500">{formatDate(n.createdAt)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(n.createdAt)}</p>
               </div>
             ))}
           </div>

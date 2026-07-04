@@ -1,8 +1,15 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense, type ReactNode } from "react";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
+import { CursorGlow } from "@/components/landing/CursorGlow";
+
+const AmbientBackground = lazy(() =>
+  import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
+);
 
 import LandingPage from "@/pages/LandingPage";
 import HomePage from "@/pages/HomePage";
@@ -30,12 +37,43 @@ import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
 
+function Ambience() {
+  const { pathname } = useLocation();
+  // The landing page renders its own richer CityCanvas scene
+  if (pathname === "/") return null;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <AmbientBackground />
+      </Suspense>
+      <CursorGlow />
+    </>
+  );
+}
+
+function PageTransition({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return (
+    <motion.div
+      key={pathname}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="relative z-10 min-h-full"
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Toaster richColors position="top-right" theme="dark" />
+      <Ambience />
       <AskTruvi />
       <AISalesCopilot />
+      <PageTransition>
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
@@ -69,6 +107,7 @@ export default function App() {
         <Route path="/buyer/projects" element={<ProtectedRoute roles={["BUYER"]}><BuyerProjectsPage /></ProtectedRoute>} />
         <Route path="/buyer/compare" element={<ProtectedRoute roles={["BUYER"]}><ComparePage /></ProtectedRoute>} />
       </Routes>
+      </PageTransition>
     </BrowserRouter>
   );
 }

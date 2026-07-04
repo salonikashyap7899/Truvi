@@ -48,15 +48,15 @@ export default function AdminListingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">Listings Management</h1>
-      <p className="mt-1 text-sm text-neutral-400">
+      <p className="mt-1 text-sm text-muted-foreground">
         Toggle Featured plans (₹10,000–₹50,000/month, display only) and Verified badges for approved projects.
       </p>
 
       <div className="mt-6 space-y-3">
         {projects.map((p) => (
-          <Card key={p._id} className="flex flex-col gap-3 border-neutral-800 bg-[#121A2B] text-white sm:flex-row sm:items-center sm:justify-between">
+          <Card key={p._id} className="flex flex-col gap-3 border-white/10 glass text-white sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-medium flex flex-wrap items-center gap-2">
                 {p.name}
@@ -67,7 +67,7 @@ export default function AdminListingsPage() {
                   </span>
                 )}
               </p>
-              <p className="text-sm text-neutral-400">{p.city} · {nameOf(p.developerId)}</p>
+              <p className="text-sm text-muted-foreground">{p.city} · {nameOf(p.developerId)}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -91,7 +91,7 @@ export default function AdminListingsPage() {
           </Card>
         ))}
         {projects.length === 0 && (
-          <p className="text-center text-neutral-500 py-12">No approved projects yet.</p>
+          <p className="text-center text-muted-foreground py-12">No approved projects yet.</p>
         )}
       </div>
     </main>

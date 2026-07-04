@@ -37,7 +37,7 @@ export default function DeveloperDashboardPage() {
   useSocketEvent("unit:update", () => load());
   useSocketEvent("lead:update", () => load());
 
-  if (loading) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   const totalRevenue = units.filter((u) => u.status === "SOLD").reduce((s, u) => s + u.price, 0);
   const unitsSold = units.filter((u) => u.status === "SOLD").length;
@@ -47,11 +47,11 @@ export default function DeveloperDashboardPage() {
   leads.forEach((l) => (stageCount[l.stage] = (stageCount[l.stage] || 0) + 1));
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Developer Dashboard</h1>
-          <p className="mt-1 text-sm text-neutral-400">Live inventory and pipeline, updated in real time.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Live inventory and pipeline, updated in real time.</p>
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
@@ -62,20 +62,20 @@ export default function DeveloperDashboardPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Total Revenue (Sold Units)</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Total Revenue (Sold Units)</CardTitle>
           <CardValue>{formatINR(totalRevenue)}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Active Projects</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Active Projects</CardTitle>
           <CardValue>{projects.filter((p) => p.approvalStatus === "APPROVED").length}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Units Sold / Available</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Units Sold / Available</CardTitle>
           <CardValue>{unitsSold} / {unitsAvailable}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Total Leads</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Total Leads</CardTitle>
           <CardValue>{leads.length}</CardValue>
         </Card>
       </div>
@@ -84,8 +84,8 @@ export default function DeveloperDashboardPage() {
         <h2 className="text-lg font-medium">Booking pipeline</h2>
         <div className="mt-3 flex flex-wrap gap-3">
           {STAGES.map((stage) => (
-            <div key={stage} className="rounded-lg border border-neutral-800 bg-[#121A2B] px-4 py-2 text-center">
-              <p className="text-xs text-neutral-400">{stage.replace("_", " ")}</p>
+            <div key={stage} className="rounded-lg border border-white/10 glass px-4 py-2 text-center">
+              <p className="text-xs text-muted-foreground">{stage.replace("_", " ")}</p>
               <p className="text-lg font-semibold">{stageCount[stage] || 0}</p>
             </div>
           ))}
@@ -95,10 +95,10 @@ export default function DeveloperDashboardPage() {
       <section className="mt-10">
         <h2 className="text-lg font-medium">My projects</h2>
         <div className="mt-3 space-y-3">
-          {projects.length === 0 && <p className="text-sm text-neutral-500">No projects yet — create your first one.</p>}
+          {projects.length === 0 && <p className="text-sm text-muted-foreground">No projects yet — create your first one.</p>}
           {projects.map((p) => (
             <Link key={p._id} to={`/developer/projects/${p._id}`}>
-              <Card className="flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white hover:border-blue-600">
+              <Card className="flex items-center justify-between border-white/10 glass text-white hover:border-blue-600">
                 <div>
                   <p className="font-medium">
                     {p.name}{" "}
@@ -106,7 +106,7 @@ export default function DeveloperDashboardPage() {
                       {p.approvalStatus}
                     </Badge>
                   </p>
-                  <p className="text-sm text-neutral-400">{p.city} · {p.unitCount ?? 0} units · {p.leadCount ?? 0} leads</p>
+                  <p className="text-sm text-muted-foreground">{p.city} · {p.unitCount ?? 0} units · {p.leadCount ?? 0} leads</p>
                 </div>
               </Card>
             </Link>

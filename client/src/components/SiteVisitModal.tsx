@@ -86,17 +86,17 @@ export function SiteVisitModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-[#0f1724] shadow-2xl">
+      <div className="w-full max-w-md rounded-2xl border border-white/15 bg-white/5 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-white">Request Site Visit</h2>
-            <p className="mt-0.5 text-xs text-neutral-400 truncate max-w-[280px]">{projectName}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground truncate max-w-[280px]">{projectName}</p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
           >
             <X size={16} />
           </button>
@@ -127,7 +127,7 @@ export function SiteVisitModal({
               id="sv-slot"
               value={form.timeSlot}
               onChange={(e) => set("timeSlot", e.target.value)}
-              className="h-10 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 text-sm text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="h-10 w-full rounded-lg border border-white/15 bg-card px-3 text-sm text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               <option value="">Select a slot…</option>
               {TIME_SLOTS.map((s) => (
@@ -158,7 +158,7 @@ export function SiteVisitModal({
 
           {/* Notes */}
           <div>
-            <Label htmlFor="sv-notes">Notes <span className="text-neutral-500">(optional)</span></Label>
+            <Label htmlFor="sv-notes">Notes <span className="text-muted-foreground">(optional)</span></Label>
             <Textarea
               id="sv-notes"
               rows={3}

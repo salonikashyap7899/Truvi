@@ -26,7 +26,7 @@ export function CompareCheckbox({ projectId, className }: CompareCheckboxProps) 
   return (
     <label
       className={cn(
-        "flex cursor-pointer select-none items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors",
+        "flex cursor-pointer select-none items-center gap-1.5 text-xs text-muted-foreground hover:text-white transition-colors",
         className
       )}
       onClick={(e) => e.stopPropagation()}

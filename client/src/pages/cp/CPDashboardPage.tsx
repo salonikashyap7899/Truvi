@@ -86,7 +86,7 @@ export default function CPDashboardPage() {
     }
   }
 
-  if (loading || !user) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (loading || !user) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   const earned = commissions.reduce((s, c) => s + c.cpCommissionAmount, 0);
   const paid = commissions.reduce((s, c) => s + c.milestones.filter((m) => m.isReleased).reduce((a, m) => a + m.amount, 0), 0);
@@ -101,13 +101,13 @@ export default function CPDashboardPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
             CP Dashboard <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
           </h1>
-          <p className="mt-1 text-sm text-neutral-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Welcome back, {user.name} {user.cpProfile?.isPremium && <Badge variant="featured" className="ml-2">Premium</Badge>}
           </p>
         </div>
@@ -134,20 +134,20 @@ export default function CPDashboardPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Earned</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Earned</CardTitle>
           <CardValue>{formatINR(earned)}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Paid</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Paid</CardTitle>
           <CardValue>{formatINR(paid)}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Pending</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Pending</CardTitle>
           <CardValue>{formatINR(pending)}</CardValue>
         </Card>
-        <Card className="border-neutral-800 bg-[#121A2B] text-white">
-          <CardTitle className="text-neutral-400">Leaderboard rank</CardTitle>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Leaderboard rank</CardTitle>
           <CardValue>{myRank > 0 ? `#${myRank}` : "—"}</CardValue>
         </Card>
       </div>
@@ -174,7 +174,7 @@ export default function CPDashboardPage() {
             <h2 className="text-lg font-medium flex items-center gap-2">
               <Star size={16} className="text-yellow-400" />
               AI Recommended for You
-              <span className="text-xs text-neutral-500">— top opportunities based on commission & availability</span>
+              <span className="text-xs text-muted-foreground">— top opportunities based on commission & availability</span>
             </h2>
             <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
               {recommended.map((p) => {
@@ -185,14 +185,14 @@ export default function CPDashboardPage() {
                       <p className="text-sm font-medium text-white leading-snug">{p.name}</p>
                       {p.listingTier === "FEATURED" && <Badge variant="featured" className="shrink-0">Featured</Badge>}
                     </div>
-                    <p className="mt-1 text-xs text-neutral-500">{p.city}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{p.city}</p>
                     <div className="mt-3 space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span className="text-neutral-400">Commission</span>
+                        <span className="text-muted-foreground">Commission</span>
                         <span className="text-green-400 font-medium">{p.commissionPercent}%</span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-neutral-400">Available units</span>
+                        <span className="text-muted-foreground">Available units</span>
                         <span className="text-white">{avail}</span>
                       </div>
                     </div>
@@ -207,31 +207,31 @@ export default function CPDashboardPage() {
 
       <section className="mt-10">
         <h2 className="text-lg font-medium">
-          Discover projects <span className="text-xs text-neutral-500">— live inventory, updates in real time</span>
+          Discover projects <span className="text-xs text-muted-foreground">— live inventory, updates in real time</span>
         </h2>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => {
             const units = unitsByProject[p._id] || [];
             const available = units.filter((u) => u.status === "AVAILABLE");
             return (
-              <Card key={p._id} className="border-neutral-800 bg-[#121A2B] text-white">
+              <Card key={p._id} className="border-white/10 glass text-white">
                 <div className="flex items-start justify-between">
                   <p className="font-medium">{p.name}</p>
                   {p.listingTier === "FEATURED" && <Badge variant="featured">Featured</Badge>}
                 </div>
-                <p className="mt-1 text-sm text-neutral-400">{p.location}, {p.city} · {nameOf(p.developerId)}</p>
-                <p className="mt-2 text-xs text-neutral-500">{available.length} units available · Commission {p.commissionPercent}%</p>
+                <p className="mt-1 text-sm text-muted-foreground">{p.location}, {p.city} · {nameOf(p.developerId)}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{available.length} units available · Commission {p.commissionPercent}%</p>
 
                 <div className="mt-3">
                   {leadFormOpenFor === p._id ? (
-                    <div className="space-y-2 rounded-lg border border-neutral-700 bg-neutral-900 p-3">
+                    <div className="space-y-2 rounded-lg border border-white/15 bg-card p-3">
                       <div>
-                        <Label className="text-xs text-neutral-300">Client name</Label>
-                        <Input value={leadForm.clientName} onChange={(e) => setLeadForm({ ...leadForm, clientName: e.target.value })} className="h-8 border-neutral-700 bg-neutral-800 text-xs text-white" />
+                        <Label className="text-xs text-foreground/90">Client name</Label>
+                        <Input value={leadForm.clientName} onChange={(e) => setLeadForm({ ...leadForm, clientName: e.target.value })} className="h-8 border-white/15 bg-white/10 text-xs text-white" />
                       </div>
                       <div>
-                        <Label className="text-xs text-neutral-300">Phone (10 digits)</Label>
-                        <Input value={leadForm.clientPhone} onChange={(e) => setLeadForm({ ...leadForm, clientPhone: e.target.value })} className="h-8 border-neutral-700 bg-neutral-800 text-xs text-white" />
+                        <Label className="text-xs text-foreground/90">Phone (10 digits)</Label>
+                        <Input value={leadForm.clientPhone} onChange={(e) => setLeadForm({ ...leadForm, clientPhone: e.target.value })} className="h-8 border-white/15 bg-white/10 text-xs text-white" />
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" onClick={() => submitLead(p._id)}>Submit</Button>
@@ -244,14 +244,14 @@ export default function CPDashboardPage() {
                 </div>
 
                 {units.length > 0 && (
-                  <div className="mt-3 space-y-1 border-t border-neutral-800 pt-2">
+                  <div className="mt-3 space-y-1 border-t border-white/10 pt-2">
                     {units.slice(0, 5).map((u) => (
                       <div key={u._id} className="flex items-center justify-between text-xs">
                         <span>{u.unitNumber} · {u.type} · {formatINR(u.price)}</span>
                         <div className="flex items-center gap-2">
                           <Badge variant={STATUS_VARIANT[u.status]}>{u.status}</Badge>
                           {u.status === "AVAILABLE" && (
-                            <Button size="sm" variant="outline" className="h-6 border-neutral-700 px-2 text-xs" onClick={() => lockUnit(u._id)}>Lock</Button>
+                            <Button size="sm" variant="outline" className="h-6 border-white/15 px-2 text-xs" onClick={() => lockUnit(u._id)}>Lock</Button>
                           )}
                         </div>
                       </div>
@@ -268,10 +268,10 @@ export default function CPDashboardPage() {
         <h2 className="text-lg font-medium">My leads</h2>
         <div className="mt-3 space-y-2">
           {leads.map((l) => (
-            <Card key={l._id} className="flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white">
+            <Card key={l._id} className="flex items-center justify-between border-white/10 glass text-white">
               <div>
                 <p className="font-medium">{l.clientName}</p>
-                <p className="text-sm text-neutral-400">{nameOf(l.projectId)} · {l.clientPhone}</p>
+                <p className="text-sm text-muted-foreground">{nameOf(l.projectId)} · {l.clientPhone}</p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant="info">{l.stage}</Badge>
@@ -286,7 +286,7 @@ export default function CPDashboardPage() {
               </div>
             </Card>
           ))}
-          {leads.length === 0 && <p className="text-sm text-neutral-500">No leads yet — submit one from a project above.</p>}
+          {leads.length === 0 && <p className="text-sm text-muted-foreground">No leads yet — submit one from a project above.</p>}
         </div>
       </section>
 
@@ -303,24 +303,24 @@ export default function CPDashboardPage() {
               const net = c.cpCommissionAmount - tds;
               const releasedAmt = c.milestones.filter((m) => m.isReleased).reduce((s, m) => s + m.amount, 0);
               return (
-                <Card key={c._id} className="border-neutral-800 bg-[#121A2B] text-white">
+                <Card key={c._id} className="border-white/10 glass text-white">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="font-medium text-sm">{typeof c.leadId === "object" && c.leadId !== null ? (c.leadId as Lead).clientName : "Lead"} commission</p>
                       <Badge variant="info" className="mt-1">{c.status}</Badge>
                     </div>
                     <div className="text-right text-xs space-y-0.5">
-                      <p className="text-neutral-400">Gross: <span className="text-white">{formatINR(c.cpCommissionAmount)}</span></p>
-                      <p className="text-neutral-400">TDS ({5}%): <span className="text-rose-400">− {formatINR(tds)}</span></p>
-                      <p className="text-neutral-400">Net payable: <span className="text-green-400 font-semibold">{formatINR(net)}</span></p>
-                      <p className="text-neutral-500">Released: {formatINR(releasedAmt)}</p>
+                      <p className="text-muted-foreground">Gross: <span className="text-white">{formatINR(c.cpCommissionAmount)}</span></p>
+                      <p className="text-muted-foreground">TDS ({5}%): <span className="text-rose-400">− {formatINR(tds)}</span></p>
+                      <p className="text-muted-foreground">Net payable: <span className="text-green-400 font-semibold">{formatINR(net)}</span></p>
+                      <p className="text-muted-foreground">Released: {formatINR(releasedAmt)}</p>
                     </div>
                   </div>
 
                   {/* Milestones */}
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {c.milestones.map((m) => (
-                      <div key={String(m._id)} className={`rounded-lg border px-2 py-1.5 text-center text-xs ${m.isReleased ? "border-green-800 bg-green-950/30 text-green-300" : "border-neutral-800 text-neutral-500"}`}>
+                      <div key={String(m._id)} className={`rounded-lg border px-2 py-1.5 text-center text-xs ${m.isReleased ? "border-green-800 bg-green-950/30 text-green-300" : "border-white/10 text-muted-foreground"}`}>
                         <p className="font-medium">{m.label}</p>
                         <p>{formatINR(m.amount)}</p>
                         <p className="text-[10px] mt-0.5">{m.isReleased ? "✓ Released" : "Pending"}</p>
@@ -329,11 +329,11 @@ export default function CPDashboardPage() {
                   </div>
 
                   {/* Invoice upload */}
-                  <div className="mt-3 border-t border-neutral-800 pt-3 flex items-center gap-3 text-xs">
+                  <div className="mt-3 border-t border-white/10 pt-3 flex items-center gap-3 text-xs">
                     {c.invoiceUrl ? (
                       <a href={c.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">View Invoice ↗</a>
                     ) : (
-                      <label className="cursor-pointer text-neutral-400 hover:text-white transition-colors flex items-center gap-1.5">
+                      <label className="cursor-pointer text-muted-foreground hover:text-white transition-colors flex items-center gap-1.5">
                         <Receipt size={12} />
                         Upload Invoice
                         <input
@@ -371,9 +371,9 @@ export default function CPDashboardPage() {
           <h2 className="text-lg font-medium">Leaderboard</h2>
           <div className="mt-3 space-y-2">
             {leaderboard.slice(0, 5).map((cp, i) => (
-              <Card key={cp._id} className={`flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white ${cp._id === user._id ? "ring-1 ring-blue-500" : ""}`}>
+              <Card key={cp._id} className={`flex items-center justify-between border-white/10 glass text-white ${cp._id === user._id ? "ring-1 ring-blue-500" : ""}`}>
                 <p>#{i + 1} {cp.name} <Badge variant={(cp.cpTier || "silver").toLowerCase()}>{cp.cpTier}</Badge></p>
-                <p className="text-sm text-neutral-400">{cp.cpProfile?.totalBookings || 0} bookings</p>
+                <p className="text-sm text-muted-foreground">{cp.cpProfile?.totalBookings || 0} bookings</p>
               </Card>
             ))}
           </div>

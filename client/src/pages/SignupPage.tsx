@@ -49,39 +49,43 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FAF6F0] px-4 py-12">
-      <Card className="w-full max-w-md">
-        <h1 className="font-serif text-2xl font-semibold text-[#fff]">Join Truvi</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+    <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-12">
+      <Card className="w-full max-w-md p-8">
+        <Link to="/" className="mb-6 flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+          <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
+          TRUVI
+        </Link>
+        <h1 className="font-display text-2xl font-semibold text-[#fff]">Join Truvi</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Create your account. An admin will verify and approve it before you get full access.
         </p>
 
-        <div className="mt-5 flex rounded-lg border border-neutral-200 p-1">
+        <div className="mt-5 flex rounded-lg border border-white/10 p-1">
           <button
             type="button"
             onClick={() => setValue("role", "DEVELOPER")}
-            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "DEVELOPER" ? "bg-[#3A2E26] text-white" : "text-neutral-500"}`}
+            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "DEVELOPER" ? "bg-[var(--trust)] text-white" : "text-muted-foreground"}`}
           >
             I&apos;m a Developer
           </button>
           <button
             type="button"
             onClick={() => setValue("role", "CP")}
-            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "CP" ? "bg-[#3A2E26] text-white" : "text-neutral-500"}`}
+            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "CP" ? "bg-[var(--trust)] text-white" : "text-muted-foreground"}`}
           >
             I&apos;m a Channel Partner
           </button>
           <button
             type="button"
             onClick={() => setValue("role", "BUYER")}
-            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "BUYER" ? "bg-[#3A2E26] text-white" : "text-neutral-500"}`}
+            className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === "BUYER" ? "bg-[var(--trust)] text-white" : "text-muted-foreground"}`}
           >
             I&apos;m a Buyer
           </button>
         </div>
 
         {success ? (
-          <p className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-green-700">
+          <p className="mt-6 rounded-lg bg-green-50 p-4 text-sm text-emerald-300">
             Account created! Redirecting to login — your account is pending admin approval.
           </p>
         ) : (
@@ -94,31 +98,31 @@ export default function SignupPage() {
             <div>
               <Label>Email</Label>
               <Input type="email" {...register("email")} placeholder="you@example.com" className="text-[#fff]" />
-              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+              {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
             </div>
             <div>
               <Label>Phone</Label>
               <Input {...register("phone")} placeholder="98765 43210" className="text-[#fff]"/>
-              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone.message}</p>}
+              {errors.phone && <p className="mt-1 text-xs text-red-400">{errors.phone.message}</p>}
             </div>
             <div>
               <Label>Password</Label>
               <Input type="password" {...register("password")} placeholder="At least 8 characters" className="text-[#fff]"/>
-              {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>}
+              {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>}
             </div>
             {role === "DEVELOPER" && (
               <div>
                 <Label>Company name</Label>
                 <Input {...register("companyName")} placeholder="Skyline Developers Pvt Ltd" className="text-[#fff]"/>
-                {errors.companyName && <p className="mt-1 text-xs text-red-600">{errors.companyName.message}</p>}
+                {errors.companyName && <p className="mt-1 text-xs text-red-400">{errors.companyName.message}</p>}
               </div>
             )}
-            {serverError && <p className="text-sm text-red-600">{serverError}</p>}
-            <Button type="submit" disabled={isSubmitting} className="w-full bg-[#3A2E26] hover:bg-[#2a201a]">
+            {serverError && <p className="text-sm text-red-400">{serverError}</p>}
+            <Button type="submit" disabled={isSubmitting} className="w-full bg-[var(--trust)] hover:bg-[var(--trust)]/85">
               {isSubmitting ? "Creating account…" : "Create account"}
             </Button>
-            <p className="text-center text-sm text-neutral-500">
-              Already have an account? <Link to="/login" className="text-blue-600">Log in</Link>
+            <p className="text-center text-sm text-muted-foreground">
+              Already have an account? <Link to="/login" className="text-sky-400">Log in</Link>
             </p>
           </form>
         )}

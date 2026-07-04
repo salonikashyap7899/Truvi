@@ -58,9 +58,9 @@ export default function LegalRiskCard({ level, compact = false }: LegalRiskCardP
 
   if (compact) {
     return (
-      <div className={`flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#121A2B] px-3 py-2`}>
+      <div className={`flex items-center gap-2 rounded-xl border border-white/10 glass px-3 py-2`}>
         <Icon size={14} className={cfg.iconClass} />
-        <span className="text-xs text-neutral-400 font-medium">Legal Risk</span>
+        <span className="text-xs text-muted-foreground font-medium">Legal Risk</span>
         <span className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cfg.badgeClass}`}>
           {cfg.label}
         </span>
@@ -69,17 +69,17 @@ export default function LegalRiskCard({ level, compact = false }: LegalRiskCardP
   }
 
   return (
-    <div className={`rounded-2xl border bg-[#121A2B] p-5 ${cfg.borderClass}`}>
+    <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon size={18} className={cfg.iconClass} />
-          <span className="text-sm font-medium text-neutral-300">Legal Risk</span>
+          <span className="text-sm font-medium text-foreground/90">Legal Risk</span>
         </div>
         <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
           {cfg.label}
         </span>
       </div>
-      <p className="mt-3 text-xs text-neutral-400 leading-relaxed">{cfg.note}</p>
+      <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{cfg.note}</p>
     </div>
   );
 }

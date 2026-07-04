@@ -62,21 +62,21 @@ export default function OwnerHistoryCard({ owners }: OwnerHistoryCardProps) {
   const heldYears = current ? new Date().getFullYear() - current.startYear : 0;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+    <div className="rounded-2xl border border-white/10 glass p-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <History size={16} className="text-indigo-400" />
-          <span className="text-sm font-medium text-neutral-300">Owner History</span>
+          <span className="text-sm font-medium text-foreground/90">Owner History</span>
         </div>
-        <span className="text-xs text-neutral-500">
+        <span className="text-xs text-muted-foreground">
           {totalOwners} owner{totalOwners !== 1 ? "s" : ""}
         </span>
       </div>
 
-      <p className="mt-1 text-xs text-neutral-500">
+      <p className="mt-1 text-xs text-muted-foreground">
         Current owner holding for{" "}
-        <span className="font-semibold text-neutral-300">
+        <span className="font-semibold text-foreground/90">
           {heldYears} yr{heldYears !== 1 ? "s" : ""}
         </span>
       </p>
@@ -94,23 +94,23 @@ export default function OwnerHistoryCard({ owners }: OwnerHistoryCardProps) {
                   className={`mt-1 h-3 w-3 rounded-full border-2 shrink-0 ${
                     isCurrent
                       ? "border-indigo-400 bg-indigo-400/20"
-                      : "border-neutral-600 bg-neutral-800"
+                      : "border-white/20 bg-white/10"
                   }`}
                 />
                 {!isLast && (
-                  <div className="w-px flex-1 bg-neutral-800 my-0.5" style={{ minHeight: 16 }} />
+                  <div className="w-px flex-1 bg-white/10 my-0.5" style={{ minHeight: 16 }} />
                 )}
               </div>
               {/* Label */}
               <div className="pb-4">
                 <p
                   className={`text-xs font-semibold ${
-                    isCurrent ? "text-indigo-300" : "text-neutral-300"
+                    isCurrent ? "text-indigo-300" : "text-foreground/90"
                   }`}
                 >
                   {entry.ownerLabel}
                 </p>
-                <p className="text-[11px] text-neutral-500">
+                <p className="text-[11px] text-muted-foreground">
                   {entry.startYear} – {entry.endYear ?? "Present"}
                 </p>
               </div>

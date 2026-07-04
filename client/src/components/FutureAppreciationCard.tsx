@@ -49,25 +49,25 @@ export default function FutureAppreciationCard({ projectId }: FutureAppreciation
   const data = mockAppreciation(projectId);
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-5">
+    <div className="rounded-2xl border border-white/10 glass p-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-neutral-500">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Future Appreciation
           </p>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-3xl font-bold" style={{ color: data.outlookColor }}>
               +{data.totalPct}%
             </span>
-            <span className="text-sm text-neutral-400">over 5 yrs</span>
+            <span className="text-sm text-muted-foreground">over 5 yrs</span>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-neutral-500">
+          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
             <span>
               CAGR{" "}
-              <span className="font-semibold text-neutral-300">{data.cagr}%</span>
+              <span className="font-semibold text-foreground/90">{data.cagr}%</span>
             </span>
-            <span className="text-neutral-700">·</span>
+            <span className="text-foreground/80">·</span>
             <span className="flex items-center gap-1">
               <TrendingUp size={11} style={{ color: data.outlookColor }} />
               <span style={{ color: data.outlookColor }}>{data.outlook} outlook</span>
@@ -110,15 +110,15 @@ export default function FutureAppreciationCard({ projectId }: FutureAppreciation
       </div>
 
       {/* Year labels */}
-      <div className="mt-2 flex justify-between text-[10px] text-neutral-600 px-0.5">
+      <div className="mt-2 flex justify-between text-[10px] text-muted-foreground px-0.5">
         {data.points.map((p) => (
           <span key={p.year}>{p.year}</span>
         ))}
       </div>
 
-      <p className="mt-3 text-xs text-neutral-500 border-t border-neutral-800 pt-3">
+      <p className="mt-3 text-xs text-muted-foreground border-t border-white/10 pt-3">
         Projected using locality growth trends and historical data.{" "}
-        <span className="text-neutral-700">Placeholder — not financial advice.</span>
+        <span className="text-foreground/80">Placeholder — not financial advice.</span>
       </p>
     </div>
   );

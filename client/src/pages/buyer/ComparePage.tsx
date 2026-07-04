@@ -57,12 +57,12 @@ function Row({
   highlight?: boolean;
 }) {
   return (
-    <tr className={highlight ? "bg-[#141d2f]" : "bg-[#0f1624]"}>
-      <td className="sticky left-0 z-10 whitespace-nowrap bg-[#0B1220] px-4 py-3 text-xs font-medium text-neutral-400 w-36">
+    <tr className={highlight ? "bg-white/5" : "bg-white/5"}>
+      <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-4 py-3 text-xs font-medium text-muted-foreground w-36">
         {label}
       </td>
       {values.map((v, i) => (
-        <td key={i} className="px-5 py-3 text-sm text-neutral-200 align-top min-w-[200px]">
+        <td key={i} className="px-5 py-3 text-sm text-foreground align-top min-w-[200px]">
           {v}
         </td>
       ))}
@@ -126,16 +126,16 @@ export default function ComparePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#0B1220] p-10 text-white">
-        <p className="text-sm text-neutral-500">Loading comparison…</p>
+      <main className="min-h-screen p-10 text-white">
+        <p className="text-sm text-muted-foreground">Loading comparison…</p>
       </main>
     );
   }
 
   if (projects.length < 2) {
     return (
-      <main className="min-h-screen bg-[#0B1220] p-10 text-white">
-        <p className="text-sm text-neutral-400">Not enough properties to compare.</p>
+      <main className="min-h-screen p-10 text-white">
+        <p className="text-sm text-muted-foreground">Not enough properties to compare.</p>
         <Link to="/buyer/projects" className="mt-4 inline-block">
           <Button size="sm">Browse Properties</Button>
         </Link>
@@ -167,18 +167,18 @@ export default function ComparePage() {
         : "Not uploaded",
     },
     { label: "Description",  render: (p) => (
-        <span className="line-clamp-4 text-xs text-neutral-400">{p.description || "—"}</span>
+        <span className="line-clamp-4 text-xs text-muted-foreground">{p.description || "—"}</span>
       ),
     },
   ];
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10 pb-24">
+    <main className="min-h-screen p-6 text-white md:p-10 pb-24">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => { clear(); navigate(-1); }}
-          className="flex items-center gap-1.5 text-sm text-neutral-400 hover:text-white transition-colors"
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white transition-colors"
         >
           <ArrowLeft size={16} /> Back
         </button>
@@ -186,12 +186,12 @@ export default function ComparePage() {
       </div>
 
       {/* Scrollable comparison table */}
-      <div className="overflow-x-auto rounded-2xl border border-neutral-800">
+      <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="border-b border-neutral-800 bg-[#0B1220]">
+            <tr className="border-b border-white/10 bg-card">
               {/* sticky label column header */}
-              <th className="sticky left-0 z-20 bg-[#0B1220] px-4 py-3 text-left text-xs font-medium text-neutral-500 w-36">
+              <th className="sticky left-0 z-20 bg-card px-4 py-3 text-left text-xs font-medium text-muted-foreground w-36">
                 Property
               </th>
               {projects.map((p) => (
@@ -202,12 +202,12 @@ export default function ComparePage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-white leading-tight">{p.name}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">{p.city}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{p.city}</p>
                     </div>
                     <button
                       onClick={() => removeProject(p._id)}
                       aria-label={`Remove ${p.name} from comparison`}
-                      className="shrink-0 rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white transition-colors"
+                      className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
                     >
                       <X size={14} />
                     </button>
@@ -241,7 +241,7 @@ export default function ComparePage() {
           size="sm"
           variant="secondary"
           onClick={() => { clear(); navigate("/buyer/projects"); }}
-          className="text-neutral-400"
+          className="text-muted-foreground"
         >
           Clear &amp; start over
         </Button>

@@ -32,9 +32,13 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#FAF6F0] px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="font-serif text-2xl font-semibold text-[#fff]">Log in to Truvi</h1>
+    <main className="flex min-h-screen items-center justify-center bg-transparent px-4">
+      <Card className="w-full max-w-sm p-8">
+        <Link to="/" className="mb-6 flex items-center gap-2 font-display text-base font-semibold tracking-tight">
+          <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
+          TRUVI
+        </Link>
+        <h1 className="font-display text-2xl font-semibold text-[#fff]">Log in to Truvi</h1>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
             <Label>Email</Label>
@@ -44,12 +48,12 @@ export default function LoginPage() {
             <Label>Password</Label>
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="text-[#fff]"/>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={loading} className="w-full bg-[#3A2E26] hover:bg-[#2a201a]">
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <Button type="submit" disabled={loading} className="w-full bg-[var(--trust)] hover:bg-[var(--trust)]/85">
             {loading ? "Logging in…" : "Log in"}
           </Button>
-          <p className="text-center text-sm text-neutral-500">
-            New here? <Link to="/signup" className="text-blue-600">Create an account</Link>
+          <p className="text-center text-sm text-muted-foreground">
+            New here? <Link to="/signup" className="text-sky-400">Create an account</Link>
           </p>
         </form>
       </Card>

@@ -126,20 +126,20 @@ export default function LearningAcademyPage() {
 
   const totalCompleted = Object.values(progressMap).filter((p) => p.completedAt).length;
 
-  if (loading) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
-        <Link to="/cp/dashboard" className="text-neutral-500 hover:text-white transition-colors">
+        <Link to="/cp/dashboard" className="text-muted-foreground hover:text-white transition-colors">
           <ArrowLeft size={18} />
         </Link>
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <BookOpen size={22} className="text-blue-400" /> Truvi Learning Academy
           </h1>
-          <p className="mt-0.5 text-sm text-neutral-400">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Complete courses, earn certifications, and advance your CP tier.
           </p>
         </div>
@@ -148,7 +148,7 @@ export default function LearningAcademyPage() {
       <div className="mt-2 flex items-center gap-4">
         <div className="rounded-xl border border-blue-800 bg-blue-950/40 px-4 py-2 text-sm">
           <span className="text-blue-300 font-medium">{totalCompleted}</span>
-          <span className="text-neutral-400"> / {COURSES.length} courses completed</span>
+          <span className="text-muted-foreground"> / {COURSES.length} courses completed</span>
         </div>
         {totalCompleted >= COURSES.length && (
           <Badge variant="featured">🏆 Academy Graduate</Badge>
@@ -158,13 +158,13 @@ export default function LearningAcademyPage() {
       {/* Certificate Modal */}
       {certCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-yellow-700 bg-[#1a2030] p-8 text-center shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-yellow-700 bg-white/5 p-8 text-center shadow-2xl">
             <Trophy size={48} className="mx-auto text-yellow-400 mb-4" />
-            <p className="text-xs uppercase tracking-widest text-neutral-500 mb-1">Certificate of Completion</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Certificate of Completion</p>
             <h2 className="text-xl font-bold text-white">{certCourse.title}</h2>
-            <p className="mt-3 text-sm text-neutral-400">Awarded to</p>
+            <p className="mt-3 text-sm text-muted-foreground">Awarded to</p>
             <p className="text-lg font-semibold text-yellow-400">{user?.name}</p>
-            <p className="mt-1 text-xs text-neutral-500">Truvi Learning Academy · {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Truvi Learning Academy · {new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" })}</p>
             <Button className="mt-6 w-full" onClick={() => setCertCourse(null)}>Close</Button>
           </div>
         </div>
@@ -173,16 +173,16 @@ export default function LearningAcademyPage() {
       {/* Course grid / detail */}
       {activeCourse ? (
         <div className="mt-6">
-          <button onClick={() => setActiveCourse(null)} className="flex items-center gap-1 text-sm text-neutral-400 hover:text-white mb-4 transition-colors">
+          <button onClick={() => setActiveCourse(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-white mb-4 transition-colors">
             <ArrowLeft size={14} /> Back to courses
           </button>
 
-          <div className="rounded-2xl border border-neutral-800 bg-[#121A2B] p-6">
+          <div className="rounded-2xl border border-white/10 glass p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className="text-3xl">{activeCourse.icon}</span>
                 <h2 className="mt-2 text-xl font-semibold">{activeCourse.title}</h2>
-                <p className="mt-1 text-sm text-neutral-400">{activeCourse.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{activeCourse.description}</p>
               </div>
               {progressMap[activeCourse.id]?.completedAt && (
                 <button
@@ -201,28 +201,28 @@ export default function LearningAcademyPage() {
                   <button
                     key={mod.id}
                     onClick={() => toggleModule(activeCourse, mod.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${done ? "border-green-800 bg-green-950/30" : "border-neutral-800 bg-[#0f1624] hover:border-neutral-700"}`}
+                    className={`w-full flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${done ? "border-green-800 bg-green-950/30" : "border-white/10 bg-white/5 hover:border-white/15"}`}
                   >
                     {done
                       ? <CheckCircle size={18} className="text-green-400 shrink-0" />
-                      : <Circle size={18} className="text-neutral-600 shrink-0" />}
+                      : <Circle size={18} className="text-muted-foreground shrink-0" />}
                     <div className="flex-1">
                       <p className={`text-sm font-medium ${done ? "text-green-300" : "text-white"}`}>{mod.title}</p>
-                      <p className="text-xs text-neutral-500">{mod.duration}</p>
+                      <p className="text-xs text-muted-foreground">{mod.duration}</p>
                     </div>
-                    <span className={`text-xs ${done ? "text-green-500" : "text-neutral-600"}`}>{done ? "Done" : "Mark complete"}</span>
+                    <span className={`text-xs ${done ? "text-green-500" : "text-muted-foreground"}`}>{done ? "Done" : "Mark complete"}</span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mt-4 h-2 rounded-full bg-neutral-800 overflow-hidden">
+            <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
               <div
                 className="h-full rounded-full bg-blue-500 transition-all duration-500"
                 style={{ width: `${Math.round(((progressMap[activeCourse.id]?.completedModules.length || 0) / activeCourse.modules.length) * 100)}%` }}
               />
             </div>
-            <p className="mt-1 text-xs text-neutral-500 text-right">
+            <p className="mt-1 text-xs text-muted-foreground text-right">
               {progressMap[activeCourse.id]?.completedModules.length || 0} / {activeCourse.modules.length} modules
             </p>
           </div>
@@ -240,21 +240,21 @@ export default function LearningAcademyPage() {
               <button
                 key={course.id}
                 onClick={() => setActiveCourse(course)}
-                className={`text-left rounded-2xl border p-5 transition-all hover:scale-[1.01] ${isDone ? "border-green-800 bg-[#0d1a12]" : "border-neutral-800 bg-[#121A2B] hover:border-neutral-700"}`}
+                className={`text-left rounded-2xl border p-5 transition-all hover:scale-[1.01] ${isDone ? "border-green-800 bg-[var(--growth)]/10" : "border-white/10 glass hover:border-white/15"}`}
               >
                 <div className="flex items-start justify-between">
                   <span className="text-2xl">{course.icon}</span>
                   {isDone
                     ? <span className="flex items-center gap-1 text-xs text-green-400"><Award size={12} /> Certified</span>
-                    : <span className="text-xs text-neutral-500">{course.modules.length} modules</span>}
+                    : <span className="text-xs text-muted-foreground">{course.modules.length} modules</span>}
                 </div>
                 <h3 className="mt-3 font-semibold text-white text-sm">{course.title}</h3>
-                <p className="mt-1 text-xs text-neutral-400 line-clamp-2">{course.description}</p>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{course.description}</p>
 
-                <div className="mt-4 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                <div className="mt-4 h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div className={`h-full rounded-full transition-all duration-500 ${isDone ? "bg-green-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
                 </div>
-                <p className="mt-1 text-[11px] text-neutral-500">{pct}% complete</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{pct}% complete</p>
               </button>
             );
           })}

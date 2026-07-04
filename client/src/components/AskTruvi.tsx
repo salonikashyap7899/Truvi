@@ -123,30 +123,30 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       {/* Panel */}
       <div
         className={`
-          fixed z-50 flex flex-col bg-[#0D1626] shadow-2xl shadow-black/60
+          fixed z-50 flex flex-col bg-card shadow-2xl shadow-black/60
           transition-all duration-300 ease-out
           /* Mobile: bottom sheet */
-          bottom-0 left-0 right-0 rounded-t-2xl border-t border-x border-neutral-800
+          bottom-0 left-0 right-0 rounded-t-2xl border-t border-x border-white/10
           sm:bottom-6 sm:right-6 sm:left-auto sm:w-[380px] sm:h-[520px]
-          sm:rounded-2xl sm:border sm:border-neutral-800
+          sm:rounded-2xl sm:border sm:border-white/10
           ${open ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
         style={{ maxHeight: "85vh" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3 shrink-0">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600/20">
               <Sparkles size={14} className="text-blue-400" />
             </div>
             <div>
               <p className="text-sm font-semibold text-white">Ask Truvi AI</p>
-              <p className="text-[10px] text-neutral-500">Property intelligence assistant</p>
+              <p className="text-[10px] text-muted-foreground">Property intelligence assistant</p>
             </div>
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="rounded-lg p-1.5 text-neutral-500 hover:bg-neutral-800 hover:text-white transition-colors"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
             aria-label="Close"
           >
             <X size={16} />
@@ -163,7 +163,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               {/* Avatar */}
               <div
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white
-                  ${msg.role === "ai" ? "bg-blue-600/30" : "bg-neutral-700"}`}
+                  ${msg.role === "ai" ? "bg-blue-600/30" : "bg-white/15"}`}
               >
                 {msg.role === "ai" ? <Bot size={13} className="text-blue-300" /> : <User size={13} />}
               </div>
@@ -171,7 +171,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <div
                 className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed
                   ${msg.role === "ai"
-                    ? "bg-[#1a2540] text-neutral-200 rounded-bl-sm"
+                    ? "bg-white/10 text-foreground rounded-bl-sm"
                     : "bg-blue-600 text-white rounded-br-sm"
                   }`}
               >
@@ -185,7 +185,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600/30">
                 <Bot size={13} className="text-blue-300" />
               </div>
-              <div className="rounded-2xl rounded-bl-sm bg-[#1a2540] px-1 py-0">
+              <div className="rounded-2xl rounded-bl-sm bg-white/10 px-1 py-0">
                 <TypingDots />
               </div>
             </div>
@@ -194,15 +194,15 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         </div>
 
         {/* Input bar */}
-        <div className="shrink-0 border-t border-neutral-800 px-3 py-3">
-          <div className="flex items-center gap-2 rounded-xl border border-neutral-700 bg-[#121A2B] px-3 py-2 focus-within:border-blue-600 transition-colors">
+        <div className="shrink-0 border-t border-white/10 px-3 py-3">
+          <div className="flex items-center gap-2 rounded-xl border border-white/15 glass px-3 py-2 focus-within:border-blue-600 transition-colors">
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKey}
               placeholder="Ask about RERA, pricing, appreciation…"
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-neutral-600 outline-none"
+              className="flex-1 bg-transparent text-sm text-white placeholder:text-muted-foreground outline-none"
               disabled={loading}
             />
             <button
@@ -214,7 +214,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <Send size={13} />
             </button>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-neutral-700">
+          <p className="mt-1.5 text-center text-[10px] text-foreground/80">
             Powered by AI · Not a substitute for professional advice
           </p>
         </div>

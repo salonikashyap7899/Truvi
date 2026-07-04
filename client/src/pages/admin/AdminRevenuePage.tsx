@@ -22,7 +22,7 @@ export default function AdminRevenuePage() {
     api.get("/revenue").then((res) => setData(res.data));
   }, []);
 
-  if (!data) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (!data) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   const rows = [
     { label: "Developer Commission-Linked Platform Fee", actual: data.platformFeeRevenue, target: data.target.platformFee },
@@ -32,12 +32,12 @@ export default function AdminRevenuePage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">Revenue Dashboard</h1>
-      <p className="mt-1 text-sm text-neutral-400">Founder&apos;s command center — ecosystem revenue, computed live from the database.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Founder&apos;s command center — ecosystem revenue, computed live from the database.</p>
 
-      <Card className="mt-6 border-neutral-800 bg-[#121A2B] text-white">
-        <CardTitle className="text-neutral-400">Total Platform Revenue (live)</CardTitle>
+      <Card className="mt-6 border-white/10 glass text-white">
+        <CardTitle className="text-muted-foreground">Total Platform Revenue (live)</CardTitle>
         <CardValue className="text-3xl">{formatINR(data.totalRevenue)}</CardValue>
       </Card>
 
@@ -45,26 +45,26 @@ export default function AdminRevenuePage() {
         {rows.map((r) => {
           const pct = data.totalRevenue > 0 ? Math.round((r.actual / data.totalRevenue) * 100) : 0;
           return (
-            <Card key={r.label} className="border-neutral-800 bg-[#121A2B] text-white">
+            <Card key={r.label} className="border-white/10 glass text-white">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">{r.label}</p>
-                <p className="text-sm text-neutral-400">target {r.target}%</p>
+                <p className="text-sm text-muted-foreground">target {r.target}%</p>
               </div>
               <p className="mt-1 text-xl font-semibold">{formatINR(r.actual)}</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-800">
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
                 <div className="h-full bg-blue-500" style={{ width: `${Math.min(pct, 100)}%` }} />
               </div>
-              <p className="mt-1 text-xs text-neutral-500">{pct}% of current total</p>
+              <p className="mt-1 text-xs text-muted-foreground">{pct}% of current total</p>
             </Card>
           );
         })}
-        <Card className="border-neutral-800 bg-[#121A2B] text-white opacity-60">
+        <Card className="border-white/10 glass text-white opacity-60">
           <p className="text-sm font-medium">Referral/Other (Home Loan & Insurance)</p>
-          <p className="mt-1 text-xs text-neutral-500">Target {data.target.referralOther}% — not yet active, placeholder line only</p>
+          <p className="mt-1 text-xs text-muted-foreground">Target {data.target.referralOther}% — not yet active, placeholder line only</p>
         </Card>
       </div>
 
-      <p className="mt-8 text-xs text-neutral-500">{data.leadPurchaseCount} leads purchased to date · {data.premiumCount} Premium CPs · {data.featuredCount} Featured projects</p>
+      <p className="mt-8 text-xs text-muted-foreground">{data.leadPurchaseCount} leads purchased to date · {data.premiumCount} Premium CPs · {data.featuredCount} Featured projects</p>
     </main>
   );
 }

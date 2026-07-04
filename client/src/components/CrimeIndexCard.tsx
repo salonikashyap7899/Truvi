@@ -23,7 +23,7 @@ const LEVEL_CONFIG: Record<RiskLevel, LevelConfig> = {
     note: "Below-average crime rate. Well-patrolled streets and low incident reports for this area.",
     badgeClass: "bg-green-500/15 text-green-400 border border-green-500/30",
     iconClass: "text-green-400",
-    borderClass: "border-neutral-800",
+    borderClass: "border-white/10",
     Icon: ShieldCheck,
   },
   MEDIUM: {
@@ -60,17 +60,17 @@ export default function CrimeIndexCard({ level }: CrimeIndexCardProps) {
   const { Icon } = cfg;
 
   return (
-    <div className={`rounded-2xl border bg-[#121A2B] p-5 ${cfg.borderClass}`}>
+    <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon size={18} className={cfg.iconClass} />
-          <span className="text-sm font-medium text-neutral-300">Crime Index</span>
+          <span className="text-sm font-medium text-foreground/90">Crime Index</span>
         </div>
         <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
           {cfg.safetyLabel}
         </span>
       </div>
-      <p className="mt-3 text-xs text-neutral-400 leading-relaxed">{cfg.note}</p>
+      <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{cfg.note}</p>
     </div>
   );
 }

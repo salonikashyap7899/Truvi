@@ -92,7 +92,7 @@ export default function ProjectDetailPage() {
     }
   }
 
-  if (!project) return <div className="min-h-screen bg-[#0B1220] p-10 text-white">Loading…</div>;
+  if (!project) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   const trustScore = project.trustScore ?? mockScoreFromId(project._id);
   const legalRisk = project.legalRiskLevel ?? mockRiskFromId(project._id);
@@ -106,9 +106,9 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0B1220] p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">{project.name}</h1>
-      <p className="mt-1 text-sm text-neutral-400">
+      <p className="mt-1 text-sm text-muted-foreground">
         {project.location}, {project.city} · <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>{project.approvalStatus}</Badge>
       </p>
 
@@ -143,7 +143,7 @@ export default function ProjectDetailPage() {
 
       <section className="mt-8">
         <h2 className="text-lg font-medium">Brochure / price list</h2>
-        <label className="mt-2 inline-block cursor-pointer rounded-lg border border-neutral-700 bg-[#121A2B] px-4 py-2 text-sm hover:border-blue-600">
+        <label className="mt-2 inline-block cursor-pointer rounded-lg border border-white/15 glass px-4 py-2 text-sm hover:border-blue-600">
           {uploading ? "Uploading…" : "Upload PDF"}
           <input
             type="file"
@@ -160,22 +160,22 @@ export default function ProjectDetailPage() {
         {!showAddUnit ? (
           <Button size="sm" className="mt-2" onClick={() => setShowAddUnit(true)}>+ Add unit</Button>
         ) : (
-          <form onSubmit={addUnit} className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-neutral-800 bg-[#121A2B] p-4 sm:grid-cols-5">
+          <form onSubmit={addUnit} className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-white/10 glass p-4 sm:grid-cols-5">
             <div>
-              <Label className="text-neutral-300">Unit #</Label>
-              <Input required value={unitForm.unitNumber} onChange={(e) => setUnitForm({ ...unitForm, unitNumber: e.target.value })} className="border-neutral-700 bg-neutral-900 text-white" />
+              <Label className="text-foreground/90">Unit #</Label>
+              <Input required value={unitForm.unitNumber} onChange={(e) => setUnitForm({ ...unitForm, unitNumber: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
-              <Label className="text-neutral-300">Type</Label>
-              <Input required placeholder="2BHK" value={unitForm.type} onChange={(e) => setUnitForm({ ...unitForm, type: e.target.value })} className="border-neutral-700 bg-neutral-900 text-white" />
+              <Label className="text-foreground/90">Type</Label>
+              <Input required placeholder="2BHK" value={unitForm.type} onChange={(e) => setUnitForm({ ...unitForm, type: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
-              <Label className="text-neutral-300">Area (sqft)</Label>
-              <Input required type="number" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-neutral-700 bg-neutral-900 text-white" />
+              <Label className="text-foreground/90">Area (sqft)</Label>
+              <Input required type="number" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
-              <Label className="text-neutral-300">Price (₹)</Label>
-              <Input required type="number" value={unitForm.price} onChange={(e) => setUnitForm({ ...unitForm, price: e.target.value })} className="border-neutral-700 bg-neutral-900 text-white" />
+              <Label className="text-foreground/90">Price (₹)</Label>
+              <Input required type="number" value={unitForm.price} onChange={(e) => setUnitForm({ ...unitForm, price: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div className="flex items-end gap-2">
               <Button type="submit" size="sm">Add</Button>
@@ -186,10 +186,10 @@ export default function ProjectDetailPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-medium">Inventory ({units.length} units) <span className="text-xs text-neutral-500">— live, updates in real time</span></h2>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-neutral-800">
+        <h2 className="text-lg font-medium">Inventory ({units.length} units) <span className="text-xs text-muted-foreground">— live, updates in real time</span></h2>
+        <div className="mt-3 overflow-x-auto rounded-lg border border-white/10">
           <table className="w-full text-sm">
-            <thead className="bg-[#121A2B] text-neutral-400">
+            <thead className="glass text-muted-foreground">
               <tr>
                 <th className="p-3 text-left">Unit</th>
                 <th className="p-3 text-left">Type</th>
@@ -200,7 +200,7 @@ export default function ProjectDetailPage() {
             </thead>
             <tbody>
               {units.map((u) => (
-                <tr key={u._id} className="border-t border-neutral-800">
+                <tr key={u._id} className="border-t border-white/10">
                   <td className="p-3">{u.unitNumber}</td>
                   <td className="p-3">{u.type}</td>
                   <td className="p-3">{u.areaSqft}</td>
@@ -208,7 +208,7 @@ export default function ProjectDetailPage() {
                   <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status}</Badge></td>
                 </tr>
               ))}
-              {units.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-neutral-500">No units added yet.</td></tr>}
+              {units.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -218,15 +218,15 @@ export default function ProjectDetailPage() {
         <h2 className="text-lg font-medium">Leads ({leads.length})</h2>
         <div className="mt-3 space-y-2">
           {leads.map((l) => (
-            <Card key={l._id} className="flex items-center justify-between border-neutral-800 bg-[#121A2B] text-white">
+            <Card key={l._id} className="flex items-center justify-between border-white/10 glass text-white">
               <div>
                 <p className="font-medium">{l.clientName}</p>
-                <p className="text-sm text-neutral-400">{l.clientPhone}</p>
+                <p className="text-sm text-muted-foreground">{l.clientPhone}</p>
               </div>
               <Badge variant="info">{l.stage}</Badge>
             </Card>
           ))}
-          {leads.length === 0 && <p className="text-sm text-neutral-500">No leads yet.</p>}
+          {leads.length === 0 && <p className="text-sm text-muted-foreground">No leads yet.</p>}
         </div>
       </section>
     </main>

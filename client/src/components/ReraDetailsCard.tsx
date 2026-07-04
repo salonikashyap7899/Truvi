@@ -23,7 +23,7 @@ const STATUS_CONFIG: Record<ReraStatus, StatusConfig> = {
   REGISTERED: {
     label: "Registered",
     badgeClass: "bg-green-500/15 text-green-400 border border-green-500/30",
-    borderClass: "border-neutral-800",
+    borderClass: "border-white/10",
     Icon: BadgeCheck,
   },
   PENDING: {
@@ -85,12 +85,12 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
   const { Icon } = cfg;
 
   return (
-    <div className={`rounded-2xl border bg-[#121A2B] p-5 ${cfg.borderClass}`}>
+    <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon size={16} className={cfg.badgeClass.includes("green") ? "text-green-400" : cfg.badgeClass.includes("amber") ? "text-amber-400" : "text-red-400"} />
-          <span className="text-sm font-medium text-neutral-300">RERA Details</span>
+          <span className="text-sm font-medium text-foreground/90">RERA Details</span>
         </div>
         <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
           {cfg.label}
@@ -100,21 +100,21 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
       {/* Fields */}
       <dl className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <dt className="text-neutral-500">Registration No.</dt>
-          <dd className="font-mono font-semibold text-neutral-200 tracking-wide">
+          <dt className="text-muted-foreground">Registration No.</dt>
+          <dd className="font-mono font-semibold text-foreground tracking-wide">
             {info.reraNumber}
           </dd>
         </div>
         {info.reraValidityDate && (
           <div className="flex items-center justify-between text-xs">
-            <dt className="text-neutral-500">Valid Until</dt>
-            <dd className="text-neutral-300">{formatDate(info.reraValidityDate)}</dd>
+            <dt className="text-muted-foreground">Valid Until</dt>
+            <dd className="text-foreground/90">{formatDate(info.reraValidityDate)}</dd>
           </div>
         )}
         {!info.reraValidityDate && (
           <div className="flex items-center justify-between text-xs">
-            <dt className="text-neutral-500">Valid Until</dt>
-            <dd className="text-neutral-500 italic">—</dd>
+            <dt className="text-muted-foreground">Valid Until</dt>
+            <dd className="text-muted-foreground italic">—</dd>
           </div>
         )}
       </dl>

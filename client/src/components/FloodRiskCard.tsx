@@ -21,7 +21,7 @@ const LEVEL_CONFIG: Record<RiskLevel, LevelConfig> = {
     note: "No recorded flooding in the past decade. Elevation and drainage infrastructure are adequate.",
     badgeClass: "bg-green-500/15 text-green-400 border border-green-500/30",
     iconClass: "text-green-400",
-    borderClass: "border-neutral-800",
+    borderClass: "border-white/10",
     Icon: Droplets,
   },
   MEDIUM: {
@@ -56,17 +56,17 @@ export default function FloodRiskCard({ level }: FloodRiskCardProps) {
   const { Icon } = cfg;
 
   return (
-    <div className={`rounded-2xl border bg-[#121A2B] p-5 ${cfg.borderClass}`}>
+    <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon size={18} className={cfg.iconClass} />
-          <span className="text-sm font-medium text-neutral-300">Flood Risk</span>
+          <span className="text-sm font-medium text-foreground/90">Flood Risk</span>
         </div>
         <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
           {cfg.label}
         </span>
       </div>
-      <p className="mt-3 text-xs text-neutral-400 leading-relaxed">{cfg.note}</p>
+      <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{cfg.note}</p>
     </div>
   );
 }

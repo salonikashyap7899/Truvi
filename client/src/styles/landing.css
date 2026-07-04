@@ -1,20 +1,18 @@
 /* ============================================================
-   TRUVI Landing Page theme
-   Scoped to .landing-page so the rest of the app (dashboards,
-   auth pages, etc.) keeps its existing light styling.
+   TRUVI global theme — the landing page look, applied app-wide.
+   Dark oklch palette, glass surfaces, aurora gradients.
    ============================================================ */
 
-/* Map Tailwind semantic utilities (text-muted-foreground, bg-foreground,
-   bg-destructive, text-trust, font-display, ...) to CSS variables.
-   `inline` means utilities reference var(--x) directly, which only
-   resolves inside .landing-page where the variables are defined. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
   --color-trust: var(--trust);
   --color-growth: var(--growth);
   --color-tech: var(--tech);
@@ -23,14 +21,17 @@
   --font-display: var(--font-display);
 }
 
-.landing-page {
+:root {
   /* Core palette (dark, oklch) */
   --background: oklch(0.06 0.005 240);
   --foreground: oklch(0.98 0 0);
+  --card: oklch(0.1 0.01 240);
   --muted: oklch(0.15 0.01 240);
   --muted-foreground: oklch(0.65 0.015 240);
   --destructive: oklch(0.6 0.22 25);
   --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.62 0.19 255);
 
   /* Brand accents */
   --trust: oklch(0.65 0.19 250);
@@ -50,58 +51,60 @@
   --shadow-glow-trust: 0 0 60px -10px oklch(0.65 0.19 250 / 0.5);
   --shadow-glow-growth: 0 0 60px -10px oklch(0.72 0.17 165 / 0.5);
   --shadow-elegant: 0 30px 80px -20px oklch(0 0 0 / 0.6);
-
-  /* Base look, applied on the wrapper instead of <body> */
-  color-scheme: dark;
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans-landing);
-  -webkit-font-smoothing: antialiased;
-  background-image:
-    radial-gradient(1200px 600px at 50% -10%, oklch(0.2 0.1 255 / 0.25), transparent 60%),
-    radial-gradient(800px 400px at 90% 30%, oklch(0.2 0.1 295 / 0.15), transparent 60%);
 }
 
-.landing-page :is(h1, h2, h3, h4) {
-  font-family: var(--font-display);
-  letter-spacing: -0.025em;
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans-landing);
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 50% -10%, oklch(0.2 0.1 255 / 0.25), transparent 60%),
+      radial-gradient(800px 400px at 90% 30%, oklch(0.2 0.1 295 / 0.15), transparent 60%);
+    background-attachment: fixed;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+  * {
+    border-color: var(--border);
+  }
 }
 
-.landing-page * {
-  border-color: var(--border);
-}
+/* ---------- Theme utilities ---------- */
+@layer utilities {
+  .glass {
+    background-color: var(--glass);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid oklch(1 0 0 / 10%);
+  }
 
-/* ---------- Utilities (names unique to the landing page) ---------- */
+  .text-gradient-trust {
+    background: linear-gradient(135deg, oklch(0.85 0.12 250), oklch(0.95 0.05 270));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 
-.glass {
-  background-color: var(--glass);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid oklch(1 0 0 / 10%);
-}
+  .text-gradient-aurora {
+    background: linear-gradient(110deg, oklch(0.95 0 0), oklch(0.75 0.15 250) 40%, oklch(0.78 0.15 295) 70%, oklch(0.95 0 0));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 
-.text-gradient-trust {
-  background: linear-gradient(135deg, oklch(0.85 0.12 250), oklch(0.95 0.05 270));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+  .glow-trust { box-shadow: var(--shadow-glow-trust); }
+  .glow-growth { box-shadow: var(--shadow-glow-growth); }
 
-.text-gradient-aurora {
-  background: linear-gradient(110deg, oklch(0.95 0 0), oklch(0.75 0.15 250) 40%, oklch(0.78 0.15 295) 70%, oklch(0.95 0 0));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.glow-trust { box-shadow: var(--shadow-glow-trust); }
-.glow-growth { box-shadow: var(--shadow-glow-growth); }
-
-.noise::before {
-  content: "";
-  position: absolute; inset: 0;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  pointer-events: none; opacity: 0.5; mix-blend-mode: overlay;
+  .noise::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events: none; opacity: 0.5; mix-blend-mode: overlay;
+  }
 }
 
 @keyframes landing-float {
@@ -115,3 +118,12 @@
 
 .animate-float { animation: landing-float 6s ease-in-out infinite; }
 .animate-pulse-glow { animation: landing-pulse-glow 3s ease-in-out infinite; }
+
+/* Themed scrollbar to match the dark glass look */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 12%);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 20%); }

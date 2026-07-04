@@ -71,7 +71,7 @@ export default function TrustScoreWidget({ score, compact = false }: TrustScoreW
 
   return (
     <div
-      className={`flex ${compact ? "flex-row items-center gap-3" : "flex-col items-center gap-3"} rounded-2xl border border-neutral-800 bg-[#121A2B] ${compact ? "p-3" : "p-5"}`}
+      className={`flex ${compact ? "flex-row items-center gap-3" : "flex-col items-center gap-3"} rounded-2xl border border-white/10 glass ${compact ? "p-3" : "p-5"}`}
     >
       {/* Circular gauge */}
       <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -115,7 +115,7 @@ export default function TrustScoreWidget({ score, compact = false }: TrustScoreW
             {score}
           </span>
           {!compact && (
-            <span className="mt-0.5 text-[10px] text-neutral-500 uppercase tracking-widest">
+            <span className="mt-0.5 text-[10px] text-muted-foreground uppercase tracking-widest">
               / 100
             </span>
           )}
@@ -126,10 +126,10 @@ export default function TrustScoreWidget({ score, compact = false }: TrustScoreW
       <div className={compact ? "" : "text-center"}>
         <div className="flex items-center gap-1.5">
           {compact && (
-            <span className="text-xs font-medium text-neutral-400">Trust Score</span>
+            <span className="text-xs font-medium text-muted-foreground">Trust Score</span>
           )}
           {!compact && (
-            <span className="text-xs font-medium uppercase tracking-widest text-neutral-500">
+            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
               Truvi Trust Score
             </span>
           )}
@@ -143,14 +143,14 @@ export default function TrustScoreWidget({ score, compact = false }: TrustScoreW
             {tier.label}
           </span>
           {compact && (
-            <span className="text-neutral-500 text-xs font-normal">
+            <span className="text-muted-foreground text-xs font-normal">
               {score}/100
             </span>
           )}
         </div>
 
         {!compact && (
-          <p className="mt-1.5 text-xs text-neutral-400 max-w-[220px] leading-relaxed">
+          <p className="mt-1.5 text-xs text-muted-foreground max-w-[220px] leading-relaxed">
             {tier.explanation}
           </p>
         )}
