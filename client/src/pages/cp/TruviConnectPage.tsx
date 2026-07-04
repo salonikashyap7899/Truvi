@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/primitives";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { ArrowLeft, Heart, Send, Users } from "lucide-react";

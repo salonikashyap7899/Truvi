@@ -306,7 +306,7 @@ export default function CPDashboardPage() {
                 <Card key={c._id} className="border-neutral-800 bg-[#121A2B] text-white">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-sm">{nameOf(c.leadId)} commission</p>
+                      <p className="font-medium text-sm">{typeof c.leadId === "object" && c.leadId !== null ? (c.leadId as Lead).clientName : "Lead"} commission</p>
                       <Badge variant="info" className="mt-1">{c.status}</Badge>
                     </div>
                     <div className="text-right text-xs space-y-0.5">
