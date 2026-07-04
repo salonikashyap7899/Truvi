@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AskTruvi from "@/components/AskTruvi";
+import AISalesCopilot from "@/components/AISalesCopilot";
 
 import HomePage from "@/pages/HomePage";
 import JoinPage from "@/pages/JoinPage";
@@ -22,6 +23,8 @@ import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
 
 import CPDashboardPage from "@/pages/cp/CPDashboardPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
+import LearningAcademyPage from "@/pages/cp/LearningAcademyPage";
+import TruviConnectPage from "@/pages/cp/TruviConnectPage";
 import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
@@ -31,6 +34,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster richColors position="top-right" theme="dark" />
       <AskTruvi />
+      <AISalesCopilot />
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<HomePage />} />
@@ -55,6 +59,8 @@ export default function App() {
         {/* CP */}
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
         <Route path="/cp/marketplace" element={<ProtectedRoute roles={["CP"]}><MarketplacePage /></ProtectedRoute>} />
+        <Route path="/cp/academy" element={<ProtectedRoute roles={["CP"]}><LearningAcademyPage /></ProtectedRoute>} />
+        <Route path="/cp/connect" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><TruviConnectPage /></ProtectedRoute>} />
 
         {/* Buyer */}
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />

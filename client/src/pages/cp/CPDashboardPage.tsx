@@ -8,6 +8,7 @@ import { formatINR, nameOf } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
+import { BookOpen, Users, Star, Receipt } from "lucide-react";
 import type { Project, Unit, Lead, Commission, User } from "@/types";
 
 export default function CPDashboardPage() {
@@ -116,6 +117,22 @@ export default function CPDashboardPage() {
         </div>
       </div>
 
+      {/* Quick links to new features */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Link to="/cp/academy" className="flex items-center gap-2 rounded-xl border border-blue-900 bg-blue-950/30 px-4 py-3 text-sm text-blue-300 hover:bg-blue-950/60 transition-colors">
+          <BookOpen size={16} /> Learning Academy
+        </Link>
+        <Link to="/cp/connect" className="flex items-center gap-2 rounded-xl border border-purple-900 bg-purple-950/30 px-4 py-3 text-sm text-purple-300 hover:bg-purple-950/60 transition-colors">
+          <Users size={16} /> Truvi Connect
+        </Link>
+        <Link to="/cp/marketplace" className="flex items-center gap-2 rounded-xl border border-green-900 bg-green-950/30 px-4 py-3 text-sm text-green-300 hover:bg-green-950/60 transition-colors">
+          <Star size={16} /> Lead Marketplace
+        </Link>
+        <button className="flex items-center gap-2 rounded-xl border border-yellow-900 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-300 hover:bg-yellow-950/60 transition-colors" onClick={() => document.getElementById('commissions-section')?.scrollIntoView({ behavior: 'smooth' })}>
+          <Receipt size={16} /> My Commissions
+        </button>
+      </div>
+
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-neutral-800 bg-[#121A2B] text-white">
           <CardTitle className="text-neutral-400">Earned</CardTitle>
@@ -138,6 +155,55 @@ export default function CPDashboardPage() {
       <p className="mt-4 rounded-lg border border-green-900 bg-green-950/50 p-3 text-sm text-green-400">
         100% of your commission is yours — Truvi never deducts from CP earnings.
       </p>
+
+      {/* AI Recommendations */}
+      {projects.length > 0 && (() => {
+        const recommended = [...projects]
+          .sort((a, b) => {
+            const aUnits = (unitsByProject[a._id] || []).filter((u) => u.status === "AVAILABLE").length;
+            const bUnits = (unitsByProject[b._id] || []).filter((u) => u.status === "AVAILABLE").length;
+            const aScore = b.commissionPercent * 10 + (b.listingTier === "FEATURED" ? 5 : 0) + bUnits;
+            const bScore = a.commissionPercent * 10 + (a.listingTier === "FEATURED" ? 5 : 0) + aUnits;
+            return aScore - bScore;
+          })
+          .slice(0, 3);
+
+        if (recommended.length === 0) return null;
+        return (
+          <section className="mt-8">
+            <h2 className="text-lg font-medium flex items-center gap-2">
+              <Star size={16} className="text-yellow-400" />
+              AI Recommended for You
+              <span className="text-xs text-neutral-500">— top opportunities based on commission & availability</span>
+            </h2>
+            <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+              {recommended.map((p) => {
+                const avail = (unitsByProject[p._id] || []).filter((u) => u.status === "AVAILABLE").length;
+                return (
+                  <div key={p._id} className="shrink-0 w-60 rounded-xl border border-yellow-900/40 bg-yellow-950/10 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-white leading-snug">{p.name}</p>
+                      {p.listingTier === "FEATURED" && <Badge variant="featured" className="shrink-0">Featured</Badge>}
+                    </div>
+                    <p className="mt-1 text-xs text-neutral-500">{p.city}</p>
+                    <div className="mt-3 space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-neutral-400">Commission</span>
+                        <span className="text-green-400 font-medium">{p.commissionPercent}%</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-neutral-400">Available units</span>
+                        <span className="text-white">{avail}</span>
+                      </div>
+                    </div>
+                    <Button size="sm" className="mt-3 w-full" onClick={() => setLeadFormOpenFor(p._id)}>Submit Lead</Button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       <section className="mt-10">
         <h2 className="text-lg font-medium">
@@ -223,6 +289,82 @@ export default function CPDashboardPage() {
           {leads.length === 0 && <p className="text-sm text-neutral-500">No leads yet — submit one from a project above.</p>}
         </div>
       </section>
+
+      {/* Commissions with TDS breakdown + invoice upload */}
+      {commissions.length > 0 && (
+        <section id="commissions-section" className="mt-10">
+          <h2 className="text-lg font-medium flex items-center gap-2">
+            <Receipt size={16} className="text-yellow-400" />
+            My Commissions
+          </h2>
+          <div className="mt-3 space-y-3">
+            {commissions.map((c) => {
+              const tds = c.tdsAmount || 0;
+              const net = c.cpCommissionAmount - tds;
+              const releasedAmt = c.milestones.filter((m) => m.isReleased).reduce((s, m) => s + m.amount, 0);
+              return (
+                <Card key={c._id} className="border-neutral-800 bg-[#121A2B] text-white">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-sm">{nameOf(c.leadId)} commission</p>
+                      <Badge variant="info" className="mt-1">{c.status}</Badge>
+                    </div>
+                    <div className="text-right text-xs space-y-0.5">
+                      <p className="text-neutral-400">Gross: <span className="text-white">{formatINR(c.cpCommissionAmount)}</span></p>
+                      <p className="text-neutral-400">TDS ({5}%): <span className="text-rose-400">− {formatINR(tds)}</span></p>
+                      <p className="text-neutral-400">Net payable: <span className="text-green-400 font-semibold">{formatINR(net)}</span></p>
+                      <p className="text-neutral-500">Released: {formatINR(releasedAmt)}</p>
+                    </div>
+                  </div>
+
+                  {/* Milestones */}
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {c.milestones.map((m) => (
+                      <div key={String(m._id)} className={`rounded-lg border px-2 py-1.5 text-center text-xs ${m.isReleased ? "border-green-800 bg-green-950/30 text-green-300" : "border-neutral-800 text-neutral-500"}`}>
+                        <p className="font-medium">{m.label}</p>
+                        <p>{formatINR(m.amount)}</p>
+                        <p className="text-[10px] mt-0.5">{m.isReleased ? "✓ Released" : "Pending"}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Invoice upload */}
+                  <div className="mt-3 border-t border-neutral-800 pt-3 flex items-center gap-3 text-xs">
+                    {c.invoiceUrl ? (
+                      <a href={c.invoiceUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">View Invoice ↗</a>
+                    ) : (
+                      <label className="cursor-pointer text-neutral-400 hover:text-white transition-colors flex items-center gap-1.5">
+                        <Receipt size={12} />
+                        Upload Invoice
+                        <input
+                          type="file"
+                          accept="application/pdf,image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const form = new FormData();
+                            form.append("file", file);
+                            try {
+                              const upRes = await api.post("/uploads", form, { headers: { "Content-Type": "multipart/form-data" } });
+                              const invoiceUrl = upRes.data.url as string;
+                              await api.patch(`/commissions/${c._id}/invoice`, { invoiceUrl });
+                              toast.success("Invoice uploaded!");
+                              load();
+                            } catch {
+                              toast.error("Upload failed");
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {leaderboard.length > 0 && (
         <section className="mt-10">

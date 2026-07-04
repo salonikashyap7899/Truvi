@@ -24,6 +24,8 @@ import documentRoutes from "./routes/documents";
 import investmentRoutes from "./routes/investments";
 import loanCheckRoutes from "./routes/loanChecks";
 import aiChatRoutes from "./routes/aiChat";
+import connectRoutes from "./routes/connect";
+import academyRoutes from "./routes/academy";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -68,6 +70,8 @@ export function createApp() {
   app.use("/api/investments", investmentRoutes);
   app.use("/api/loan-checks", loanCheckRoutes);
   app.use("/api/ai/chat", aiChatRoutes);
+  app.use("/api/connect", connectRoutes);
+  app.use("/api/academy", academyRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));

@@ -175,4 +175,22 @@ router.patch("/:id/milestones", requireRole("ADMIN"), async (req, res) => {
   res.json({ commission });
 });
 
+const invoiceSchema = z.object({ invoiceUrl: z.string().url() });
+
+router.patch("/:id/invoice", async (req: AuthedRequest, res) => {
+  const parsed = invoiceSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const commission = await Commission.findById(req.params.id);
+  if (!commission) return res.status(404).json({ error: "Commission not found" });
+  if (String(commission.cpId) !== req.user!.userId && req.user!.role !== "ADMIN") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  commission.invoiceUrl = parsed.data.invoiceUrl;
+  commission.status = commission.status === "PENDING" ? "INVOICED" : commission.status;
+  await commission.save();
+  res.json({ commission });
+});
+
 export default router;
