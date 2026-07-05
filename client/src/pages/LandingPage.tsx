@@ -390,6 +390,7 @@ function Footer() {
       <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center gap-3 border-t border-white/5 pt-6 text-xs uppercase tracking-[0.2em] text-muted-foreground md:flex-row md:justify-between">
         <div>© {new Date().getFullYear()} TRUVI</div>
         <div>Neutral · Evidence-led · Source-backed</div>
+        <Link to="/admin/dashboard" className="transition hover:text-foreground">Admin</Link>
       </div>
     </footer>
   );
