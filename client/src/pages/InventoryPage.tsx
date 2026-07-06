@@ -44,8 +44,8 @@ export default function InventoryPage() {
 
   // Sort: Prime listing first
   const sorted = [...filtered].sort((a, b) => {
-    if ((a as any).isPrimeListing && !(b as any).isPrimeListing) return -1;
-    if (!(a as any).isPrimeListing && (b as any).isPrimeListing) return 1;
+    if (a.isPrimeListing && !b.isPrimeListing) return -1;
+    if (!a.isPrimeListing && b.isPrimeListing) return 1;
     return 0;
   });
 
@@ -96,7 +96,7 @@ export default function InventoryPage() {
         ) : (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {sorted.map((project, idx) => (
-              <ListingCard key={project._id} project={project} isPrime={(project as any).isPrimeListing || idx === 0} />
+              <ListingCard key={project._id} project={project} isPrime={project.isPrimeListing || idx === 0} />
             ))}
           </div>
         )}
@@ -126,7 +126,7 @@ function ListingCard({ project, isPrime }: { project: Project; isPrime: boolean 
       ? (project.developerId as any).name
       : null;
 
-  const vd = (project as any).verificationDetails;
+  const vd = project.verificationDetails;
 
   return (
     <div

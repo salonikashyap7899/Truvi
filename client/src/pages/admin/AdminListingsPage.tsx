@@ -66,7 +66,7 @@ export default function AdminListingsPage() {
 
   async function togglePrime(project: Project) {
     setLoading(project._id + "-prime");
-    const nowPrime = !(project as any).isPrimeListing;
+    const nowPrime = !project.isPrimeListing;
     await api.patch("/admin/projects", { projectId: project._id, isPrimeListing: nowPrime });
     toast.success(nowPrime ? "⭐ Set as Prime Listing" : "Removed from Prime Listing");
     setLoading(null);
@@ -91,7 +91,7 @@ export default function AdminListingsPage() {
 
   function getDraft(project: Project): VerificationDetails {
     if (vdDraft[project._id]) return vdDraft[project._id];
-    const existing = (project as any).verificationDetails;
+    const existing = project.verificationDetails;
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
       titleClearance: existing.titleClearance ?? false,
@@ -114,7 +114,7 @@ export default function AdminListingsPage() {
     if (prev[id]) return prev[id];
     const p = projects.find((x) => x._id === id);
     if (!p) return DEFAULT_VD;
-    const existing = (p as any).verificationDetails;
+    const existing = p.verificationDetails;
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
       titleClearance: existing.titleClearance ?? false,
@@ -135,7 +135,7 @@ export default function AdminListingsPage() {
 
       <div className="mt-6 space-y-3">
         {projects.map((p) => {
-          const isPrime = !!(p as any).isPrimeListing;
+          const isPrime = !!p.isPrimeListing;
           const isExpanded = expandedId === p._id;
           const draft = getDraft(p);
 

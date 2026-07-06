@@ -62,7 +62,7 @@ router.post("/", enquiryUpload.single("file"), async (req, res) => {
 
   if (req.file) {
     const env = getEnv();
-    const baseUrl = env.apiUrl || "";
+    const baseUrl = env.publicUrl || "http://localhost:5000";
     uploadUrl = `${baseUrl}/uploads/${req.file.filename}`;
     uploadFileName = req.file.originalname;
   }

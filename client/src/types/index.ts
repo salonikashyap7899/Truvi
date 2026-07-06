@@ -7,6 +7,17 @@ export type LeadStage =
   | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "LOST";
 export type ListingTier = "STANDARD" | "FEATURED";
 
+export interface VerificationDetails {
+  reraVerified: boolean;
+  titleClearance: boolean;
+  encumbranceFree: boolean;
+  constructionApproval: boolean;
+  verificationSource?: string;
+  portfolioVerified: boolean;
+  lastVerifiedAt?: string;
+  notes?: string;
+}
+
 export interface User {
   _id: string;
   name: string;
@@ -53,6 +64,8 @@ export interface Project {
   reraValidityDate?: string;
   isVerified?: boolean;
   verifiedAt?: string;
+  isPrimeListing?: boolean;
+  verificationDetails?: VerificationDetails;
 }
 
 export interface PriceHistoryEntry {
