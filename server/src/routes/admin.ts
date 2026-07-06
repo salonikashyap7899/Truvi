@@ -61,12 +61,25 @@ router.get("/projects", requireRole("ADMIN"), async (req, res) => {
   res.json({ projects });
 });
 
+const verificationDetailsSchema = z.object({
+  reraVerified: z.boolean().optional(),
+  titleClearance: z.boolean().optional(),
+  encumbranceFree: z.boolean().optional(),
+  constructionApproval: z.boolean().optional(),
+  verificationSource: z.string().optional(),
+  portfolioVerified: z.boolean().optional(),
+  lastVerifiedAt: z.string().datetime().optional().nullable(),
+  notes: z.string().optional(),
+}).optional();
+
 const patchProjectSchema = z.object({
   projectId: z.string().min(1),
   approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]).optional(),
   listingTier: z.enum(["STANDARD", "FEATURED"]).optional(),
   featuredUntil: z.string().datetime().optional().nullable(),
   isVerified: z.boolean().optional(),
+  isPrimeListing: z.boolean().optional(),
+  verificationDetails: verificationDetailsSchema,
 });
 
 router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
@@ -81,6 +94,13 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.isVerified !== undefined) {
     update.isVerified = data.isVerified;
     update.verifiedAt = data.isVerified ? new Date() : null;
+  }
+  if (data.isPrimeListing !== undefined) update.isPrimeListing = data.isPrimeListing;
+  if (data.verificationDetails !== undefined) {
+    const vd = data.verificationDetails as Record<string, unknown>;
+    Object.entries(vd).forEach(([k, v]) => {
+      if (v !== undefined) update[`verificationDetails.${k}`] = v;
+    });
   }
 
   const project = await Project.findByIdAndUpdate(projectId, update, { new: true });

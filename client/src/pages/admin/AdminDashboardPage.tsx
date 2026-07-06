@@ -129,8 +129,9 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <div className="mt-10 flex gap-4 text-sm">
-        <Link to="/admin/listings" className="text-blue-400 hover:underline">Manage featured listings →</Link>
+      <div className="mt-10 flex flex-wrap gap-4 text-sm">
+        <Link to="/admin/listings" className="text-blue-400 hover:underline">Manage inventory listings →</Link>
+        <Link to="/admin/enquiries" className="text-blue-400 hover:underline">Enquiry inbox →</Link>
         <Link to="/admin/revenue" className="text-blue-400 hover:underline">Revenue dashboard →</Link>
         <Link to="/admin/settings" className="text-blue-400 hover:underline">Platform settings →</Link>
       </div>

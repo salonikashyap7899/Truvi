@@ -211,10 +211,10 @@ export default function BuyerDashboardPage() {
             {user?.name ? `Welcome back, ${user.name}` : "Your properties at a glance"}
           </p>
         </div>
-        <Link to="/buyer/projects">
+        <Link to="/inventory">
           <Button size="sm">
             <PlusCircle size={15} className="mr-1.5" />
-            Browse Properties
+            Browse Inventory
           </Button>
         </Link>
       </div>
@@ -435,8 +435,8 @@ function SavedEmptyState() {
       <span className="text-4xl">🏠</span>
       <p className="mt-4 text-base font-medium text-foreground/90">No saved properties yet</p>
       <p className="mt-1 text-sm text-muted-foreground">Browse and tap ♥ to save ones you love.</p>
-      <Link to="/buyer/projects" className="mt-5">
-        <Button size="sm">Browse Properties</Button>
+      <Link to="/inventory" className="mt-5">
+        <Button size="sm">Browse Inventory</Button>
       </Link>
     </div>
   );
@@ -461,8 +461,8 @@ function VisitsTab({
         <span className="text-4xl">📅</span>
         <p className="mt-4 text-base font-medium text-foreground/90">No site visits yet</p>
         <p className="mt-1 text-sm text-muted-foreground">Request one from any property card.</p>
-        <Link to="/buyer/projects" className="mt-5">
-          <Button size="sm">Browse Properties</Button>
+        <Link to="/inventory" className="mt-5">
+          <Button size="sm">Browse Inventory</Button>
         </Link>
       </div>
     );

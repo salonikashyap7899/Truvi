@@ -37,6 +37,8 @@ import TruviConnectPage from "@/pages/cp/TruviConnectPage";
 import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
+import InventoryPage from "@/pages/InventoryPage";
+import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 
 function Ambience() {
   const { pathname } = useLocation();
@@ -87,9 +89,13 @@ export default function App() {
         <Route path="/pending-approval" element={<PendingApprovalPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
+        {/* Public inventory */}
+        <Route path="/inventory" element={<InventoryPage />} />
+
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />
         <Route path="/admin/listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
+        <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
         <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
 

@@ -1,0 +1,49 @@
+## Implementation Prompt for truvi-encr.onrender.com
+
+**Task:** Replace the existing "Projects" page/menu with an "Inventory" page/menu on the website, keeping Truvi's branding ("Know the Property Before You Buy It") intact, and implement the full feature set below.
+
+### 1. Navigation / Menu Change
+- Rename the "Projects" menu item in the navbar to **"Inventory"**.
+- Update the route/URL (e.g., `/projects` → `/inventory`).
+- Update all internal links, redirects, and references site-wide to use the new "Inventory" naming.
+
+### 2. Purpose of Inventory Section
+- Developers, clients, and channel-partner-type developers will approach us wanting their project listed.
+- We will list their project under this Inventory section.
+- All such listings will appear together inside Inventory — this is the central place where every project/property listing lives.
+
+### 3. Listing Display & Prime Listing
+- All listings display in the Inventory page (grid/list view).
+- The very first/priority listing is marked as **"Prime Listing"**, shown with a distinct badge/tag design (visually set apart, like a highlighted card).
+- Each listing (especially Prime) has an **arrow icon** on it.
+- Clicking the arrow opens a verification panel/dropdown showing:
+  - Where the listing/source is verified from
+  - Portfolio verification status
+  - All other verification details related to that listing
+- **Purpose:** When a buyer lands on the Inventory page, they should be able to go directly to a listing, click the arrow, and check whether everything about that listing is verified — without needing to ask anyone.
+
+### 4. Buyer/User Entry Flow After Development
+- Once developed, when any user (buyer/developer/etc.) visits the site, they must go through a **login/entry step**.
+- This entry step uses an **email option** for login.
+- At this login/entry point, the website should ask the visitor **their purpose for visiting**, offering **3-4 options**:
+  1. **Buyer** — visiting to purchase a property
+  2. **Developer** — visiting to list their own project
+  3. **Channel Partner** — visiting for channel partnership purposes
+  4. **Guest / Enquiry (Normal Search)** — just browsing/searching, does not need to submit an enquiry
+
+### 5. Option-wise Behavior
+- For the first three options (**Buyer, Developer, Channel Partner**):
+  - Provide an **image/document upload option** in their respective form.
+- For the fourth option (**Guest / Normal Search**):
+  - No upload option — this is for people just browsing/searching, not submitting an enquiry.
+
+### 6. Enquiry Data Delivery to Admin
+- Whichever category the visitor selects (Buyer, Developer, or Channel Partner), their **email and submitted details must come directly to us through chat**.
+- The enquiry must clearly indicate **which type of user sent it** — Buyer, Developer, or Channel Partner — so we instantly know the source/type of every enquiry that comes in through chat.
+
+### Technical Implementation Notes
+- Use the site's current tech stack for consistency.
+- Add a database field/table to capture "purpose type" (Buyer / Developer / Channel Partner / Guest) for every user interaction.
+- Create a structured verification data table (source verification, portfolio verification, etc.) tied to each listing, to power the Prime Listing arrow/verification feature.
+- Build/update the admin panel to show incoming enquiries in a chat-style live feed, each tagged with its purpose type (Buyer/Developer/Channel Partner).
+- Ensure upload functionality (images/documents) is enabled only for Buyer, Developer, and Channel Partner flows — not for Guest/normal search.

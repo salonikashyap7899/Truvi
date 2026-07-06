@@ -73,7 +73,7 @@ function Nav() {
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
           <a href="#intelligence" className="hover:text-foreground">Intelligence</a>
           <a href="#ask-truvi" className="hover:text-foreground">Ask Truvi AI</a>
-          <a href="#project-intelligence" className="hover:text-foreground">Projects</a>
+          <Link to="/inventory" className="hover:text-foreground">Inventory</Link>
           <Link to="/join" className="hover:text-foreground">For Developers</Link>
           <a href="#network" className="hover:text-foreground">Truvi Network</a>
           <Link to="/about" className="hover:text-foreground">About</Link>
@@ -445,7 +445,7 @@ export default function LandingPage() {
         <Reveal delay={0.5}>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
-            <GlowButton variant="ghost" to="/join">Explore Projects</GlowButton>
+            <GlowButton variant="ghost" to="/inventory">Explore Inventory</GlowButton>
           </div>
         </Reveal>
 
@@ -692,7 +692,7 @@ export default function LandingPage() {
         <Reveal delay={0.4}>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
-            <GlowButton variant="ghost" to="/join">Explore Projects</GlowButton>
+            <GlowButton variant="ghost" to="/inventory">Explore Inventory</GlowButton>
             <GlowButton variant="ghost" to="/signup">Join the Ecosystem</GlowButton>
           </div>
         </Reveal>
