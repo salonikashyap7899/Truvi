@@ -604,7 +604,9 @@ export default function LandingPage() {
       <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
 
       {/* ---------- 1 · HERO ---------- */}
-      <Section className="min-h-screen items-center pt-36 text-center">
+      {/* !justify-start: the hero is taller than one screen, so vertical
+          centering would push its top underneath the fixed navbar. */}
+      <Section className="min-h-screen items-center !justify-start pt-32 md:pt-36 pb-16 text-center">
         <Reveal>
           <Eyebrow>Property Intelligence · Verified by Design</Eyebrow>
         </Reveal>

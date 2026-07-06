@@ -82,6 +82,44 @@ function logAnthropicError(label: string, err: unknown) {
   }
 }
 
+/**
+ * GET /api/ai/chat/health — self-service diagnostic for the AI setup.
+ * Open it in a browser to see whether ANTHROPIC_API_KEY is present in
+ * this server's environment and whether Anthropic accepts it (validated
+ * via the free models-list endpoint — no tokens spent).
+ */
+router.get("/health", async (_req, res) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return res.json({
+      configured: false,
+      ok: false,
+      hint: "ANTHROPIC_API_KEY is not set in this server's environment. Add it in the Render dashboard → Environment, then let the service restart.",
+    });
+  }
+
+  const keyPreview = `${apiKey.slice(0, 14)}…${apiKey.slice(-4)} (${apiKey.length} chars)`;
+  try {
+    const client = new Anthropic({ apiKey });
+    await client.models.list();
+    return res.json({ configured: true, ok: true, keyPreview, hint: "Key is valid — Ask Truvi should work." });
+  } catch (err: unknown) {
+    const status = err instanceof Anthropic.APIError ? err.status : undefined;
+    const message = err instanceof Anthropic.APIError ? err.message : String(err);
+    return res.json({
+      configured: true,
+      ok: false,
+      keyPreview,
+      status,
+      error: message,
+      hint:
+        status === 401
+          ? "The key set on this server is being rejected by Anthropic (401). Re-paste it without quotes or spaces, or generate a fresh key at console.anthropic.com."
+          : "The key is set but the Anthropic API call failed — see status/error above.",
+    });
+  }
+});
+
 router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
   const { message, propertyContext, mode, history, advisorProfile } = req.body as {
     message?: string;
