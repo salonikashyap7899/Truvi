@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Stars, Environment } from "@react-three/drei";
+import { Float, Environment } from "@react-three/drei";
 import * as THREE from "three";
 
 type ProgressRef = { current: number };
@@ -114,31 +114,6 @@ function Pillars({ progress }: { progress: ProgressRef }) {
   );
 }
 
-function Particles() {
-  const ref = useRef<THREE.Points>(null);
-  const positions = useMemo(() => {
-    const arr = new Float32Array(1500 * 3);
-    for (let i = 0; i < 1500; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 200;
-      arr[i * 3 + 1] = Math.random() * 60;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 200;
-    }
-    return arr;
-  }, []);
-  useFrame((state) => {
-    if (!ref.current) return;
-    ref.current.rotation.y = state.clock.elapsedTime * 0.02;
-  });
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.08} color="#9ec5ff" sizeAttenuation transparent opacity={0.8} />
-    </points>
-  );
-}
-
 function CameraRig({ progress }: { progress: ProgressRef }) {
   useFrame((state) => {
     const p = progress.current;
@@ -167,8 +142,6 @@ function Scene() {
       <directionalLight position={[20, 40, 10]} intensity={1.2} color="#9ec5ff" />
       <pointLight position={[0, 30, 0]} intensity={2} color="#3B82F6" distance={120} />
       <pointLight position={[20, 8, -20]} intensity={1.5} color="#10B981" distance={80} />
-      <Stars radius={120} depth={60} count={2500} factor={4} fade speed={0.6} />
-      <Particles />
       <City progress={progress} />
       <Pillars progress={progress} />
       <CameraRig progress={progress} />

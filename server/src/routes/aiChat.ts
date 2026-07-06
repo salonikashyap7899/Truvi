@@ -69,6 +69,19 @@ interface HistoryTurn {
   text: string;
 }
 
+/**
+ * Surface the real Anthropic API failure in the server logs — an invalid
+ * key (401), missing credits (400/403 billing), rate limit (429), etc. —
+ * so a generic "trouble connecting" reply in the UI is diagnosable.
+ */
+function logAnthropicError(label: string, err: unknown) {
+  if (err instanceof Anthropic.APIError) {
+    console.error(`${label} error: HTTP ${err.status} — ${err.message}`);
+  } else {
+    console.error(`${label} error:`, err);
+  }
+}
+
 router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
   const { message, propertyContext, mode, history, advisorProfile } = req.body as {
     message?: string;
@@ -115,7 +128,7 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
         .join("") || "Sorry, I couldn't generate a response. Please try again.";
       return res.json({ reply });
     } catch (err: unknown) {
-      console.error("AI copilot error:", err);
+      logAnthropicError("AI copilot", err);
       return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
     }
   }
@@ -208,7 +221,7 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
       intent: context.intent,
     });
   } catch (err: unknown) {
-    console.error("Ask Truvi AI error:", err);
+    logAnthropicError("Ask Truvi AI", err);
     return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
   }
 });
