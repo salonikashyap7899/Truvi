@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import WelcomeGate from "@/components/WelcomeGate";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
 import { CursorGlow } from "@/components/landing/CursorGlow";
@@ -76,6 +77,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
+      <WelcomeGate />
       <AskTruvi />
       <AISalesCopilot />
       <PageTransition>

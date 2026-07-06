@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/primitives";
-import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Search, ChevronDown, ChevronUp, Star, ShieldCheck, CheckCircle2, XCircle, Building2, Presentation, ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import {
+  Search, Star, ShieldCheck, CheckCircle2, XCircle, Building2, MapPin,
+  Presentation, ArrowRight, X, Sparkles, BadgeCheck,
+} from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
@@ -17,9 +20,11 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
+  const [inspecting, setInspecting] = useState<Project | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
+    document.title = "TRUVI — Inventory";
     api
       .get("/inventory")
       .then((res) => setProjects(res.data.projects))
@@ -27,9 +32,11 @@ export default function InventoryPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Show visitor gate for unauthenticated users (after a short delay)
+  // Purpose gate for unauthenticated visitors (after a short delay).
+  // Skipped while the site-wide WelcomeGate hasn't been answered yet,
+  // so two modals never stack on a first visit.
   useEffect(() => {
-    if (!user) {
+    if (!user && localStorage.getItem("truvi-welcome-seen")) {
       const t = setTimeout(() => setShowGate(true), 800);
       return () => clearTimeout(t);
     }
@@ -43,7 +50,7 @@ export default function InventoryPage() {
       p.location.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Sort: Prime listing first
+  // Prime listing always leads
   const sorted = [...filtered].sort((a, b) => {
     if (a.isPrimeListing && !b.isPrimeListing) return -1;
     if (!a.isPrimeListing && b.isPrimeListing) return 1;
@@ -52,52 +59,59 @@ export default function InventoryPage() {
 
   return (
     <>
-      {showGate && !user && (
-        <VisitorGateModal onClose={() => setShowGate(false)} />
-      )}
+      {showGate && !user && <VisitorGateModal onClose={() => setShowGate(false)} />}
 
-      <main className="min-h-screen p-6 text-white md:p-10 pb-28">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground mb-3">
-              <span className="size-1.5 rounded-full bg-[var(--trust)] animate-pulse" />
-              Know the Property Before You Buy It
-            </div>
-            <h1 className="text-3xl font-display font-semibold tracking-tight">Inventory</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              All verified listings — browse, verify, and decide with confidence.
-            </p>
+      <VerificationDrawer project={inspecting} onClose={() => setInspecting(null)} />
+
+      <main className="min-h-screen px-6 pb-28 pt-28 text-white md:px-10">
+        {/* ── Hero header ── */}
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-[var(--trust)] animate-pulse" />
+            Know the Property Before You Buy It
           </div>
-          <div className="text-right text-xs text-muted-foreground">
-            <span className="text-white font-semibold text-lg">{projects.length}</span> listing{projects.length !== 1 ? "s" : ""} available
+          <h1 className="mt-5 font-display text-4xl font-medium tracking-tight md:text-5xl">
+            The Truvi <span className="text-gradient-trust">Inventory</span>
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
+            A curated collection of verified listings — every property carries its evidence,
+            sources and intelligence profile.
+          </p>
+
+          {/* Search */}
+          <div className="relative mx-auto mt-8 max-w-md">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by name, city or area…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-12 w-full rounded-full border border-white/12 bg-white/[0.05] pl-11 pr-5 text-sm text-white placeholder:text-white/30 outline-none backdrop-blur transition focus:border-[var(--trust)]/60 focus:shadow-[0_0_24px_rgba(59,130,246,0.15)]"
+            />
           </div>
+
+          <p className="mt-4 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="font-semibold text-white">{projects.length}</span> verified listing{projects.length !== 1 ? "s" : ""}
+          </p>
         </div>
 
-        {/* Search */}
-        <div className="relative mt-6 max-w-sm">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by name, city or area…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-lg border border-white/15 glass pl-9 pr-3 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        {/* Grid */}
+        {/* ── Grid ── */}
         {loading ? (
-          <div className="mt-16 flex flex-col items-center gap-3 text-muted-foreground">
-            <div className="size-8 border-2 border-white/20 border-t-[var(--trust)] rounded-full animate-spin" />
-            <p className="text-sm">Loading inventory…</p>
+          <div className="mt-20 flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-[var(--trust)]" />
+            <p className="text-sm">Curating inventory…</p>
           </div>
         ) : sorted.length === 0 ? (
-          <p className="mt-10 text-sm text-muted-foreground">No listings found.</p>
+          <p className="mt-16 text-center text-sm text-muted-foreground">No listings found.</p>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mx-auto mt-12 grid max-w-7xl gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {sorted.map((project, idx) => (
-              <ListingCard key={project._id} project={project} isPrime={project.isPrimeListing || idx === 0} />
+              <ListingCard
+                key={project._id}
+                project={project}
+                isPrime={project.isPrimeListing || idx === 0}
+                onInspect={() => setInspecting(project)}
+              />
             ))}
           </div>
         )}
@@ -106,164 +120,249 @@ export default function InventoryPage() {
   );
 }
 
-function VerificationRow({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      {ok ? (
-        <CheckCircle2 size={13} className="text-green-400 shrink-0" />
-      ) : (
-        <XCircle size={13} className="text-red-400 shrink-0" />
-      )}
-      <span className={ok ? "text-foreground/90" : "text-muted-foreground"}>{label}</span>
-    </div>
-  );
-}
+/* ── Listing card ─────────────────────────────────────────────────────────── */
 
-function ListingCard({ project, isPrime }: { project: Project; isPrime: boolean }) {
-  const [verOpen, setVerOpen] = useState(false);
+function ListingCard({
+  project,
+  isPrime,
+  onInspect,
+}: {
+  project: Project;
+  isPrime: boolean;
+  onInspect: () => void;
+}) {
+  const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
 
-  const devName =
-    typeof project.developerId === "object"
-      ? (project.developerId as any).name
-      : null;
-
-  const vd = project.verificationDetails;
+  const frame = isPrime
+    ? "linear-gradient(160deg, rgba(251,191,36,0.65), rgba(251,191,36,0.12) 45%, rgba(255,255,255,0.06) 85%)"
+    : "linear-gradient(160deg, rgba(255,255,255,0.18), rgba(59,130,246,0.18) 45%, rgba(255,255,255,0.04) 85%)";
 
   return (
-    <div
-      className={`relative rounded-2xl border p-5 flex flex-col gap-3 transition-colors ${
-        isPrime
-          ? "border-amber-500/50 bg-gradient-to-br from-amber-900/20 via-transparent to-transparent shadow-[0_0_30px_rgba(245,158,11,0.08)]"
-          : "border-white/10 glass hover:border-white/20"
-      }`}
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="group relative rounded-[24px] p-px transition-transform duration-300 hover:-translate-y-1"
+      style={{ background: frame }}
     >
-      {/* Prime badge */}
-      {isPrime && (
-        <div className="absolute -top-3 left-5 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-lg">
-          <Star size={9} fill="currentColor" />
-          Prime Listing
-        </div>
-      )}
+      <div className="flex h-full flex-col gap-4 rounded-[23px] bg-[#0a0d14]/92 p-6">
+        {/* Prime ribbon */}
+        {isPrime && (
+          <div className="absolute -top-3 left-6 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
+            <Star size={9} fill="currentColor" />
+            Prime Listing
+          </div>
+        )}
 
-      {/* Badges + verification arrow */}
-      <div className="flex items-start justify-between gap-2 mt-1">
-        <div className="flex flex-wrap gap-2">
-          {project.listingTier === "FEATURED" && (
-            <Badge variant="featured">Featured</Badge>
-          )}
-          <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
-            {project.approvalStatus}
-          </Badge>
+        {/* Status chips */}
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           {project.isVerified && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-400 border border-green-800">
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
               <ShieldCheck size={11} />
-              Verified
+              Truvi Verified
+            </span>
+          )}
+          {project.listingTier === "FEATURED" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/25 bg-sky-500/12 px-2.5 py-1 text-[11px] font-medium text-sky-300">
+              <Sparkles size={11} />
+              Featured
+            </span>
+          )}
+          {project.reraNumber && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-1 text-[11px] text-foreground/70">
+              RERA {project.reraNumber}
             </span>
           )}
         </div>
 
-        {/* Verification arrow toggle */}
-        <button
-          onClick={() => setVerOpen((v) => !v)}
-          title="View verification details"
-          className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-            verOpen
-              ? "border-blue-500/60 bg-blue-900/30 text-blue-300"
-              : "border-white/15 text-muted-foreground hover:border-blue-500/60 hover:text-blue-300"
-          }`}
-        >
-          Verify
-          {verOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        </button>
-      </div>
-
-      {/* Verification panel */}
-      {verOpen && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-950/30 p-3 space-y-2">
-          <p className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Verification Details</p>
-
-          {vd ? (
-            <>
-              <VerificationRow ok={vd.reraVerified} label="RERA Registered" />
-              <VerificationRow ok={vd.titleClearance} label="Title Clearance" />
-              <VerificationRow ok={vd.encumbranceFree} label="Encumbrance Free" />
-              <VerificationRow ok={vd.constructionApproval} label="Construction Approval" />
-              <VerificationRow ok={vd.portfolioVerified} label="Developer Portfolio Verified" />
-              {vd.verificationSource && (
-                <p className="text-[11px] text-muted-foreground pt-1">
-                  Source: <span className="text-foreground/80">{vd.verificationSource}</span>
-                </p>
-              )}
-              {vd.lastVerifiedAt && (
-                <p className="text-[11px] text-muted-foreground">
-                  Last verified: {new Date(vd.lastVerifiedAt).toLocaleDateString("en-IN")}
-                </p>
-              )}
-              {vd.notes && (
-                <p className="text-[11px] text-foreground/70 border-t border-white/10 pt-2">{vd.notes}</p>
-              )}
-            </>
-          ) : project.isVerified ? (
-            <>
-              <VerificationRow ok={true} label="RERA Verified" />
-              <VerificationRow ok={true} label="Truvi Platform Verified" />
-              {project.reraNumber && (
-                <p className="text-[11px] text-muted-foreground">RERA No: {project.reraNumber}</p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-muted-foreground">Verification details not yet available for this listing.</p>
+        {/* Identity */}
+        <div>
+          <h3 className="font-display text-xl font-semibold leading-tight text-white">{project.name}</h3>
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <MapPin size={13} className="shrink-0" />
+            {project.location}, {project.city}
+          </p>
+          {devName && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Building2 size={12} className="shrink-0" />
+              by {devName}
+            </p>
           )}
+        </div>
 
-          {/* Raw Data Sources & AI Intelligence Engine */}
-          <div className="pt-2 border-t border-white/10">
-            <ListingIntelligence projectId={project._id} />
-          </div>
+        <p className="line-clamp-2 text-sm leading-relaxed text-foreground/80">{project.description}</p>
+
+        {/* Intelligence snapshot */}
+        <div className="space-y-2.5 border-t border-white/[0.07] pt-4">
+          <TrustScoreWidget score={project.trustScore ?? mockScoreFromId(project._id)} compact />
+          <LegalRiskCard level={project.legalRiskLevel ?? mockRiskFromId(project._id)} compact />
+          <PriceFairnessMeter projectId={project._id} compact />
+        </div>
+
+        {/* Actions */}
+        <div className="mt-auto space-y-2 pt-2">
+          <button
+            onClick={onInspect}
+            className="group/btn flex w-full items-center justify-between rounded-full border border-[var(--trust)]/35 bg-[var(--trust)]/10 px-5 py-2.5 text-sm font-medium text-sky-200 transition-all hover:border-[var(--trust)]/70 hover:bg-[var(--trust)]/20 hover:shadow-[0_0_24px_rgba(59,130,246,0.2)]"
+          >
+            <span className="flex items-center gap-2">
+              <BadgeCheck size={15} />
+              Verification & Intelligence
+            </span>
+            <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
+          </button>
+          <Link
+            to={`/inventory/${project._id}/presentation`}
+            className="group/btn flex w-full items-center justify-between rounded-full border border-white/12 px-5 py-2.5 text-sm text-foreground/80 transition-all hover:border-white/30 hover:text-white"
+          >
+            <span className="flex items-center gap-2">
+              <Presentation size={15} />
+              Project Presentation
+            </span>
+            <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
+          </Link>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Verification & Intelligence slide-over drawer ────────────────────────── */
+
+function VerificationRow({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <span className={`text-sm ${ok ? "text-foreground/90" : "text-muted-foreground"}`}>{label}</span>
+      {ok ? (
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
+          <CheckCircle2 size={11} /> Verified
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-[11px] text-muted-foreground">
+          <XCircle size={11} /> Pending
+        </span>
+      )}
+    </div>
+  );
+}
+
+function VerificationDrawer({ project, onClose }: { project: Project | null; onClose: () => void }) {
+  // Lock body scroll while open
+  useEffect(() => {
+    if (project) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [project]);
+
+  const vd = project?.verificationDetails;
+
+  return (
+    <AnimatePresence>
+      {project && (
+        <div className="fixed inset-0 z-[120]">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+
+          {/* Panel */}
+          <motion.aside
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "tween", duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0a0d14]/97 shadow-[-30px_0_80px_rgba(0,0,0,0.5)]"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] px-6 py-5">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.25em] text-[var(--trust)]">
+                  Verification & Intelligence
+                </p>
+                <h2 className="mt-1 truncate font-display text-lg font-semibold text-white">{project.name}</h2>
+                <p className="truncate text-xs text-muted-foreground">
+                  {project.location}, {project.city}
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="grid size-9 shrink-0 place-items-center rounded-full border border-white/12 text-muted-foreground transition hover:bg-white/10 hover:text-white"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {/* Core verification */}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Core Verification
+              </p>
+              <div className="mt-2 divide-y divide-white/[0.06] rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4">
+                {vd ? (
+                  <>
+                    <VerificationRow ok={vd.reraVerified} label="RERA Registered" />
+                    <VerificationRow ok={vd.titleClearance} label="Title Clearance" />
+                    <VerificationRow ok={vd.encumbranceFree} label="Encumbrance Free" />
+                    <VerificationRow ok={vd.constructionApproval} label="Construction Approval" />
+                    <VerificationRow ok={vd.portfolioVerified} label="Developer Portfolio Verified" />
+                  </>
+                ) : project.isVerified ? (
+                  <>
+                    <VerificationRow ok={true} label="RERA Verified" />
+                    <VerificationRow ok={true} label="Truvi Platform Verified" />
+                  </>
+                ) : (
+                  <p className="py-3 text-sm text-muted-foreground">
+                    Verification details not yet available for this listing.
+                  </p>
+                )}
+              </div>
+
+              {(vd?.verificationSource || vd?.lastVerifiedAt || vd?.notes) && (
+                <div className="mt-3 space-y-1 px-1">
+                  {vd.verificationSource && (
+                    <p className="text-xs text-muted-foreground">
+                      Source: <span className="text-foreground/80">{vd.verificationSource}</span>
+                    </p>
+                  )}
+                  {vd.lastVerifiedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Last verified: {new Date(vd.lastVerifiedAt).toLocaleDateString("en-IN")}
+                    </p>
+                  )}
+                  {vd.notes && <p className="text-xs text-foreground/70">{vd.notes}</p>}
+                </div>
+              )}
+
+              {/* Full intelligence profile */}
+              <div className="mt-7">
+                <ListingIntelligence projectId={project._id} />
+              </div>
+            </div>
+
+            {/* Footer CTA */}
+            <div className="border-t border-white/[0.08] px-6 py-4">
+              <Link
+                to={`/inventory/${project._id}/presentation`}
+                onClick={onClose}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.3)]"
+              >
+                <Presentation size={15} />
+                View Full Project Presentation
+              </Link>
+            </div>
+          </motion.aside>
         </div>
       )}
-
-      {/* Info */}
-      <div>
-        <div className="flex items-center gap-2">
-          <Building2 size={14} className="text-muted-foreground shrink-0" />
-          <h3 className="text-base font-semibold leading-tight">{project.name}</h3>
-        </div>
-        <p className="mt-0.5 text-sm text-muted-foreground pl-5">
-          {project.location}, {project.city}
-        </p>
-        {devName && (
-          <p className="mt-0.5 text-xs text-muted-foreground pl-5">by {devName}</p>
-        )}
-      </div>
-
-      <p className="text-sm text-foreground/90 line-clamp-2">{project.description}</p>
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
-        <span>Commission: {project.commissionPercent}%</span>
-      </div>
-
-      {/* Project Presentation & Technical Information */}
-      <Link
-        to={`/inventory/${project._id}/presentation`}
-        className="group flex items-center justify-between rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-foreground/90 hover:border-[var(--trust)]/60 hover:text-white transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <Presentation size={13} className="text-[var(--trust)]" />
-          View Project Presentation & Technical Details
-        </span>
-        <ArrowRight size={13} className="text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-      </Link>
-
-      <TrustScoreWidget
-        score={project.trustScore ?? mockScoreFromId(project._id)}
-        compact
-      />
-      <LegalRiskCard
-        level={project.legalRiskLevel ?? mockRiskFromId(project._id)}
-        compact
-      />
-      <PriceFairnessMeter projectId={project._id} compact />
-    </div>
+    </AnimatePresence>
   );
 }
