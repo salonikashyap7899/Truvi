@@ -146,11 +146,11 @@ function GlowButton({
 /* ---------------- Content data ---------------- */
 
 const INTELLIGENCE_STRIP = [
-  "Project Data",
-  "Site Verification",
-  "Builder Intelligence",
-  "Location Insights",
-  "Buyer Experience",
+  "Property Data",
+  "Location Intelligence",
+  "Legal Signals",
+  "AI-Powered Analysis",
+  "Risk Prediction",
 ];
 
 const ROTATING_QUESTIONS = [
@@ -429,23 +429,22 @@ export default function LandingPage() {
       {/* ---------- HERO ---------- */}
       <Section className="min-h-screen items-center pt-36 text-center">
         <Reveal>
-          <Eyebrow>Real Estate Intelligence System</Eyebrow>
+          <Eyebrow>The Intelligence Layer for Indian Real Estate</Eyebrow>
         </Reveal>
         <Reveal delay={0.1}>
           <h1 className="font-display text-5xl font-medium leading-[0.98] tracking-tight text-gradient-aurora md:text-[6.5rem]">
-            Know the Property<br />Before You Buy It.
+            Know the land.<br />Verify the property.<br />Understand the risk.<br />Predict the potential.
           </h1>
         </Reveal>
         <Reveal delay={0.3}>
           <p className="mx-auto mt-8 max-w-2xl text-base text-muted-foreground md:text-lg">
-            Truvi brings project data, site verification, builder intelligence, location insights and
-            buyer experience into one real estate intelligence system.
+            Truvi combines property data, location intelligence, legal signals and AI to help India make better real estate decisions.
           </p>
         </Reveal>
         <Reveal delay={0.5}>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Explore Inventory</GlowButton>
+            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
           </div>
         </Reveal>
 
@@ -681,18 +680,18 @@ export default function LandingPage() {
       <Section id="join" className="items-center pb-32 text-center">
         <Reveal>
           <h2 className="font-display text-5xl font-medium leading-[1.0] md:text-8xl">
-            Know before you buy.
+            Intelligence over assumption.
           </h2>
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mx-auto mt-8 max-w-xl text-muted-foreground md:text-lg">
-            Start with one question — and see where the evidence takes you.
+            Start with one question — and let the evidence guide every decision.
           </p>
         </Reveal>
         <Reveal delay={0.4}>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Explore Inventory</GlowButton>
+            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
             <GlowButton variant="ghost" to="/signup">Join the Ecosystem</GlowButton>
           </div>
         </Reveal>
