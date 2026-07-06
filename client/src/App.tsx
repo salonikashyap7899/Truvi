@@ -12,6 +12,7 @@ const AmbientBackground = lazy(() =>
 );
 
 import LandingPage from "@/pages/LandingPage";
+import IntelligencePage from "@/pages/IntelligencePage";
 import HomePage from "@/pages/HomePage";
 import JoinPage from "@/pages/JoinPage";
 import AboutPage from "@/pages/AboutPage";
@@ -81,6 +82,7 @@ export default function App() {
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />

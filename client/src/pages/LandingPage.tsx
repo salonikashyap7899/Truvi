@@ -71,7 +71,7 @@ function Nav() {
           TRUVI VENTURES
         </a>
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
-          <a href="#intelligence" className="hover:text-foreground">Intelligence</a>
+          <Link to="/intelligence" className="hover:text-foreground">Intelligence</Link>
           <a href="#ask-truvi" className="hover:text-foreground">Ask Truvi AI</a>
           <Link to="/inventory" className="hover:text-foreground">Inventory</Link>
           <Link to="/join" className="hover:text-foreground">For Developers</Link>
