@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { verifyAccessToken } from "../lib/jwt";
 import { AuthedRequest } from "../middleware/auth";
 import { retrieveContext } from "../services/askTruviService";
@@ -24,7 +24,7 @@ function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
   next();
 }
 
-/* ---------------- Sales Copilot modes (unchanged behavior) ---------------- */
+/* ---------------- Sales Copilot modes ---------------- */
 
 const COPILOT_PROMPTS: Record<string, string> = {
   whatsapp: `You are an AI sales assistant for Truvi, a real estate platform. Generate a friendly, professional WhatsApp follow-up message for a channel partner to send to their real estate client. The message should be warm, personalized, not pushy, and should move the client toward the next step (site visit, booking, etc.). Keep it under 100 words. Use the context provided about client name and lead stage. Output only the message text, ready to send.`,
@@ -54,7 +54,7 @@ CORE RULES (non-negotiable):
 
 Prices are in INR. Format large amounts as ₹X.X L (lakh) or ₹X.X Cr (crore).
 
-OUTPUT FORMAT — respond with ONLY a JSON object, no markdown fences:
+OUTPUT FORMAT — respond with ONLY a valid JSON object, no markdown fences, no extra text before or after:
 {
   "reply": "the answer text (use \\n for line breaks, ** for bold)",
   "sources": [{"label": "TRUVI_VERIFIED", "detail": "what this covered", "lastUpdated": "YYYY-MM-DD or null"}],
@@ -85,39 +85,38 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "message too long" });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const baseURL = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return res.status(503).json({
       error: "AI service not configured",
-      reply: "Ask Truvi AI is not yet configured. Please add your OPENAI_API_KEY to the server environment.",
+      reply: "Ask Truvi AI is not yet configured. Please add your ANTHROPIC_API_KEY to the server environment.",
     });
   }
 
-  const openai = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
+  const client = new Anthropic({ apiKey });
 
-  /* -------- Sales Copilot path: keep the original plain-text behavior -------- */
+  /* -------- Sales Copilot path -------- */
   if (mode && COPILOT_PROMPTS[mode]) {
     let systemPrompt = COPILOT_PROMPTS[mode];
     if (propertyContext && Object.keys(propertyContext).length > 0) {
       systemPrompt += `\n\nContext:\n${JSON.stringify(propertyContext, null, 2)}`;
     }
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message.trim() },
-        ],
-        max_tokens: 300,
+      const response = await client.messages.create({
+        model: "claude-opus-4-5",
+        max_tokens: 400,
+        system: systemPrompt,
+        messages: [{ role: "user", content: message.trim() }],
       });
-      const reply = completion.choices[0]?.message?.content ?? "Sorry, I couldn't generate a response. Please try again.";
+      const reply = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("") || "Sorry, I couldn't generate a response. Please try again.";
       return res.json({ reply });
     } catch (err: unknown) {
       console.error("AI copilot error:", err);
-      const msg = err instanceof Error ? err.message : "AI request failed";
-      return res.status(502).json({ error: msg, reply: "I'm having trouble connecting right now. Please try again in a moment." });
+      return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
     }
   }
 
@@ -146,27 +145,47 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
       dataBlock += `\n\nUSER PROFILE (saved by the user for personalized advisory — tailor recommendations to this):\n${JSON.stringify(advisorProfile, null, 1)}`;
     }
 
-    const historyMessages = (Array.isArray(history) ? history : [])
+    // Build alternating user/assistant history for Claude (must start with user, alternate strictly,
+    // and must end with assistant so the appended user message creates a valid user→assistant→user chain)
+    const rawHistory = (Array.isArray(history) ? history : [])
       .slice(-8)
-      .filter((h) => h && typeof h.text === "string" && h.text.trim())
-      .map((h) => ({
-        role: h.role === "user" ? ("user" as const) : ("assistant" as const),
-        content: h.text.slice(0, 1500),
-      }));
+      .filter((h) => h && typeof h.text === "string" && h.text.trim());
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+    const historyMessages: { role: "user" | "assistant"; content: string }[] = [];
+    for (const h of rawHistory) {
+      const role = h.role === "user" ? "user" : "assistant";
+      // Collapse consecutive same-role turns (Claude requires strict alternation)
+      const last = historyMessages[historyMessages.length - 1];
+      if (last && last.role === role) {
+        last.content += "\n" + h.text.slice(0, 1500);
+      } else {
+        historyMessages.push({ role, content: h.text.slice(0, 1500) });
+      }
+    }
+    // Must start with "user"
+    while (historyMessages.length > 0 && historyMessages[0].role === "assistant") {
+      historyMessages.shift();
+    }
+    // Must end with "assistant" so the new user message keeps strict alternation
+    while (historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === "user") {
+      historyMessages.pop();
+    }
+
+    const response = await client.messages.create({
+      model: "claude-opus-4-5",
+      max_tokens: 1024,
+      system: `${ASK_TRUVI_SYSTEM}\n\n${dataBlock}`,
       messages: [
-        { role: "system", content: ASK_TRUVI_SYSTEM },
-        { role: "system", content: dataBlock },
         ...historyMessages,
         { role: "user", content: message.trim() },
       ],
-      max_tokens: 900,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
+    // Concatenate all text blocks (Claude can return multiple content blocks)
+    const raw = response.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("");
     let parsed: {
       reply?: string;
       sources?: unknown[];
@@ -190,8 +209,7 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
     });
   } catch (err: unknown) {
     console.error("Ask Truvi AI error:", err);
-    const msg = err instanceof Error ? err.message : "AI request failed";
-    return res.status(502).json({ error: msg, reply: "I'm having trouble connecting right now. Please try again in a moment." });
+    return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
   }
 });
 
