@@ -193,6 +193,27 @@ function ListingCard({
 
         <p className="line-clamp-2 text-sm leading-relaxed text-foreground/80">{project.description}</p>
 
+        {/* Live pricing from actual units */}
+        {(project.minRate || project.unitCount) && (
+          <div className="flex items-end justify-between rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Starting at</p>
+              <p className="mt-0.5 font-display text-lg font-semibold text-white">
+                {project.minRate ? (
+                  <>₹{project.minRate.toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/sq ft</span></>
+                ) : (
+                  <span className="text-sm font-normal text-muted-foreground">Price on request</span>
+                )}
+              </p>
+            </div>
+            {typeof project.unitCount === "number" && project.unitCount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-white">{project.unitCount}</span> unit{project.unitCount !== 1 ? "s" : ""} live
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Intelligence snapshot */}
         <div className="space-y-2.5 border-t border-white/[0.07] pt-4">
           <TrustScoreWidget score={project.trustScore ?? mockScoreFromId(project._id)} compact />

@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
+import { api } from "@/lib/api";
+import type { Project } from "@/types";
 
 const CityCanvas = lazy(() =>
   import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
@@ -178,24 +180,6 @@ const ROTATING_QUESTIONS = [
   "What could this property be worth in 5 years?",
 ];
 
-const PASSPORT_FIELDS = [
-  { label: "Property ID", value: "TRV-LKO-004821" },
-  { label: "Ownership Signals", value: "Clear · 2 transfers on record" },
-  { label: "Legal Risk", value: "Low · no active litigation found" },
-  { label: "Price History", value: "₹1,420 → ₹1,850/sq ft (3 yrs)" },
-  { label: "Location Score", value: "88 / 100" },
-  { label: "Infrastructure Score", value: "84 / 100" },
-  { label: "Liquidity Score", value: "75 / 100" },
-];
-
-const SCORE_BREAKDOWN = [
-  { label: "Legal Confidence", value: 91 },
-  { label: "Price Fairness", value: 72 },
-  { label: "Location", value: 88 },
-  { label: "Growth", value: 84 },
-  { label: "Liquidity", value: 75 },
-];
-
 const BEFORE_TRUVI = ["Broker opinion", "Multiple portals", "Manual documents", "Guesswork", "Days of research"];
 const WITH_TRUVI = ["One property profile", "Truvi Intelligence Engine™ analysis", "Risk Signals™", "Data-backed decision", "Minutes"];
 
@@ -226,16 +210,172 @@ const METHODOLOGY = [
   { n: "04", title: "Confidence Score", desc: "Every output carries a confidence level, so you know how strongly the evidence supports it." },
 ];
 
+/* ---------------- Live showcase data ---------------- */
+/* Every showcase number on this page is driven by the platform's real
+   Prime Listing and its intelligence profile. The static values below
+   are only the fallback for an empty database. */
+
+interface IntelSlim {
+  categories: { key: string; verifiedCount: number; totalCount: number }[];
+  ai: { confidenceScore: number; riskFlags: string[]; overallStatus: string };
+}
+
+export interface Showcase {
+  heroQuery: string;
+  heroChips: { label: string; value: string; cls: string }[];
+  passportTitle: string;
+  passportFields: { label: string; value: string }[];
+  score: number;
+  scoreLabel: string;
+  scoreBreakdown: { label: string; value: number }[];
+  demoName: string;
+  demoSub: string;
+  demoRate: string;
+  demoScore: number;
+  demoSignals: { label: string; value: string; cls: string }[];
+}
+
+function useShowcase(): Showcase {
+  const [listing, setListing] = useState<Project | null>(null);
+  const [intel, setIntel] = useState<IntelSlim | null>(null);
+
+  useEffect(() => {
+    api
+      .get("/inventory")
+      .then((res) => {
+        const list: Project[] = res.data.projects ?? [];
+        if (list.length === 0) return;
+        const prime = list.find((p) => p.isPrimeListing) ?? list[0];
+        setListing(prime);
+        return api
+          .get(`/inventory/${prime._id}/intelligence`)
+          .then((r) => setIntel(r.data.intelligence))
+          .catch(() => {});
+      })
+      .catch(() => {}); // fall back to sample content silently
+  }, []);
+
+  return deriveShowcase(listing, intel);
+}
+
+const GOOD = "border-emerald-400/20 bg-emerald-500/15 text-emerald-300";
+const WARN = "border-amber-400/20 bg-amber-500/15 text-amber-300";
+const NEUTRAL = "border-white/15 bg-white/10 text-foreground/80";
+const TRUST = "border-[var(--trust)]/40 bg-[var(--trust)]/15 text-sky-300";
+
+function deriveShowcase(listing: Project | null, intel: IntelSlim | null): Showcase {
+  // Fallback: the sample property shown before any listing exists
+  if (!listing) {
+    return {
+      heroQuery: "Should I buy this plot in Malihabad for ₹1,800/sq ft?",
+      heroChips: [
+        { label: "Truvi Score™", value: "78 / 100", cls: TRUST },
+        { label: "Growth Potential", value: "High", cls: GOOD },
+        { label: "Legal Signals", value: "2 detected", cls: WARN },
+        { label: "Liquidity", value: "Medium", cls: NEUTRAL },
+      ],
+      passportTitle: "Residential Plot · Malihabad, Lucknow",
+      passportFields: [
+        { label: "Property ID", value: "TRV-LKO-004821" },
+        { label: "Ownership Signals", value: "Clear · 2 transfers on record" },
+        { label: "Legal Risk", value: "Low · no active litigation found" },
+        { label: "Price History", value: "₹1,420 → ₹1,850/sq ft (3 yrs)" },
+        { label: "Location Score", value: "88 / 100" },
+        { label: "Infrastructure Score", value: "84 / 100" },
+        { label: "Liquidity Score", value: "75 / 100" },
+      ],
+      score: 82,
+      scoreLabel: "Strong Property",
+      scoreBreakdown: [
+        { label: "Legal Confidence", value: 91 },
+        { label: "Price Fairness", value: 72 },
+        { label: "Location", value: 88 },
+        { label: "Growth", value: 84 },
+        { label: "Liquidity", value: 75 },
+      ],
+      demoName: "Malihabad, Lucknow",
+      demoSub: "Residential plot · Live intelligence sample",
+      demoRate: "₹1,850",
+      demoScore: 81,
+      demoSignals: [
+        { label: "Price Fairness", value: "Fair", cls: "text-emerald-300" },
+        { label: "5-Year Growth Potential", value: "High", cls: "text-emerald-300" },
+        { label: "Liquidity", value: "Medium", cls: "text-amber-300" },
+        { label: "Legal Signals™", value: "1 detected", cls: "text-amber-300" },
+        { label: "Infrastructure Impact", value: "Positive", cls: "text-emerald-300" },
+      ],
+    };
+  }
+
+  // Per-category verified % from the real intelligence profile
+  const pct = (key: string, fallback: number) => {
+    const c = intel?.categories.find((x) => x.key === key);
+    return c && c.totalCount > 0 ? Math.round((c.verifiedCount / c.totalCount) * 100) : fallback;
+  };
+
+  const score = intel?.ai.confidenceScore ?? listing.trustScore ?? 75;
+  const scoreLabel = score >= 75 ? "Strong Property" : score >= 55 ? "Promising Property" : "Needs Review";
+  const riskCount = intel?.ai.riskFlags.length ?? 0;
+  const growth = pct("infrastructure", 80) >= 70 ? "High" : "Medium";
+  const liquidityPct = pct("community", 70);
+  const liquidity = liquidityPct >= 75 ? "High" : liquidityPct >= 50 ? "Medium" : "Low";
+  const rate = listing.minRate ? `₹${listing.minRate.toLocaleString("en-IN")}` : null;
+  const priceRange =
+    listing.minPrice && listing.maxPrice
+      ? `₹${(listing.minPrice / 100000).toFixed(1)} L – ₹${(listing.maxPrice / 100000).toFixed(1)} L`
+      : "Being compiled";
+  const legalRisk =
+    listing.legalRiskLevel === "HIGH" ? "Elevated · records under review"
+    : listing.legalRiskLevel === "MEDIUM" ? "Moderate · some checks pending"
+    : "Low · no active litigation found";
+  const propertyId = `TRV-${listing.city.slice(0, 3).toUpperCase()}-${listing._id.slice(-6).toUpperCase()}`;
+
+  return {
+    heroQuery: rate
+      ? `Should I buy in ${listing.name}, ${listing.city} at ${rate}/sq ft?`
+      : `Should I buy in ${listing.name}, ${listing.city}?`,
+    heroChips: [
+      { label: "Truvi Score™", value: `${score} / 100`, cls: TRUST },
+      { label: "Growth Potential", value: growth, cls: growth === "High" ? GOOD : NEUTRAL },
+      { label: "Legal Signals", value: riskCount > 0 ? `${riskCount} detected` : "None found", cls: riskCount > 0 ? WARN : GOOD },
+      { label: "Liquidity", value: liquidity, cls: liquidity === "High" ? GOOD : NEUTRAL },
+    ],
+    passportTitle: `${listing.name} · ${listing.location}, ${listing.city}`,
+    passportFields: [
+      { label: "Property ID", value: propertyId },
+      { label: "Ownership Signals", value: listing.verificationDetails?.titleClearance ? "Clear · title verified" : "Under verification" },
+      { label: "Legal Risk", value: legalRisk },
+      { label: "Price Range (live units)", value: priceRange },
+      { label: "Location Score", value: `${pct("location", 80)} / 100` },
+      { label: "Infrastructure Score", value: `${pct("infrastructure", 78)} / 100` },
+      { label: "Liquidity Score", value: `${liquidityPct} / 100` },
+    ],
+    score,
+    scoreLabel,
+    scoreBreakdown: [
+      { label: "Legal Confidence", value: pct("government", 85) },
+      { label: "Price Fairness", value: pct("market", 72) },
+      { label: "Location", value: pct("location", 82) },
+      { label: "Growth", value: pct("infrastructure", 78) },
+      { label: "Liquidity", value: liquidityPct },
+    ],
+    demoName: `${listing.name}`,
+    demoSub: `${listing.location}, ${listing.city} · Live intelligence`,
+    demoRate: rate ?? "On request",
+    demoScore: score,
+    demoSignals: [
+      { label: "Price Fairness", value: pct("market", 70) >= 60 ? "Fair" : "Review", cls: "text-emerald-300" },
+      { label: "5-Year Growth Potential", value: growth, cls: growth === "High" ? "text-emerald-300" : "text-amber-300" },
+      { label: "Liquidity", value: liquidity, cls: liquidity === "High" ? "text-emerald-300" : "text-amber-300" },
+      { label: "Legal Signals™", value: riskCount > 0 ? `${riskCount} detected` : "None found", cls: riskCount > 0 ? "text-amber-300" : "text-emerald-300" },
+      { label: "Infrastructure Impact", value: pct("infrastructure", 75) >= 60 ? "Positive" : "Neutral", cls: "text-emerald-300" },
+    ],
+  };
+}
+
 /* ---------------- Hero: live Ask Truvi demo ---------------- */
 
-const HERO_RESULT_CHIPS = [
-  { label: "Truvi Score™", value: "78 / 100", cls: "border-[var(--trust)]/40 bg-[var(--trust)]/15 text-sky-300" },
-  { label: "Growth Potential", value: "High", cls: "border-emerald-400/20 bg-emerald-500/15 text-emerald-300" },
-  { label: "Legal Signals", value: "2 detected", cls: "border-amber-400/20 bg-amber-500/15 text-amber-300" },
-  { label: "Liquidity", value: "Medium", cls: "border-white/15 bg-white/10 text-foreground/80" },
-];
-
-function HeroAskDemo() {
+function HeroAskDemo({ s }: { s: Showcase }) {
   return (
     <div className="relative mx-auto w-full max-w-2xl text-left">
       <div className="absolute -inset-6 -z-10 opacity-30 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
@@ -243,9 +383,7 @@ function HeroAskDemo() {
         {/* Query bar */}
         <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
           <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--trust)]/25 text-xs">✦</span>
-          <p className="text-sm text-foreground/90">
-            Should I buy this plot in Malihabad for ₹1,800/sq ft?
-          </p>
+          <p className="text-sm text-foreground/90">{s.heroQuery}</p>
           <motion.span
             className="ml-auto h-4 w-px shrink-0 bg-white/60"
             animate={{ opacity: [1, 0, 1] }}
@@ -265,7 +403,7 @@ function HeroAskDemo() {
             Truvi Intelligence Engine™ · analysing signals…
           </motion.p>
           <div className="mt-2.5 flex flex-wrap gap-2">
-            {HERO_RESULT_CHIPS.map((chip, i) => (
+            {s.heroChips.map((chip, i) => (
               <motion.span
                 key={chip.label}
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -465,42 +603,37 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-/* ---------------- Demo property (product proof) ---------------- */
+/* ---------------- Demo property (product proof, live data) ---------------- */
 
-const DEMO_SIGNALS = [
-  { label: "Price Fairness", value: "Fair", cls: "text-emerald-300" },
-  { label: "5-Year Growth Potential", value: "High", cls: "text-emerald-300" },
-  { label: "Liquidity", value: "Medium", cls: "text-amber-300" },
-  { label: "Legal Signals™", value: "1 detected", cls: "text-amber-300" },
-  { label: "Infrastructure Impact", value: "Positive", cls: "text-emerald-300" },
-];
-
-function DemoPropertyCard() {
+function DemoPropertyCard({ s }: { s: Showcase }) {
   return (
     <div className="relative mx-auto w-full max-w-2xl">
       <div className="absolute -inset-6 -z-10 opacity-25 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
       <div className="rounded-2xl glass overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
           <div>
-            <p className="font-display text-lg font-semibold text-white">Malihabad, Lucknow</p>
-            <p className="text-xs text-muted-foreground">Residential plot · Live intelligence sample</p>
+            <p className="font-display text-lg font-semibold text-white">{s.demoName}</p>
+            <p className="text-xs text-muted-foreground">{s.demoSub}</p>
           </div>
           <div className="text-right">
-            <p className="font-display text-xl font-semibold text-white">₹1,850<span className="text-sm text-muted-foreground">/sq ft</span></p>
+            <p className="font-display text-xl font-semibold text-white">
+              {s.demoRate}
+              {s.demoRate.startsWith("₹") && <span className="text-sm text-muted-foreground">/sq ft</span>}
+            </p>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Asking rate</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-6 px-6 py-6 sm:flex-row sm:items-center">
           <div className="flex flex-col items-center gap-1 shrink-0">
-            <ScoreRing score={81} />
-            <p className="text-xs font-medium text-emerald-300">Truvi Score™ · Strong</p>
+            <ScoreRing score={s.demoScore} />
+            <p className="text-xs font-medium text-emerald-300">Truvi Score™ · {s.scoreLabel.split(" ")[0]}</p>
           </div>
           <div className="flex-1 space-y-2.5">
-            {DEMO_SIGNALS.map((s) => (
-              <div key={s.label} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">
-                <span className="text-sm text-foreground/85">{s.label}</span>
-                <span className={`text-sm font-semibold ${s.cls}`}>{s.value}</span>
+            {s.demoSignals.map((sig) => (
+              <div key={sig.label} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">
+                <span className="text-sm text-foreground/85">{sig.label}</span>
+                <span className={`text-sm font-semibold ${sig.cls}`}>{sig.value}</span>
               </div>
             ))}
           </div>
@@ -577,6 +710,7 @@ function Footer() {
 
 export default function LandingPage() {
   const mounted = useMounted();
+  const showcase = useShowcase();
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -623,7 +757,7 @@ export default function LandingPage() {
         </Reveal>
         <Reveal delay={0.45}>
           <div className="mt-10 w-full">
-            <HeroAskDemo />
+            <HeroAskDemo s={showcase} />
           </div>
         </Reveal>
         <Reveal delay={0.6}>
@@ -723,12 +857,12 @@ export default function LandingPage() {
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Truvi Property Passport™</p>
-                <p className="mt-1 font-display text-base font-semibold text-white">Residential Plot · Malihabad, Lucknow</p>
+                <p className="mt-1 font-display text-base font-semibold text-white">{showcase.passportTitle}</p>
               </div>
               <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-sm font-bold">T</span>
             </div>
             <div className="divide-y divide-white/5">
-              {PASSPORT_FIELDS.map((f) => (
+              {showcase.passportFields.map((f) => (
                 <div key={f.label} className="flex items-center justify-between gap-4 px-6 py-3.5">
                   <span className="text-sm text-muted-foreground">{f.label}</span>
                   <span className="text-sm font-medium text-foreground/95 text-right">{f.value}</span>
@@ -736,7 +870,7 @@ export default function LandingPage() {
               ))}
               <div className="flex items-center justify-between gap-4 px-6 py-4 bg-[var(--trust)]/10">
                 <span className="text-sm font-semibold text-white">Truvi Score™</span>
-                <span className="font-display text-lg font-semibold text-emerald-300">81 / 100</span>
+                <span className="font-display text-lg font-semibold text-emerald-300">{showcase.score} / 100</span>
               </div>
             </div>
           </div>
@@ -755,12 +889,12 @@ export default function LandingPage() {
         <Reveal delay={0.25}>
           <div className="mt-12 mx-auto flex w-full max-w-3xl flex-col items-center gap-10 rounded-2xl glass p-8 md:flex-row">
             <div className="flex flex-col items-center gap-2 shrink-0">
-              <ScoreRing score={82} />
-              <p className="font-display text-base font-semibold text-white">82 / 100</p>
-              <p className="text-xs font-medium text-emerald-300">Strong Property</p>
+              <ScoreRing score={showcase.score} />
+              <p className="font-display text-base font-semibold text-white">{showcase.score} / 100</p>
+              <p className="text-xs font-medium text-emerald-300">{showcase.scoreLabel}</p>
             </div>
             <div className="w-full flex-1 space-y-4">
-              {SCORE_BREAKDOWN.map((b) => (
+              {showcase.scoreBreakdown.map((b) => (
                 <div key={b.label}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="text-foreground/85">{b.label}</span>
@@ -798,7 +932,7 @@ export default function LandingPage() {
         </Reveal>
         <Reveal delay={0.3}>
           <div className="mt-12 w-full">
-            <DemoPropertyCard />
+            <DemoPropertyCard s={showcase} />
           </div>
         </Reveal>
       </Section>

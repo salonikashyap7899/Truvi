@@ -93,6 +93,10 @@ export interface Project {
   verificationDetails?: VerificationDetails;
   projectType?: ProjectType;
   presentationInfo?: PresentationInfo;
+  // Live unit aggregates attached by GET /api/inventory
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  minRate?: number | null;
 }
 
 export interface PriceHistoryEntry {
