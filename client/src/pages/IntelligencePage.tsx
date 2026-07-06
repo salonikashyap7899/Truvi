@@ -116,7 +116,7 @@ const PILLARS = [
 
 export default function IntelligencePage() {
   useEffect(() => {
-    document.title = "TRUVI VENTURES — AI Intelligence";
+    document.title = "TRUVI — Intelligence";
   }, []);
 
   return (

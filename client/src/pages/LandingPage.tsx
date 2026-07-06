@@ -14,7 +14,7 @@ function useMounted() {
   return m;
 }
 
-/** Opens the live Ask Truvi AI assistant (mounted globally in App). */
+/** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
   window.dispatchEvent(new Event("open-ask-truvi"));
 }
@@ -60,7 +60,9 @@ function Section({
   );
 }
 
-/* ---------------- Navigation (simplified per positioning) ---------------- */
+/* ---------------- Navigation ---------------- */
+/* Brand architecture: TRUVI is the consumer brand — the parent company
+   (Truvi Ventures) appears only in the footer attribution and legal pages. */
 
 function Nav() {
   return (
@@ -68,21 +70,21 @@ function Nav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full glass px-5 py-2.5">
         <a href="#top" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
           <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-          TRUVI VENTURES
+          TRUVI
         </a>
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
           <Link to="/intelligence" className="hover:text-foreground">Intelligence</Link>
-          <a href="#ask-truvi" className="hover:text-foreground">Ask Truvi AI</a>
+          <a href="#ask-truvi" className="hover:text-foreground">Ask Truvi</a>
           <Link to="/inventory" className="hover:text-foreground">Inventory</Link>
-          <Link to="/join" className="hover:text-foreground">For Developers</Link>
-          <a href="#network" className="hover:text-foreground">Truvi Network</a>
+          <a href="#developer-intelligence" className="hover:text-foreground">For Developers</a>
+          <a href="#ecosystem" className="hover:text-foreground">Ecosystem</a>
           <Link to="/about" className="hover:text-foreground">About</Link>
         </nav>
         <button
           onClick={openAskTruvi}
           className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
         >
-          Ask Truvi AI
+          Ask Truvi
         </button>
       </div>
     </header>
@@ -145,103 +147,221 @@ function GlowButton({
 
 /* ---------------- Content data ---------------- */
 
-const INTELLIGENCE_STRIP = [
-  "Property Data",
-  "Location Intelligence",
+const PAIN_CARDS = [
+  { title: "Fragmented Data", desc: "Records scattered across portals, brochures, registries and hearsay — never in one place." },
+  { title: "Unclear Pricing", desc: "No reliable way to know whether a quoted rate is fair, inflated, or an opportunity." },
+  { title: "Hidden Risk", desc: "Litigation, title issues and zoning constraints surface after the decision, not before it." },
+  { title: "Broker-led Decisions", desc: "The biggest purchase of a lifetime, guided by whoever has the strongest incentive to close." },
+];
+
+const ENGINE_INPUTS = [
+  "Property Records",
   "Legal Signals",
-  "AI-Powered Analysis",
-  "Risk Prediction",
+  "Market Prices",
+  "Infrastructure",
+  "Geospatial Data",
+  "Buyer Behaviour",
+];
+
+const ENGINE_OUTPUTS = [
+  "Truvi Score™",
+  "Risk Intelligence",
+  "Price Intelligence",
+  "Growth Potential",
+  "Liquidity Signals",
 ];
 
 const ROTATING_QUESTIONS = [
-  "Compare these two projects",
-  "What should I verify before booking?",
-  "Explain this project's location",
-  "What information needs attention?",
-  "Summarise this project for me",
+  "Is this plot overpriced?",
+  "What are the risks in this property?",
+  "Compare these two locations.",
+  "What could this property be worth in 5 years?",
 ];
 
-const STAGES = [
-  {
-    n: "01",
-    title: "Ingest",
-    desc: "Raw multi-source data — brochures, RERA filings, land records, news, site visits — is pulled into one pipeline.",
-  },
-  {
-    n: "02",
-    title: "Verify",
-    desc: "Every data point is cross-checked against its source. If a fact can't be verified, it's labelled — never guessed.",
-  },
-  {
-    n: "03",
-    title: "Structure",
-    desc: "Verified records are organised into one unified, comparable project intelligence record.",
-  },
-  {
-    n: "04",
-    title: "Deliver",
-    desc: "Decision-ready answers — every conclusion traced back to the document, filing, or record it came from.",
-  },
+const PASSPORT_FIELDS = [
+  { label: "Property ID", value: "TRV-LKO-004821" },
+  { label: "Ownership Signals", value: "Clear · 2 transfers on record" },
+  { label: "Legal Risk", value: "Low · no active litigation found" },
+  { label: "Price History", value: "₹1,420 → ₹1,850/sq ft (3 yrs)" },
+  { label: "Location Score", value: "88 / 100" },
+  { label: "Infrastructure Score", value: "84 / 100" },
+  { label: "Liquidity Score", value: "75 / 100" },
 ];
 
-const DATA_SOURCES = [
-  "LDA Master Plan", "Village Boundaries", "Land Use",
-  "Circle Rates", "Registered Developers", "RERA Projects",
-  "Schools", "Hospitals", "Metro",
-  "Highway Projects", "Ring Road", "Government Projects",
-  "Property Rates", "Crime Data", "Flood Zones",
-  "Future Infrastructure", "Land Feasibility Rate", "Climatic Condition",
+const SCORE_BREAKDOWN = [
+  { label: "Legal Confidence", value: 91 },
+  { label: "Price Fairness", value: 72 },
+  { label: "Location", value: 88 },
+  { label: "Growth", value: 84 },
+  { label: "Liquidity", value: 75 },
 ];
 
-const FIELD_VERIFICATION = [
-  { field: "RERA registration number", status: "verified" },
-  { field: "Possession timeline", status: "verified" },
-  { field: "Builder litigation history", status: "pending" },
-  { field: "Amenity list (final)", status: "pending" },
-  { field: "Resale price history", status: "unavailable" },
-];
-
-const STATUS_LABELS = [
-  { name: "Information Available", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20" },
-  { name: "Needs Verification", cls: "bg-sky-500/15 text-sky-300 border-sky-400/20" },
-  { name: "Data Unavailable", cls: "bg-white/10 text-foreground/70 border-white/15" },
-  { name: "Attention Required", cls: "bg-amber-500/15 text-amber-300 border-amber-400/20" },
-  { name: "Information Mismatch", cls: "bg-red-500/15 text-red-300 border-red-400/20" },
-];
-
-const PREVIEW_MODULES = [
-  { name: "Project Overview", status: 0 },
-  { name: "Builder Intelligence", status: 0 },
-  { name: "Location Intelligence", status: 0 },
-  { name: "Site Insights", status: 1 },
-  { name: "Amenities", status: 0 },
-  { name: "Documents & Information", status: 1 },
-  { name: "Buyer Experience", status: 2 },
-];
-
-const SOURCE_LABELS = [
-  { icon: "✅", name: "Truvi Verified", desc: "Field-verified by Truvi's ambassador and surveyor network. Highest confidence level." },
-  { icon: "📂", name: "Public Record", desc: "Government registries, RERA filings and other publicly accessible documents." },
-  { icon: "📋", name: "Builder Submitted", desc: "Provided directly by the developer. Not independently verified unless noted." },
-  { icon: "👤", name: "User Submitted", desc: "Inputs from buyers and residents — aggregated and anonymised before display." },
-];
+const BEFORE_TRUVI = ["Broker opinion", "Multiple portals", "Manual documents", "Guesswork", "Days of research"];
+const WITH_TRUVI = ["One property profile", "Truvi Intelligence Engine™ analysis", "Risk Signals™", "Data-backed decision", "Minutes"];
 
 const ECOSYSTEM = [
-  { name: "Buyers", desc: "Understand a property completely — data, sources and open questions — before committing." },
-  { name: "Developers", desc: "Present verified project information to a network of serious, informed buyers." },
-  { name: "Channel Partners", desc: "Advise clients with structured intelligence, transparent inventory and clear commissions." },
-  { name: "Architects & Consultants", desc: "Access organised project and location data to support professional work." },
-  { name: "Researchers & Institutions", desc: "Study structured, source-attributed real estate data at market scale." },
+  { name: "Buyers", desc: "Understand a property completely — price, risk and potential — before committing." },
+  { name: "Investors", desc: "Compare micro-markets and growth signals with the same rigour as any other asset class." },
+  { name: "Developers", desc: "Demand, pricing and competitor intelligence for every launch decision." },
+  { name: "Brokers", desc: "Advise clients with structured intelligence instead of opinion — and close with confidence." },
+  { name: "Banks & Lenders", desc: "Collateral risk and valuation signals, structured and source-attributed." },
+  { name: "Government & Enterprise", desc: "Market-scale, structured property data for planning, policy and analytics." },
 ];
 
-const NETWORK_PILLARS = [
-  { title: "Truvi Ambassador Network", desc: "Trained field ambassadors visit projects and record on-ground observations." },
-  { title: "Site Observations", desc: "Construction activity, visible progress and site conditions — captured directly, not claimed." },
-  { title: "Structured Project Data", desc: "Every observation is converted into structured, comparable, source-tagged records." },
-  { title: "Continuous Updates", desc: "Information carries a Last Updated date and is refreshed as new observations arrive." },
+const DEVELOPER_INTEL = [
+  { title: "Demand Heatmaps", desc: "Where buyers are actually searching, enquiring and converting — mapped by micro-market." },
+  { title: "Pricing Intelligence", desc: "Live rate benchmarks against comparable projects, corridors and circle rates." },
+  { title: "Competitor Tracking", desc: "Launches, price moves and absorption of every competing project around yours." },
+  { title: "Inventory Signals", desc: "Which configurations move, which stall — across your portfolio and the market's." },
+  { title: "Lead Intelligence", desc: "Enquiries scored and tagged by intent, purpose and readiness — not just volume." },
+  { title: "Location Opportunity", desc: "Land and corridor opportunities ranked by infrastructure and growth signals." },
 ];
 
-/* ---------------- Ask Truvi AI showcase ---------------- */
+const FLYWHEEL = ["More Properties", "More Signals", "Better Intelligence", "Better Decisions", "More Users"];
+
+const METHODOLOGY = [
+  { n: "01", title: "Data Sources", desc: "Government records, market data, site observations and developer submissions — every input tagged to its origin." },
+  { n: "02", title: "Signal Verification", desc: "Each signal is cross-checked against its source. What can't be verified is labelled — never guessed." },
+  { n: "03", title: "Intelligence Analysis", desc: "The Truvi Intelligence Engine™ weighs verified signals into risk, price, growth and liquidity intelligence." },
+  { n: "04", title: "Confidence Score", desc: "Every output carries a confidence level, so you know how strongly the evidence supports it." },
+];
+
+/* ---------------- Hero: live Ask Truvi demo ---------------- */
+
+const HERO_RESULT_CHIPS = [
+  { label: "Truvi Score™", value: "78 / 100", cls: "border-[var(--trust)]/40 bg-[var(--trust)]/15 text-sky-300" },
+  { label: "Growth Potential", value: "High", cls: "border-emerald-400/20 bg-emerald-500/15 text-emerald-300" },
+  { label: "Legal Signals", value: "2 detected", cls: "border-amber-400/20 bg-amber-500/15 text-amber-300" },
+  { label: "Liquidity", value: "Medium", cls: "border-white/15 bg-white/10 text-foreground/80" },
+];
+
+function HeroAskDemo() {
+  return (
+    <div className="relative mx-auto w-full max-w-2xl text-left">
+      <div className="absolute -inset-6 -z-10 opacity-30 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
+      <div className="rounded-2xl glass p-5">
+        {/* Query bar */}
+        <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
+          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--trust)]/25 text-xs">✦</span>
+          <p className="text-sm text-foreground/90">
+            Should I buy this plot in Malihabad for ₹1,800/sq ft?
+          </p>
+          <motion.span
+            className="ml-auto h-4 w-px shrink-0 bg-white/60"
+            animate={{ opacity: [1, 0, 1] }}
+            transition={{ duration: 1.1, repeat: Infinity }}
+          />
+        </div>
+
+        {/* Animated intelligence response */}
+        <div className="mt-4">
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.5 }}
+            className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
+          >
+            Truvi Intelligence Engine™ · analysing signals…
+          </motion.p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {HERO_RESULT_CHIPS.map((chip, i) => (
+              <motion.span
+                key={chip.label}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: 0.8 + i * 0.35, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${chip.cls}`}
+              >
+                <span className="opacity-70">{chip.label}</span>
+                <span className="font-semibold">{chip.value}</span>
+              </motion.span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+          <p className="text-[11px] text-muted-foreground">Every signal traced to its source.</p>
+          <button
+            onClick={openAskTruvi}
+            className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
+          >
+            Ask Truvi →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Truvi Intelligence Engine diagram ---------------- */
+
+function EngineDiagram() {
+  return (
+    <div className="mt-14 grid items-center gap-6 lg:grid-cols-[1fr_auto_1.1fr_auto_1fr]">
+      {/* Inputs */}
+      <div className="space-y-2.5">
+        <p className="mb-3 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground lg:text-left">
+          Incoming Signals
+        </p>
+        {ENGINE_INPUTS.map((s) => (
+          <div key={s} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 glass px-4 py-2.5">
+            <span className="text-sm text-foreground/90">{s}</span>
+            <span className="hidden text-[var(--trust)] lg:inline" aria-hidden>→</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Left connector */}
+      <div className="hidden justify-center lg:flex">
+        <span className="text-2xl text-[var(--trust)]" aria-hidden>⟶</span>
+      </div>
+      <div className="flex justify-center lg:hidden">
+        <span className="text-xl text-[var(--trust)]" aria-hidden>↓</span>
+      </div>
+
+      {/* Engine core */}
+      <div className="relative rounded-2xl border border-[var(--trust)]/40 px-8 py-10 text-center"
+        style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.14), rgba(139,92,246,0.10))" }}>
+        <div className="absolute -inset-px rounded-2xl opacity-30" style={{ boxShadow: "0 0 50px var(--trust)" }} />
+        <div className="relative">
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[11px] font-bold">T</span>
+          </div>
+          <p className="font-display text-xl font-semibold text-white md:text-2xl">
+            TRUVI INTELLIGENCE ENGINE™
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Ingest · Verify · Weigh · Deliver</p>
+          <div className="mx-auto mt-4 h-1 w-24 rounded-full" style={{ background: "var(--gradient-trust)" }} />
+        </div>
+      </div>
+
+      {/* Right connector */}
+      <div className="hidden justify-center lg:flex">
+        <span className="text-2xl text-[var(--trust)]" aria-hidden>⟶</span>
+      </div>
+      <div className="flex justify-center lg:hidden">
+        <span className="text-xl text-[var(--trust)]" aria-hidden>↓</span>
+      </div>
+
+      {/* Outputs */}
+      <div className="space-y-2.5">
+        <p className="mb-3 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground lg:text-left">
+          Intelligence Out
+        </p>
+        {ENGINE_OUTPUTS.map((s) => (
+          <div key={s} className="flex items-center gap-2 rounded-xl border border-[var(--trust)]/25 bg-[var(--trust)]/10 px-4 py-2.5">
+            <span className="hidden text-[var(--trust)] lg:inline" aria-hidden>→</span>
+            <span className="text-sm font-medium text-white">{s}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Ask Truvi showcase ---------------- */
 
 function AskTruviShowcase() {
   const [qi, setQi] = useState(0);
@@ -259,8 +379,8 @@ function AskTruviShowcase() {
           <div className="flex items-center gap-2">
             <span className="grid size-7 place-items-center rounded-full bg-[var(--trust)]/20 text-sm">✦</span>
             <div>
-              <p className="text-sm font-semibold">Ask Truvi AI</p>
-              <p className="text-[10px] text-muted-foreground">Decision Intelligence · Source-backed</p>
+              <p className="text-sm font-semibold">Ask Truvi™</p>
+              <p className="text-[10px] text-muted-foreground">Property Intelligence · Source-backed</p>
             </div>
           </div>
           <span className="rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
@@ -298,7 +418,7 @@ function AskTruviShowcase() {
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
           <p className="text-[11px] text-muted-foreground">
-            Not a chatbot — a decision-intelligence assistant grounded in Truvi's data.
+            Not a chatbot — a property-intelligence assistant grounded in Truvi's data.
           </p>
           <button
             onClick={openAskTruvi}
@@ -312,53 +432,89 @@ function AskTruviShowcase() {
   );
 }
 
-/* ---------------- Project Intelligence Preview ---------------- */
+/* ---------------- Truvi Score ring ---------------- */
 
-function ProjectPreview() {
+function ScoreRing({ score }: { score: number }) {
+  const r = 64;
+  const c = 2 * Math.PI * r;
   return (
-    <div className="relative mx-auto w-full max-w-4xl">
-      <div className="rounded-2xl glass p-5 md:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
-          <div>
-            <p className="font-display text-lg font-semibold">Sample Project · Lucknow</p>
-            <p className="text-xs text-muted-foreground">Project Intelligence Report</p>
-          </div>
-          <div className="text-right">
-            <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[10px] text-muted-foreground">
-              Last Updated · 30 Jun 2026
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
-          {PREVIEW_MODULES.map((m) => {
-            const s = STATUS_LABELS[m.status];
-            return (
-              <div key={m.name} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-                <span className="text-sm text-foreground/90">{m.name}</span>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.cls}`}>{s.name}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">
-          Statuses reflect actual data availability — never a marketing claim. Where information is
-          incomplete, Truvi says so.
-        </p>
-      </div>
-
-      {/* Label legend */}
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        {STATUS_LABELS.map((s) => (
-          <span key={s.name} className={`rounded-full border px-2.5 py-1 text-[10px] font-medium ${s.cls}`}>{s.name}</span>
-        ))}
+    <div className="relative grid place-items-center">
+      <svg width="170" height="170" viewBox="0 0 170 170" className="-rotate-90">
+        <circle cx="85" cy="85" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="11" />
+        <motion.circle
+          cx="85" cy="85" r={r} fill="none"
+          stroke="url(#scoreGrad)" strokeWidth="11" strokeLinecap="round"
+          strokeDasharray={c}
+          initial={{ strokeDashoffset: c }}
+          whileInView={{ strokeDashoffset: c * (1 - score / 100) }}
+          viewport={{ once: true }}
+          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+        />
+        <defs>
+          <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#34d399" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute text-center">
+        <p className="font-display text-4xl font-semibold text-white">{score}</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">/ 100</p>
       </div>
     </div>
   );
 }
 
-/* ---------------- Institutional footer ---------------- */
+/* ---------------- Demo property (product proof) ---------------- */
+
+const DEMO_SIGNALS = [
+  { label: "Price Fairness", value: "Fair", cls: "text-emerald-300" },
+  { label: "5-Year Growth Potential", value: "High", cls: "text-emerald-300" },
+  { label: "Liquidity", value: "Medium", cls: "text-amber-300" },
+  { label: "Legal Signals™", value: "1 detected", cls: "text-amber-300" },
+  { label: "Infrastructure Impact", value: "Positive", cls: "text-emerald-300" },
+];
+
+function DemoPropertyCard() {
+  return (
+    <div className="relative mx-auto w-full max-w-2xl">
+      <div className="absolute -inset-6 -z-10 opacity-25 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
+      <div className="rounded-2xl glass overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
+          <div>
+            <p className="font-display text-lg font-semibold text-white">Malihabad, Lucknow</p>
+            <p className="text-xs text-muted-foreground">Residential plot · Live intelligence sample</p>
+          </div>
+          <div className="text-right">
+            <p className="font-display text-xl font-semibold text-white">₹1,850<span className="text-sm text-muted-foreground">/sq ft</span></p>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Asking rate</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6 px-6 py-6 sm:flex-row sm:items-center">
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <ScoreRing score={81} />
+            <p className="text-xs font-medium text-emerald-300">Truvi Score™ · Strong</p>
+          </div>
+          <div className="flex-1 space-y-2.5">
+            {DEMO_SIGNALS.map((s) => (
+              <div key={s.label} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5">
+                <span className="text-sm text-foreground/85">{s.label}</span>
+                <span className={`text-sm font-semibold ${s.cls}`}>{s.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-6 py-4 text-center">
+          <GlowButton to="/inventory">View Full Property Intelligence</GlowButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Footer ---------------- */
 
 function Footer() {
   const col = "space-y-2 text-sm text-muted-foreground";
@@ -370,27 +526,31 @@ function Footer() {
         <div className="md:col-span-2">
           <div className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
             <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-            TRUVI VENTURES
+            TRUVI
           </div>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            The intelligence layer for real estate — organising fragmented property information into
-            structured, decision-ready intelligence.
+            The intelligence layer for Indian real estate — organising fragmented property information
+            into structured, decision-ready intelligence.
+          </p>
+          <p className="mt-3 max-w-sm text-xs leading-relaxed text-muted-foreground">
+            Truvi is a property intelligence platform by Truvi Ventures.
           </p>
         </div>
         <div>
           <p className={head}>Company</p>
           <div className={col}>
             <Link to="/about" className={link}>About</Link>
-            <a href="#network" className={link}>Truvi Network</a>
+            <a href="#ecosystem" className={link}>Ecosystem</a>
             <Link to="/join" className={link}>Join Truvi</Link>
           </div>
         </div>
         <div>
           <p className={head}>Intelligence</p>
           <div className={col}>
-            <a href="#ask-truvi" className={link}>Ask Truvi AI</a>
-            <a href="#how" className={link}>How Truvi Works</a>
-            <a href="#project-intelligence" className={link}>Project Intelligence</a>
+            <a href="#ask-truvi" className={link}>Ask Truvi™</a>
+            <Link to="/intelligence" className={link}>Truvi Intelligence Engine™</Link>
+            <a href="#truvi-score" className={link}>Truvi Score™</a>
+            <a href="#passport" className={link}>Property Passport™</a>
             <Link to="/legal#verification-methodology" className={link}>Verification Methodology</Link>
           </div>
         </div>
@@ -405,7 +565,7 @@ function Footer() {
         </div>
       </div>
       <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center gap-3 border-t border-white/5 pt-6 text-xs uppercase tracking-[0.2em] text-muted-foreground md:flex-row md:justify-between">
-        <div>© {new Date().getFullYear()} TRUVI VENTURES</div>
+        <div>© {new Date().getFullYear()} Truvi Ventures</div>
         <div>Neutral · Evidence-led · Source-backed</div>
         <Link to="/admin/dashboard" className="transition hover:text-foreground">Admin</Link>
       </div>
@@ -420,13 +580,13 @@ export default function LandingPage() {
 
   useEffect(() => {
     const prevTitle = document.title;
-    document.title = "TRUVI VENTURES — Know the Property Before You Buy It";
+    document.title = "TRUVI — The Intelligence Layer for Indian Real Estate";
     const meta = document.querySelector('meta[name="description"]');
     const prevDesc = meta?.getAttribute("content") ?? null;
     if (meta) {
       meta.setAttribute(
         "content",
-        "Truvi brings project data, site verification, builder intelligence, location insights and buyer experience into one real estate intelligence system.",
+        "Truvi turns fragmented property data, legal signals, geospatial data and market behaviour into decision-ready real estate intelligence — Truvi Score, risk, value and growth for every property.",
       );
     }
     return () => {
@@ -443,162 +603,95 @@ export default function LandingPage() {
 
       <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
 
-      {/* ---------- HERO ---------- */}
+      {/* ---------- 1 · HERO ---------- */}
       <Section className="min-h-screen items-center pt-36 text-center">
         <Reveal>
-          <Eyebrow>The Intelligence Layer for Indian Real Estate</Eyebrow>
+          <Eyebrow>Property Intelligence · Verified by Design</Eyebrow>
         </Reveal>
         <Reveal delay={0.1}>
           <h1 className="font-display text-3xl font-medium leading-[1.08] tracking-tight text-gradient-aurora md:text-5xl">
-            Know the land.<br />Verify the property.<br />Understand the risk.<br />Predict the potential.
+            The Intelligence Layer<br />for Indian Real Estate.
           </h1>
         </Reveal>
         <Reveal delay={0.3}>
           <p className="mx-auto mt-8 max-w-2xl text-base text-muted-foreground md:text-lg">
-            Truvi combines property data, location intelligence, legal signals and AI to help India make better real estate decisions.
+            Truvi turns property records, legal signals, geospatial data and market behaviour into
+            one answer: should you buy, and at what price.
           </p>
         </Reveal>
-        <Reveal delay={0.5}>
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+        <Reveal delay={0.45}>
+          <div className="mt-10 w-full">
+            <HeroAskDemo />
           </div>
         </Reveal>
-
-        {/* ---------- TRUST INTELLIGENCE STRIP ---------- */}
-        <Reveal delay={0.7}>
-          <div className="mt-16 w-full">
-            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-full glass px-6 py-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground md:text-xs">
-              {INTELLIGENCE_STRIP.map((item, i) => (
-                <span key={item} className="flex items-center gap-3">
-                  {i > 0 && <span className="text-[var(--trust)]">•</span>}
-                  <span className="whitespace-nowrap">{item}</span>
-                </span>
-              ))}
-            </div>
+        <Reveal delay={0.6}>
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
+            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
           </div>
         </Reveal>
       </Section>
 
-      {/* ---------- WHAT IS TRUVI ---------- */}
-      <Section id="intelligence">
-        <Reveal><Eyebrow>What is Truvi?</Eyebrow></Reveal>
+      {/* ---------- 2 · THE PROBLEM ---------- */}
+      <Section id="the-problem">
+        <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
-            Truvi is the <span className="text-gradient-trust">intelligence layer</span> for real estate.
+            India doesn't have a property discovery problem.{" "}
+            <span className="text-gradient-trust">It has a property decision problem.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.2}>
-          <p className="mt-8 max-w-2xl text-muted-foreground md:text-lg">
-            We organise fragmented property information into structured, understandable and
-            decision-ready intelligence. Data comes first; conclusions follow the evidence.
+          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            Finding property is easy. Knowing whether it's worth buying — legally clean, fairly
+            priced, and likely to grow — is where every buyer is on their own.
           </p>
         </Reveal>
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
-          {[
-            { t: "Organised", d: "Project, builder, location and site information brought into one structured system." },
-            { t: "Understandable", d: "Complex records explained in simple language — with sources shown, not hidden." },
-            { t: "Decision-ready", d: "What's verified, what's pending and what's unavailable — clearly labelled before you decide." },
-          ].map((c, i) => (
-            <Reveal key={c.t} delay={i * 0.08}>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {PAIN_CARDS.map((c, i) => (
+            <Reveal key={c.title} delay={i * 0.08}>
               <div className="h-full rounded-2xl glass p-6">
-                <h3 className="font-display text-lg font-medium">{c.t}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{c.d}</p>
+                <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
+                <h3 className="mt-3 font-display text-lg font-medium">{c.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{c.desc}</p>
               </div>
             </Reveal>
           ))}
         </div>
       </Section>
 
-      {/* ---------- THE PROBLEM ---------- */}
-      <Section id="the-problem">
-        <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
+      {/* ---------- 3 · TRUVI INTELLIGENCE ENGINE ---------- */}
+      <Section id="intelligence">
+        <Reveal><Eyebrow>Meet Truvi Intelligence</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
-            Real estate data is scattered across{" "}
-            <span className="text-gradient-trust">a hundred sources.</span>
+            Data goes in. <span className="text-gradient-trust">Intelligence comes out.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
-            Brochures, RERA filings, news, site visits, government portals — each holds a piece of the truth, none hold the whole picture.
+            The Truvi Intelligence Engine™ ingests six signal streams for every property and delivers
+            the four things a decision actually needs — score, risk, value and growth.
           </p>
         </Reveal>
-
-        {/* Data scatter diagram */}
         <Reveal delay={0.3}>
-          <div className="mt-14 relative">
-            {/* Center node */}
-            <div className="flex flex-col items-center">
-              <div className="relative w-full max-w-3xl mx-auto">
-                {/* Outer source chips in a radial-ish layout */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-6">
-                  {[
-                    { label: "Brochures", sub: "Marketing PDFs" },
-                    { label: "RERA Filings", sub: "Government records" },
-                    { label: "News", sub: "Press coverage" },
-                    { label: "Site Visits", sub: "Ground truth" },
-                    { label: "Land Records", sub: "Title & ownership" },
-                    { label: "Builder Records", sub: "Track history" },
-                    { label: "Site Plans", sub: "Layouts & approvals" },
-                    { label: "Government Portals", sub: "Public databases" },
-                    { label: "Circle Rates", sub: "Stamp authority" },
-                  ].map((src) => (
-                    <div
-                      key={src.label}
-                      className="rounded-xl border border-white/10 glass px-4 py-3 text-center"
-                    >
-                      <p className="text-sm font-medium text-white/90">{src.label}</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">{src.sub}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Arrows pointing down */}
-                <div className="flex justify-center mb-4">
-                  <div className="flex flex-col items-center gap-1 text-muted-foreground">
-                    <div className="flex gap-6 text-[var(--trust)] text-lg">
-                      <span>↓</span><span>↓</span><span>↓</span><span>↓</span><span>↓</span>
-                    </div>
-                    <p className="text-xs uppercase tracking-widest text-muted-foreground">All sources feed into</p>
-                  </div>
-                </div>
-
-                {/* Truvi AI Engine center */}
-                <div className="flex justify-center">
-                  <div className="relative rounded-2xl border border-[var(--trust)]/40 px-10 py-5 text-center"
-                    style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.08))" }}>
-                    <div className="absolute -inset-px rounded-2xl opacity-30" style={{ boxShadow: "0 0 40px var(--trust)" }} />
-                    <div className="relative">
-                      <div className="mb-1 flex items-center justify-center gap-2">
-                        <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">TRUVI</span>
-                      </div>
-                      <p className="font-display text-xl font-semibold text-white">AI Engine</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Ingest · Verify · Structure · Deliver</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <EngineDiagram />
         </Reveal>
       </Section>
 
-      {/* ---------- ASK TRUVI AI (hero product) ---------- */}
+      {/* ---------- 4 · ASK TRUVI ---------- */}
       <Section id="ask-truvi" className="items-center text-center">
-        <Reveal><Eyebrow>The Hero Product</Eyebrow></Reveal>
+        <Reveal><Eyebrow>Ask Truvi™</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-4xl font-medium leading-[1.02] md:text-7xl">
-            Ask Truvi AI.<br />
-            <span className="text-gradient-aurora">Every answer, source-backed.</span>
+            Ask real estate questions.<br />
+            <span className="text-gradient-aurora">Get property intelligence.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mx-auto mt-8 max-w-2xl text-muted-foreground md:text-lg">
-            A real estate decision-intelligence assistant — ask about projects, builders, locations,
-            verification data and property decisions. Source type and last-updated date are visible on
-            every important answer.
+            Conversational property search and analysis — grounded in Truvi's verified data, with the
+            source and date visible on every important answer.
           </p>
         </Reveal>
         <Reveal delay={0.35}>
@@ -608,27 +701,256 @@ export default function LandingPage() {
         </Reveal>
       </Section>
 
-      {/* ---------- HOW TRUVI WORKS ---------- */}
-      <Section id="how">
-        <Reveal><Eyebrow>How It Works</Eyebrow></Reveal>
+      {/* ---------- 5 · TRUVI PROPERTY PASSPORT ---------- */}
+      <Section id="passport">
+        <Reveal><Eyebrow>Truvi Property Passport™</Eyebrow></Reveal>
         <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            From raw records to{" "}
-            <span className="text-gradient-trust">decision-ready intelligence.</span>
+          <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
+            Every property gets a{" "}
+            <span className="text-gradient-trust">permanent intelligence profile.</span>
           </h2>
         </Reveal>
-        <Reveal delay={0.15}>
-          <p className="mt-6 max-w-2xl text-muted-foreground">
-            Every record moves through four checkpoints before it reaches you — nothing is shown until it has a source.
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            Ownership, legal, price and location intelligence — attached to the property itself and
+            kept current, so its history never has to be reconstructed again.
           </p>
         </Reveal>
+        <Reveal delay={0.3}>
+          <div className="mt-12 mx-auto max-w-2xl rounded-2xl border border-white/10 glass overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Truvi Property Passport™</p>
+                <p className="mt-1 font-display text-base font-semibold text-white">Residential Plot · Malihabad, Lucknow</p>
+              </div>
+              <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-sm font-bold">T</span>
+            </div>
+            <div className="divide-y divide-white/5">
+              {PASSPORT_FIELDS.map((f) => (
+                <div key={f.label} className="flex items-center justify-between gap-4 px-6 py-3.5">
+                  <span className="text-sm text-muted-foreground">{f.label}</span>
+                  <span className="text-sm font-medium text-foreground/95 text-right">{f.value}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-4 px-6 py-4 bg-[var(--trust)]/10">
+                <span className="text-sm font-semibold text-white">Truvi Score™</span>
+                <span className="font-display text-lg font-semibold text-emerald-300">81 / 100</span>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* ---------- 6 · TRUVI SCORE ---------- */}
+      <Section id="truvi-score">
+        <Reveal><Eyebrow>Truvi Score™</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
+            One number that says{" "}
+            <span className="text-gradient-trust">what the evidence says.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.25}>
+          <div className="mt-12 mx-auto flex w-full max-w-3xl flex-col items-center gap-10 rounded-2xl glass p-8 md:flex-row">
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <ScoreRing score={82} />
+              <p className="font-display text-base font-semibold text-white">82 / 100</p>
+              <p className="text-xs font-medium text-emerald-300">Strong Property</p>
+            </div>
+            <div className="w-full flex-1 space-y-4">
+              {SCORE_BREAKDOWN.map((b) => (
+                <div key={b.label}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="text-foreground/85">{b.label}</span>
+                    <span className="font-semibold text-white">{b.value}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ background: "var(--gradient-trust)" }}
+                      initial={{ width: 0 }}
+                      whileInView={{ width: `${b.value}%` }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* ---------- 7 · PRODUCT PROOF: DEMO PROPERTY ---------- */}
+      <Section id="demo-property" className="items-center text-center">
+        <Reveal><Eyebrow>Live Example</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="font-display text-4xl font-medium md:text-6xl">
+            Not features. <span className="text-gradient-aurora">Output.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mx-auto mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            This is what Truvi produces for a real property — before you spend a rupee or a weekend on it.
+          </p>
+        </Reveal>
+        <Reveal delay={0.3}>
+          <div className="mt-12 w-full">
+            <DemoPropertyCard />
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* ---------- 8 · BEFORE / WITH TRUVI ---------- */}
+      <Section id="before-after">
+        <Reveal><Eyebrow>The Difference</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
+            Days of guesswork,{" "}
+            <span className="text-gradient-trust">or minutes of intelligence.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid gap-5 md:grid-cols-2">
+          <Reveal delay={0.15}>
+            <div className="h-full rounded-2xl border border-white/10 glass p-7">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Before Truvi</p>
+              <div className="mt-5 space-y-3">
+                {BEFORE_TRUVI.map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <span className="text-red-400/70">✕</span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+          <Reveal delay={0.25}>
+            <div className="relative h-full rounded-2xl border border-[var(--trust)]/30 glass p-7">
+              <div className="absolute inset-x-0 top-0 h-1 rounded-t-2xl" style={{ background: "var(--gradient-trust)" }} />
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--trust)]">With Truvi</p>
+              <div className="mt-5 space-y-3">
+                {WITH_TRUVI.map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm text-foreground/95">
+                    <span className="text-emerald-400">✓</span>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </Section>
+
+      {/* ---------- 9 · ECOSYSTEM ---------- */}
+      <Section id="ecosystem">
+        <Reveal><Eyebrow>Built for the Real Estate Ecosystem</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
+            One intelligence layer. <span className="text-gradient-trust">Every participant.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground">
+            The same verified property intelligence, serving every side of the market.
+          </p>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {ECOSYSTEM.map((s, i) => (
+            <Reveal key={s.name} delay={i * 0.06}>
+              <div className="group relative h-full overflow-hidden rounded-2xl glass p-6 transition hover:-translate-y-1">
+                <div
+                  className="absolute inset-x-0 top-0 h-1 opacity-70 transition group-hover:opacity-100"
+                  style={{ background: "linear-gradient(90deg, transparent, var(--trust), transparent)" }}
+                />
+                <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
+                <h3 className="mt-3 font-display text-lg font-medium">{s.name}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* ---------- 10 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
+      <Section id="developer-intelligence">
+        <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
+            The market, as your{" "}
+            <span className="text-gradient-trust">launch dashboard.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            The same engine that scores properties for buyers gives developers the demand, pricing and
+            competitive intelligence behind every launch decision.
+          </p>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {DEVELOPER_INTEL.map((d, i) => (
+            <Reveal key={d.title} delay={i * 0.06}>
+              <div className="h-full rounded-2xl glass p-6">
+                <h3 className="font-display text-lg font-medium text-[var(--trust)]">{d.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{d.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <Reveal delay={0.4}>
+          <div className="mt-10">
+            <GlowButton to="/join">List Your Project on Truvi</GlowButton>
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* ---------- 11 · DATA MOAT ---------- */}
+      <Section id="data-moat" className="items-center text-center">
+        <Reveal><Eyebrow>The Data Moat</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="font-display text-4xl font-medium md:text-6xl">
+            Every property analysed{" "}
+            <span className="text-gradient-aurora">makes Truvi smarter.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.25}>
+          <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
+            {FLYWHEEL.map((step) => (
+              <span key={step} className="flex items-center gap-3">
+                <span className="rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-4 py-2 text-sm font-medium text-white">
+                  {step}
+                </span>
+                <span className="text-[var(--trust)]" aria-hidden>→</span>
+              </span>
+            ))}
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="text-lg text-[var(--trust)]" aria-hidden>↻</span>
+              and the flywheel turns
+            </span>
+          </div>
+        </Reveal>
+        <Reveal delay={0.4}>
+          <p className="mx-auto mt-10 max-w-2xl text-sm text-muted-foreground md:text-base">
+            Truvi isn't a wrapper on a model — it's a compounding property-intelligence dataset.
+            Every analysis adds signals no one else has, and every signal makes the next analysis better.
+          </p>
+        </Reveal>
+      </Section>
+
+      {/* ---------- 12 · TRUST & METHODOLOGY ---------- */}
+      <Section id="methodology">
+        <Reveal><Eyebrow>Trust & Methodology</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
+            How Truvi <span className="text-gradient-trust">thinks.</span>
+          </h2>
+        </Reveal>
         <div className="mt-14 grid gap-5 md:grid-cols-4">
-          {STAGES.map((s, i) => (
+          {METHODOLOGY.map((s, i) => (
             <Reveal key={s.n} delay={i * 0.1}>
               <div className="relative h-full rounded-2xl glass p-6">
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-xs text-muted-foreground">{s.n}</span>
-                  {i < STAGES.length - 1 && (
+                  {i < METHODOLOGY.length - 1 && (
                     <span className="hidden text-[var(--trust)] md:inline" aria-hidden>→</span>
                   )}
                 </div>
@@ -640,253 +962,17 @@ export default function LandingPage() {
             </Reveal>
           ))}
         </div>
-
-        {/* Evidence callout */}
         <Reveal delay={0.5}>
-          <div className="mt-10 flex flex-col gap-4 rounded-2xl border border-[var(--trust)]/20 glass p-6 md:flex-row md:items-start md:gap-10">
-            <div className="flex-1">
-              <p className="text-xs uppercase tracking-[0.2em] text-[var(--trust)] mb-2">Evidence, not assumption</p>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Every conclusion Truvi's AI states is traced back to the document, filing, or record it came from.
-                If a fact can't be verified, it's labelled — never guessed.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-col gap-2">
-              {[
-                { label: "Verified", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20" },
-                { label: "Pending", cls: "bg-amber-500/15 text-amber-300 border-amber-400/20" },
-                { label: "Unavailable", cls: "bg-white/10 text-foreground/70 border-white/15" },
-              ].map((s) => (
-                <span key={s.label} className={`rounded-full border px-3 py-1 text-xs font-medium text-center ${s.cls}`}>{s.label}</span>
-              ))}
-            </div>
+          <div className="mt-10 rounded-2xl border border-white/10 glass p-6">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground/90">Important:</span> Truvi provides
+              decision intelligence, not legal certification or guaranteed investment returns. Where
+              data is incomplete, it is labelled — never filled in. Read the full{" "}
+              <Link to="/legal#verification-methodology" className="text-sky-300 underline-offset-4 hover:underline">
+                verification methodology
+              </Link>.
+            </p>
           </div>
-        </Reveal>
-      </Section>
-
-      {/* ---------- PROJECT INTELLIGENCE PREVIEW ---------- */}
-      <Section id="project-intelligence" className="items-center text-center">
-        <Reveal><Eyebrow>Project Intelligence</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="font-display text-4xl font-medium md:text-6xl">
-            Every project, as an <span className="text-gradient-aurora">intelligence report.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mx-auto mt-6 max-w-2xl text-muted-foreground md:text-lg">
-            Not scores that overpromise — honest, labelled information across every dimension that
-            matters to a buyer.
-          </p>
-        </Reveal>
-        <Reveal delay={0.35}>
-          <div className="mt-12 w-full">
-            <ProjectPreview />
-          </div>
-        </Reveal>
-      </Section>
-
-      {/* ---------- DATA VERIFICATION (field-level sample) ---------- */}
-      <Section id="verification">
-        <Reveal><Eyebrow>Data Verification</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            What's verified, what's pending,{" "}
-            <span className="text-gradient-trust">what's unavailable.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
-            Every record on Truvi is labelled at the field level — so you always know how much to trust each detail.
-          </p>
-        </Reveal>
-
-        {/* Sample project record */}
-        <Reveal delay={0.3}>
-          <div className="mt-12 mx-auto max-w-2xl rounded-2xl border border-white/10 glass overflow-hidden">
-            {/* Card header */}
-            <div className="border-b border-white/10 px-6 py-4">
-              <p className="font-display text-base font-semibold text-white">Skyline Meridian — Tower B</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Sample project record</p>
-            </div>
-            {/* Field rows */}
-            <div className="divide-y divide-white/5">
-              {FIELD_VERIFICATION.map((row) => (
-                <div key={row.field} className="flex items-center justify-between gap-4 px-6 py-4">
-                  <span className="text-sm text-foreground/85">{row.field}</span>
-                  {row.status === "verified" && (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-                      ✓ Verified
-                    </span>
-                  )}
-                  {row.status === "pending" && (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
-                      ⏳ Pending review
-                    </span>
-                  )}
-                  {row.status === "unavailable" && (
-                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      — Unavailable
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-            {/* Legend */}
-            <div className="border-t border-white/10 px-6 py-4 grid grid-cols-3 gap-4 text-center">
-              <div>
-                <span className="inline-block rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 mb-1">Verified</span>
-                <p className="text-[10px] text-muted-foreground leading-snug">Confirmed against an original source document.</p>
-              </div>
-              <div>
-                <span className="inline-block rounded-full border border-amber-400/20 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300 mb-1">Pending</span>
-                <p className="text-[10px] text-muted-foreground leading-snug">Sourced, awaiting cross-verification.</p>
-              </div>
-              <div>
-                <span className="inline-block rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground mb-1">Unavailable</span>
-                <p className="text-[10px] text-muted-foreground leading-snug">No reliable source exists yet — clearly marked.</p>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-
-        {/* Source type legend */}
-        <Reveal delay={0.4}>
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {SOURCE_LABELS.map((s) => (
-              <div key={s.name} className="h-full rounded-2xl glass p-6">
-                <div className="text-xl" aria-hidden>{s.icon}</div>
-                <h3 className="mt-3 font-display text-lg font-medium">{s.name}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-
-        <Reveal delay={0.5}>
-          <p className="mt-8 max-w-2xl text-sm text-muted-foreground">
-            Where data is incomplete, it is labelled — never filled in. Read the full{" "}
-            <Link to="/legal#verification-methodology" className="text-sky-300 underline-offset-4 hover:underline">
-              verification methodology
-            </Link>.
-          </p>
-        </Reveal>
-      </Section>
-
-      {/* ---------- SOURCE COVERAGE ---------- */}
-      <Section id="source-coverage">
-        <Reveal><Eyebrow>Data Team · Source Coverage</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            Every source feeding the model{" "}
-            <span className="text-gradient-trust">is verified by Truvi.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-6 max-w-2xl text-muted-foreground">
-            From master plans to ground-level records — each category below is checked, cross-referenced and kept current before it reaches the AI layer.
-          </p>
-        </Reveal>
-
-        <Reveal delay={0.3}>
-          <div className="mt-12 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {DATA_SOURCES.map((src) => (
-              <div
-                key={src}
-                className="flex items-center gap-2 rounded-xl border border-white/10 glass px-3 py-2.5"
-              >
-                <span className="text-[var(--trust)] text-xs font-bold shrink-0">✓</span>
-                <span className="text-xs text-foreground/85 leading-tight">{src}</span>
-              </div>
-            ))}
-          </div>
-        </Reveal>
-
-        <Reveal delay={0.45}>
-          <p className="mt-8 max-w-3xl text-sm text-muted-foreground italic">
-            Every category above is pulled from an authoritative source, dated, and re-checked on a cycle — so downstream answers carry the Verified label, not an assumption.
-          </p>
-        </Reveal>
-      </Section>
-
-      {/* ---------- REAL ESTATE ECOSYSTEM ---------- */}
-      <Section id="ecosystem">
-        <Reveal><Eyebrow>Built for the Real Estate Ecosystem</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            One system. <span className="text-gradient-trust">Every participant.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-6 max-w-2xl text-muted-foreground">
-            Buyers, developers, channel partners, architects, researchers and authorities — all
-            important participants in the same ecosystem, working from the same verified information.
-          </p>
-        </Reveal>
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-5">
-          {ECOSYSTEM.map((s, i) => (
-            <Reveal key={s.name} delay={i * 0.06}>
-              <div className="group relative h-64 overflow-hidden rounded-2xl glass p-6 transition hover:-translate-y-1">
-                <div
-                  className="absolute inset-x-0 top-0 h-1 opacity-70 transition group-hover:opacity-100"
-                  style={{ background: "linear-gradient(90deg, transparent, var(--trust), transparent)" }}
-                />
-                <div className="flex h-full flex-col justify-between">
-                  <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
-                  <div>
-                    <h3 className="font-display text-lg font-medium">{s.name}</h3>
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{s.desc}</p>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </Section>
-
-      {/* ---------- TRUVI NETWORK ---------- */}
-      <Section id="network">
-        <Reveal><Eyebrow>Truvi Network</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            Real estate intelligence starts with <span className="text-gradient-aurora">better data.</span>
-          </h2>
-        </Reveal>
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {NETWORK_PILLARS.map((p, i) => (
-            <Reveal key={p.title} delay={i * 0.08}>
-              <div className="relative h-full overflow-hidden rounded-2xl glass p-6">
-                <div
-                  className="absolute inset-x-1/2 top-0 h-1 w-16 -translate-x-1/2 rounded-full"
-                  style={{ background: "var(--gradient-trust)" }}
-                />
-                <h3 className="mt-2 font-display text-lg font-medium">{p.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{p.desc}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal delay={0.3}>
-          <p className="mt-8 max-w-2xl text-sm text-muted-foreground">
-            As the network grows, so does the depth and freshness of Truvi's intelligence — built
-            observation by observation, not claim by claim.
-          </p>
-        </Reveal>
-      </Section>
-
-      {/* ---------- VISION ---------- */}
-      <Section className="items-center text-center">
-        <Reveal><Eyebrow>Vision</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="font-display text-4xl font-medium leading-[1.02] md:text-7xl">
-            Smarter real estate decisions<br />
-            <span className="text-gradient-aurora">for every Indian buyer.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.3}>
-          <p className="mx-auto mt-8 max-w-2xl text-muted-foreground md:text-lg">
-            Verified intelligence, honest transparency and personalised guidance — for every property
-            decision, in every city.
-          </p>
         </Reveal>
       </Section>
 
@@ -894,19 +980,14 @@ export default function LandingPage() {
       <Section id="join" className="items-center pb-32 text-center">
         <Reveal>
           <h2 className="font-display text-5xl font-medium leading-[1.0] md:text-8xl">
-            Intelligence over assumption.
+            Don't search for property.<br />
+            <span className="text-gradient-aurora">Understand it.</span>
           </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mx-auto mt-8 max-w-xl text-muted-foreground md:text-lg">
-            Start with one question — and let the evidence guide every decision.
-          </p>
         </Reveal>
         <Reveal delay={0.4}>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton onClick={openAskTruvi}>Ask Truvi AI</GlowButton>
+            <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
             <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
-            <GlowButton variant="ghost" to="/signup">Join the Ecosystem</GlowButton>
           </div>
         </Reveal>
       </Section>

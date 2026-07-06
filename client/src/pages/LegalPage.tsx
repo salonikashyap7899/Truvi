@@ -14,7 +14,7 @@ export default function LegalPage() {
   const { hash } = useLocation();
 
   useEffect(() => {
-    document.title = "TRUVI VENTURES — Legal & Methodology";
+    document.title = "TRUVI — Legal & Methodology";
     if (hash) {
       const el = document.querySelector(hash);
       if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 100);
@@ -28,11 +28,14 @@ export default function LegalPage() {
       <div className="mx-auto max-w-3xl">
         <Link to="/" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
           <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-          TRUVI VENTURES
+          TRUVI
         </Link>
         <h1 className="mt-6 font-display text-4xl font-semibold md:text-5xl">Legal & Methodology</h1>
         <p className="mt-3 text-muted-foreground">
           How Truvi handles information, verifies data and communicates its limitations.
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Truvi is a property intelligence platform operated by Truvi Ventures.
         </p>
 
         <nav className="mt-8 flex flex-wrap gap-2 text-xs">

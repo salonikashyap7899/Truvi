@@ -117,7 +117,7 @@ export default function VisitorGateModal({ onClose, projectName, projectId }: Pr
         {/* Logo */}
         <div className="mb-5 flex items-center gap-2 font-display text-sm font-semibold tracking-tight">
           <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[9px] font-bold">T</span>
-          TRUVI VENTURES
+          TRUVI
         </div>
 
         {step === "purpose" && (
