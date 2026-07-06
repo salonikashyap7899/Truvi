@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/primitives";
 import { toast } from "sonner";
 import { useSocketEvent } from "@/lib/socket";
 import { User, Building2, Handshake, Search, FileText, Download } from "lucide-react";

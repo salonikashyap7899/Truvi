@@ -752,7 +752,7 @@ export default function LandingPage() {
         {/* Source type legend */}
         <Reveal delay={0.4}>
           <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {SOURCE_LABELS.map((s, i) => (
+            {SOURCE_LABELS.map((s) => (
               <div key={s.name} className="h-full rounded-2xl glass p-6">
                 <div className="text-xl" aria-hidden>{s.icon}</div>
                 <h3 className="mt-3 font-display text-lg font-medium">{s.name}</h3>

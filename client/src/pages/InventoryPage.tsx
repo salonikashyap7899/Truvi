@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Search, ChevronDown, ChevronUp, Star, ShieldCheck, CheckCircle2, XCircle, Building2 } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import VisitorGateModal from "@/components/VisitorGateModal";
+import ListingIntelligence from "@/components/ListingIntelligence";
 import type { Project } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -213,6 +213,11 @@ function ListingCard({ project, isPrime }: { project: Project; isPrime: boolean 
           ) : (
             <p className="text-xs text-muted-foreground">Verification details not yet available for this listing.</p>
           )}
+
+          {/* Raw Data Sources & AI Intelligence Engine */}
+          <div className="pt-2 border-t border-white/10">
+            <ListingIntelligence projectId={project._id} />
+          </div>
         </div>
       )}
 
