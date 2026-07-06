@@ -164,24 +164,41 @@ const ROTATING_QUESTIONS = [
 const STAGES = [
   {
     n: "01",
-    title: "Collect",
-    desc: "Ambassador site observations, public records and project information are gathered from the ground up.",
+    title: "Ingest",
+    desc: "Raw multi-source data — brochures, RERA filings, land records, news, site visits — is pulled into one pipeline.",
   },
   {
     n: "02",
     title: "Verify",
-    desc: "Every data point passes a verification process and is tagged with its source and confidence level.",
+    desc: "Every data point is cross-checked against its source. If a fact can't be verified, it's labelled — never guessed.",
   },
   {
     n: "03",
     title: "Structure",
-    desc: "Fragmented information is organised into structured, comparable project intelligence.",
+    desc: "Verified records are organised into one unified, comparable project intelligence record.",
   },
   {
     n: "04",
-    title: "Explain",
-    desc: "Ask Truvi AI explains it in simple language — with sources and dates visible on every answer.",
+    title: "Deliver",
+    desc: "Decision-ready answers — every conclusion traced back to the document, filing, or record it came from.",
   },
+];
+
+const DATA_SOURCES = [
+  "LDA Master Plan", "Village Boundaries", "Land Use",
+  "Circle Rates", "Registered Developers", "RERA Projects",
+  "Schools", "Hospitals", "Metro",
+  "Highway Projects", "Ring Road", "Government Projects",
+  "Property Rates", "Crime Data", "Flood Zones",
+  "Future Infrastructure", "Land Feasibility Rate", "Climatic Condition",
+];
+
+const FIELD_VERIFICATION = [
+  { field: "RERA registration number", status: "verified" },
+  { field: "Possession timeline", status: "verified" },
+  { field: "Builder litigation history", status: "pending" },
+  { field: "Amenity list (final)", status: "pending" },
+  { field: "Resale price history", status: "unavailable" },
 ];
 
 const STATUS_LABELS = [
@@ -493,6 +510,81 @@ export default function LandingPage() {
         </div>
       </Section>
 
+      {/* ---------- THE PROBLEM ---------- */}
+      <Section id="the-problem">
+        <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium leading-[1.05] md:text-6xl">
+            Real estate data is scattered across{" "}
+            <span className="text-gradient-trust">a hundred sources.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            Brochures, RERA filings, news, site visits, government portals — each holds a piece of the truth, none hold the whole picture.
+          </p>
+        </Reveal>
+
+        {/* Data scatter diagram */}
+        <Reveal delay={0.3}>
+          <div className="mt-14 relative">
+            {/* Center node */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-full max-w-3xl mx-auto">
+                {/* Outer source chips in a radial-ish layout */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-6">
+                  {[
+                    { label: "Brochures", sub: "Marketing PDFs" },
+                    { label: "RERA Filings", sub: "Government records" },
+                    { label: "News", sub: "Press coverage" },
+                    { label: "Site Visits", sub: "Ground truth" },
+                    { label: "Land Records", sub: "Title & ownership" },
+                    { label: "Builder Records", sub: "Track history" },
+                    { label: "Site Plans", sub: "Layouts & approvals" },
+                    { label: "Government Portals", sub: "Public databases" },
+                    { label: "Circle Rates", sub: "Stamp authority" },
+                  ].map((src) => (
+                    <div
+                      key={src.label}
+                      className="rounded-xl border border-white/10 glass px-4 py-3 text-center"
+                    >
+                      <p className="text-sm font-medium text-white/90">{src.label}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{src.sub}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Arrows pointing down */}
+                <div className="flex justify-center mb-4">
+                  <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                    <div className="flex gap-6 text-[var(--trust)] text-lg">
+                      <span>↓</span><span>↓</span><span>↓</span><span>↓</span><span>↓</span>
+                    </div>
+                    <p className="text-xs uppercase tracking-widest text-muted-foreground">All sources feed into</p>
+                  </div>
+                </div>
+
+                {/* Truvi AI Engine center */}
+                <div className="flex justify-center">
+                  <div className="relative rounded-2xl border border-[var(--trust)]/40 px-10 py-5 text-center"
+                    style={{ background: "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.08))" }}>
+                    <div className="absolute -inset-px rounded-2xl opacity-30" style={{ boxShadow: "0 0 40px var(--trust)" }} />
+                    <div className="relative">
+                      <div className="mb-1 flex items-center justify-center gap-2">
+                        <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">TRUVI</span>
+                      </div>
+                      <p className="font-display text-xl font-semibold text-white">AI Engine</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Ingest · Verify · Structure · Deliver</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </Section>
+
       {/* ---------- ASK TRUVI AI (hero product) ---------- */}
       <Section id="ask-truvi" className="items-center text-center">
         <Reveal><Eyebrow>The Hero Product</Eyebrow></Reveal>
@@ -518,13 +610,19 @@ export default function LandingPage() {
 
       {/* ---------- HOW TRUVI WORKS ---------- */}
       <Section id="how">
-        <Reveal><Eyebrow>How Truvi Works</Eyebrow></Reveal>
+        <Reveal><Eyebrow>How It Works</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            No magic. A <span className="text-gradient-trust">clear pipeline</span> from ground to answer.
+            From raw records to{" "}
+            <span className="text-gradient-trust">decision-ready intelligence.</span>
           </h2>
         </Reveal>
-        <div className="mt-16 grid gap-5 md:grid-cols-4">
+        <Reveal delay={0.15}>
+          <p className="mt-6 max-w-2xl text-muted-foreground">
+            Every record moves through four checkpoints before it reaches you — nothing is shown until it has a source.
+          </p>
+        </Reveal>
+        <div className="mt-14 grid gap-5 md:grid-cols-4">
           {STAGES.map((s, i) => (
             <Reveal key={s.n} delay={i * 0.1}>
               <div className="relative h-full rounded-2xl glass p-6">
@@ -542,6 +640,28 @@ export default function LandingPage() {
             </Reveal>
           ))}
         </div>
+
+        {/* Evidence callout */}
+        <Reveal delay={0.5}>
+          <div className="mt-10 flex flex-col gap-4 rounded-2xl border border-[var(--trust)]/20 glass p-6 md:flex-row md:items-start md:gap-10">
+            <div className="flex-1">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--trust)] mb-2">Evidence, not assumption</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Every conclusion Truvi's AI states is traced back to the document, filing, or record it came from.
+                If a fact can't be verified, it's labelled — never guessed.
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col gap-2">
+              {[
+                { label: "Verified", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20" },
+                { label: "Pending", cls: "bg-amber-500/15 text-amber-300 border-amber-400/20" },
+                { label: "Unavailable", cls: "bg-white/10 text-foreground/70 border-white/15" },
+              ].map((s) => (
+                <span key={s.label} className={`rounded-full border px-3 py-1 text-xs font-medium text-center ${s.cls}`}>{s.label}</span>
+              ))}
+            </div>
+          </div>
+        </Reveal>
       </Section>
 
       {/* ---------- PROJECT INTELLIGENCE PREVIEW ---------- */}
@@ -565,31 +685,125 @@ export default function LandingPage() {
         </Reveal>
       </Section>
 
-      {/* ---------- DATA & VERIFICATION SYSTEM ---------- */}
+      {/* ---------- DATA VERIFICATION (field-level sample) ---------- */}
       <Section id="verification">
-        <Reveal><Eyebrow>Data & Verification System</Eyebrow></Reveal>
+        <Reveal><Eyebrow>Data Verification</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            Every data point carries its <span className="text-gradient-trust">source.</span>
+            What's verified, what's pending,{" "}
+            <span className="text-gradient-trust">what's unavailable.</span>
           </h2>
         </Reveal>
-        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {SOURCE_LABELS.map((s, i) => (
-            <Reveal key={s.name} delay={i * 0.08}>
-              <div className="h-full rounded-2xl glass p-6">
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
+            Every record on Truvi is labelled at the field level — so you always know how much to trust each detail.
+          </p>
+        </Reveal>
+
+        {/* Sample project record */}
+        <Reveal delay={0.3}>
+          <div className="mt-12 mx-auto max-w-2xl rounded-2xl border border-white/10 glass overflow-hidden">
+            {/* Card header */}
+            <div className="border-b border-white/10 px-6 py-4">
+              <p className="font-display text-base font-semibold text-white">Skyline Meridian — Tower B</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Sample project record</p>
+            </div>
+            {/* Field rows */}
+            <div className="divide-y divide-white/5">
+              {FIELD_VERIFICATION.map((row) => (
+                <div key={row.field} className="flex items-center justify-between gap-4 px-6 py-4">
+                  <span className="text-sm text-foreground/85">{row.field}</span>
+                  {row.status === "verified" && (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
+                      ✓ Verified
+                    </span>
+                  )}
+                  {row.status === "pending" && (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-300">
+                      ⏳ Pending review
+                    </span>
+                  )}
+                  {row.status === "unavailable" && (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      — Unavailable
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Legend */}
+            <div className="border-t border-white/10 px-6 py-4 grid grid-cols-3 gap-4 text-center">
+              <div>
+                <span className="inline-block rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 mb-1">Verified</span>
+                <p className="text-[10px] text-muted-foreground leading-snug">Confirmed against an original source document.</p>
+              </div>
+              <div>
+                <span className="inline-block rounded-full border border-amber-400/20 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300 mb-1">Pending</span>
+                <p className="text-[10px] text-muted-foreground leading-snug">Sourced, awaiting cross-verification.</p>
+              </div>
+              <div>
+                <span className="inline-block rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground mb-1">Unavailable</span>
+                <p className="text-[10px] text-muted-foreground leading-snug">No reliable source exists yet — clearly marked.</p>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Source type legend */}
+        <Reveal delay={0.4}>
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {SOURCE_LABELS.map((s, i) => (
+              <div key={s.name} className="h-full rounded-2xl glass p-6">
                 <div className="text-xl" aria-hidden>{s.icon}</div>
                 <h3 className="mt-3 font-display text-lg font-medium">{s.name}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
               </div>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal delay={0.3}>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.5}>
           <p className="mt-8 max-w-2xl text-sm text-muted-foreground">
             Where data is incomplete, it is labelled — never filled in. Read the full{" "}
             <Link to="/legal#verification-methodology" className="text-sky-300 underline-offset-4 hover:underline">
               verification methodology
             </Link>.
+          </p>
+        </Reveal>
+      </Section>
+
+      {/* ---------- SOURCE COVERAGE ---------- */}
+      <Section id="source-coverage">
+        <Reveal><Eyebrow>Data Team · Source Coverage</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
+            Every source feeding the model{" "}
+            <span className="text-gradient-trust">is verified by Truvi.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-2xl text-muted-foreground">
+            From master plans to ground-level records — each category below is checked, cross-referenced and kept current before it reaches the AI layer.
+          </p>
+        </Reveal>
+
+        <Reveal delay={0.3}>
+          <div className="mt-12 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {DATA_SOURCES.map((src) => (
+              <div
+                key={src}
+                className="flex items-center gap-2 rounded-xl border border-white/10 glass px-3 py-2.5"
+              >
+                <span className="text-[var(--trust)] text-xs font-bold shrink-0">✓</span>
+                <span className="text-xs text-foreground/85 leading-tight">{src}</span>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.45}>
+          <p className="mt-8 max-w-3xl text-sm text-muted-foreground italic">
+            Every category above is pulled from an authoritative source, dated, and re-checked on a cycle — so downstream answers carry the Verified label, not an assumption.
           </p>
         </Reveal>
       </Section>
