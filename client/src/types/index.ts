@@ -7,6 +7,31 @@ export type LeadStage =
   | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "LOST";
 export type ListingTier = "STANDARD" | "FEATURED";
 
+export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
+
+export interface PresentationInfo {
+  amenities?: string[];
+  securityFeatures?: string[];
+  smartHomeFeatures?: string[];
+  fireSafetySystems?: string[];
+  greenBuildingFeatures?: string[];
+  connectivityNotes?: string;
+  constructionProgressNote?: string;
+}
+
+export interface ProjectAsset {
+  _id: string;
+  projectId: string;
+  category: string;
+  title: string;
+  description?: string;
+  fileUrl: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
 export interface VerificationDetails {
   reraVerified: boolean;
   titleClearance: boolean;
@@ -66,6 +91,8 @@ export interface Project {
   verifiedAt?: string;
   isPrimeListing?: boolean;
   verificationDetails?: VerificationDetails;
+  projectType?: ProjectType;
+  presentationInfo?: PresentationInfo;
 }
 
 export interface PriceHistoryEntry {

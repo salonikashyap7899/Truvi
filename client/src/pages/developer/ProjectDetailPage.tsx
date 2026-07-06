@@ -15,6 +15,7 @@ import CrimeIndexCard, { mockCrimeFromId } from "@/components/CrimeIndexCard";
 import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
 import ReraDetailsCard, { mockReraFromId } from "@/components/ReraDetailsCard";
+import PresentationManager from "@/components/PresentationManager";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -154,6 +155,8 @@ export default function ProjectDetailPage() {
           />
         </label>
       </section>
+
+      <PresentationManager project={project} onProjectUpdated={setProject} />
 
       <section className="mt-8">
         <h2 className="text-lg font-medium">Add a unit</h2>

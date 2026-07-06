@@ -2,6 +2,19 @@ import { Schema, model, Document, Types } from "mongoose";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type ListingTier = "STANDARD" | "FEATURED";
+export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
+
+// Structured (non-file) presentation details: amenities, security systems,
+// smart features, etc. Files live in the ProjectAsset collection.
+export interface IPresentationInfo {
+  amenities: string[];
+  securityFeatures: string[]; // biometric access, CCTV & surveillance, smart security
+  smartHomeFeatures: string[];
+  fireSafetySystems: string[];
+  greenBuildingFeatures: string[];
+  connectivityNotes?: string;
+  constructionProgressNote?: string;
+}
 
 export interface IVerificationDetails {
   reraVerified: boolean;
@@ -38,6 +51,8 @@ export interface IProject extends Document {
   isVerified: boolean;
   verifiedAt?: Date;
   verificationDetails?: IVerificationDetails;
+  projectType?: ProjectType;
+  presentationInfo?: IPresentationInfo;
   createdAt: Date;
 }
 
@@ -72,6 +87,16 @@ const projectSchema = new Schema<IProject>({
     portfolioVerified: { type: Boolean, default: false },
     lastVerifiedAt: { type: Date },
     notes: { type: String },
+  },
+  projectType: { type: String, enum: ["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL", "MIXED_USE", "PLOTTED"] },
+  presentationInfo: {
+    amenities: { type: [String], default: undefined },
+    securityFeatures: { type: [String], default: undefined },
+    smartHomeFeatures: { type: [String], default: undefined },
+    fireSafetySystems: { type: [String], default: undefined },
+    greenBuildingFeatures: { type: [String], default: undefined },
+    connectivityNotes: { type: String },
+    constructionProgressNote: { type: String },
   },
   createdAt: { type: Date, default: Date.now },
 });

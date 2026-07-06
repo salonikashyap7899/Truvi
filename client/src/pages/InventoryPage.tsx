@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/primitives";
 import { toast } from "sonner";
-import { Search, ChevronDown, ChevronUp, Star, ShieldCheck, CheckCircle2, XCircle, Building2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, ChevronDown, ChevronUp, Star, ShieldCheck, CheckCircle2, XCircle, Building2, Presentation, ArrowRight } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
@@ -241,6 +242,18 @@ function ListingCard({ project, isPrime }: { project: Project; isPrime: boolean 
         {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
         <span>Commission: {project.commissionPercent}%</span>
       </div>
+
+      {/* Project Presentation & Technical Information */}
+      <Link
+        to={`/inventory/${project._id}/presentation`}
+        className="group flex items-center justify-between rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-foreground/90 hover:border-[var(--trust)]/60 hover:text-white transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <Presentation size={13} className="text-[var(--trust)]" />
+          View Project Presentation & Technical Details
+        </span>
+        <ArrowRight size={13} className="text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      </Link>
 
       <TrustScoreWidget
         score={project.trustScore ?? mockScoreFromId(project._id)}

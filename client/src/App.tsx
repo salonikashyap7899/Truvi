@@ -38,6 +38,7 @@ import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
 import InventoryPage from "@/pages/InventoryPage";
+import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 
 function Ambience() {
@@ -91,6 +92,7 @@ export default function App() {
 
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
 
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />
