@@ -68,7 +68,7 @@ function Nav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full glass px-5 py-2.5">
         <a href="#top" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
           <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-          TRUVI
+          TRUVI VENTURES
         </a>
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
           <a href="#intelligence" className="hover:text-foreground">Intelligence</a>
@@ -370,7 +370,7 @@ function Footer() {
         <div className="md:col-span-2">
           <div className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
             <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-            TRUVI
+            TRUVI VENTURES
           </div>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
             The intelligence layer for real estate — organising fragmented property information into
@@ -405,7 +405,7 @@ function Footer() {
         </div>
       </div>
       <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center gap-3 border-t border-white/5 pt-6 text-xs uppercase tracking-[0.2em] text-muted-foreground md:flex-row md:justify-between">
-        <div>© {new Date().getFullYear()} TRUVI</div>
+        <div>© {new Date().getFullYear()} TRUVI VENTURES</div>
         <div>Neutral · Evidence-led · Source-backed</div>
         <Link to="/admin/dashboard" className="transition hover:text-foreground">Admin</Link>
       </div>
@@ -420,7 +420,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     const prevTitle = document.title;
-    document.title = "TRUVI — Know the Property Before You Buy It";
+    document.title = "TRUVI VENTURES — Know the Property Before You Buy It";
     const meta = document.querySelector('meta[name="description"]');
     const prevDesc = meta?.getAttribute("content") ?? null;
     if (meta) {
@@ -449,7 +449,7 @@ export default function LandingPage() {
           <Eyebrow>The Intelligence Layer for Indian Real Estate</Eyebrow>
         </Reveal>
         <Reveal delay={0.1}>
-          <h1 className="font-display text-5xl font-medium leading-[0.98] tracking-tight text-gradient-aurora md:text-[6.5rem]">
+          <h1 className="font-display text-3xl font-medium leading-[1.08] tracking-tight text-gradient-aurora md:text-5xl">
             Know the land.<br />Verify the property.<br />Understand the risk.<br />Predict the potential.
           </h1>
         </Reveal>

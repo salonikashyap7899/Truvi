@@ -36,7 +36,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm p-8">
         <Link to="/" className="mb-6 flex items-center gap-2 font-display text-base font-semibold tracking-tight">
           <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-          TRUVI
+          TRUVI VENTURES
         </Link>
         <h1 className="font-display text-2xl font-semibold text-[#fff]">Log in to Truvi</h1>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
