@@ -372,7 +372,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       {/* Floating trigger button */}
       <button
         onClick={() => setOpen((o) => !o)}
-        aria-label="Ask Truvi AI"
+        aria-label="Ask Truvi"
         className={`
           fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full
           bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/40
@@ -381,7 +381,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         `}
       >
         <Sparkles size={16} />
-        Ask Truvi AI
+        Ask Truvi
       </button>
 
       {/* Overlay — mobile only */}

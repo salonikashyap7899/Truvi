@@ -63,8 +63,7 @@ function Section({
 }
 
 /* ---------------- Navigation ---------------- */
-/* Brand architecture: TRUVI is the consumer brand — the parent company
-   (Truvi Ventures) appears only in the footer attribution and legal pages. */
+/* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
 function Nav() {
   return (
@@ -72,14 +71,13 @@ function Nav() {
       <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full glass px-5 py-2.5">
         <a href="#top" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
           <span className="grid size-6 place-items-center overflow-hidden rounded-md bg-white p-0.5"><img src="/brand/icon.png" alt="" className="h-full w-full object-contain" /></span>
-          TRUVI
+          TRUVI VENTURES
         </a>
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
           <Link to="/intelligence" className="hover:text-foreground">Intelligence</Link>
           <a href="#ask-truvi" className="hover:text-foreground">Ask Truvi</a>
           <Link to="/inventory" className="hover:text-foreground">Inventory</Link>
           <a href="#developer-intelligence" className="hover:text-foreground">For Developers</a>
-          <a href="#ecosystem" className="hover:text-foreground">Ecosystem</a>
           <Link to="/about" className="hover:text-foreground">About</Link>
         </nav>
         <button
@@ -182,15 +180,6 @@ const ROTATING_QUESTIONS = [
 
 const BEFORE_TRUVI = ["Broker opinion", "Multiple portals", "Manual documents", "Guesswork", "Days of research"];
 const WITH_TRUVI = ["One property profile", "Truvi Intelligence Engine™ analysis", "Risk Signals™", "Data-backed decision", "Minutes"];
-
-const ECOSYSTEM = [
-  { name: "Buyers", desc: "Understand a property completely — price, risk and potential — before committing." },
-  { name: "Investors", desc: "Compare micro-markets and growth signals with the same rigour as any other asset class." },
-  { name: "Developers", desc: "Demand, pricing and competitor intelligence for every launch decision." },
-  { name: "Brokers", desc: "Advise clients with structured intelligence instead of opinion — and close with confidence." },
-  { name: "Banks & Lenders", desc: "Collateral risk and valuation signals, structured and source-attributed." },
-  { name: "Government & Enterprise", desc: "Market-scale, structured property data for planning, policy and analytics." },
-];
 
 const DEVELOPER_INTEL = [
   { title: "Demand Heatmaps", desc: "Where buyers are actually searching, enquiring and converting — mapped by micro-market." },
@@ -673,7 +662,6 @@ function Footer() {
           <p className={head}>Company</p>
           <div className={col}>
             <Link to="/about" className={link}>About</Link>
-            <a href="#ecosystem" className={link}>Ecosystem</a>
             <Link to="/join" className={link}>Join Truvi</Link>
           </div>
         </div>
@@ -977,37 +965,7 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* ---------- 9 · ECOSYSTEM ---------- */}
-      <Section id="ecosystem">
-        <Reveal><Eyebrow>Built for the Real Estate Ecosystem</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
-            One intelligence layer. <span className="text-gradient-trust">Every participant.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-6 max-w-2xl text-muted-foreground">
-            The same verified property intelligence, serving every side of the market.
-          </p>
-        </Reveal>
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {ECOSYSTEM.map((s, i) => (
-            <Reveal key={s.name} delay={i * 0.06}>
-              <div className="group relative h-full overflow-hidden rounded-2xl glass p-6 transition hover:-translate-y-1">
-                <div
-                  className="absolute inset-x-0 top-0 h-1 opacity-70 transition group-hover:opacity-100"
-                  style={{ background: "linear-gradient(90deg, transparent, var(--trust), transparent)" }}
-                />
-                <div className="font-mono text-xs text-muted-foreground">0{i + 1}</div>
-                <h3 className="mt-3 font-display text-lg font-medium">{s.name}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.desc}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </Section>
-
-      {/* ---------- 10 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
+      {/* ---------- 9 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
       <Section id="developer-intelligence">
         <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>
         <Reveal delay={0.1}>

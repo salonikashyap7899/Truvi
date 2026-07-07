@@ -15,11 +15,11 @@ export default defineConfig({
     port: 5000,
     allowedHosts: true,
     proxy: {
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
-      "/uploads": { target: "http://localhost:3001", changeOrigin: true },
-      "/health": { target: "http://localhost:3001", changeOrigin: true },
+      "/api": { target: "http://localhost:5001", changeOrigin: true },
+      "/uploads": { target: "http://localhost:5001", changeOrigin: true },
+      "/health": { target: "http://localhost:5001", changeOrigin: true },
       "/socket.io": {
-        target: "http://localhost:3001",
+        target: "http://localhost:5001",
         changeOrigin: true,
         ws: true,
       },
