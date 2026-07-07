@@ -5,6 +5,19 @@
   color-scheme: dark;
 }
 
+/* Tailwind v4 preflight sets buttons to cursor: default — restore the
+   pointer cursor on every enabled interactive element app-wide. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  select:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+}
+
 html, body, #root {
   height: 100%;
 }
