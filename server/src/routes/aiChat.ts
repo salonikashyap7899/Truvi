@@ -70,6 +70,18 @@ interface HistoryTurn {
 }
 
 /**
+ * Read ANTHROPIC_API_KEY defensively: strip whitespace/newlines and
+ * wrapping quotes — the most common paste mistakes when setting the
+ * variable in a dashboard, and each one makes Anthropic return 401.
+ */
+function getAnthropicKey(): { key: string | undefined; sanitized: boolean } {
+  const raw = process.env.ANTHROPIC_API_KEY;
+  if (!raw) return { key: undefined, sanitized: false };
+  const cleaned = raw.trim().replace(/^["']+|["']+$/g, "");
+  return { key: cleaned || undefined, sanitized: cleaned !== raw };
+}
+
+/**
  * Surface the real Anthropic API failure in the server logs — an invalid
  * key (401), missing credits (400/403 billing), rate limit (429), etc. —
  * so a generic "trouble connecting" reply in the UI is diagnosable.
@@ -89,7 +101,7 @@ function logAnthropicError(label: string, err: unknown) {
  * via the free models-list endpoint — no tokens spent).
  */
 router.get("/health", async (_req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey, sanitized } = getAnthropicKey();
   if (!apiKey) {
     return res.json({
       configured: false,
@@ -102,7 +114,15 @@ router.get("/health", async (_req, res) => {
   try {
     const client = new Anthropic({ apiKey });
     await client.models.list();
-    return res.json({ configured: true, ok: true, keyPreview, hint: "Key is valid — Ask Truvi should work." });
+    return res.json({
+      configured: true,
+      ok: true,
+      keyPreview,
+      sanitized,
+      hint: sanitized
+        ? "Key is valid (extra spaces/quotes around the stored value were cleaned automatically) — Ask Truvi should work."
+        : "Key is valid — Ask Truvi should work.",
+    });
   } catch (err: unknown) {
     const status = err instanceof Anthropic.APIError ? err.status : undefined;
     const message = err instanceof Anthropic.APIError ? err.message : String(err);
@@ -110,11 +130,12 @@ router.get("/health", async (_req, res) => {
       configured: true,
       ok: false,
       keyPreview,
+      sanitized,
       status,
       error: message,
       hint:
         status === 401
-          ? "The key set on this server is being rejected by Anthropic (401). Re-paste it without quotes or spaces, or generate a fresh key at console.anthropic.com."
+          ? "The key set on this server is being rejected by Anthropic (401). Compare keyPreview with your real key — if it differs, re-paste the key; otherwise generate a fresh key at console.anthropic.com."
           : "The key is set but the Anthropic API call failed — see status/error above.",
     });
   }
@@ -136,7 +157,7 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "message too long" });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey } = getAnthropicKey();
 
   if (!apiKey) {
     return res.status(503).json({
