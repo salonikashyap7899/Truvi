@@ -8,18 +8,6 @@ const NAVY = "rgba(13,20,42,0.72)";
 const NAVY_BORDER = "rgba(217,164,74,0.18)";
 const GLASS = "rgba(8,14,30,0.55)";
 
-/* ── WhatsApp SVG Icon ──────────────────────────────────────────────────── */
-function WhatsAppIcon({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#25D366" />
-      <path
-        d="M22.94 9.06A9.77 9.77 0 0 0 16.02 6C10.51 6 6.04 10.47 6.04 15.98c0 1.76.46 3.47 1.33 4.98L6 26l5.18-1.36a9.93 9.93 0 0 0 4.82 1.23h.01c5.5 0 9.97-4.47 9.97-9.98a9.91 9.91 0 0 0-2.04-6.83ZM16.02 24.5a8.23 8.23 0 0 1-4.2-1.15l-.3-.18-3.08.81.82-3-.2-.31a8.24 8.24 0 0 1-1.26-4.39c0-4.56 3.71-8.27 8.27-8.27a8.2 8.2 0 0 1 5.84 2.42 8.2 8.2 0 0 1 2.41 5.85c0 4.56-3.71 8.22-8.3 8.22Zm4.54-6.17c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.16.25-.64.81-.78.97-.15.17-.29.19-.54.06a6.8 6.8 0 0 1-2-.96 7.54 7.54 0 0 1-1.39-1.53c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.41-.56-.42H13c-.16 0-.43.06-.66.31-.23.25-.86.84-.86 2.04s.88 2.37 1 2.53c.13.16 1.73 2.64 4.19 3.7.59.25 1.04.4 1.4.51.59.19 1.12.16 1.54.1.47-.07 1.47-.6 1.68-1.18.2-.57.2-1.07.14-1.17-.07-.11-.23-.16-.48-.28Z"
-        fill="white"
-      />
-    </svg>
-  );
-}
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
 function Reveal({ children, delay = 0, direction = "up" }: { children: ReactNode; delay?: number; direction?: "up" | "left" | "right" }) {
@@ -116,41 +104,6 @@ const OPPORTUNITY = [
 
 const OPPORTUNITY_CHIPS = ["Growing Housing Demand", "Smart Cities", "Government Digitization", "AI-Driven Decisions"];
 
-/* ── Floating WhatsApp Button ───────────────────────────────────────────── */
-function WhatsAppFAB() {
-  const waUrl = "https://wa.me/919196366358?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
-  return (
-    <motion.a
-      href={waUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Chat on WhatsApp"
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ delay: 1.2, type: "spring", stiffness: 200, damping: 18 }}
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.95 }}
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full shadow-2xl overflow-hidden"
-      style={{
-        background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
-        boxShadow: "0 8px 32px rgba(37,211,102,0.45), 0 2px 8px rgba(0,0,0,0.3)",
-      }}
-    >
-      {/* Pulse ring */}
-      <motion.span
-        animate={{ scale: [1, 1.6], opacity: [0.5, 0] }}
-        transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-        className="absolute inset-0 rounded-full"
-        style={{ background: "rgba(37,211,102,0.4)" }}
-      />
-
-      <span className="relative flex items-center gap-2.5 px-4 py-3">
-        <WhatsAppIcon size={26} />
-        <span className="text-sm font-semibold text-white pr-1 hidden sm:block">Chat with us</span>
-      </span>
-    </motion.a>
-  );
-}
 
 /* ── Hero Scroll Parallax ────────────────────────────────────────────────── */
 function HeroParallax({ children }: { children: ReactNode }) {
@@ -486,26 +439,6 @@ export default function AboutPage() {
             </div>
           </Reveal>
 
-          {/* WhatsApp CTA inline */}
-          <Reveal delay={0.35}>
-            <div className="mt-8">
-              <motion.a
-                href="https://wa.me/919196366358?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.04, boxShadow: "0 8px 40px rgba(37,211,102,0.35)" }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-3 rounded-full px-8 py-3.5 text-sm font-semibold text-white shadow-lg"
-                style={{
-                  background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)",
-                  boxShadow: "0 4px 20px rgba(37,211,102,0.3)",
-                }}
-              >
-                <WhatsAppIcon size={20} />
-                Message us on WhatsApp
-              </motion.a>
-            </div>
-          </Reveal>
         </Section>
 
         {/* ── CHANNEL PARTNER CTA ── */}
@@ -553,8 +486,6 @@ export default function AboutPage() {
         </Section>
       </main>
 
-      {/* Floating WhatsApp button — always visible */}
-      <WhatsAppFAB />
     </>
   );
 }
