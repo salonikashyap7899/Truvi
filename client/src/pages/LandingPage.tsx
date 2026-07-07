@@ -71,7 +71,7 @@ function Nav() {
     <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 md:px-12">
       <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full glass px-5 py-2.5">
         <a href="#top" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
-          <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
+          <span className="grid size-6 place-items-center overflow-hidden rounded-md bg-white p-0.5"><img src="/brand/icon.png" alt="" className="h-full w-full object-contain" /></span>
           TRUVI
         </a>
         <nav className="hidden gap-6 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex">
@@ -658,7 +658,7 @@ function Footer() {
       <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-5">
         <div className="md:col-span-2">
           <div className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
-            <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
+            <span className="grid size-6 place-items-center overflow-hidden rounded-md bg-white p-0.5"><img src="/brand/icon.png" alt="" className="h-full w-full object-contain" /></span>
             TRUVI
           </div>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">

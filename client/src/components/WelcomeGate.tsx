@@ -126,8 +126,8 @@ export default function WelcomeGate() {
               <div className="rounded-[23px] bg-[#0a0d14]/95 px-6 py-6 md:px-8">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center">
-                  <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-base font-bold shadow-[0_0_32px_rgba(59,130,246,0.45)]">
-                    T
+                  <span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_32px_rgba(59,130,246,0.45)]">
+                    <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
                   </span>
                   <h1 className="mt-3 font-display text-xl font-medium leading-snug text-white md:text-[1.35rem]">
                     Know the property <span className="text-gradient-trust">before you buy it.</span>

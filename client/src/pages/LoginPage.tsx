@@ -51,8 +51,8 @@ export default function LoginPage() {
         <div className="rounded-[26px] p-px" style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.22), rgba(59,130,246,0.3) 45%, rgba(255,255,255,0.05) 85%)" }}>
           <div className="rounded-[25px] bg-[#0a0d14]/95 p-8">
             <Link to="/" className="flex flex-col items-center text-center">
-              <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-base font-bold shadow-[0_0_36px_rgba(59,130,246,0.4)]">
-                T
+              <span className="grid size-11 place-items-center overflow-hidden rounded-2xl bg-white p-1 shadow-[0_0_36px_rgba(59,130,246,0.4)]">
+                <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
               </span>
               <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.35em] text-white/90">TRUVI</span>
             </Link>
