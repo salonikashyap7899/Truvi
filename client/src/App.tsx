@@ -57,6 +57,13 @@ function Ambience() {
   );
 }
 
+/** Hide global Ask Truvi chat on the About page — WhatsApp button is shown there instead */
+function ConditionalAskTruvi() {
+  const { pathname } = useLocation();
+  if (pathname === "/about") return null;
+  return <AskTruvi />;
+}
+
 function PageTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   return (
@@ -78,7 +85,7 @@ export default function App() {
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
-      <AskTruvi />
+      <ConditionalAskTruvi />
       <AISalesCopilot />
       <PageTransition>
       <Routes>
