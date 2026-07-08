@@ -80,15 +80,85 @@ All seeded users share the password: **`Password123!`**
 
 | Role | Email | Notes |
 |---|---|---|
+| **Founder** | `founder@truvi.app` | Founder OS superuser — opens `/founder` |
 | Admin | `admin@truvi.app` | Full platform access |
 | Developer | `dev1@truvi.app` | Approved, has live projects |
 | Developer | `dev4@truvi.app` | Pending — test the admin approval flow |
 | Channel Partner | `cp1@truvi.app` | Approved, Silver tier |
 | Channel Partner | `cp7@truvi.app` | Approved, Diamond tier |
+| **Ambassador** | `ambassador1@truvi.app` | Verified & active — has tasks + earnings |
+| **Ambassador** | `ambassador2@truvi.app` | Needs verification — test the OTP flow |
 
 - Real-time inventory synchronization
 - Live notifications
 - Socket.io powered updates
+
+## Founder OS
+
+A **Founder Operating System** (not a traditional admin panel) that shows the
+complete health of the company on one screen and turns raw data into insights,
+alerts, and recommended actions. Log in as `founder@truvi.app` → you land on
+**`/founder`**.
+
+**Access control.** A new top role, `FOUNDER`, sits above `ADMIN`. It's the
+platform superuser: `requireRole(...)` (server) and `ProtectedRoute` (client)
+let FOUNDER through *every* gate, while a `FOUNDER`-only gate (the Founder OS
+route + `/api/founder/*`) is passed **only** by FOUNDER — admins are excluded.
+FOUNDER and ADMIN are seed-only; they can never be created via public signup.
+
+**Phase 1 — Core Visibility & Control** (shipped). Everything is aggregated
+live from the operating collections — no hardcoded numbers:
+
+| Module | Source |
+|---|---|
+| KPI cards (total & monthly revenue, MoM %, GMV, active developers, conversion, units, approvals) | `Commission`, `LeadPurchase`, `Lead`, `Project`, `Unit`, `User`, `Enquiry` |
+| Revenue trend (12-month area chart) | `Commission.platformFeeAmount` + `LeadPurchase.amountPaid` grouped by month |
+| Lead pipeline funnel | `Lead` grouped by `stage` |
+| Project performance table (units sold, sales ₹, leads, RAG health) | `Project` ⨝ `Unit` ⨝ `Lead` |
+| Channel Partner leaderboard | `Commission` grouped by `cpId` ⨝ `User` |
+| Ambassador field-ops strip | `User` (ambassadors) + `VerificationTask` |
+| **Alerts panel — every problem carries a recommended action** | `founderInsightService` (rule-based) |
+
+The alerts engine (`server/src/services/founderInsightService.ts`) flags stale
+leads, aging approvals, ≥20% MoM revenue drops, cold projects, inactive
+high-value CPs, pending ambassador payouts, expired task locks, and sold-out
+inventory — each with a plain-language "Do:" action.
+
+**API:** `GET /api/founder/overview` (one aggregated payload), plus
+`POST /api/founder/tasks`, `GET /api/founder/tasks`,
+`PATCH /api/founder/tasks/:id/payout` for verification-task management. All
+FOUNDER-only.
+
+**Phases 2 & 3 (AI Founder Brief + "Ask anything about Truvi" decision
+engine)** reuse the already-wired server-side Anthropic SDK (`ANTHROPIC_API_KEY`)
+and are the next milestones — the Phase 1 data layer is built to feed them.
+
+## Truvi Ambassador portal
+
+Implements the **Truvi Ambassador SOP** end-to-end — a field-verification
+workforce that visits projects and earns **₹500** per verified site. Entry
+point: the **"Join as a Truvi Ambassador"** button on the About page →
+`/signup?role=AMBASSADOR`. After login, ambassadors land on **`/ambassador`**.
+
+- **Step 0 — Verification gate.** Aadhaar upload + phone OTP + email OTP. The
+  profile goes *Active* (and task listings become visible) only when all three
+  complete. Email OTP is delivered via the existing Nodemailer service; phone
+  OTP is delivered in dev mode (logged server-side; returned in the response
+  outside production) — swap `deliverPhoneOtp` in
+  `server/src/routes/ambassador.ts` for MSG91/Twilio to send real SMS.
+- **Colour state machine** (`VerificationTask` model):
+  **GREEN** available → **YELLOW** locked exclusively to one ambassador for
+  **6 hours** (atomic compare-and-swap via `findOneAndUpdate`, so two
+  ambassadors can never both lock a task; expired locks sweep back to GREEN) →
+  **RED** completed after the site checklist + document upload, creating a
+  ₹500 payout entry.
+- **Step 3 — Site checklist:** GPS on, internet on, live location (captured via
+  the browser Geolocation API).
+- **Step 4 — Document upload**, then **Complete → RED → ₹500 earned**. Payouts
+  are settled from Founder OS.
+
+**API:** `/api/ambassador/*` — `me`, `verify/aadhaar`, `verify/{phone,email}/{send,confirm}`,
+`tasks`, `tasks/:id/{accept,checklist,documents,complete}`, `earnings`.
 
 ## Optional: enabling real integrations
 

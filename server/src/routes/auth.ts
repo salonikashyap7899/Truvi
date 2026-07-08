@@ -39,23 +39,33 @@ router.post("/signup", async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  // Ambassadors are gated by their own verification flow (Aadhaar +
+  // phone/email OTP per the Ambassador SOP), not by admin approval —
+  // task listings stay hidden until the profile goes Active.
   const user = await User.create({
     name,
     email: normalizedEmail,
     password: hashedPassword,
     phone: phone || undefined,
     role,
-    approvalStatus: "PENDING",
+    approvalStatus: role === "AMBASSADOR" ? "APPROVED" : "PENDING",
     ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
     ...(role === "CP" ? { cpProfile: { isPremium: false, conversionRatio: 0, totalBookings: 0 } } : {}),
     ...(role === "BUYER" ? { buyerProfile: { savedProjectIds: [], compareProjectIds: [] } } : {}),
+    ...(role === "AMBASSADOR"
+      ? { ambassadorProfile: { phoneVerified: false, emailVerified: false, tasksCompleted: 0, totalEarnings: 0 } }
+      : {}),
   });
 
   // Notify all admins about the new pending account in real-time
   try {
     const admins = await User.find({ role: "ADMIN" }).select("_id");
-    const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
-    const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
+    const roleLabel =
+      role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : role === "AMBASSADOR" ? "Ambassador" : "Channel Partner";
+    const message =
+      role === "AMBASSADOR"
+        ? `New Ambassador signed up: ${name} (${normalizedEmail})`
+        : `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
     await Promise.all(
       admins.map(async (admin) => {
         const notification = await Notification.create({ userId: admin._id, message });
@@ -76,7 +86,10 @@ router.post("/signup", async (req, res) => {
   }
 
   return res.status(201).json({
-    message: "Account created. An admin will review and approve your account before you can access the platform.",
+    message:
+      role === "AMBASSADOR"
+        ? "Account created. Sign in and complete Aadhaar, phone and email verification to activate your Ambassador profile."
+        : "Account created. An admin will review and approve your account before you can access the platform.",
     userId: user._id,
   });
 });

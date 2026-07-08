@@ -43,6 +43,8 @@ import ComparePage from "@/pages/buyer/ComparePage";
 import InventoryPage from "@/pages/InventoryPage";
 import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
+import FounderDashboardPage from "@/pages/founder/FounderDashboardPage";
+import AmbassadorPortalPage from "@/pages/ambassador/AmbassadorPortalPage";
 
 function Ambience() {
   const { pathname } = useLocation();
@@ -100,6 +102,12 @@ export default function App() {
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
+
+        {/* Founder OS — FOUNDER only (superuser) */}
+        <Route path="/founder" element={<ProtectedRoute roles={["FOUNDER"]}><FounderDashboardPage /></ProtectedRoute>} />
+
+        {/* Ambassador portal */}
+        <Route path="/ambassador" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorPortalPage /></ProtectedRoute>} />
 
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />

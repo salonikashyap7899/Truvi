@@ -21,7 +21,9 @@ export default function LoginPage() {
       const user = await login(email, password);
       // Every role lands in its own workspace — buyers see buyer things,
       // sellers see seller things, developers see developer things.
-      if (user.role !== "ADMIN" && user.approvalStatus !== "APPROVED") {
+      if (user.role === "FOUNDER") navigate("/founder");
+      else if (user.role === "AMBASSADOR") navigate("/ambassador");
+      else if (user.role !== "ADMIN" && user.approvalStatus !== "APPROVED") {
         navigate("/pending-approval");
       } else if (user.role === "ADMIN") navigate("/admin/dashboard");
       else if (user.role === "DEVELOPER") navigate("/developer/dashboard");

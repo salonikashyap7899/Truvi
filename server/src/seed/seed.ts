@@ -7,7 +7,19 @@ import { Unit } from "../models/Unit";
 import { Lead, LeadStage } from "../models/Lead";
 import { SiteVisit } from "../models/SiteVisit";
 import { Commission } from "../models/Commission";
+import { LeadPurchase } from "../models/LeadPurchase";
+import { VerificationTask } from "../models/VerificationTask";
 import { calculateCommission, buildMilestones } from "../services/commissionCalculator";
+
+// A date N months back from now, on a random day — used to spread the
+// seeded revenue history across the last ~6 months so the Founder OS
+// charts have real shape instead of a single spike.
+const monthsAgo = (n: number) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  d.setDate(1 + Math.floor(Math.random() * 26));
+  return d;
+};
 
 const CITIES = [
   { city: "Hyderabad", locations: ["Gachibowli", "Kondapur", "Financial District"] },
@@ -35,10 +47,22 @@ async function seed() {
     Lead.deleteMany({}),
     SiteVisit.deleteMany({}),
     Commission.deleteMany({}),
+    LeadPurchase.deleteMany({}),
+    VerificationTask.deleteMany({}),
   ]);
 
   console.log("Seeding Truvi database...");
   const hashedPassword = await bcrypt.hash("Password123!", 12);
+
+  // --- Founder (platform superuser — sole access to Founder OS) ---
+  await User.create({
+    name: "Truvi Founder",
+    email: "founder@truvi.app",
+    password: hashedPassword,
+    role: "FOUNDER",
+    approvalStatus: "APPROVED",
+    phone: randomPhone(),
+  });
 
   // --- Admin ---
   await User.create({
@@ -49,6 +73,39 @@ async function seed() {
     approvalStatus: "APPROVED",
     phone: randomPhone(),
   });
+
+  // --- Ambassadors: one fully verified & active, one mid-verification ---
+  const ambassadors = [];
+  ambassadors.push(
+    await User.create({
+      name: randomName(),
+      email: "ambassador1@truvi.app",
+      password: hashedPassword,
+      role: "AMBASSADOR",
+      approvalStatus: "APPROVED",
+      phone: randomPhone(),
+      ambassadorProfile: {
+        aadhaarUrl: "https://example.com/seed-aadhaar.pdf",
+        aadhaarFileName: "aadhaar.pdf",
+        phoneVerified: true,
+        emailVerified: true,
+        activatedAt: new Date(),
+        tasksCompleted: 3,
+        totalEarnings: 1500,
+      },
+    }),
+  );
+  ambassadors.push(
+    await User.create({
+      name: randomName(),
+      email: "ambassador2@truvi.app",
+      password: hashedPassword,
+      role: "AMBASSADOR",
+      approvalStatus: "APPROVED",
+      phone: randomPhone(),
+      ambassadorProfile: { phoneVerified: false, emailVerified: false, tasksCompleted: 0, totalEarnings: 0 },
+    }),
+  );
 
   // --- Developers: 3 approved, 1 pending ---
   const developerData = [
@@ -102,7 +159,7 @@ async function seed() {
   }
 
   // --- Projects: 4, with 15-30 units each ---
-  const projects = [];
+  const projects: any[] = [];
   for (let i = 0; i < 4; i++) {
     const dev = approvedDevelopers[i % approvedDevelopers.length];
     const cityInfo = pick(CITIES);
@@ -141,7 +198,7 @@ async function seed() {
 
   // --- Leads: ~40 across all pipeline stages ---
   const stages: LeadStage[] = ["GENERATED", "ASSIGNED", "CONTACTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "LOST"];
-  const leads = [];
+  const leads: any[] = [];
   for (let i = 0; i < 40; i++) {
     const project = pick(projects);
     const cp = pick(cps);
@@ -174,15 +231,18 @@ async function seed() {
     });
   }
 
-  // --- Commissions: using the tested commission engine ---
+  // --- Commissions: using the tested commission engine. Commission.leadId
+  //     is unique, so the current booking leads produce one commission each
+  //     (dated now), and extra *historical* bookings each get their own
+  //     freshly-created lead so the Founder OS revenue chart spans 6 months. ---
   const bookingLeads = leads.filter((l) => ["BOOKING", "REGISTRATION"].includes(l.stage));
-  for (const lead of bookingLeads) {
+
+  async function createCommission(lead: any, when: Date) {
     const project = projects.find((p) => String(p._id) === String(lead.projectId))!;
     const bookingValue = 5000000 + Math.floor(Math.random() * 6) * 1000000;
     const calc = calculateCommission({ bookingValue, commissionPercent: project.commissionPercent });
     const milestones = buildMilestones(calc.cpCommissionAmount);
     const releaseCount = Math.floor(Math.random() * 4);
-
     await Commission.create({
       leadId: lead._id,
       cpId: lead.assignedToId!,
@@ -197,16 +257,100 @@ async function seed() {
         isReleased: idx < releaseCount,
         releasedAt: idx < releaseCount ? new Date() : null,
       })),
+      createdAt: when,
+    });
+  }
+
+  // One commission per current booking lead (recent).
+  for (const lead of bookingLeads) {
+    await createCommission(lead, monthsAgo(Math.floor(Math.random() * 2)));
+  }
+  // Historical bookings with a rising trend — more recent months get more.
+  for (let m = 5; m >= 0; m--) {
+    const count = 2 + (5 - m); // 2 six months ago … 7 this month
+    for (let k = 0; k < count; k++) {
+      const project = pick(projects);
+      const cp = pick(cps);
+      const histLead = await Lead.create({
+        projectId: project._id,
+        submittedById: cp._id,
+        assignedToId: cp._id,
+        clientName: randomName(),
+        clientPhone: randomPhone(),
+        stage: "BOOKING",
+        source: pick(["CP", "Website", "Referral"]),
+        notes: "Historical booking (seed).",
+      });
+      await createCommission(histLead, monthsAgo(m));
+    }
+  }
+
+  // --- Lead-marketplace purchases (the platform's second revenue stream),
+  //     also spread across the last 6 months ---
+  const leadTypes = [
+    { leadType: "BASIC" as const, amountPaid: 499 },
+    { leadType: "QUALIFIED" as const, amountPaid: 1499 },
+    { leadType: "SITE_VISIT" as const, amountPaid: 2999 },
+  ];
+  for (let i = 0; i < 30; i++) {
+    const lt = pick(leadTypes);
+    await LeadPurchase.create({
+      cpId: pick(cps)._id,
+      leadType: lt.leadType,
+      amountPaid: lt.amountPaid,
+      paymentStatus: "PAID",
+      createdAt: monthsAgo(Math.floor(Math.random() * 6)),
+    });
+  }
+
+  // --- Verification tasks (Ambassador SOP): a mix of the three colours ---
+  const activeAmbassador = ambassadors[0];
+  const taskPlan = [
+    { status: "GREEN" as const },
+    { status: "GREEN" as const },
+    { status: "GREEN" as const },
+    { status: "YELLOW" as const }, // locked to the active ambassador
+    { status: "RED" as const, payout: "PENDING" as const },
+    { status: "RED" as const, payout: "PAID" as const },
+    { status: "RED" as const, payout: "PENDING" as const },
+  ];
+  for (const t of taskPlan) {
+    const project = pick(projects);
+    const now = Date.now();
+    await VerificationTask.create({
+      projectId: project._id,
+      title: `Site verification — ${project.name}`,
+      address: `${project.location}, ${project.city}`,
+      mapUrl: `https://maps.google.com/?q=${encodeURIComponent(project.location + " " + project.city)}`,
+      deadline: new Date(now + (2 + Math.floor(Math.random() * 5)) * 24 * 60 * 60 * 1000),
+      status: t.status,
+      lockedBy: t.status === "YELLOW" ? activeAmbassador._id : null,
+      lockedAt: t.status === "YELLOW" ? new Date(now - 60 * 60 * 1000) : null,
+      lockExpiresAt: t.status === "YELLOW" ? new Date(now + 5 * 60 * 60 * 1000) : null,
+      checklist:
+        t.status === "RED"
+          ? { gpsOn: true, internetOn: true, liveLocation: { lat: 17.44, lng: 78.35, capturedAt: new Date() } }
+          : { gpsOn: false, internetOn: false, liveLocation: null },
+      documents:
+        t.status === "RED"
+          ? [{ url: "https://example.com/site-photo.jpg", fileName: "site-photo.jpg", uploadedAt: new Date() }]
+          : [],
+      payoutStatus: t.status === "RED" ? t.payout! : "NONE",
+      completedBy: t.status === "RED" ? activeAmbassador._id : null,
+      completedAt: t.status === "RED" ? new Date(now - Math.floor(Math.random() * 5) * 24 * 60 * 60 * 1000) : null,
     });
   }
 
   console.log("Seed complete.\n");
   console.log("--- Login credentials (all use password: Password123!) ---");
+  console.log("Founder:    founder@truvi.app (Founder OS — /founder)");
   console.log("Admin:      admin@truvi.app");
   console.log("Developer:  dev1@truvi.app (approved)");
   console.log("Developer:  dev4@truvi.app (pending — test the approval flow)");
   console.log("CP:         cp1@truvi.app (approved, Silver)");
   console.log("CP:         cp7@truvi.app (approved, Diamond)");
+  console.log("Ambassador: ambassador1@truvi.app (verified & active)");
+  console.log("Ambassador: ambassador2@truvi.app (needs verification)");
 
   await disconnectDB();
 }

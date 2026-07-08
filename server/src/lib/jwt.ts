@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
+import type { Role } from "../models/User";
 
 export interface TokenPayload {
   userId: string;
-  role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
+  role: Role;
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
 }
 

@@ -1,6 +1,8 @@
 import { Schema, model, Document, Types } from "mongoose";
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
+// FOUNDER is the platform superuser (above ADMIN — sole access to Founder OS).
+// AMBASSADOR is the field-verification workforce (Truvi Ambassador SOP).
+export type Role = "FOUNDER" | "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 
@@ -36,13 +38,30 @@ export interface IUser extends Document {
     loanEligibilityNotes?: string;
     investmentGoals?: string;
   };
+
+  // Ambassador-specific (Truvi Ambassador SOP): the profile goes Active —
+  // and task listings become visible — only after Aadhaar upload plus
+  // phone and email OTP verification all complete.
+  ambassadorProfile?: {
+    aadhaarUrl?: string;
+    aadhaarFileName?: string;
+    phoneVerified: boolean;
+    emailVerified: boolean;
+    phoneOtp?: string | null;
+    phoneOtpExpiresAt?: Date | null;
+    emailOtp?: string | null;
+    emailOtpExpiresAt?: Date | null;
+    activatedAt?: Date | null;
+    tasksCompleted: number;
+    totalEarnings: number;
+  };
 }
 
 const userSchema = new Schema<IUser>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ["ADMIN", "DEVELOPER", "CP", "BUYER"], required: true },
+  role: { type: String, enum: ["FOUNDER", "ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"], required: true },
   approvalStatus: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: "PENDING" },
   phone: { type: String },
   createdAt: { type: Date, default: Date.now },
@@ -64,6 +83,20 @@ const userSchema = new Schema<IUser>({
     compareProjectIds: { type: [{ type: Schema.Types.ObjectId, ref: "Project" }], default: [] },
     loanEligibilityNotes: { type: String },
     investmentGoals: { type: String },
+  },
+
+  ambassadorProfile: {
+    aadhaarUrl: { type: String },
+    aadhaarFileName: { type: String },
+    phoneVerified: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
+    phoneOtp: { type: String, default: null },
+    phoneOtpExpiresAt: { type: Date, default: null },
+    emailOtp: { type: String, default: null },
+    emailOtpExpiresAt: { type: Date, default: null },
+    activatedAt: { type: Date, default: null },
+    tasksCompleted: { type: Number, default: 0 },
+    totalEarnings: { type: Number, default: 0 },
   },
 });
 

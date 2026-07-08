@@ -14,7 +14,7 @@ const signupSchema = z
     email: z.string().email("Enter a valid email"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number").optional().or(z.literal("")),
-    role: z.enum(["DEVELOPER", "CP", "BUYER"]),
+    role: z.enum(["DEVELOPER", "CP", "BUYER", "AMBASSADOR"]),
     companyName: z.string().optional(),
   })
   .superRefine((data, ctx) => {
@@ -39,9 +39,14 @@ export default function SignupPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Role pre-selected by the welcome gate (?role=BUYER|CP|DEVELOPER)
+  // Role pre-selected by the welcome gate (?role=…) or the About page's
+  // "Join as a Truvi Ambassador" button (?role=AMBASSADOR).
   const paramRole = searchParams.get("role");
-  const initialRole: Role = paramRole === "BUYER" || paramRole === "DEVELOPER" || paramRole === "CP" ? paramRole : "BUYER";
+  const isAmbassador = paramRole === "AMBASSADOR";
+  const initialRole: Role =
+    paramRole === "BUYER" || paramRole === "DEVELOPER" || paramRole === "CP" || paramRole === "AMBASSADOR"
+      ? paramRole
+      : "BUYER";
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
@@ -86,29 +91,35 @@ export default function SignupPage() {
               <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.35em] text-white/90">TRUVI</span>
             </Link>
 
-            <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Create your account</h1>
+            <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">
+              {isAmbassador ? "Join as a Truvi Ambassador" : "Create your account"}
+            </h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">
-              An admin verifies and approves every account before full access.
+              {isAmbassador
+                ? "Sign up, then verify your Aadhaar, phone and email to start earning ₹500 per verified project."
+                : "An admin verifies and approves every account before full access."}
             </p>
 
-            {/* Role selector */}
-            <div className="mt-6 flex rounded-full border border-white/12 bg-white/[0.04] p-1">
-              {ROLE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setValue("role", opt.id)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-[13px] font-medium transition-all ${
-                    role === opt.id
-                      ? "bg-gradient-to-r from-[var(--trust)] to-[#2563eb] text-white shadow-[0_0_18px_rgba(59,130,246,0.35)]"
-                      : "text-muted-foreground hover:text-white"
-                  }`}
-                >
-                  {opt.icon}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            {/* Role selector — hidden in the dedicated Ambassador flow */}
+            {!isAmbassador && (
+              <div className="mt-6 flex rounded-full border border-white/12 bg-white/[0.04] p-1">
+                {ROLE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setValue("role", opt.id)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-[13px] font-medium transition-all ${
+                      role === opt.id
+                        ? "bg-gradient-to-r from-[var(--trust)] to-[#2563eb] text-white shadow-[0_0_18px_rgba(59,130,246,0.35)]"
+                        : "text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    {opt.icon}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {success ? (
               <p className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">

@@ -31,10 +31,16 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
  * Restricts a route to the given roles. Must run after `authenticate`.
  * Also enforces the approval gate for DEVELOPER/CP (ADMIN is exempt,
  * since it's seeded, never self-signup, and never PENDING).
+ *
+ * FOUNDER is the platform superuser: it passes every role gate,
+ * including ADMIN-only routes. The reverse does not hold — a gate of
+ * requireRole("FOUNDER") is satisfied ONLY by the FOUNDER role, so the
+ * Founder OS stays invisible to admins.
  */
-export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER">) {
+export function requireRole(...roles: Array<"FOUNDER" | "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR">) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (req.user.role === "FOUNDER") return next();
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
