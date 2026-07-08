@@ -369,20 +369,9 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         }
       `}</style>
 
-      {/* Floating trigger button */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Ask Truvi"
-        className={`
-          fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full
-          bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/40
-          transition-all duration-200 hover:bg-blue-500 hover:shadow-blue-800/50
-          ${open ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"}
-        `}
-      >
-        <Sparkles size={16} />
-        Ask Truvi
-      </button>
+      {/* The floating launcher was replaced by the WhatsApp contact button
+          (WhatsAppFloat); Ask Truvi opens from the navbar buttons, which
+          dispatch the "open-ask-truvi" event handled above. */}
 
       {/* Overlay — mobile only */}
       {open && (

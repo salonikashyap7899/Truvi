@@ -99,7 +99,9 @@ export default function AboutPage() {
   const serif = { fontFamily: "Georgia, 'Times New Roman', serif" };
 
   return (
-    <main className="relative min-h-screen bg-[#050505] text-white">
+    // Transparent canvas — the shared 3D cityscape background shows through,
+    // with the deck's champagne glow layered on top of it.
+    <main className="relative min-h-screen text-white">
       {/* Champagne glow, top-right — as in the deck */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div

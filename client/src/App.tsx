@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import WelcomeGate from "@/components/WelcomeGate";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
 import { CursorGlow } from "@/components/landing/CursorGlow";
@@ -78,6 +79,7 @@ export default function App() {
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
+      <WhatsAppFloat />
       <AskTruvi />
       <AISalesCopilot />
       <PageTransition>
