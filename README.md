@@ -6,7 +6,7 @@ on top of the original 6-module spec.
 
 ## Tech stack
 
-**Backend:** Node.js · Express 5 · TypeScript · MongoDB (Mongoose) · JWT auth
+**Backend:** Node.js · Express 5 · TypeScript · Supabase Postgres (Drizzle ORM) · JWT auth
 (access + refresh) · Socket.io · Multer · Nodemailer · Razorpay · Zod · Vitest
 
 **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS v4 · React Router ·
@@ -35,19 +35,17 @@ Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 
 ## Setup
 
-### 1. MongoDB — must run as a replica set
+### 1. Supabase (Postgres)
 
-### prerequsites
+Create a free project at [supabase.com](https://supabase.com). Then create the
+schema and an admin login in one step: open **SQL Editor → New query**, paste
+the contents of [`server/supabase/setup.sql`](server/supabase/setup.sql), and
+**Run**. That creates every table plus the `admin@truvi.app` / `Password123!`
+account. Grab your connection string from **Project Settings → Database** for
+the next step.
 
-**Local, single-node replica set (dev):**
-```bash
-mongod --replSet rs0 --dbpath /path/to/your/data
-# in another terminal:
-mongosh --eval "rs.initiate()"
-```
-
-**Or use MongoDB Atlas** (free tier is a replica set by default) — just set
-`MONGO_URI` to your Atlas connection string.
+(Advanced: if you prefer migrations over the ready-made SQL, `DATABASE_URL=…
+npm --prefix server run db:push` applies the Drizzle schema directly.)
 
 ### 2. Backend
 
@@ -55,11 +53,11 @@ mongosh --eval "rs.initiate()"
 cd server
 npm install
 cp .env.example .env
-# edit .env: set MONGO_URI, generate JWT_ACCESS_SECRET / JWT_REFRESH_SECRET
-#   (openssl rand -base64 32)
+# edit .env: set DATABASE_URL (your Supabase connection string) and
+#   JWT_ACCESS_SECRET / JWT_REFRESH_SECRET (openssl rand -base64 32)
 
-npm test          # commission engine — 11 tests, must pass
-npm run seed       # seeds realistic data across every role/stage
+npm test          # commission engine — tests must pass
+npm run seed       # seeds realistic data across every role/stage (uses DATABASE_URL)
 npm run dev        # starts on :5000 with Socket.io
 ```
 
@@ -109,14 +107,14 @@ this isn't optional wiring, CORS and the auth cookie both depend on it.
 - Push this repo to GitHub/GitLab (Render deploys from a connected git repo).
   This project isn't a git repo yet — run `git init`, commit, and push before
   connecting it in Render.
-- A MongoDB Atlas connection string (Atlas is a replica set by default, which
-  commission generation's transaction requires — see `server/.env.example`).
+- A Supabase project with its schema applied and connection string in hand —
+  run `server/supabase/setup.sql` in the Supabase SQL Editor (see Setup step 1).
 
 **Option A — Blueprint (recommended):** In the Render dashboard, "New +" →
 "Blueprint", point it at this repo. It reads [render.yaml](render.yaml) and
 creates the API service with Root Directory `server`, the right build/start
 commands, health check, and a persistent Disk for `server/uploads` (see
-"Known limitation" below) pre-wired. You'll be prompted for `MONGO_URI` and
+"Known limitation" below) pre-wired. You'll be prompted for `DATABASE_URL` and
 `CLIENT_URL` (required — see below) plus any optional secrets (`SMTP_*`,
 `RAZORPAY_*`); `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are auto-generated.
 
@@ -129,7 +127,7 @@ commands, health check, and a persistent Disk for `server/uploads` (see
 | Health Check Path | `/health` |
 
 Then add the env vars from `server/.env.example` in the Render dashboard
-(`MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `NODE_ENV=production`
+(`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `NODE_ENV=production`
 at minimum).
 
 **Required — wiring the two origins together:**
@@ -157,7 +155,7 @@ either accept the ephemeral storage or migrate `uploadService.ts` to S3.
 ```
 server/
   src/
-    models/        → Mongoose schemas (User, Project, Unit, Lead, SiteVisit, Commission, ...)
+    db/            → Drizzle schema + Supabase (Postgres) connection (User, Project, Unit, Lead, SiteVisit, Commission, ...)
     routes/         → Express routers, one per resource, all Zod-validated + role-guarded
     services/       → Pure commission calculator (tested), email, uploads, payments, inventory
     middleware/      → JWT auth + role guards, centralized error handling
@@ -175,7 +173,7 @@ client/
 ## What's implemented (MVP scope, matching the Next.js version)
 
 - Auth with role-based signup, admin approval gating, JWT access+refresh tokens
-- Inventory Engine — atomic unit locking (MongoDB compare-and-swap via `findOneAndUpdate`, 30-min auto-expiry), reservation, price history
+- Inventory Engine — atomic unit locking (Postgres compare-and-swap via a single conditional `UPDATE`, 30-min auto-expiry), reservation, price history
 - Lead Management CRM — auto-assignment, duplicate detection, stage-flow enforcement, WhatsApp deep link
 - Site Visit Management — booking, geo-verified attendance, **photo upload** (new), post-visit reports
 - Commission Engine — full percent split, TDS, milestone releases, platform fee never deducted from CP commission (11 tests, all passing)

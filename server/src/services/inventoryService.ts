@@ -1,4 +1,6 @@
-import { Unit } from "../models/Unit";
+import { and, eq, lt } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { units } from "../db/schema";
 
 /**
  * Check-and-expire approach (no background worker for MVP, matches the
@@ -7,8 +9,9 @@ import { Unit } from "../models/Unit";
  * AVAILABLE before the caller sees it.
  */
 export async function expireStaleLocks(): Promise<void> {
-  await Unit.updateMany(
-    { status: "LOCKED", lockExpiresAt: { $lt: new Date() } },
-    { $set: { status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null } },
-  );
+  const db = getDb();
+  await db
+    .update(units)
+    .set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null })
+    .where(and(eq(units.status, "LOCKED"), lt(units.lockExpiresAt, new Date())));
 }

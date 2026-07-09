@@ -27,6 +27,7 @@ export function getEnv() {
 export function assertRequiredEnvForProduction(): void {
   if (getEnv().nodeEnv !== "production") return;
 
+  requireEnv("DATABASE_URL");
   requireEnv("JWT_ACCESS_SECRET");
   requireEnv("JWT_REFRESH_SECRET");
 }

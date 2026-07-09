@@ -1,8 +1,6 @@
-import { Types } from "mongoose";
-import { Project, IProject } from "../models/Project";
-import { Unit } from "../models/Unit";
-import { User } from "../models/User";
-import { SiteVisit } from "../models/SiteVisit";
+import { and, count, eq, inArray, lte, or, sql, desc } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { projects, units, users, siteVisits, type IProject } from "../db/schema";
 
 /* ============================================================
    Ask Truvi AI — Decision Intelligence data layer
@@ -146,17 +144,18 @@ function meaningfulTokens(message: string): string[] {
 /* ---------------- Fact assembly ---------------- */
 
 async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
-  const units = await Unit.find({ projectId: project._id }).lean();
-  const developer = await User.findById(project.developerId).lean();
-  const visitCount = await SiteVisit.countDocuments({
-    projectId: project._id,
-    attendanceConfirmed: true,
-  });
+  const db = getDb();
+  const unitRows = await db.select().from(units).where(eq(units.projectId, project._id));
+  const [developer] = await db.select().from(users).where(eq(users._id, project.developerId)).limit(1);
+  const [{ value: visitCount }] = await db
+    .select({ value: count() })
+    .from(siteVisits)
+    .where(and(eq(siteVisits.projectId, project._id), eq(siteVisits.attendanceConfirmed, true)));
 
-  const prices = units.map((u) => u.price).filter((p) => p > 0);
-  const psf = units.filter((u) => u.areaSqft > 0).map((u) => u.price / u.areaSqft);
-  const available = units.filter((u) => u.status === "AVAILABLE").length;
-  const types = [...new Set(units.map((u) => u.type))];
+  const prices = unitRows.map((u) => u.price).filter((p) => p > 0);
+  const psf = unitRows.filter((u) => u.areaSqft > 0).map((u) => u.price / u.areaSqft);
+  const available = unitRows.filter((u) => u.status === "AVAILABLE").length;
+  const types = [...new Set(unitRows.map((u) => u.type))];
   const verifiedDate = fmtDate(project.verifiedAt) ?? fmtDate(project.createdAt);
 
   const facts: Record<string, FactValue> = {
@@ -179,13 +178,13 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
       source: "BUILDER_SUBMITTED",
     },
     availableUnits: { value: available, source: "BUILDER_SUBMITTED" },
-    totalUnits: { value: units.length, source: "BUILDER_SUBMITTED" },
+    totalUnits: { value: unitRows.length, source: "BUILDER_SUBMITTED" },
     builderName: { value: developer?.name ?? null, source: "BUILDER_SUBMITTED" },
     builderCompany: {
-      value: (developer as { companyName?: string } | null)?.companyName ?? null,
+      value: developer?.developerProfile?.companyName ?? null,
       source: "BUILDER_SUBMITTED",
     },
-    confirmedSiteVisits: { value: visitCount, source: "USER_SUBMITTED" },
+    confirmedSiteVisits: { value: Number(visitCount), source: "USER_SUBMITTED" },
     brochureAvailable: { value: Boolean(project.brochureUrl), source: "BUILDER_SUBMITTED" },
     priceListAvailable: { value: Boolean(project.priceListUrl), source: "BUILDER_SUBMITTED" },
   };
@@ -199,12 +198,12 @@ async function findProjectsInMessage(message: string, limit = 4): Promise<IProje
   const tokens = meaningfulTokens(message);
   if (tokens.length === 0) return [];
   const pattern = tokens.map(escapeRegex).join("|");
-  const candidates = await Project.find({
-    approvalStatus: "APPROVED",
-    name: { $regex: pattern, $options: "i" },
-  })
-    .limit(20)
-    .lean<IProject[]>();
+  const db = getDb();
+  const candidates = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.approvalStatus, "APPROVED"), sql`${projects.name} ~* ${pattern}`))
+    .limit(20);
 
   // Rank by how many tokens the name matches so "ABC Residency" beats "ABC"
   const scored = candidates
@@ -220,29 +219,33 @@ async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]>
   const tokens = meaningfulTokens(message);
   if (tokens.length === 0) return [];
   const pattern = tokens.map(escapeRegex).join("|");
-  const devs = await User.find({
-    role: "DEVELOPER",
-    $or: [
-      { name: { $regex: pattern, $options: "i" } },
-      { "developerProfile.companyName": { $regex: pattern, $options: "i" } },
-      { companyName: { $regex: pattern, $options: "i" } },
-    ],
-  })
-    .limit(limit)
-    .lean();
+  const db = getDb();
+  const devs = await db
+    .select()
+    .from(users)
+    .where(
+      and(
+        eq(users.role, "DEVELOPER"),
+        or(sql`${users.name} ~* ${pattern}`, sql`COALESCE(${users.developerProfile}->>'companyName', '') ~* ${pattern}`)
+      )
+    )
+    .limit(limit);
 
   const out: BuilderFacts[] = [];
   for (const d of devs) {
-    const projects = await Project.find({ developerId: d._id, approvalStatus: "APPROVED" }).lean<IProject[]>();
-    const scores = projects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
+    const devProjects = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.developerId, d._id), eq(projects.approvalStatus, "APPROVED")));
+    const scores = devProjects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
     out.push({
       id: String(d._id),
       name: d.name,
-      companyName: (d as { companyName?: string }).companyName,
-      projectCount: projects.length,
-      verifiedProjectCount: projects.filter((p) => p.isVerified).length,
+      companyName: d.developerProfile?.companyName,
+      projectCount: devProjects.length,
+      verifiedProjectCount: devProjects.filter((p) => p.isVerified).length,
       avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
-      projects: projects.map((p) => p.name).slice(0, 8),
+      projects: devProjects.map((p) => p.name).slice(0, 8),
       source: "TRUVI_VERIFIED",
     });
   }
@@ -250,37 +253,46 @@ async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]>
 }
 
 async function detectCity(message: string): Promise<string | null> {
-  const cities: string[] = await Project.distinct("city", { approvalStatus: "APPROVED" });
+  const db = getDb();
+  const rows = await db.selectDistinct({ city: projects.city }).from(projects).where(eq(projects.approvalStatus, "APPROVED"));
   const m = message.toLowerCase();
-  const hit = cities.find((c) => c && m.includes(String(c).toLowerCase()));
-  return hit ?? null;
+  const hit = rows.find((c) => c.city && m.includes(String(c.city).toLowerCase()));
+  return hit?.city ?? null;
 }
 
 async function buildLocationFacts(city: string): Promise<LocationFacts> {
-  const projects = await Project.find({ approvalStatus: "APPROVED", city: { $regex: `^${escapeRegex(city)}$`, $options: "i" } }).lean<IProject[]>();
-  const ids = projects.map((p) => p._id as Types.ObjectId);
-  const units = ids.length ? await Unit.find({ projectId: { $in: ids } }).lean() : [];
-  const prices = units.map((u) => u.price).filter((p) => p > 0);
-  const scores = projects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
+  const db = getDb();
+  const cityProjects = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.approvalStatus, "APPROVED"), sql`${projects.city} ~* ${"^" + escapeRegex(city) + "$"}`));
+  const ids = cityProjects.map((p) => p._id);
+  const unitRows = ids.length ? await db.select().from(units).where(inArray(units.projectId, ids)) : [];
+  const prices = unitRows.map((u) => u.price).filter((p) => p > 0);
+  const scores = cityProjects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
   return {
     query: city,
-    projectCount: projects.length,
-    verifiedCount: projects.filter((p) => p.isVerified).length,
+    projectCount: cityProjects.length,
+    verifiedCount: cityProjects.filter((p) => p.isVerified).length,
     avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
     priceRange: prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null,
-    projectNames: projects.map((p) => p.name).slice(0, 10),
+    projectNames: cityProjects.map((p) => p.name).slice(0, 10),
     source: "TRUVI_VERIFIED",
   };
 }
 
 async function budgetSearch(q: BudgetQuery, city: string | null, limit = 5): Promise<IProject[]> {
-  const unitFilter: Record<string, unknown> = { status: "AVAILABLE" };
-  if (q.maxBudget) unitFilter.price = { $lte: q.maxBudget };
-  if (q.bhk) unitFilter.type = { $regex: q.bhk.replace("BHK", "\\s*BHK"), $options: "i" };
-  const projectIds = await Unit.distinct("projectId", unitFilter);
-  const filter: Record<string, unknown> = { _id: { $in: projectIds }, approvalStatus: "APPROVED" };
-  if (city) filter.city = { $regex: `^${escapeRegex(city)}$`, $options: "i" };
-  return Project.find(filter).sort({ trustScore: -1 }).limit(limit).lean<IProject[]>();
+  const db = getDb();
+  const unitConds = [eq(units.status, "AVAILABLE")];
+  if (q.maxBudget) unitConds.push(lte(units.price, q.maxBudget));
+  if (q.bhk) unitConds.push(sql`${units.type} ~* ${q.bhk.replace("BHK", "\\s*BHK")}`);
+  const unitProjectRows = await db.selectDistinct({ projectId: units.projectId }).from(units).where(and(...unitConds));
+  const projectIds = unitProjectRows.map((u) => u.projectId);
+  if (projectIds.length === 0) return [];
+
+  const conds = [inArray(projects._id, projectIds), eq(projects.approvalStatus, "APPROVED")];
+  if (city) conds.push(sql`${projects.city} ~* ${"^" + escapeRegex(city) + "$"}`);
+  return db.select().from(projects).where(and(...conds)).orderBy(desc(projects.trustScore)).limit(limit);
 }
 
 export async function retrieveContext(message: string): Promise<RetrievedContext> {
@@ -319,10 +331,10 @@ export async function retrieveContext(message: string): Promise<RetrievedContext
     console.error("Ask Truvi retrieval error:", err);
   }
 
-  const projects: ProjectFacts[] = [];
+  const projectFacts: ProjectFacts[] = [];
   for (const p of matchedProjects.slice(0, 4)) {
-    projects.push(await buildProjectFacts(p));
+    projectFacts.push(await buildProjectFacts(p));
   }
 
-  return { intent, projects, builders, location, budgetQuery, retrievalNotes: notes };
+  return { intent, projects: projectFacts, builders, location, budgetQuery, retrievalNotes: notes };
 }

@@ -1,20 +1,20 @@
 import { Router } from "express";
+import { eq } from "drizzle-orm";
+import { getDb } from "../config/db";
 import { authenticate, requireRole } from "../middleware/auth";
 import { REVENUE_MIX_TARGET, CP_PREMIUM_MONTHLY_PRICE } from "../config/constants";
-import { Commission } from "../models/Commission";
-import { LeadPurchase } from "../models/LeadPurchase";
-import { Project } from "../models/Project";
-import { User } from "../models/User";
+import { commissions, leadPurchases, users, projects } from "../db/schema";
 
 const router = Router();
 router.use(authenticate, requireRole("ADMIN"));
 
 router.get("/", async (_req, res) => {
+  const db = getDb();
   const [commissionRows, purchaseRows, userRows, featuredProjects] = await Promise.all([
-    Commission.find().lean(),
-    LeadPurchase.find().lean(),
-    User.find({ role: "CP" }).lean(),
-    Project.find({ listingTier: "FEATURED" }).lean(),
+    db.select().from(commissions),
+    db.select().from(leadPurchases),
+    db.select().from(users).where(eq(users.role, "CP")),
+    db.select().from(projects).where(eq(projects.listingTier, "FEATURED")),
   ]);
 
   const platformFeeRevenue = commissionRows.reduce((sum, row) => sum + Number(row.platformFeeAmount || 0), 0);

@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { User } from "../models/User";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { users } from "../db/schema";
 import { authenticate } from "../middleware/auth";
 
 const router = Router();
@@ -9,9 +11,17 @@ router.use(authenticate);
 // motivational/competitive, not sensitive. Only non-sensitive fields are
 // selected (no email, phone, or password).
 router.get("/", async (_req, res) => {
-  const cps = await User.find({ role: "CP", approvalStatus: "APPROVED" })
-    .select("name cpTier cpProfile")
-    .sort({ "cpProfile.totalBookings": -1 })
+  const db = getDb();
+  const cps = await db
+    .select({
+      _id: users._id,
+      name: users.name,
+      cpTier: users.cpTier,
+      cpProfile: users.cpProfile,
+    })
+    .from(users)
+    .where(and(eq(users.role, "CP"), eq(users.approvalStatus, "APPROVED")))
+    .orderBy(desc(sql`COALESCE((${users.cpProfile}->>'totalBookings')::numeric, 0)`))
     .limit(10);
 
   res.json({ leaderboard: cps });

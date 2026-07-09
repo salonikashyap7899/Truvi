@@ -78,6 +78,27 @@ export interface DeveloperProfile {
   reraNumber?: string;
 }
 
+export interface OnboardingChecks {
+  aadhaarVerified: boolean;
+  phoneVerified: boolean;
+  emailVerified: boolean;
+}
+
+export interface VerificationState {
+  phoneOtp?: string | null;
+  phoneOtpExpiry?: string | null; // ISO date string
+  emailOtp?: string | null;
+  emailOtpExpiry?: string | null; // ISO date string
+  aadhaarDocumentUrl?: string | null;
+  aadhaarVerifiedAt?: string | null; // ISO date string
+}
+
+export const DEFAULT_ONBOARDING_CHECKS: OnboardingChecks = {
+  aadhaarVerified: false,
+  phoneVerified: false,
+  emailVerified: false,
+};
+
 export interface BuyerProfile {
   savedProjectIds: string[];
   compareProjectIds: string[];
@@ -154,6 +175,9 @@ export const users = pgTable(
     role: text("role").$type<Role>().notNull(),
     approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("PENDING"),
     phone: text("phone"),
+    onboardingVerified: boolean("onboarding_verified").notNull().default(false),
+    onboardingChecks: jsonb("onboarding_checks").$type<OnboardingChecks>().default(DEFAULT_ONBOARDING_CHECKS),
+    verification: jsonb("verification").$type<VerificationState>(),
     cpTier: text("cp_tier").$type<CPTier>().default("SILVER"),
     cpProfile: jsonb("cp_profile").$type<CpProfile>().default(DEFAULT_CP_PROFILE),
     developerProfile: jsonb("developer_profile").$type<DeveloperProfile>(),

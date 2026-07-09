@@ -3,7 +3,10 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
-import { Enquiry } from "../models/Enquiry";
+import { desc } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { enquiries } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitToRole } from "../sockets";
 import { getEnv } from "../config/env";
@@ -67,16 +70,20 @@ router.post("/", enquiryUpload.single("file"), async (req, res) => {
     uploadFileName = req.file.originalname;
   }
 
-  const enquiry = await Enquiry.create({
-    email,
-    name,
-    purposeType,
-    message,
-    uploadUrl,
-    uploadFileName,
-    projectId: projectId || undefined,
-    projectName: projectName || undefined,
-  });
+  const db = getDb();
+  const [enquiry] = await db
+    .insert(enquiries)
+    .values({
+      email,
+      name,
+      purposeType,
+      message: message || null,
+      uploadUrl: uploadUrl || null,
+      uploadFileName: uploadFileName || null,
+      projectId: isValidId(projectId) ? projectId : null,
+      projectName: projectName || null,
+    })
+    .returning();
 
   // Notify admin panel in real-time
   emitToRole("ADMIN", "enquiry:new", {
@@ -96,8 +103,9 @@ router.post("/", enquiryUpload.single("file"), async (req, res) => {
 
 // GET /api/enquiries  — admin only
 router.get("/", authenticate, requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
-  const enquiries = await Enquiry.find().sort({ createdAt: -1 }).limit(200);
-  res.json({ enquiries });
+  const db = getDb();
+  const rows = await db.select().from(enquiries).orderBy(desc(enquiries.createdAt)).limit(200);
+  res.json({ enquiries: rows });
 });
 
 export default router;

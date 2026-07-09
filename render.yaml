@@ -20,10 +20,11 @@ services:
         value: 10000
       - key: CLIENT_URL
         sync: false
-      - key: MONGO_URI
-        sync: false
+      # Supabase (Postgres) connection string — the single datastore. Use the
+      # Supabase pooler URL (port 6543) for serverless-friendly connections.
+      # Required: the app refuses to boot in production without it.
       - key: DATABASE_URL
-        value: ""
+        sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
