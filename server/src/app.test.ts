@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "./app";
+import { requireRole } from "./middleware/auth";
+import { Request, Response, NextFunction } from "express";
 
 describe("createApp production hosting", () => {
   const originalEnv = process.env.NODE_ENV;
@@ -31,5 +33,19 @@ describe("createApp production hosting", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(body).toContain("<div id=\"root\">");
+  });
+
+  it("blocks CP ambassadors until onboarding verification is complete", () => {
+    const middleware = requireRole("CP");
+    const req = { user: { role: "CP", approvalStatus: "APPROVED", onboardingVerified: false } } as Request;
+    const res = {
+      status: (code: number) => ({ json: (payload: unknown) => ({ code, payload }) }),
+    } as unknown as Response;
+    const next = vi.fn();
+
+    const result = middleware(req, res, next as NextFunction);
+
+    expect(result).toEqual({ code: 403, payload: { error: "Complete onboarding verification to access project details" } });
+    expect(next).not.toHaveBeenCalled();
   });
 });

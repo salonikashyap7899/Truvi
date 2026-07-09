@@ -12,7 +12,7 @@ function requireEnv(name: string): string {
 
 export function getEnv() {
   return {
-    mongoUri: process.env.MONGO_URI || "",
+    databaseUrl: process.env.DATABASE_URL || "",
     jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "",
     jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "",
     nodeEnv: process.env.NODE_ENV || "development",
@@ -27,7 +27,7 @@ export function getEnv() {
 export function assertRequiredEnvForProduction(): void {
   if (getEnv().nodeEnv !== "production") return;
 
-  requireEnv("MONGO_URI");
+  requireEnv("DATABASE_URL");
   requireEnv("JWT_ACCESS_SECRET");
   requireEnv("JWT_REFRESH_SECRET");
 }

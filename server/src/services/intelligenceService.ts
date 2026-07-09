@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { IProject } from "../models/Project";
+import { IProject } from "../db/schema";
 
 /**
  * Raw Data Sources & AI Intelligence Engine.

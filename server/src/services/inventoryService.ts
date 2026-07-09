@@ -9,6 +9,6 @@ import { Unit } from "../models/Unit";
 export async function expireStaleLocks(): Promise<void> {
   await Unit.updateMany(
     { status: "LOCKED", lockExpiresAt: { $lt: new Date() } },
-    { $set: { status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null } }
+    { $set: { status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null } },
   );
 }

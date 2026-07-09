@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createServer } from "http";
 import { createApp } from "./app";
 import { connectDB, disconnectDB } from "./config/db";
+import { connectMongo, disconnectMongo } from "./config/mongo";
 import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 
@@ -11,9 +12,12 @@ async function main() {
   const env = getEnv();
   const PORT = env.port;
   const HOST = env.host;
-  const MONGO_URI = env.mongoUri || "mongodb://localhost:27017/truvi";
+  const DATABASE_URL = env.databaseUrl;
 
-  await connectDB(MONGO_URI);
+  await connectMongo(process.env.MONGO_URI || "");
+  if (DATABASE_URL) {
+    await connectDB(DATABASE_URL);
+  }
 
   const app = createApp();
   const httpServer = createServer(app);
@@ -29,7 +33,7 @@ async function main() {
   const shutdown = (signal: string) => {
     console.log(`${signal} received, shutting down gracefully`);
     httpServer.close(async () => {
-      await disconnectDB();
+      await Promise.all([disconnectDB(), disconnectMongo()]);
       process.exit(0);
     });
     setTimeout(() => process.exit(1), 10_000).unref();

@@ -1,10 +1,11 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   Handshake, ArrowRight, Globe, Mail, Phone,
-  MapPin, FileCheck, ShieldCheck, Banknote, Star, Clock,
+  MapPin, FileCheck, ShieldCheck, Banknote, Star, Clock, QrCode,
 } from "lucide-react";
+import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 
 /* ── Palette: blue replaces gold everywhere ─────────────────────────────── */
 const BLUE = "#3B82F6";
@@ -153,6 +154,8 @@ function HeroParallax({ children }: { children: ReactNode }) {
 
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 export default function AboutPage() {
+  const [showQRCode, setShowQRCode] = useState(false);
+
   useEffect(() => {
     document.title = "TRUVI — About Truvi Ventures";
   }, []);
@@ -569,7 +572,7 @@ export default function AboutPage() {
           <Reveal delay={0.45}>
             <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
               <Link
-                to="/signup?role=AMBASSADOR"
+                to="/ambassador/signup"
                 className="group inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold text-white transition-all"
                 style={{
                   background: BLUE,
@@ -579,9 +582,25 @@ export default function AboutPage() {
                 Join as a Truvi Ambassador
                 <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
               </Link>
+              <button
+                onClick={() => setShowQRCode(true)}
+                className="group inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold text-white transition-all hover:shadow-[0_4px_20px_rgba(59,130,246,0.3)]"
+                style={{
+                  background: "rgba(59,130,246,0.15)",
+                  border: `1px solid ${BLUE}`,
+                }}
+              >
+                <QrCode size={15} />
+                Share QR
+              </button>
               <p className="text-xs text-white/40">Free to join · Aadhaar verification required</p>
             </div>
           </Reveal>
+
+          {/* QR Code Modal */}
+          {showQRCode && (
+            <AmbassadorQRCode onClose={() => setShowQRCode(false)} />
+          )}
         </Section>
 
         {/* ── CHANNEL PARTNER CTA ── */}

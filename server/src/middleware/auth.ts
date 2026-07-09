@@ -41,6 +41,9 @@ export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYE
     if (req.user.role !== "ADMIN" && req.user.approvalStatus !== "APPROVED") {
       return res.status(403).json({ error: "Account pending admin approval" });
     }
+    if (req.user.role === "CP" && req.user.onboardingVerified !== true) {
+      return res.status(403).json({ error: "Complete onboarding verification to access project details" });
+    }
     next();
   };
 }

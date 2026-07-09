@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { User } from "../models/User";
+import { eq } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { users, DEFAULT_CP_PROFILE, CpProfile } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { CP_PREMIUM_MONTHLY_PRICE } from "../config/constants";
 import { createOrder, isPaymentGatewayConfigured } from "../services/paymentService";
@@ -12,25 +14,35 @@ router.post("/create-order", requireRole("CP"), async (req: AuthedRequest, res) 
   res.json({ order, amount: CP_PREMIUM_MONTHLY_PRICE, keyId: process.env.RAZORPAY_KEY_ID || null });
 });
 
+async function setPremium(userId: string, isPremium: boolean, premiumExpiresAt: string | null) {
+  const db = getDb();
+  const [existing] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
+  if (!existing) return null;
+
+  const cpProfile: CpProfile = {
+    ...DEFAULT_CP_PROFILE,
+    ...(existing.cpProfile ?? {}),
+    isPremium,
+    premiumExpiresAt,
+  };
+
+  const [updated] = await db.update(users).set({ cpProfile }).where(eq(users._id, userId)).returning();
+  if (!updated) return null;
+  const { password: _p, ...safeUser } = updated;
+  return safeUser;
+}
+
 router.post("/subscribe", requireRole("CP"), async (req: AuthedRequest, res) => {
   const expires = new Date();
   expires.setMonth(expires.getMonth() + 1);
 
-  const user = await User.findByIdAndUpdate(
-    req.user!.userId,
-    { $set: { "cpProfile.isPremium": true, "cpProfile.premiumExpiresAt": expires } },
-    { new: true }
-  ).select("-password");
+  const user = await setPremium(req.user!.userId, true, expires.toISOString());
 
   res.json({ user, price: CP_PREMIUM_MONTHLY_PRICE, paymentGatewayLive: isPaymentGatewayConfigured });
 });
 
 router.delete("/subscribe", requireRole("CP"), async (req: AuthedRequest, res) => {
-  const user = await User.findByIdAndUpdate(
-    req.user!.userId,
-    { $set: { "cpProfile.isPremium": false, "cpProfile.premiumExpiresAt": null } },
-    { new: true }
-  ).select("-password");
+  const user = await setPremium(req.user!.userId, false, null);
 
   res.json({ user });
 });

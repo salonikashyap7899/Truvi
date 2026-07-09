@@ -10,9 +10,12 @@ import { UNIT_LOCK_MINUTES } from "../config/constants";
 const router = Router();
 router.use(authenticate);
 
-router.get("/", async (req, res) => {
+router.get("/", async (req: AuthedRequest, res) => {
   await expireStaleLocks();
   const { projectId, status } = req.query;
+  if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
+    return res.status(403).json({ error: "Complete onboarding verification to access project details" });
+  }
   const filter: Record<string, unknown> = {};
   if (projectId) filter.projectId = projectId;
   if (status) filter.status = status;
@@ -110,7 +113,10 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
   res.json({ unit: updated });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: AuthedRequest, res) => {
+  if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
+    return res.status(403).json({ error: "Complete onboarding verification to access project details" });
+  }
   const unit = await Unit.findById(req.params.id);
   if (!unit) return res.status(404).json({ error: "Unit not found" });
   res.json({ unit });

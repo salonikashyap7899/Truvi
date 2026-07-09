@@ -41,7 +41,12 @@ export default function SignupPage() {
 
   // Role pre-selected by the welcome gate (?role=BUYER|CP|DEVELOPER)
   const paramRole = searchParams.get("role");
-  const initialRole: Role = paramRole === "BUYER" || paramRole === "DEVELOPER" || paramRole === "CP" ? paramRole : "BUYER";
+  const initialRole: Role =
+    paramRole === "DEVELOPER" || paramRole === "CP" || paramRole === "BUYER"
+      ? paramRole
+      : paramRole === "AMBASSADOR"
+      ? "CP"
+      : "BUYER";
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),

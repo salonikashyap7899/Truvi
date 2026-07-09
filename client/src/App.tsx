@@ -27,6 +27,10 @@ import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
 import AdminListingsPage from "@/pages/admin/AdminListingsPage";
 import AdminRevenuePage from "@/pages/admin/AdminRevenuePage";
 import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
+import FounderDashboardPage from "@/pages/FounderDashboardPage";
+import AmbassadorSignupPage from "@/pages/AmbassadorSignupPage";
+import AmbassadorLoginPage from "@/AmbassadorLoginPage";
+import AmbassadorDashboardPage from "@/pages/AmbassadorDashboardPage";
 
 import DeveloperDashboardPage from "@/pages/developer/DeveloperDashboardPage";
 import NewProjectPage from "@/pages/developer/NewProjectPage";
@@ -105,6 +109,11 @@ export default function App() {
         <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
         <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
+        <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
+        <Route path="/ambassador" element={<AmbassadorSignupPage />} />
+        <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
+        <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
+        <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["CP"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
 
         {/* Developer */}
         <Route path="/developer/dashboard" element={<ProtectedRoute roles={["DEVELOPER"]}><DeveloperDashboardPage /></ProtectedRoute>} />

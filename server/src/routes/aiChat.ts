@@ -265,10 +265,26 @@ router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
       followUps?: unknown[];
       comparison?: unknown;
     } = {};
+    // Claude often wraps JSON in a ```json ... ``` fence despite the
+    // "raw JSON only" instruction — strip fences before parsing, and as a
+    // last resort pull out the first {...} block from surrounding prose.
+    const unfenced = raw
+      .replace(/^\s*```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/, "")
+      .trim();
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(unfenced);
     } catch {
-      parsed = { reply: raw };
+      const match = unfenced.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]);
+        } catch {
+          parsed = { reply: raw };
+        }
+      } else {
+        parsed = { reply: raw };
+      }
     }
 
     return res.json({

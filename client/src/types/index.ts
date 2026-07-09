@@ -50,6 +50,12 @@ export interface User {
   role: Role;
   approvalStatus: ApprovalStatus;
   phone?: string;
+  onboardingVerified?: boolean;
+  onboardingChecks?: {
+    aadhaarVerified?: boolean;
+    phoneVerified?: boolean;
+    emailVerified?: boolean;
+  };
   cpTier?: CPTier;
   cpProfile?: {
     isPremium: boolean;

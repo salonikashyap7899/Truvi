@@ -12,6 +12,20 @@ export interface IUser extends Document {
   role: Role;
   approvalStatus: ApprovalStatus;
   phone?: string;
+  onboardingVerified: boolean;
+  onboardingChecks?: {
+    aadhaarVerified: boolean;
+    phoneVerified: boolean;
+    emailVerified: boolean;
+  };
+  verification?: {
+    phoneOtp?: string;
+    phoneOtpExpiry?: Date;
+    emailOtp?: string;
+    emailOtpExpiry?: Date;
+    aadhaarDocumentUrl?: string;
+    aadhaarVerifiedAt?: Date;
+  };
   createdAt: Date;
 
   // CP-specific (embedded, mirrors Prisma's CPProfile 1:1 relation)
@@ -45,6 +59,20 @@ const userSchema = new Schema<IUser>({
   role: { type: String, enum: ["ADMIN", "DEVELOPER", "CP", "BUYER"], required: true },
   approvalStatus: { type: String, enum: ["PENDING", "APPROVED", "REJECTED"], default: "PENDING" },
   phone: { type: String },
+  onboardingVerified: { type: Boolean, default: false },
+  onboardingChecks: {
+    aadhaarVerified: { type: Boolean, default: false },
+    phoneVerified: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
+  },
+  verification: {
+    phoneOtp: { type: String },
+    phoneOtpExpiry: { type: Date },
+    emailOtp: { type: String },
+    emailOtpExpiry: { type: Date },
+    aadhaarDocumentUrl: { type: String },
+    aadhaarVerifiedAt: { type: Date },
+  },
   createdAt: { type: Date, default: Date.now },
 
   cpTier: { type: String, enum: ["SILVER", "GOLD", "PLATINUM", "DIAMOND"], default: "SILVER" },

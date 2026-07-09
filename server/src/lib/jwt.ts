@@ -4,6 +4,7 @@ export interface TokenPayload {
   userId: string;
   role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  onboardingVerified?: boolean;
 }
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me";

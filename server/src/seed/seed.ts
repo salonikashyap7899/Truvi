@@ -1,6 +1,6 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { connectDB, disconnectDB } from "../config/db";
+import mongoose from "mongoose";
 import { User } from "../models/User";
 import { Project } from "../models/Project";
 import { Unit } from "../models/Unit";
@@ -24,8 +24,24 @@ const randomPhone = () => `${["6", "7", "8", "9"][Math.floor(Math.random() * 4)]
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 async function seed() {
-  const uri = process.env.MONGO_URI || "mongodb://localhost:27017/truvi";
-  await connectDB(uri);
+  const envUri = process.env.MONGO_URI?.trim();
+  const uri = envUri || "mongodb://localhost:27017/truvi";
+
+  if (!envUri) {
+    console.warn(
+      "MONGO_URI is not set in the environment. Falling back to localhost:27017. " +
+      "If you want to use Atlas, uncomment or add MONGO_URI in server/.env."
+    );
+  }
+
+  console.log(`Connecting to MongoDB using ${envUri ? "MONGO_URI" : "default localhost URI"}`);
+
+  try {
+    await mongoose.connect(uri, { dbName: "truvi" });
+  } catch (error) {
+    console.error("MongoDB connection failed. Ensure a MongoDB server is running on localhost:27017, or set a valid MONGO_URI in server/.env.");
+    throw error;
+  }
 
   console.log("Clearing existing data...");
   await Promise.all([
@@ -40,10 +56,19 @@ async function seed() {
   console.log("Seeding Truvi database...");
   const hashedPassword = await bcrypt.hash("Password123!", 12);
 
-  // --- Admin ---
+  // --- Admins ---
   await User.create({
     name: "Truvi Admin",
     email: "admin@truvi.app",
+    password: hashedPassword,
+    role: "ADMIN",
+    approvalStatus: "APPROVED",
+    phone: randomPhone(),
+  });
+
+  await User.create({
+    name: "Truvi Founder",
+    email: "founder@truvi.app",
     password: hashedPassword,
     role: "ADMIN",
     approvalStatus: "APPROVED",
@@ -203,12 +228,13 @@ async function seed() {
   console.log("Seed complete.\n");
   console.log("--- Login credentials (all use password: Password123!) ---");
   console.log("Admin:      admin@truvi.app");
+  console.log("Admin:      founder@truvi.app");
   console.log("Developer:  dev1@truvi.app (approved)");
   console.log("Developer:  dev4@truvi.app (pending — test the approval flow)");
   console.log("CP:         cp1@truvi.app (approved, Silver)");
   console.log("CP:         cp7@truvi.app (approved, Diamond)");
 
-  await disconnectDB();
+  await mongoose.disconnect();
 }
 
 seed().catch((err) => {

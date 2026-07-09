@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { BookOpen, Users, Star, Receipt } from "lucide-react";
 import type { Project, Unit, Lead, Commission, User } from "@/types";
 
-export default function CPDashboardPage() {
+export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: string }) {
   const user = useAuthStore((s) => s.user);
   const [projects, setProjects] = useState<Project[]>([]);
   const [unitsByProject, setUnitsByProject] = useState<Record<string, Unit[]>>({});
@@ -21,26 +21,33 @@ export default function CPDashboardPage() {
   const [leadFormOpenFor, setLeadFormOpenFor] = useState<string | null>(null);
   const [leadForm, setLeadForm] = useState({ clientName: "", clientPhone: "" });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const [projectsRes, leadsRes, commissionsRes, leaderboardRes] = await Promise.all([
-      api.get("/projects"),
-      api.get("/leads"),
-      api.get("/commissions"),
-      api.get("/leaderboard"),
-    ]);
+    setError(null);
+    try {
+      const [projectsRes, leadsRes, commissionsRes, leaderboardRes] = await Promise.all([
+        api.get("/projects"),
+        api.get("/leads"),
+        api.get("/commissions"),
+        api.get("/leaderboard"),
+      ]);
 
-    const projectList: Project[] = projectsRes.data.projects;
-    setProjects(projectList);
-    setLeads(leadsRes.data.leads);
-    setCommissions(commissionsRes.data.commissions);
-    setLeaderboard(leaderboardRes.data.leaderboard);
+      const projectList: Project[] = projectsRes.data.projects;
+      setProjects(projectList);
+      setLeads(leadsRes.data.leads);
+      setCommissions(commissionsRes.data.commissions);
+      setLeaderboard(leaderboardRes.data.leaderboard);
 
-    const unitLists = await Promise.all(projectList.map((p) => api.get("/units", { params: { projectId: p._id } })));
-    const map: Record<string, Unit[]> = {};
-    projectList.forEach((p, i) => (map[p._id] = unitLists[i].data.units));
-    setUnitsByProject(map);
-    setLoading(false);
+      const unitLists = await Promise.all(projectList.map((p) => api.get("/units", { params: { projectId: p._id } })));
+      const map: Record<string, Unit[]> = {};
+      projectList.forEach((p, i) => (map[p._id] = unitLists[i].data.units));
+      setUnitsByProject(map);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -87,6 +94,7 @@ export default function CPDashboardPage() {
   }
 
   if (loading || !user) return <div className="min-h-screen p-10 text-white">Loading…</div>;
+  if (error) return <div className="min-h-screen p-10 text-white"><p className="text-red-400">{error}</p></div>;
 
   const earned = commissions.reduce((s, c) => s + c.cpCommissionAmount, 0);
   const paid = commissions.reduce((s, c) => s + c.milestones.filter((m) => m.isReleased).reduce((a, m) => a + m.amount, 0), 0);
@@ -105,7 +113,7 @@ export default function CPDashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
-            CP Dashboard <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
+            {title} <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Welcome back, {user.name} {user.cpProfile?.isPremium && <Badge variant="featured" className="ml-2">Premium</Badge>}

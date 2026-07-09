@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { User } from "../models/User";
-import { Project } from "../models/Project";
-import { Notification } from "../models/Notification";
+import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitNotification } from "../sockets";
 import { sendApprovalEmail } from "../services/emailService";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
+import { User } from "../models/User";
+import { Project } from "../models/Project";
+import { Notification } from "../models/Notification";
 
 const router = Router();
 router.use(authenticate);
@@ -14,11 +15,21 @@ router.use(authenticate);
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const { role, approvalStatus } = req.query;
-  const filter: Record<string, unknown> = { role: role || { $in: ["DEVELOPER", "CP", "BUYER"] } };
-  if (approvalStatus) filter.approvalStatus = approvalStatus;
 
-  const users = await User.find(filter).select("-password").sort({ createdAt: -1 });
-  res.json({ users });
+  const query: Record<string, unknown> = {};
+  if (typeof role === "string" && role) {
+    query.role = role;
+  } else {
+    query.role = { $in: ["DEVELOPER", "CP", "BUYER"] };
+  }
+
+  if (typeof approvalStatus === "string" && approvalStatus) {
+    query.approvalStatus = approvalStatus;
+  }
+
+  const rows = await User.find(query).sort({ createdAt: -1 }).lean();
+  const safeUsers = rows.map(({ password, ...u }) => u);
+  res.json({ users: safeUsers });
 });
 
 const patchUserSchema = z.object({
@@ -30,7 +41,14 @@ router.patch("/users", requireRole("ADMIN"), async (req, res) => {
   const parsed = patchUserSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-  const user = await User.findByIdAndUpdate(parsed.data.userId, { approvalStatus: parsed.data.approvalStatus }, { new: true });
+  if (!isValidId(parsed.data.userId)) return res.status(404).json({ error: "User not found" });
+
+  const user = await User.findByIdAndUpdate(
+    parsed.data.userId,
+    { approvalStatus: parsed.data.approvalStatus },
+    { new: true }
+  ).lean();
+
   if (!user) return res.status(404).json({ error: "User not found" });
 
   const message =
@@ -43,22 +61,42 @@ router.patch("/users", requireRole("ADMIN"), async (req, res) => {
   const notification = await Notification.create({ userId: user._id, message });
   emitNotification(String(user._id), notification);
 
-  // Best-effort email — never block the approval action on email delivery.
   if (parsed.data.approvalStatus !== "PENDING") {
     sendApprovalEmail(user.email, user.name, parsed.data.approvalStatus === "APPROVED").catch((err) =>
       console.error("Approval email failed:", err)
     );
   }
 
-  res.json({ user });
+  const { password: _p, ...safeUser } = user;
+  res.json({ user: safeUser });
 });
 
 // GET /api/admin/projects?approvalStatus=
 router.get("/projects", requireRole("ADMIN"), async (req, res) => {
   const { approvalStatus } = req.query;
-  const filter: Record<string, unknown> = approvalStatus ? { approvalStatus } : {};
-  const projects = await Project.find(filter).populate("developerId", "name").sort({ createdAt: -1 });
-  res.json({ projects });
+
+  const query: Record<string, unknown> = {};
+  if (typeof approvalStatus === "string" && approvalStatus) {
+    query.approvalStatus = approvalStatus;
+  }
+
+  const rows = await Project.find(query)
+    .sort({ createdAt: -1 })
+    .populate("developerId", "name")
+    .lean();
+
+  const result = rows.map((project) => {
+    const developer =
+      project.developerId && typeof project.developerId === "object"
+        ? { _id: String((project.developerId as any)._id), name: (project.developerId as any).name }
+        : null;
+    return {
+      ...project,
+      developerId: developer,
+    };
+  });
+
+  res.json({ projects: result });
 });
 
 const verificationDetailsSchema = z.object({
@@ -87,6 +125,11 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
   const { projectId, ...data } = parsed.data;
+  if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
+
+  const existing = await Project.findById(projectId).lean();
+  if (!existing) return res.status(404).json({ error: "Project not found" });
+
   const update: Record<string, unknown> = {};
   if (data.approvalStatus) update.approvalStatus = data.approvalStatus;
   if (data.listingTier) update.listingTier = data.listingTier;
@@ -97,20 +140,33 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   }
   if (data.isPrimeListing !== undefined) update.isPrimeListing = data.isPrimeListing;
   if (data.verificationDetails !== undefined) {
-    const vd = data.verificationDetails as Record<string, unknown>;
-    Object.entries(vd).forEach(([k, v]) => {
-      if (v !== undefined) update[`verificationDetails.${k}`] = v;
-    });
+    const merged = {
+      reraVerified: false,
+      titleClearance: false,
+      encumbranceFree: false,
+      constructionApproval: false,
+      portfolioVerified: false,
+      ...(existing.verificationDetails ?? {}),
+      ...data.verificationDetails,
+    } as Record<string, unknown>;
+
+    if (data.verificationDetails.lastVerifiedAt !== undefined) {
+      merged.lastVerifiedAt = data.verificationDetails.lastVerifiedAt;
+    }
+
+    update.verificationDetails = merged;
   }
 
-  const project = await Project.findByIdAndUpdate(projectId, update, { new: true });
+  if (Object.keys(update).length === 0) {
+    return res.json({ project: existing });
+  }
+
+  const project = await Project.findByIdAndUpdate(projectId, update, { new: true, lean: true });
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   res.json({ project });
 });
 
-// In-memory platform fee setting (same pragmatic MVP choice as the Next.js
-// version — see DECISIONS.md for the follow-up: promote to a Settings collection).
 let platformFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
 
 router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), (_req, res) => {

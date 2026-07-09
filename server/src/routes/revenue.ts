@@ -1,27 +1,29 @@
 import { Router } from "express";
-import { Commission } from "../models/Commission";
-import { LeadPurchase } from "../models/LeadPurchase";
-import { User } from "../models/User";
-import { Project } from "../models/Project";
 import { authenticate, requireRole } from "../middleware/auth";
 import { REVENUE_MIX_TARGET, CP_PREMIUM_MONTHLY_PRICE } from "../config/constants";
+import { Commission } from "../models/Commission";
+import { LeadPurchase } from "../models/LeadPurchase";
+import { Project } from "../models/Project";
+import { User } from "../models/User";
 
 const router = Router();
 router.use(authenticate, requireRole("ADMIN"));
 
 router.get("/", async (_req, res) => {
-  const [platformFeeAgg, leadPurchaseAgg, premiumCount, featuredCount] = await Promise.all([
-    Commission.aggregate([{ $group: { _id: null, total: { $sum: "$platformFeeAmount" } } }]),
-    LeadPurchase.aggregate([{ $group: { _id: null, total: { $sum: "$amountPaid" }, count: { $sum: 1 } } }]),
-    User.countDocuments({ role: "CP", "cpProfile.isPremium": true }),
-    Project.countDocuments({ listingTier: "FEATURED" }),
+  const [commissionRows, purchaseRows, userRows, featuredProjects] = await Promise.all([
+    Commission.find().lean(),
+    LeadPurchase.find().lean(),
+    User.find({ role: "CP" }).lean(),
+    Project.find({ listingTier: "FEATURED" }).lean(),
   ]);
 
-  const platformFeeRevenue = platformFeeAgg[0]?.total || 0;
-  const leadServiceRevenue = leadPurchaseAgg[0]?.total || 0;
-  const leadPurchaseCount = leadPurchaseAgg[0]?.count || 0;
+  const platformFeeRevenue = commissionRows.reduce((sum, row) => sum + Number(row.platformFeeAmount || 0), 0);
+  const leadServiceRevenue = purchaseRows.reduce((sum, row) => sum + Number(row.amountPaid || 0), 0);
+  const leadPurchaseCount = purchaseRows.length;
+  const premiumCount = userRows.filter((user) => Boolean(user.cpProfile?.isPremium)).length;
+  const featuredCount = featuredProjects.length;
   const premiumRevenue = premiumCount * CP_PREMIUM_MONTHLY_PRICE;
-  const featuredRevenueEstimate = featuredCount * 25000; // midpoint of price range, display estimate only
+  const featuredRevenueEstimate = featuredCount * 25000;
 
   res.json({
     platformFeeRevenue,

@@ -1,59 +1,68 @@
 import { Router } from "express";
-import { isValidObjectId } from "mongoose";
-import { Project } from "../models/Project";
-import { Unit } from "../models/Unit";
+import { asc, desc, eq, inArray } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { projects, units, users } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 
 const router = Router();
 
-// GET /api/inventory — public, no auth, returns all approved projects
-// sorted: Prime Listing first, then Featured, then Standard.
-// Each project carries live unit stats (count, price range, min ₹/sqft)
-// aggregated from its actual inventory.
 router.get("/", async (_req, res) => {
-  const projects = await Project.find({ approvalStatus: "APPROVED" })
-    .populate("developerId", "name")
-    .sort({ isPrimeListing: -1, listingTier: 1, createdAt: -1 })
-    .lean();
+  const db = getDb();
+  const rows = await db
+    .select({
+      project: projects,
+      developer: { _id: users._id, name: users.name },
+    })
+    .from(projects)
+    .leftJoin(users, eq(projects.developerId, users._id))
+    .where(eq(projects.approvalStatus, "APPROVED"))
+    .orderBy(desc(projects.isPrimeListing), asc(projects.listingTier), desc(projects.createdAt));
 
-  const ids = projects.map((p) => p._id);
-  const unitAgg = await Unit.aggregate([
-    { $match: { projectId: { $in: ids } } },
-    {
-      $group: {
-        _id: "$projectId",
-        unitCount: { $sum: 1 },
-        minPrice: { $min: "$price" },
-        maxPrice: { $max: "$price" },
-        minRate: { $min: { $divide: ["$price", "$areaSqft"] } },
-      },
-    },
-  ]);
-  const statsById = new Map(unitAgg.map((u) => [String(u._id), u]));
+  const projectIds = rows.map((row) => row.project._id);
+  const unitRows =
+    projectIds.length > 0
+      ? await db.select().from(units).where(inArray(units.projectId, projectIds))
+      : [];
 
-  const enriched = projects.map((p) => {
-    const s = statsById.get(String(p._id));
+  const statsById = new Map<string, { unitCount: number; minPrice: number | null; maxPrice: number | null; minRate: number | null }>();
+  for (const unit of unitRows) {
+    const id = String(unit.projectId);
+    const existing = statsById.get(id) ?? { unitCount: 0, minPrice: null, maxPrice: null, minRate: null };
+    const nextMinPrice = existing.minPrice === null || unit.price < existing.minPrice ? unit.price : existing.minPrice;
+    const nextMaxPrice = existing.maxPrice === null || unit.price > existing.maxPrice ? unit.price : existing.maxPrice;
+    const unitRate = unit.areaSqft > 0 ? unit.price / unit.areaSqft : null;
+    const nextMinRate = existing.minRate === null || (unitRate !== null && unitRate < existing.minRate) ? unitRate : existing.minRate;
+    statsById.set(id, {
+      unitCount: existing.unitCount + 1,
+      minPrice: nextMinPrice,
+      maxPrice: nextMaxPrice,
+      minRate: nextMinRate,
+    });
+  }
+
+  const enriched = rows.map(({ project, developer }) => {
+    const stats = statsById.get(String(project._id));
     return {
-      ...p,
-      unitCount: s?.unitCount ?? 0,
-      minPrice: s?.minPrice ?? null,
-      maxPrice: s?.maxPrice ?? null,
-      minRate: s?.minRate ? Math.round(s.minRate) : null,
+      ...project,
+      developerId: developer ? { _id: developer._id, name: developer.name } : null,
+      unitCount: stats?.unitCount ?? 0,
+      minPrice: stats?.minPrice ?? null,
+      maxPrice: stats?.maxPrice ?? null,
+      minRate: stats?.minRate ? Math.round(stats.minRate) : null,
     };
   });
 
   res.json({ projects: enriched });
 });
 
-// GET /api/inventory/:id/intelligence — public. Full Raw Data Sources &
-// AI Intelligence profile for one listing: every data point with the
-// source it came from and its verification status.
 router.get("/:id/intelligence", async (req, res) => {
-  if (!isValidObjectId(req.params.id)) {
+  if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: "Invalid listing id" });
   }
-  const project = await Project.findOne({ _id: req.params.id, approvalStatus: "APPROVED" });
-  if (!project) return res.status(404).json({ error: "Listing not found" });
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
+  if (!project || project.approvalStatus !== "APPROVED") return res.status(404).json({ error: "Listing not found" });
 
   res.json({ intelligence: buildIntelligenceProfile(project) });
 });

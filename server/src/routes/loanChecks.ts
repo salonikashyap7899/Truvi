@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import mongoose from "mongoose";
-import { LoanCheck } from "../models/LoanCheck";
+import { and, desc, eq } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { loanChecks } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { isValidId } from "../lib/ids";
 
 const router = Router();
 router.use(authenticate, requireRole("BUYER"));
@@ -17,10 +19,13 @@ const loanCheckSchema = z.object({
 });
 
 router.get("/", async (req: AuthedRequest, res) => {
-  const checks = await LoanCheck.find({ userId: req.user!.userId })
-    .sort({ createdAt: -1 })
-    .limit(20)
-    .lean();
+  const db = getDb();
+  const checks = await db
+    .select()
+    .from(loanChecks)
+    .where(eq(loanChecks.userId, req.user!.userId))
+    .orderBy(desc(loanChecks.createdAt))
+    .limit(20);
   res.json({ checks });
 });
 
@@ -30,20 +35,27 @@ router.post("/", async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   }
 
-  const check = await LoanCheck.create({
-    userId: req.user!.userId,
-    ...parsed.data,
-  });
+  const db = getDb();
+  const [check] = await db
+    .insert(loanChecks)
+    .values({ userId: req.user!.userId, ...parsed.data })
+    .returning();
 
   res.status(201).json({ check });
 });
 
 router.delete("/:id", async (req: AuthedRequest, res) => {
   const { id } = req.params;
-  if (!mongoose.isValidObjectId(id)) {
+  if (!isValidId(id)) {
     return res.status(400).json({ error: "Invalid ID" });
   }
-  const deleted = await LoanCheck.findOneAndDelete({ _id: id, userId: req.user!.userId });
+
+  const db = getDb();
+  const [deleted] = await db
+    .delete(loanChecks)
+    .where(and(eq(loanChecks._id, id), eq(loanChecks.userId, req.user!.userId)))
+    .returning();
+
   if (!deleted) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
 });
