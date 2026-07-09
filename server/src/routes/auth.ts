@@ -1,9 +1,9 @@
-import { Router } from "express";
+import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   users,
@@ -14,6 +14,16 @@ import {
   OnboardingChecks,
   UserVerification,
 } from "../db/schema";
+import {
+  generateCode,
+  hashCode,
+  verifyCode,
+  deliverOtp,
+  isChannelLive,
+  OTP_TTL_MS,
+  OTP_RESEND_COOLDOWN_MS,
+  OTP_MAX_ATTEMPTS,
+} from "../services/otpService";
 import { isValidId } from "../lib/ids";
 import { signupSchema, loginSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
@@ -64,11 +74,20 @@ router.post("/signup", async (req, res) => {
 
   const { name, email, password, phone, role, companyName, reraNumber } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
+  const normalizedPhone = phone.trim();
   const db = getDb();
 
-  const [existing] = await db.select({ _id: users._id }).from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  if (existing) {
+  // One account per person: neither the email nor the mobile number may
+  // already belong to an existing account.
+  const existingUsers = await db
+    .select({ email: users.email, phone: users.phone })
+    .from(users)
+    .where(or(eq(users.email, normalizedEmail), eq(users.phone, normalizedPhone)));
+  if (existingUsers.some((u) => u.email === normalizedEmail)) {
     return res.status(409).json({ error: "An account with this email already exists" });
+  }
+  if (existingUsers.some((u) => u.phone === normalizedPhone)) {
+    return res.status(409).json({ error: "An account with this mobile number already exists" });
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
@@ -79,7 +98,7 @@ router.post("/signup", async (req, res) => {
       name,
       email: normalizedEmail,
       password: hashedPassword,
-      phone: phone || undefined,
+      phone: normalizedPhone,
       role,
       approvalStatus: "PENDING",
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
@@ -223,59 +242,109 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
   });
 });
 
-router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) => {
+/**
+ * Shared OTP request handler for both channels. Generates a code, stores only
+ * its salted hash, enforces a resend cooldown, and dispatches via the real
+ * provider (SMS/email) — falling back to a server-log in dev when no provider
+ * is configured.
+ */
+async function handleOtpRequest(req: AuthedRequest, res: Response, channel: "phone" | "email") {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (!user.phone) return res.status(400).json({ error: "Phone number not set" });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const verification: UserVerification = {
-    ...(user.verification ?? {}),
-    phoneOtp: otp,
-    phoneOtpExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 mins
-  };
+  const destination = channel === "phone" ? user.phone : user.email;
+  if (!destination) return res.status(400).json({ error: `No ${channel} on file for this account` });
+
+  const v = user.verification ?? {};
+  const lastSent = channel === "phone" ? v.phoneOtpLastSent : v.emailOtpLastSent;
+  if (lastSent && Date.now() - new Date(lastSent).getTime() < OTP_RESEND_COOLDOWN_MS) {
+    const waitSec = Math.ceil((OTP_RESEND_COOLDOWN_MS - (Date.now() - new Date(lastSent).getTime())) / 1000);
+    return res.status(429).json({ error: `Please wait ${waitSec}s before requesting another code` });
+  }
+
+  const code = generateCode();
+  const expiry = new Date(Date.now() + OTP_TTL_MS).toISOString();
+  const now = new Date().toISOString();
+  const verification: UserVerification =
+    channel === "phone"
+      ? { ...v, phoneOtpHash: hashCode(code), phoneOtpExpiry: expiry, phoneOtpAttempts: 0, phoneOtpLastSent: now }
+      : { ...v, emailOtpHash: hashCode(code), emailOtpExpiry: expiry, emailOtpAttempts: 0, emailOtpLastSent: now };
+
+  try {
+    await deliverOtp(channel, destination, code);
+  } catch (err) {
+    console.error(`Failed to deliver ${channel} OTP:`, err);
+    return res.status(502).json({ error: `Could not send the code right now. Please try again shortly.` });
+  }
+
+  // Only persist the hash after successful dispatch, so a delivery failure
+  // doesn't leave an unusable pending code on the account.
   await db.update(users).set({ verification }).where(eq(users._id, userId));
 
-  // In production, send via SMS service (Twilio, AWS SNS, etc.)
-  console.log(`[DEV] Phone OTP for ${user.phone}: ${otp}`);
+  if (!isChannelLive(channel)) {
+    console.log(`[DEV] ${channel} OTP for ${destination}: ${code} (no provider configured — see .env)`);
+  }
 
-  return res.json({ message: "OTP sent to phone", phone: user.phone });
-});
+  return res.json({
+    message: `OTP sent to ${channel}`,
+    [channel]: destination,
+    delivery: isChannelLive(channel) ? "sent" : "dev-logged",
+  });
+}
 
-router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) => {
+/**
+ * Shared OTP verify handler. Constant-time hash compare, expiry check, and a
+ * max-attempts cap that invalidates the code after too many wrong guesses.
+ */
+async function handleOtpVerify(req: AuthedRequest, res: Response, channel: "phone" | "email") {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
-  if (!otp) return res.status(400).json({ error: "OTP required" });
+  if (!otp || typeof otp !== "string") return res.status(400).json({ error: "OTP required" });
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  if (!user.verification?.phoneOtp || !user.verification?.phoneOtpExpiry) {
-    return res.status(400).json({ error: "No OTP requested" });
+  const v = user.verification ?? {};
+  const storedHash = channel === "phone" ? v.phoneOtpHash : v.emailOtpHash;
+  const expiry = channel === "phone" ? v.phoneOtpExpiry : v.emailOtpExpiry;
+  const attempts = (channel === "phone" ? v.phoneOtpAttempts : v.emailOtpAttempts) ?? 0;
+
+  if (!storedHash || !expiry) return res.status(400).json({ error: "No OTP requested" });
+  if (new Date(expiry) < new Date()) return res.status(400).json({ error: "OTP expired" });
+  if (attempts >= OTP_MAX_ATTEMPTS) {
+    return res.status(429).json({ error: "Too many incorrect attempts. Request a new code." });
   }
 
-  if (new Date(user.verification.phoneOtpExpiry) < new Date()) {
-    return res.status(400).json({ error: "OTP expired" });
-  }
-
-  if (user.verification.phoneOtp !== otp) {
+  if (!verifyCode(otp, storedHash)) {
+    // Count the failed attempt so the code can't be brute-forced.
+    const bumped: UserVerification =
+      channel === "phone" ? { ...v, phoneOtpAttempts: attempts + 1 } : { ...v, emailOtpAttempts: attempts + 1 };
+    await db.update(users).set({ verification: bumped }).where(eq(users._id, userId));
     return res.status(400).json({ error: "Invalid OTP" });
   }
 
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
-    phoneVerified: true,
+    ...(channel === "phone" ? { phoneVerified: true } : { emailVerified: true }),
   };
-  const verification: UserVerification = { ...user.verification };
-  delete verification.phoneOtp;
-  delete verification.phoneOtpExpiry;
+  // Clear the consumed code + counters for this channel.
+  const verification: UserVerification = { ...v };
+  if (channel === "phone") {
+    verification.phoneOtpHash = null;
+    verification.phoneOtpExpiry = null;
+    verification.phoneOtpAttempts = 0;
+  } else {
+    verification.emailOtpHash = null;
+    verification.emailOtpExpiry = null;
+    verification.emailOtpAttempts = 0;
+  }
 
   const onboardingVerified =
     onboardingChecks.phoneVerified && onboardingChecks.emailVerified && onboardingChecks.aadhaarVerified;
@@ -290,83 +359,16 @@ router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) =
     .where(eq(users._id, userId));
 
   return res.json({
-    message: "Phone verified",
+    message: channel === "phone" ? "Phone verified" : "Email verified",
     onboardingChecks,
     onboardingVerified: onboardingVerified || user.onboardingVerified,
   });
-});
+}
 
-router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) => {
-  const userId = req.user!.userId;
-  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
-
-  const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const verification: UserVerification = {
-    ...(user.verification ?? {}),
-    emailOtp: otp,
-    emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 mins
-  };
-  await db.update(users).set({ verification }).where(eq(users._id, userId));
-
-  // In production, send via email service (SendGrid, AWS SES, etc.)
-  console.log(`[DEV] Email OTP for ${user.email}: ${otp}`);
-
-  return res.json({ message: "OTP sent to email", email: user.email });
-});
-
-router.post("/verify-email-otp", authenticate, async (req: AuthedRequest, res) => {
-  const userId = req.user!.userId;
-  const { otp } = req.body;
-
-  if (!otp) return res.status(400).json({ error: "OTP required" });
-  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
-
-  const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  if (!user.verification?.emailOtp || !user.verification?.emailOtpExpiry) {
-    return res.status(400).json({ error: "No OTP requested" });
-  }
-
-  if (new Date(user.verification.emailOtpExpiry) < new Date()) {
-    return res.status(400).json({ error: "OTP expired" });
-  }
-
-  if (user.verification.emailOtp !== otp) {
-    return res.status(400).json({ error: "Invalid OTP" });
-  }
-
-  const onboardingChecks: OnboardingChecks = {
-    ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
-    emailVerified: true,
-  };
-  const verification: UserVerification = { ...user.verification };
-  delete verification.emailOtp;
-  delete verification.emailOtpExpiry;
-
-  const onboardingVerified =
-    onboardingChecks.phoneVerified && onboardingChecks.emailVerified && onboardingChecks.aadhaarVerified;
-
-  await db
-    .update(users)
-    .set({
-      onboardingChecks,
-      verification,
-      ...(onboardingVerified ? { onboardingVerified: true } : {}),
-    })
-    .where(eq(users._id, userId));
-
-  return res.json({
-    message: "Email verified",
-    onboardingChecks,
-    onboardingVerified: onboardingVerified || user.onboardingVerified,
-  });
-});
+router.post("/request-phone-otp", authenticate, (req: AuthedRequest, res) => handleOtpRequest(req, res, "phone"));
+router.post("/verify-phone-otp", authenticate, (req: AuthedRequest, res) => handleOtpVerify(req, res, "phone"));
+router.post("/request-email-otp", authenticate, (req: AuthedRequest, res) => handleOtpRequest(req, res, "email"));
+router.post("/verify-email-otp", authenticate, (req: AuthedRequest, res) => handleOtpVerify(req, res, "email"));
 
 router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;

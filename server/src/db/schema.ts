@@ -12,6 +12,7 @@
  *  - Former Mongo string enums are `text` columns with TS enum typing
  *    (enforced at the app layer, same as Mongoose did).
  */
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -73,10 +74,17 @@ export interface OnboardingChecks {
 }
 
 export interface UserVerification {
-  phoneOtp?: string;
+  // OTP codes are stored only as salted hashes (never plaintext). Attempt
+  // counters + last-sent timestamps back the brute-force + resend-cooldown
+  // guards in the auth routes.
+  phoneOtpHash?: string | null;
   phoneOtpExpiry?: string | null;
-  emailOtp?: string;
+  phoneOtpAttempts?: number;
+  phoneOtpLastSent?: string | null;
+  emailOtpHash?: string | null;
   emailOtpExpiry?: string | null;
+  emailOtpAttempts?: number;
+  emailOtpLastSent?: string | null;
   aadhaarDocumentUrl?: string;
   aadhaarVerifiedAt?: string | null;
 }
@@ -186,6 +194,9 @@ export const users = pgTable(
   },
   (t) => [
     uniqueIndex("users_email_unique").on(t.email),
+    // Partial unique index: one account per mobile number, but allow multiple
+    // NULLs (admins/seed users created without a phone).
+    uniqueIndex("users_phone_unique").on(t.phone).where(sql`${t.phone} is not null`),
     index("users_role_approval_idx").on(t.role, t.approvalStatus),
   ]
 );

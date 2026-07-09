@@ -35,6 +35,21 @@ export async function sendApprovalEmail(to: string, name: string, approved: bool
   );
 }
 
+export async function sendOtpEmail(to: string, code: string): Promise<void> {
+  await sendEmail(
+    to,
+    "Your Truvi verification code",
+    `<p>Your Truvi verification code is:</p>
+     <p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:12px 0">${code}</p>
+     <p>It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`
+  );
+}
+
+/** True when a real SMTP sender is configured (used to shape API responses/logging). */
+export function isEmailConfigured(): boolean {
+  return hasSmtpConfig;
+}
+
 export async function sendCommissionEmail(to: string, name: string, amount: number, clientName: string): Promise<void> {
   await sendEmail(
     to,

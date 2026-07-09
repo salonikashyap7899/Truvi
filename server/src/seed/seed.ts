@@ -9,6 +9,16 @@ import {
   leads,
   siteVisits,
   commissions,
+  notifications,
+  posts,
+  enquiries,
+  investments,
+  loanChecks,
+  buyerDocuments,
+  sharedDocuments,
+  projectAssets,
+  courseProgress,
+  leadPurchases,
   LeadStage,
   CommissionMilestone,
   IUser,
@@ -46,8 +56,18 @@ async function seed() {
   // Delete order respects foreign keys: children before parents.
   await db.delete(commissions);
   await db.delete(siteVisits);
+  await db.delete(leadPurchases);
   await db.delete(leads);
   await db.delete(units);
+  await db.delete(projectAssets);
+  await db.delete(sharedDocuments);
+  await db.delete(buyerDocuments);
+  await db.delete(courseProgress);
+  await db.delete(investments);
+  await db.delete(loanChecks);
+  await db.delete(posts);
+  await db.delete(notifications);
+  await db.delete(enquiries);
   await db.delete(projects);
   await db.delete(users);
 
