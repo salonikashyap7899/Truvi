@@ -35,6 +35,16 @@ export async function sendApprovalEmail(to: string, name: string, approved: bool
   );
 }
 
+export async function sendOtpEmail(to: string, otp: string): Promise<void> {
+  await sendEmail(
+    to,
+    "Your Truvi verification code",
+    `<p>Your Truvi verification code is:</p>
+     <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
+     <p>This code expires in 10 minutes. If you didn't request it, you can ignore this email.</p>`
+  );
+}
+
 export async function sendCommissionEmail(to: string, name: string, amount: number, clientName: string): Promise<void> {
   await sendEmail(
     to,

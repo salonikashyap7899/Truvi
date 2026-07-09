@@ -21,6 +21,8 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
 import { emitNotification, emitToRole } from "../sockets";
 import { getEnv } from "../config/env";
 import { uploadsRoot } from "../services/uploadService";
+import { sendOtpEmail } from "../services/emailService";
+import { sendSms } from "../services/smsService";
 
 const router = Router();
 
@@ -248,8 +250,12 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   };
   await db.update(users).set({ verification }).where(eq(users._id, userId));
 
-  // In production, send via SMS service (Twilio, AWS SNS, etc.)
+  // Send via SMS (Twilio). Fire-and-forget with a dev-log fallback so a
+  // provider outage never blocks the request — the code is already persisted.
   console.log(`[DEV] Phone OTP for ${user.phone}: ${otp}`);
+  sendSms(user.phone, `Your Truvi verification code is ${otp}. It expires in 10 minutes.`).catch((e) =>
+    console.error("OTP SMS failed:", e)
+  );
 
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
@@ -316,8 +322,10 @@ router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) 
   };
   await db.update(users).set({ verification }).where(eq(users._id, userId));
 
-  // In production, send via email service (SendGrid, AWS SES, etc.)
+  // Send via SMTP (Nodemailer). Fire-and-forget with a dev-log fallback so a
+  // provider outage never blocks the request — the code is already persisted.
   console.log(`[DEV] Email OTP for ${user.email}: ${otp}`);
+  sendOtpEmail(user.email, otp).catch((e) => console.error("OTP email failed:", e));
 
   return res.json({ message: "OTP sent to email", email: user.email });
 });
