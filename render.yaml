@@ -22,6 +22,8 @@ services:
         sync: false
       - key: MONGO_URI
         sync: false
+      - key: DATABASE_URL
+        value: ""
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
