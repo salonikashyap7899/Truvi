@@ -66,6 +66,21 @@ export type AssetCategory = (typeof ASSET_CATEGORIES)[number];
 // JSONB sub-document shapes (dates are ISO strings inside JSONB)
 // ---------------------------------------------------------------------------
 
+export interface OnboardingChecks {
+  aadhaarVerified: boolean;
+  phoneVerified: boolean;
+  emailVerified: boolean;
+}
+
+export interface UserVerification {
+  phoneOtp?: string;
+  phoneOtpExpiry?: string | null;
+  emailOtp?: string;
+  emailOtpExpiry?: string | null;
+  aadhaarDocumentUrl?: string;
+  aadhaarVerifiedAt?: string | null;
+}
+
 export interface CpProfile {
   isPremium: boolean;
   premiumExpiresAt?: string | null;
@@ -120,6 +135,12 @@ export interface CommissionMilestone {
   releasedAt?: string | null;
 }
 
+export const DEFAULT_ONBOARDING_CHECKS: OnboardingChecks = {
+  aadhaarVerified: false,
+  phoneVerified: false,
+  emailVerified: false,
+};
+
 export const DEFAULT_CP_PROFILE: CpProfile = {
   isPremium: false,
   premiumExpiresAt: null,
@@ -154,6 +175,9 @@ export const users = pgTable(
     role: text("role").$type<Role>().notNull(),
     approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("PENDING"),
     phone: text("phone"),
+    onboardingVerified: boolean("onboarding_verified").notNull().default(false),
+    onboardingChecks: jsonb("onboarding_checks").$type<OnboardingChecks>().default(DEFAULT_ONBOARDING_CHECKS),
+    verification: jsonb("verification").$type<UserVerification>(),
     cpTier: text("cp_tier").$type<CPTier>().default("SILVER"),
     cpProfile: jsonb("cp_profile").$type<CpProfile>().default(DEFAULT_CP_PROFILE),
     developerProfile: jsonb("developer_profile").$type<DeveloperProfile>(),

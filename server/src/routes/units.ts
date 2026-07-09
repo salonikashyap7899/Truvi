@@ -1,6 +1,8 @@
 import { Router } from "express";
-import { Unit } from "../models/Unit";
-import { Project } from "../models/Project";
+import { and, asc, eq, lt, or, SQL } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { units, projects, UnitStatus, PriceHistoryEntry } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { createUnitSchema, updatePriceSchema } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
@@ -16,58 +18,72 @@ router.get("/", async (req: AuthedRequest, res) => {
   if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  const filter: Record<string, unknown> = {};
-  if (projectId) filter.projectId = projectId;
-  if (status) filter.status = status;
-  const units = await Unit.find(filter).sort({ unitNumber: 1 });
-  res.json({ units });
+  const db = getDb();
+  const conditions: SQL[] = [];
+  if (projectId) {
+    if (!isValidId(String(projectId))) return res.json({ units: [] });
+    conditions.push(eq(units.projectId, String(projectId)));
+  }
+  if (status) conditions.push(eq(units.status, String(status) as UnitStatus));
+
+  const rows = await db
+    .select()
+    .from(units)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(asc(units.unitNumber));
+  res.json({ units: rows });
 });
 
 router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = createUnitSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-  const project = await Project.findById(parsed.data.projectId);
+  const db = getDb();
+  if (!isValidId(parsed.data.projectId)) return res.status(404).json({ error: "Project not found" });
+  const [project] = await db.select().from(projects).where(eq(projects._id, parsed.data.projectId)).limit(1);
   if (!project || String(project.developerId) !== req.user!.userId) {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  const unit = await Unit.create({
-    ...parsed.data,
-    priceHistory: [{ price: parsed.data.price, changedAt: new Date() }],
-  });
+  const [unit] = await db
+    .insert(units)
+    .values({
+      ...parsed.data,
+      priceHistory: [{ price: parsed.data.price, changedAt: new Date().toISOString() }],
+    })
+    .returning();
 
   res.status(201).json({ unit });
 });
 
 /**
- * Lock a unit — the concurrency-critical operation. Uses a single atomic
- * findOneAndUpdate with a query filter that only matches if the unit is
- * currently lockable (AVAILABLE, or LOCKED-but-expired). MongoDB guarantees
- * this find+update pair is atomic at the document level, so two simultaneous
- * lock attempts can never both succeed — exactly the race condition the
- * original Prisma $transaction version guarded against, achieved here via
- * MongoDB's native compare-and-swap instead of a multi-statement transaction.
+ * Lock a unit — the concurrency-critical operation. A single atomic
+ * UPDATE whose WHERE clause only matches if the unit is currently lockable
+ * (AVAILABLE, or LOCKED-but-expired). Postgres row-level locking guarantees
+ * two simultaneous lock attempts can never both succeed — the same
+ * compare-and-swap guarantee the Mongo findOneAndUpdate version relied on.
  */
 router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
   const now = new Date();
-  const unit = await Unit.findOneAndUpdate(
-    {
-      _id: req.params.id,
-      $or: [{ status: "AVAILABLE" }, { status: "LOCKED", lockExpiresAt: { $lt: now } }],
-    },
-    {
-      $set: {
-        status: "LOCKED",
-        lockedByCPId: req.user!.userId,
-        lockExpiresAt: new Date(now.getTime() + UNIT_LOCK_MINUTES * 60 * 1000),
-      },
-    },
-    { new: true }
-  );
+  const db = getDb();
+  const [unit] = await db
+    .update(units)
+    .set({
+      status: "LOCKED",
+      lockedByCPId: req.user!.userId,
+      lockExpiresAt: new Date(now.getTime() + UNIT_LOCK_MINUTES * 60 * 1000),
+    })
+    .where(
+      and(
+        eq(units._id, req.params.id as string),
+        or(eq(units.status, "AVAILABLE"), and(eq(units.status, "LOCKED"), lt(units.lockExpiresAt, now)))
+      )
+    )
+    .returning();
 
   if (!unit) {
-    const exists = await Unit.findById(req.params.id);
+    const [exists] = await db.select({ _id: units._id }).from(units).where(eq(units._id, req.params.id as string)).limit(1);
     if (!exists) return res.status(404).json({ error: "Unit not found" });
     return res.status(409).json({ error: "This unit is already locked, reserved, or sold" });
   }
@@ -77,11 +93,13 @@ router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
 });
 
 router.delete("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
-  const unit = await Unit.findOneAndUpdate(
-    { _id: req.params.id, lockedByCPId: req.user!.userId },
-    { $set: { status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null } },
-    { new: true }
-  );
+  if (!isValidId(req.params.id)) return res.status(403).json({ error: "You don't hold the lock on this unit" });
+  const db = getDb();
+  const [unit] = await db
+    .update(units)
+    .set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null })
+    .where(and(eq(units._id, req.params.id as string), eq(units.lockedByCPId, req.user!.userId)))
+    .returning();
   if (!unit) return res.status(403).json({ error: "You don't hold the lock on this unit" });
 
   emitUnitUpdate(String(unit.projectId), unit);
@@ -89,11 +107,13 @@ router.delete("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) =>
 });
 
 router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: AuthedRequest, res) => {
-  const unit = await Unit.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const db = getDb();
+  const [unit] = await db.select().from(units).where(eq(units._id, req.params.id as string)).limit(1);
   if (!unit) return res.status(404).json({ error: "Unit not found" });
 
   if (req.user!.role === "DEVELOPER") {
-    const project = await Project.findById(unit.projectId);
+    const [project] = await db.select().from(projects).where(eq(projects._id, unit.projectId)).limit(1);
     if (!project || String(project.developerId) !== req.user!.userId) {
       return res.status(403).json({ error: "Not your project" });
     }
@@ -102,11 +122,12 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
     return res.status(409).json({ error: "Only a LOCKED unit can be reserved" });
   }
 
-  const updated = await Unit.findOneAndUpdate(
-    { _id: unit._id, status: "LOCKED" }, // re-check atomically to avoid a lock expiring mid-request
-    { $set: { status: "RESERVED", lockExpiresAt: null } },
-    { new: true }
-  );
+  const [updated] = await db
+    .update(units)
+    .set({ status: "RESERVED", lockExpiresAt: null })
+    // re-check atomically to avoid a lock expiring mid-request
+    .where(and(eq(units._id, unit._id), eq(units.status, "LOCKED")))
+    .returning();
   if (!updated) return res.status(409).json({ error: "Unit is no longer LOCKED" });
 
   emitUnitUpdate(String(updated.projectId), updated);
@@ -117,17 +138,21 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  const unit = await Unit.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const db = getDb();
+  const [unit] = await db.select().from(units).where(eq(units._id, req.params.id as string)).limit(1);
   if (!unit) return res.status(404).json({ error: "Unit not found" });
   res.json({ unit });
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
-  const unit = await Unit.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const db = getDb();
+  const [unit] = await db.select().from(units).where(eq(units._id, req.params.id as string)).limit(1);
   if (!unit) return res.status(404).json({ error: "Unit not found" });
 
   if (req.user!.role === "DEVELOPER") {
-    const project = await Project.findById(unit.projectId);
+    const [project] = await db.select().from(projects).where(eq(projects._id, unit.projectId)).limit(1);
     if (!project || String(project.developerId) !== req.user!.userId) {
       return res.status(403).json({ error: "Not your project" });
     }
@@ -137,20 +162,25 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     const parsed = updatePriceSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-    // Never overwrite without logging history — push, don't set.
-    unit.priceHistory.push({ price: parsed.data.price, changedAt: new Date() });
-    unit.price = parsed.data.price;
-    await unit.save();
+    // Never overwrite without logging history — append, don't replace.
+    const priceHistory: PriceHistoryEntry[] = [
+      ...(unit.priceHistory ?? []),
+      { price: parsed.data.price, changedAt: new Date().toISOString() },
+    ];
+    const [updated] = await db
+      .update(units)
+      .set({ price: parsed.data.price, priceHistory })
+      .where(eq(units._id, unit._id))
+      .returning();
 
-    emitUnitUpdate(String(unit.projectId), unit);
-    return res.json({ unit });
+    emitUnitUpdate(String(updated.projectId), updated);
+    return res.json({ unit: updated });
   }
 
   if (req.body?.status === "SOLD") {
-    unit.status = "SOLD";
-    await unit.save();
-    emitUnitUpdate(String(unit.projectId), unit);
-    return res.json({ unit });
+    const [updated] = await db.update(units).set({ status: "SOLD" }).where(eq(units._id, unit._id)).returning();
+    emitUnitUpdate(String(updated.projectId), updated);
+    return res.json({ unit: updated });
   }
 
   res.status(400).json({ error: "No valid update provided" });

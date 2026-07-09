@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Post } from "../models/Post";
+import { desc, eq } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { posts, PostCategory } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 
 const router = Router();
@@ -8,10 +11,14 @@ router.use(authenticate);
 
 router.get("/posts", async (req: AuthedRequest, res) => {
   const { category } = req.query;
-  const filter: Record<string, unknown> = {};
-  if (category && category !== "ALL") filter.category = category;
-  const posts = await Post.find(filter).sort({ createdAt: -1 }).limit(50);
-  res.json({ posts });
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(posts)
+    .where(category && category !== "ALL" ? eq(posts.category, String(category) as PostCategory) : undefined)
+    .orderBy(desc(posts.createdAt))
+    .limit(50);
+  res.json({ posts: rows });
 });
 
 const createPostSchema = z.object({
@@ -24,32 +31,34 @@ router.post("/posts", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
   const user = req.user!;
-  const post = await Post.create({
-    authorId: user.userId,
-    authorName: req.body.authorName || "User",
-    authorRole: user.role,
-    content: parsed.data.content,
-    category: parsed.data.category,
-  });
+  const db = getDb();
+  const [post] = await db
+    .insert(posts)
+    .values({
+      authorId: user.userId,
+      authorName: req.body.authorName || "User",
+      authorRole: user.role,
+      content: parsed.data.content,
+      category: parsed.data.category,
+    })
+    .returning();
 
   res.status(201).json({ post });
 });
 
 router.post("/posts/:id/like", async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
-  const post = await Post.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Post not found" });
+  const db = getDb();
+  const [post] = await db.select().from(posts).where(eq(posts._id, req.params.id as string)).limit(1);
   if (!post) return res.status(404).json({ error: "Post not found" });
 
   const alreadyLiked = post.likedBy.some((id) => String(id) === userId);
-  if (alreadyLiked) {
-    post.likedBy = post.likedBy.filter((id) => String(id) !== userId) as any;
-    post.likes = Math.max(0, post.likes - 1);
-  } else {
-    post.likedBy.push(userId as any);
-    post.likes += 1;
-  }
-  await post.save();
-  res.json({ likes: post.likes, liked: !alreadyLiked });
+  const likedBy = alreadyLiked ? post.likedBy.filter((id) => String(id) !== userId) : [...post.likedBy, userId];
+  const likes = alreadyLiked ? Math.max(0, post.likes - 1) : post.likes + 1;
+
+  const [updated] = await db.update(posts).set({ likedBy, likes }).where(eq(posts._id, post._id)).returning();
+  res.json({ likes: updated.likes, liked: !alreadyLiked });
 });
 
 export default router;
