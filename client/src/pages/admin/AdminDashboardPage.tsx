@@ -64,7 +64,7 @@ export default function AdminDashboardPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Admin Command Center</h1>
           <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: approvals, listings, revenue.</p>

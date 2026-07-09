@@ -110,7 +110,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">
             {title} <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
