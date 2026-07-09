@@ -4,7 +4,6 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import fs from "fs";
 import path from "path";
-import { getEnv } from "./config/env";
 
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
@@ -32,13 +31,11 @@ import presentationRoutes from "./routes/presentation";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
+import { uploadsRoot } from "./services/uploadService";
 
 export function createApp() {
   const app = express();
-  const env = getEnv();
-  const uploadsDir = env.uploadDir
-    ? path.resolve(env.uploadDir)
-    : path.resolve(__dirname, "../../uploads");
+  const uploadsDir = uploadsRoot();
   const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
   // Render (and most PaaS) terminate TLS at a proxy in front of the app —

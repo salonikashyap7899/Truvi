@@ -19,11 +19,14 @@ import { signupSchema, loginSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { emitNotification, emitToRole } from "../sockets";
+import { getEnv } from "../config/env";
+import { uploadsRoot } from "../services/uploadService";
 
 const router = Router();
 
-// Setup multer for Aadhaar document upload
-const uploadDir = path.join(process.cwd(), "uploads", "aadhaar");
+// Setup multer for Aadhaar document upload — nested under the shared uploads
+// root so writes and the /uploads static handler always agree.
+const uploadDir = path.join(uploadsRoot(), "aadhaar");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -42,19 +45,19 @@ const aadhaarUpload = multer({
 });
 
 
-const isProduction = process.env.NODE_ENV === "production";
-
-// The frontend is deployed on a different origin than this API in production
-// (server-only Render deploy — see README), so the refresh cookie must be
-// sent cross-site. SameSite=None requires Secure, which is only true in
-// production; locally both run on localhost (different ports but the same
-// site), where "lax" already works fine.
-const REFRESH_COOKIE_OPTS = {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-};
+// Refresh-cookie policy is driven by env (see config/env.ts):
+//  - Cross-origin split (Render API + Vercel frontend): SameSite=None; Secure.
+//  - Single-origin deploy (one VPS serving API + built frontend): SameSite=Lax.
+// Read per-request so it always reflects the current environment.
+function refreshCookieOpts() {
+  const env = getEnv();
+  return {
+    httpOnly: true,
+    secure: env.cookieSecure,
+    sameSite: env.cookieSameSite,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  };
+}
 
 router.post("/signup", async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
@@ -148,7 +151,7 @@ router.post("/login", async (req, res) => {
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken({ userId: String(user._id) });
 
-  res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTS);
+  res.cookie("refreshToken", refreshToken, refreshCookieOpts());
   return res.json({
     accessToken,
     user: {

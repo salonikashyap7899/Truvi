@@ -10,14 +10,14 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
+import { uploadsRoot } from "../services/uploadService";
 
 const router = Router();
 
 // ── Multer: presentation assets accept a much wider set of formats than the
 // brochure endpoint — drawings, CAD files, videos, presentations, reports.
 function getUploadsDir(): string {
-  const env = getEnv();
-  return env.uploadDir ? path.resolve(env.uploadDir) : path.resolve(__dirname, "../../../uploads");
+  return uploadsRoot();
 }
 
 const ALLOWED_EXT = [

@@ -10,13 +10,13 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitToRole } from "../sockets";
 import { getEnv } from "../config/env";
+import { uploadsRoot } from "../services/uploadService";
 
 const router = Router();
 
 // ── Multer setup for enquiry uploads (no auth required) ──────────────────────
 function getUploadsDir(): string {
-  const env = getEnv();
-  return env.uploadDir ? path.resolve(env.uploadDir) : path.resolve(__dirname, "../../../uploads");
+  return uploadsRoot();
 }
 
 const enquiryStorage = multer.diskStorage({

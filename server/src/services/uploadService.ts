@@ -2,9 +2,19 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR
-  ? path.resolve(process.env.UPLOAD_DIR)
-  : path.resolve(__dirname, "../../uploads");
+/**
+ * Single source of truth for where uploads live. Resolved from UPLOAD_DIR, or
+ * `<cwd>/uploads` by default. Using cwd (the server package dir, since `npm
+ * start` runs there) — rather than a __dirname-relative path — keeps the write
+ * dir and the static-serve dir identical no matter how deeply nested the
+ * calling module is. Every upload site (uploadService, enquiries, presentation,
+ * aadhaar) and the static handler in app.ts share this one directory.
+ */
+export function uploadsRoot(): string {
+  return process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.resolve(process.cwd(), "uploads");
+}
+
+const UPLOAD_DIR = uploadsRoot();
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
