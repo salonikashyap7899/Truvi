@@ -133,6 +133,7 @@ export default function AdminDashboardPage() {
         <Link to="/admin/listings" className="text-blue-400 hover:underline">Manage inventory listings →</Link>
         <Link to="/admin/enquiries" className="text-blue-400 hover:underline">Enquiry inbox →</Link>
         <Link to="/admin/revenue" className="text-blue-400 hover:underline">Revenue dashboard →</Link>
+        <Link to="/admin/ambassador-tasks" className="text-blue-400 hover:underline">Ambassador tasks →</Link>
         <Link to="/admin/settings" className="text-blue-400 hover:underline">Platform settings →</Link>
       </div>
     </main>
