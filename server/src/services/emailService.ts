@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import twilio from "twilio";
 
 const hasSmtpConfig = !!process.env.SMTP_HOST;
 
@@ -60,15 +61,41 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   );
 }
 
+// Twilio SMS client — only created when credentials are present, so the app
+// still boots (and email OTP still works) if SMS isn't configured.
+const hasTwilioConfig = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM);
+const twilioClient = hasTwilioConfig
+  ? twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+  : null;
+
+/**
+ * Normalize an Indian mobile number to E.164 (+91XXXXXXXXXX). Twilio requires
+ * E.164; the app stores plain 10-digit numbers.
+ */
+function toE164(phone: string): string {
+  const trimmed = phone.trim();
+  if (trimmed.startsWith("+")) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  return `+91${digits.slice(-10)}`;
+}
+
+/**
+ * Send a phone OTP via Twilio SMS.
+ *  - Returns `true` when the SMS was accepted by Twilio.
+ *  - Returns `false` (and logs the OTP) when SMS isn't configured, so local/dev
+ *    still works without credentials.
+ *  - Throws when SMS *is* configured but the send fails, so the caller can
+ *    surface a real error to the user instead of silently succeeding.
+ */
 export async function sendPhoneOtpViaSms(phone: string, otp: string): Promise<boolean> {
-  // SMS integration placeholder — returns false when no SMS service is configured.
-  // To enable: set SMS_PROVIDER=twilio, TWILIO_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM in .env
-  // and implement the Twilio API call here.
-  const hasSmsProv = !!process.env.SMS_PROVIDER;
-  if (!hasSmsProv) {
+  if (!twilioClient) {
     console.log(`[OTP] SMS not configured. Phone OTP for ${phone}: ${otp}`);
     return false;
   }
-  // Future: integrate Twilio / AWS SNS / MSG91 here
-  return false;
+  await twilioClient.messages.create({
+    body: `Your Truvi verification code is ${otp}. It expires in 10 minutes.`,
+    from: process.env.TWILIO_FROM!,
+    to: toE164(phone),
+  });
+  return true;
 }
