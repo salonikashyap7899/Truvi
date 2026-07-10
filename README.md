@@ -1,13 +1,14 @@
-# Truvi (MERN) — Real Estate Operating System
+# Truvi — Real Estate Operating System
 
-MongoDB + Express + React + Node rebuild of the Truvi MVP, with real-time
-updates, file uploads, email notifications, and Razorpay payment scaffolding
-on top of the original 6-module spec.
+Supabase (PostgreSQL) + Express + React + Node build of the Truvi MVP, with
+real-time updates, file uploads, email notifications, and Razorpay payment
+scaffolding on top of the original 6-module spec.
 
 ## Tech stack
 
-**Backend:** Node.js · Express 5 · TypeScript · MongoDB (Mongoose) · JWT auth
-(access + refresh) · Socket.io · Multer · Nodemailer · Razorpay · Zod · Vitest
+**Backend:** Node.js · Express 5 · TypeScript · Supabase PostgreSQL (Drizzle
+ORM) · JWT auth (access + refresh) · Socket.io · Multer · Nodemailer ·
+Razorpay · Zod · Vitest
 
 **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS v4 · React Router ·
 Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
@@ -28,39 +29,30 @@ Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 - **Real email notifications** — Nodemailer sends approval and commission
   emails, with a console/dev transport fallback so nothing breaks without
   SMTP configured.
-- **A backend that fully type-checks in this environment** — unlike the
-  Prisma version (which needs `prisma generate` to hit the network), pure
-  npm/Mongoose meant I could run `tsc --noEmit`, a full `tsc` build, and the
-  full Vitest suite here with zero gaps. Higher confidence, ported over.
+- **A backend that fully type-checks in this environment** — `tsc --noEmit`,
+  a full `tsc` build, and the full Vitest suite all run with zero gaps.
 
 ## Setup
 
-### 1. MongoDB — must run as a replica set
+### 1. Supabase (PostgreSQL) — the only database
 
-### prerequsites
-
-**Local, single-node replica set (dev):**
-```bash
-mongod --replSet rs0 --dbpath /path/to/your/data
-# in another terminal:
-mongosh --eval "rs.initiate()"
-```
-
-**Or use MongoDB Atlas** (free tier is a replica set by default) — just set
-`MONGO_URI` to your Atlas connection string.
+Create a free project at [supabase.com](https://supabase.com), then grab the
+connection string from **Project Settings → Database → Connection string**
+(the transaction-pooler URI on port 6543 works; the direct connection on 5432
+works too). That's your `DATABASE_URL`.
 
 ### 2. Backend
 
 ```bash
 cd server
 npm install
-cp .env.example .env
-# edit .env: set MONGO_URI, generate JWT_ACCESS_SECRET / JWT_REFRESH_SECRET
-#   (openssl rand -base64 32)
+# create .env: set DATABASE_URL to your Supabase connection string, and
+# generate JWT_ACCESS_SECRET / JWT_REFRESH_SECRET (openssl rand -base64 32)
 
-npm test          # commission engine — 11 tests, must pass
+npm run db:push    # creates/updates all tables in Supabase from src/db/schema.ts
+npm test           # commission engine — tests must pass
 npm run seed       # seeds realistic data across every role/stage
-npm run dev        # starts on :5000 with Socket.io
+npm run dev        # starts the API with Socket.io
 ```
 
 ### 3. Frontend
@@ -109,14 +101,13 @@ this isn't optional wiring, CORS and the auth cookie both depend on it.
 - Push this repo to GitHub/GitLab (Render deploys from a connected git repo).
   This project isn't a git repo yet — run `git init`, commit, and push before
   connecting it in Render.
-- A MongoDB Atlas connection string (Atlas is a replica set by default, which
-  commission generation's transaction requires — see `server/.env.example`).
+- A Supabase project and its Postgres connection string (`DATABASE_URL`).
 
 **Option A — Blueprint (recommended):** In the Render dashboard, "New +" →
 "Blueprint", point it at this repo. It reads [render.yaml](render.yaml) and
 creates the API service with Root Directory `server`, the right build/start
 commands, health check, and a persistent Disk for `server/uploads` (see
-"Known limitation" below) pre-wired. You'll be prompted for `MONGO_URI` and
+"Known limitation" below) pre-wired. You'll be prompted for `DATABASE_URL` and
 `CLIENT_URL` (required — see below) plus any optional secrets (`SMTP_*`,
 `RAZORPAY_*`); `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` are auto-generated.
 
@@ -129,8 +120,8 @@ commands, health check, and a persistent Disk for `server/uploads` (see
 | Health Check Path | `/health` |
 
 Then add the env vars from `server/.env.example` in the Render dashboard
-(`MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `NODE_ENV=production`
-at minimum).
+(`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
+`NODE_ENV=production` at minimum).
 
 **Required — wiring the two origins together:**
 - `CLIENT_URL` on this Render service **must** be set to your deployed
@@ -157,7 +148,7 @@ either accept the ephemeral storage or migrate `uploadService.ts` to S3.
 ```
 server/
   src/
-    models/        → Mongoose schemas (User, Project, Unit, Lead, SiteVisit, Commission, ...)
+    db/            → Drizzle ORM schema (users, projects, units, leads, siteVisits, commissions, ...) + Postgres connection
     routes/         → Express routers, one per resource, all Zod-validated + role-guarded
     services/       → Pure commission calculator (tested), email, uploads, payments, inventory
     middleware/      → JWT auth + role guards, centralized error handling
@@ -175,7 +166,7 @@ client/
 ## What's implemented (MVP scope, matching the Next.js version)
 
 - Auth with role-based signup, admin approval gating, JWT access+refresh tokens
-- Inventory Engine — atomic unit locking (MongoDB compare-and-swap via `findOneAndUpdate`, 30-min auto-expiry), reservation, price history
+- Inventory Engine — atomic unit locking (Postgres compare-and-swap via a single conditional UPDATE, 30-min auto-expiry), reservation, price history
 - Lead Management CRM — auto-assignment, duplicate detection, stage-flow enforcement, WhatsApp deep link
 - Site Visit Management — booking, geo-verified attendance, **photo upload** (new), post-visit reports
 - Commission Engine — full percent split, TDS, milestone releases, platform fee never deducted from CP commission (11 tests, all passing)

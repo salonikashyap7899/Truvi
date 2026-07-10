@@ -2,7 +2,6 @@ import "dotenv/config";
 import { createServer } from "http";
 import { createApp } from "./app";
 import { connectDB, disconnectDB } from "./config/db";
-import { connectMongo, disconnectMongo } from "./config/mongo";
 import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 
@@ -14,10 +13,7 @@ async function main() {
   const HOST = env.host;
   const DATABASE_URL = env.databaseUrl;
 
-  await connectMongo(process.env.MONGO_URI || "");
-  if (DATABASE_URL) {
-    await connectDB(DATABASE_URL);
-  }
+  await connectDB(DATABASE_URL);
 
   const app = createApp();
   const httpServer = createServer(app);
@@ -27,13 +23,13 @@ async function main() {
     console.log(`Truvi API listening on ${HOST}:${PORT}`);
   });
 
-  // Render (and most PaaS) send SIGTERM before killing the process on every
-  // redeploy/restart — close the HTTP server and DB connection cleanly
+  // Most PaaS/VPS process managers send SIGTERM before killing the process on
+  // every redeploy/restart — close the HTTP server and DB connection cleanly
   // instead of dropping in-flight requests.
   const shutdown = (signal: string) => {
     console.log(`${signal} received, shutting down gracefully`);
     httpServer.close(async () => {
-      await Promise.all([disconnectDB(), disconnectMongo()]);
+      await disconnectDB();
       process.exit(0);
     });
     setTimeout(() => process.exit(1), 10_000).unref();

@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import mongoose from "mongoose";
-import { Commission } from "../models/Commission";
-import { Lead } from "../models/Lead";
-import { Project } from "../models/Project";
-import { User } from "../models/User";
-import { Notification } from "../models/Notification";
+import { randomUUID } from "crypto";
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { commissions, leads, projects, users, notifications, CommissionMilestone } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { calculateCommission, buildMilestones, assertReleasedNeverExceedsTotal } from "../services/commissionCalculator";
 import { DEFAULT_PLATFORM_FEE_PERCENT, TDS_PERCENT } from "../config/constants";
@@ -23,18 +22,46 @@ class AppError extends Error {
 
 router.get("/", async (req: AuthedRequest, res) => {
   const user = req.user!;
-  const filter: Record<string, unknown> = {};
+  const db = getDb();
 
+  const conditions = [];
   if (user.role === "CP") {
-    filter.cpId = user.userId;
+    conditions.push(eq(commissions.cpId, user.userId));
   } else if (user.role === "DEVELOPER") {
-    const myProjectIds = await Project.find({ developerId: user.userId }).distinct("_id");
-    const leadIds = await Lead.find({ projectId: { $in: myProjectIds } }).distinct("_id");
-    filter.leadId = { $in: leadIds };
+    const myProjects = await db
+      .select({ _id: projects._id })
+      .from(projects)
+      .where(eq(projects.developerId, user.userId));
+    const myProjectIds = myProjects.map((p) => p._id);
+    if (myProjectIds.length === 0) return res.json({ commissions: [] });
+    const myLeads = await db
+      .select({ _id: leads._id })
+      .from(leads)
+      .where(inArray(leads.projectId, myProjectIds));
+    const leadIds = myLeads.map((l) => l._id);
+    if (leadIds.length === 0) return res.json({ commissions: [] });
+    conditions.push(inArray(commissions.leadId, leadIds));
   }
 
-  const commissions = await Commission.find(filter).populate("leadId").populate("cpId", "name").sort({ createdAt: -1 });
-  res.json({ commissions });
+  const rows = await db
+    .select({
+      commission: commissions,
+      lead: leads,
+      cp: { _id: users._id, name: users.name },
+    })
+    .from(commissions)
+    .leftJoin(leads, eq(commissions.leadId, leads._id))
+    .leftJoin(users, eq(commissions.cpId, users._id))
+    .where(conditions.length ? conditions[0] : undefined)
+    .orderBy(desc(commissions.createdAt));
+
+  const result = rows.map(({ commission, lead, cp }) => ({
+    ...commission,
+    leadId: lead ?? commission.leadId,
+    cpId: cp ?? commission.cpId,
+  }));
+
+  res.json({ commissions: result });
 });
 
 const generateSchema = z.object({
@@ -48,22 +75,20 @@ router.post("/", requireRole("ADMIN", "DEVELOPER"), async (req: AuthedRequest, r
 
   const { leadId, bookingValue } = parsed.data;
   const user = req.user!;
+  if (!isValidId(leadId)) return res.status(404).json({ error: "Lead not found" });
 
-  // Multi-document transaction (Commission + CPProfile + Notification writes
-  // must all succeed or none do). Requires MongoDB running as a replica set
-  // — see README for local setup (mongod --replSet rs0, single-node is fine
-  // for dev, or use MongoDB Atlas which is a replica set by default). If your
-  // Mongo instance isn't a replica set, this will throw; see DECISIONS.md.
-  const session = await mongoose.startSession();
+  // Multi-row transaction: the Commission insert, the CP's totalBookings
+  // increment, and the Notification insert must all succeed or none do.
+  const db = getDb();
   let result: any;
 
   try {
-    await session.withTransaction(async () => {
-      const lead = await Lead.findById(leadId).session(session);
+    result = await db.transaction(async (tx) => {
+      const [lead] = await tx.select().from(leads).where(eq(leads._id, leadId));
       if (!lead) throw new AppError("LEAD_NOT_FOUND", 404, "Lead not found");
 
+      const [project] = await tx.select().from(projects).where(eq(projects._id, lead.projectId));
       if (user.role === "DEVELOPER") {
-        const project = await Project.findById(lead.projectId).session(session);
         if (!project || String(project.developerId) !== user.userId) {
           throw new AppError("FORBIDDEN", 403, "Not your project's lead");
         }
@@ -71,64 +96,70 @@ router.post("/", requireRole("ADMIN", "DEVELOPER"), async (req: AuthedRequest, r
       if (lead.stage !== "BOOKING" && lead.stage !== "REGISTRATION") {
         throw new AppError("NOT_AT_BOOKING_STAGE", 400, "Lead must be at BOOKING or REGISTRATION stage to generate a commission");
       }
-      const existingCommission = await Commission.findOne({ leadId }).session(session);
+      const [existingCommission] = await tx
+        .select({ _id: commissions._id })
+        .from(commissions)
+        .where(eq(commissions.leadId, leadId));
       if (existingCommission) throw new AppError("ALREADY_EXISTS", 409, "A commission already exists for this lead");
       if (!lead.assignedToId) throw new AppError("NO_ASSIGNED_CP", 400, "Lead has no assigned CP");
 
-      const project = await Project.findById(lead.projectId).session(session);
       const calc = calculateCommission({
         bookingValue,
         commissionPercent: project!.commissionPercent,
         platformFeePercent: DEFAULT_PLATFORM_FEE_PERCENT,
         tdsPercent: TDS_PERCENT,
       });
-      const milestones = buildMilestones(calc.cpCommissionAmount);
+      const milestones: CommissionMilestone[] = buildMilestones(calc.cpCommissionAmount).map((m) => ({
+        _id: randomUUID(),
+        ...m,
+        isReleased: false,
+        releasedAt: null,
+      }));
 
-      const [commission] = await Commission.create(
-        [
-          {
-            leadId,
-            cpId: lead.assignedToId,
-            bookingValue,
-            commissionPercent: project!.commissionPercent,
-            cpCommissionAmount: calc.cpCommissionAmount,
-            platformFeeAmount: calc.platformFeeAmount,
-            tdsAmount: calc.tdsAmount,
-            status: "PENDING",
-            milestones,
-          },
-        ],
-        { session }
-      );
+      const [commission] = await tx
+        .insert(commissions)
+        .values({
+          leadId,
+          cpId: lead.assignedToId,
+          bookingValue,
+          commissionPercent: project!.commissionPercent,
+          cpCommissionAmount: calc.cpCommissionAmount,
+          platformFeeAmount: calc.platformFeeAmount,
+          tdsAmount: calc.tdsAmount,
+          status: "PENDING",
+          milestones,
+        })
+        .returning();
 
-      await User.updateOne({ _id: lead.assignedToId }, { $inc: { "cpProfile.totalBookings": 1 } }).session(session);
+      await tx
+        .update(users)
+        .set({
+          cpProfile: sql`jsonb_set(coalesce(${users.cpProfile}, '{}'::jsonb), '{totalBookings}', (coalesce((${users.cpProfile}->>'totalBookings')::int, 0) + 1)::text::jsonb)`,
+        })
+        .where(eq(users._id, lead.assignedToId));
 
-      const [notification] = await Notification.create(
-        [
-          {
-            userId: lead.assignedToId,
-            message: `Commission generated for ${lead.clientName}: your full ₹${calc.cpCommissionAmount.toLocaleString(
-              "en-IN"
-            )} commission is confirmed across ${milestones.length} milestones.`,
-          },
-        ],
-        { session }
-      );
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          userId: lead.assignedToId,
+          message: `Commission generated for ${lead.clientName}: your full ₹${calc.cpCommissionAmount.toLocaleString(
+            "en-IN"
+          )} commission is confirmed across ${milestones.length} milestones.`,
+        })
+        .returning();
 
-      result = { commission, notification, cpId: String(lead.assignedToId), leadClientName: lead.clientName };
+      return { commission, notification, cpId: String(lead.assignedToId), leadClientName: lead.clientName };
     });
   } catch (err: any) {
     if (err instanceof AppError) return res.status(err.status).json({ error: err.message });
     console.error("Commission generation error:", err);
     return res.status(500).json({ error: "Failed to generate commission" });
-  } finally {
-    await session.endSession();
   }
 
   emitCommissionUpdate(result.cpId, result.commission);
   emitNotification(result.cpId, result.notification);
 
-  const cp = await User.findById(result.cpId);
+  const [cp] = await db.select().from(users).where(eq(users._id, result.cpId));
   if (cp) sendCommissionEmail(cp.email, cp.name, result.commission.cpCommissionAmount, result.leadClientName).catch((e) => console.error("Commission email failed:", e));
 
   res.status(201).json({ commission: result.commission });
@@ -140,14 +171,17 @@ router.patch("/:id/milestones", requireRole("ADMIN"), async (req, res) => {
   const parsed = releaseSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-  const commission = await Commission.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [commission] = await db.select().from(commissions).where(eq(commissions._id, req.params.id));
   if (!commission) return res.status(404).json({ error: "Commission not found" });
 
-  const target = commission.milestones.id(parsed.data.milestoneId);
+  const milestones = [...(commission.milestones ?? [])];
+  const target = milestones.find((m) => String(m._id) === parsed.data.milestoneId);
   if (!target) return res.status(404).json({ error: "Milestone not found" });
   if (target.isReleased) return res.status(409).json({ error: "Milestone already released" });
 
-  const releasedAfter = commission.milestones
+  const releasedAfter = milestones
     .filter((m) => m.isReleased || String(m._id) === parsed.data.milestoneId)
     .map((m) => m.amount);
 
@@ -158,21 +192,27 @@ router.patch("/:id/milestones", requireRole("ADMIN"), async (req, res) => {
   }
 
   target.isReleased = true;
-  target.releasedAt = new Date();
+  target.releasedAt = new Date().toISOString();
 
-  const allReleased = commission.milestones.every((m) => m.isReleased);
-  commission.status = allReleased ? "PAID" : "MILESTONE_DUE";
-  await commission.save();
+  const allReleased = milestones.every((m) => m.isReleased);
+  const [updated] = await db
+    .update(commissions)
+    .set({ milestones, status: allReleased ? "PAID" : "MILESTONE_DUE" })
+    .where(eq(commissions._id, commission._id))
+    .returning();
 
-  const notification = await Notification.create({
-    userId: commission.cpId,
-    message: `Milestone "${target.label}" (₹${target.amount.toLocaleString("en-IN")}) has been released to you.`,
-  });
+  const [notification] = await db
+    .insert(notifications)
+    .values({
+      userId: commission.cpId,
+      message: `Milestone "${target.label}" (₹${target.amount.toLocaleString("en-IN")}) has been released to you.`,
+    })
+    .returning();
 
-  emitCommissionUpdate(String(commission.cpId), commission);
+  emitCommissionUpdate(String(commission.cpId), updated);
   emitNotification(String(commission.cpId), notification);
 
-  res.json({ commission });
+  res.json({ commission: updated });
 });
 
 const invoiceSchema = z.object({ invoiceUrl: z.string().url() });
@@ -181,16 +221,23 @@ router.patch("/:id/invoice", async (req: AuthedRequest, res) => {
   const parsed = invoiceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-  const commission = await Commission.findById(req.params.id);
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [commission] = await db.select().from(commissions).where(eq(commissions._id, req.params.id));
   if (!commission) return res.status(404).json({ error: "Commission not found" });
   if (String(commission.cpId) !== req.user!.userId && req.user!.role !== "ADMIN") {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  commission.invoiceUrl = parsed.data.invoiceUrl;
-  commission.status = commission.status === "PENDING" ? "INVOICED" : commission.status;
-  await commission.save();
-  res.json({ commission });
+  const [updated] = await db
+    .update(commissions)
+    .set({
+      invoiceUrl: parsed.data.invoiceUrl,
+      status: commission.status === "PENDING" ? "INVOICED" : commission.status,
+    })
+    .where(eq(commissions._id, commission._id))
+    .returning();
+  res.json({ commission: updated });
 });
 
 export default router;

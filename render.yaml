@@ -20,10 +20,8 @@ services:
         value: 10000
       - key: CLIENT_URL
         sync: false
-      - key: MONGO_URI
-        sync: false
       - key: DATABASE_URL
-        value: ""
+        sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
