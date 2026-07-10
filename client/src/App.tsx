@@ -46,6 +46,7 @@ import ComparePage from "@/pages/buyer/ComparePage";
 import InventoryPage from "@/pages/InventoryPage";
 import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
+import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
 
 function Ambience() {
   const { pathname } = useLocation();
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
         <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
+        <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
