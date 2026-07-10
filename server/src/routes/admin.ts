@@ -1,13 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { users, projects, notifications, Role, ApprovalStatus, VerificationDetails } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitNotification } from "../sockets";
 import { sendApprovalEmail } from "../services/emailService";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
-import { User } from "../models/User";
-import { Project } from "../models/Project";
-import { Notification } from "../models/Notification";
 
 const router = Router();
 router.use(authenticate);
@@ -16,18 +16,23 @@ router.use(authenticate);
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const { role, approvalStatus } = req.query;
 
-  const query: Record<string, unknown> = {};
+  const conditions = [];
   if (typeof role === "string" && role) {
-    query.role = role;
+    conditions.push(eq(users.role, role as Role));
   } else {
-    query.role = { $in: ["DEVELOPER", "CP", "BUYER"] };
+    conditions.push(inArray(users.role, ["DEVELOPER", "CP", "BUYER"]));
   }
 
   if (typeof approvalStatus === "string" && approvalStatus) {
-    query.approvalStatus = approvalStatus;
+    conditions.push(eq(users.approvalStatus, approvalStatus as ApprovalStatus));
   }
 
-  const rows = await User.find(query).sort({ createdAt: -1 }).lean();
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(users)
+    .where(and(...conditions))
+    .orderBy(desc(users.createdAt));
   const safeUsers = rows.map(({ password, ...u }) => u);
   res.json({ users: safeUsers });
 });
@@ -43,11 +48,12 @@ router.patch("/users", requireRole("ADMIN"), async (req, res) => {
 
   if (!isValidId(parsed.data.userId)) return res.status(404).json({ error: "User not found" });
 
-  const user = await User.findByIdAndUpdate(
-    parsed.data.userId,
-    { approvalStatus: parsed.data.approvalStatus },
-    { new: true }
-  ).lean();
+  const db = getDb();
+  const [user] = await db
+    .update(users)
+    .set({ approvalStatus: parsed.data.approvalStatus })
+    .where(eq(users._id, parsed.data.userId))
+    .returning();
 
   if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -58,7 +64,10 @@ router.patch("/users", requireRole("ADMIN"), async (req, res) => {
       ? "Your Truvi account application was not approved. Contact support for details."
       : "Your Truvi account status was updated to pending review.";
 
-  const notification = await Notification.create({ userId: user._id, message });
+  const [notification] = await db
+    .insert(notifications)
+    .values({ userId: user._id, message })
+    .returning();
   emitNotification(String(user._id), notification);
 
   if (parsed.data.approvalStatus !== "PENDING") {
@@ -75,26 +84,26 @@ router.patch("/users", requireRole("ADMIN"), async (req, res) => {
 router.get("/projects", requireRole("ADMIN"), async (req, res) => {
   const { approvalStatus } = req.query;
 
-  const query: Record<string, unknown> = {};
+  const conditions = [];
   if (typeof approvalStatus === "string" && approvalStatus) {
-    query.approvalStatus = approvalStatus;
+    conditions.push(eq(projects.approvalStatus, approvalStatus as ApprovalStatus));
   }
 
-  const rows = await Project.find(query)
-    .sort({ createdAt: -1 })
-    .populate("developerId", "name")
-    .lean();
+  const db = getDb();
+  const rows = await db
+    .select({
+      project: projects,
+      developer: { _id: users._id, name: users.name },
+    })
+    .from(projects)
+    .leftJoin(users, eq(projects.developerId, users._id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(projects.createdAt));
 
-  const result = rows.map((project) => {
-    const developer =
-      project.developerId && typeof project.developerId === "object"
-        ? { _id: String((project.developerId as any)._id), name: (project.developerId as any).name }
-        : null;
-    return {
-      ...project,
-      developerId: developer,
-    };
-  });
+  const result = rows.map(({ project, developer }) => ({
+    ...project,
+    developerId: developer ? { _id: String(developer._id), name: developer.name } : null,
+  }));
 
   res.json({ projects: result });
 });
@@ -127,7 +136,8 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   const { projectId, ...data } = parsed.data;
   if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
 
-  const existing = await Project.findById(projectId).lean();
+  const db = getDb();
+  const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
   if (!existing) return res.status(404).json({ error: "Project not found" });
 
   const update: Record<string, unknown> = {};
@@ -148,7 +158,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
       portfolioVerified: false,
       ...(existing.verificationDetails ?? {}),
       ...data.verificationDetails,
-    } as Record<string, unknown>;
+    } as VerificationDetails;
 
     if (data.verificationDetails.lastVerifiedAt !== undefined) {
       merged.lastVerifiedAt = data.verificationDetails.lastVerifiedAt;
@@ -161,7 +171,11 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     return res.json({ project: existing });
   }
 
-  const project = await Project.findByIdAndUpdate(projectId, update, { new: true, lean: true });
+  const [project] = await db
+    .update(projects)
+    .set(update)
+    .where(eq(projects._id, projectId))
+    .returning();
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   res.json({ project });

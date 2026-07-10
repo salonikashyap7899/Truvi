@@ -1,10 +1,10 @@
 # Truvi — Real Estate Operating System
 
-A MERN-stack (MongoDB + Express + React + Node) real estate platform for developers (builders) and CPs (channel partners). Covers inventory management, lead CRM, site visits, commission calculation, and payments.
+A Supabase (PostgreSQL) + Express + React + Node real estate platform for developers (builders) and CPs (channel partners). Covers inventory management, lead CRM, site visits, commission calculation, and payments.
 
 ## Stack
 
-- **Backend:** Node.js · Express 5 · TypeScript · MongoDB/Mongoose · JWT auth · Socket.io · Multer · Nodemailer · Razorpay · Zod · Vitest
+- **Backend:** Node.js · Express 5 · TypeScript · Supabase PostgreSQL (Drizzle ORM) · JWT auth · Socket.io · Multer · Nodemailer · Razorpay · Zod · Vitest
 - **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS v4 · React Router · Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 
 ## How to run
@@ -22,7 +22,7 @@ The Vite dev server (port 5000) proxies `/api`, `/uploads`, `/health`, and `/soc
 
 | Variable | Required | Notes |
 |---|---|---|
-| `MONGO_URI` | Yes | Must be a replica set (Atlas free tier works) |
+| `DATABASE_URL` | Yes | Supabase Postgres connection string (run `npm run db:push` once to create tables) |
 | `JWT_ACCESS_SECRET` | Yes | `openssl rand -base64 32` |
 | `JWT_REFRESH_SECRET` | Yes | `openssl rand -base64 32` |
 | `PORT` | No | Defaults to 3001 |
@@ -34,7 +34,7 @@ The Vite dev server (port 5000) proxies `/api`, `/uploads`, `/health`, and `/soc
 
 ```
 server/src/
-  models/      — Mongoose schemas
+  db/          — Drizzle ORM schema + Postgres connection
   routes/      — Express routers (Zod-validated, role-guarded)
   services/    — Commission calculator, email, uploads, payments, inventory
   middleware/  — JWT auth, role guards, error handling

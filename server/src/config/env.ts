@@ -29,4 +29,5 @@ export function assertRequiredEnvForProduction(): void {
 
   requireEnv("JWT_ACCESS_SECRET");
   requireEnv("JWT_REFRESH_SECRET");
+  requireEnv("DATABASE_URL");
 }

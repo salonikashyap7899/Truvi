@@ -1,13 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { projects, units, leads, users } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { createProjectSchema } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
-import { Project } from "../models/Project";
-import { Unit } from "../models/Unit";
-import { Lead } from "../models/Lead";
-import { User } from "../models/User";
 
 const router = Router();
 router.use(authenticate);
@@ -20,50 +19,69 @@ router.get("/", async (req: AuthedRequest, res) => {
   if (user.role === "CP" && user.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  const projectQuery: Record<string, unknown> = {};
 
-  if (user.role === "DEVELOPER") {
-    projectQuery.developerId = user.userId;
-  } else {
-    projectQuery.approvalStatus = "APPROVED";
-    if (city) projectQuery.city = String(city);
-  }
+  const db = getDb();
+  const conditions =
+    user.role === "DEVELOPER"
+      ? [eq(projects.developerId, user.userId)]
+      : [
+          eq(projects.approvalStatus, "APPROVED"),
+          ...(city ? [eq(projects.city, String(city))] : []),
+        ];
 
-  const rows = await Project.find(projectQuery).sort({ listingTier: -1, createdAt: -1 }).lean();
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(and(...conditions))
+    .orderBy(desc(projects.listingTier), desc(projects.createdAt));
+
   const projectIds = rows.map((project) => project._id);
 
   const [unitCounts, leadCounts] = await Promise.all([
-    Unit.aggregate([
-      { $match: { projectId: { $in: projectIds } } },
-      { $group: { _id: "$projectId", count: { $sum: 1 } } },
-    ]),
-    Lead.aggregate([
-      { $match: { projectId: { $in: projectIds } } },
-      { $group: { _id: "$projectId", count: { $sum: 1 } } },
-    ]),
+    projectIds.length
+      ? db
+          .select({ projectId: units.projectId, count: sql<number>`count(*)::int` })
+          .from(units)
+          .where(inArray(units.projectId, projectIds))
+          .groupBy(units.projectId)
+      : Promise.resolve([]),
+    projectIds.length
+      ? db
+          .select({ projectId: leads.projectId, count: sql<number>`count(*)::int` })
+          .from(leads)
+          .where(inArray(leads.projectId, projectIds))
+          .groupBy(leads.projectId)
+      : Promise.resolve([]),
   ]);
 
-  const unitCountMap = new Map(unitCounts.map((item) => [String(item._id), item.count]));
-  const leadCountMap = new Map(leadCounts.map((item) => [String(item._id), item.count]));
+  const unitCountMap = new Map(unitCounts.map((item) => [String(item.projectId), item.count]));
+  const leadCountMap = new Map(leadCounts.map((item) => [String(item.projectId), item.count]));
 
-  const developerIds = rows.map((project) => project.developerId);
-  const developers = await User.find({ _id: { $in: developerIds } })
-    .select("_id name developerProfile")
-    .lean();
+  const developerIds = [...new Set(rows.map((project) => project.developerId))];
+  const developers = developerIds.length
+    ? await db
+        .select({ _id: users._id, name: users.name, developerProfile: users.developerProfile })
+        .from(users)
+        .where(inArray(users._id, developerIds))
+    : [];
   const developerMap = new Map(developers.map((dev) => [String(dev._id), dev]));
 
-  const buyer =
-    user.role === "BUYER"
-      ? await User.findById(user.userId).select("buyerProfile").lean()
-      : null;
+  let buyerProfile: { savedProjectIds?: string[]; compareProjectIds?: string[] } | null = null;
+  if (user.role === "BUYER") {
+    const [buyer] = await db
+      .select({ buyerProfile: users.buyerProfile })
+      .from(users)
+      .where(eq(users._id, user.userId));
+    buyerProfile = buyer?.buyerProfile ?? null;
+  }
 
   const enriched = rows.map((project) => {
     const developer = developerMap.get(String(project.developerId)) || null;
     const isSaved = Boolean(
-      buyer?.buyerProfile?.savedProjectIds?.some((id) => String(id) === String(project._id)),
+      buyerProfile?.savedProjectIds?.some((id) => String(id) === String(project._id)),
     );
     const isCompared = Boolean(
-      buyer?.buyerProfile?.compareProjectIds?.some((id) => String(id) === String(project._id)),
+      buyerProfile?.compareProjectIds?.some((id) => String(id) === String(project._id)),
     );
 
     return {
@@ -82,7 +100,8 @@ router.get("/", async (req: AuthedRequest, res) => {
 router.get("/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
 
-  const project = await Project.findById(req.params.id).lean();
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   const userRole = req.user?.role;
@@ -93,12 +112,17 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     return res.status(404).json({ error: "Project not found" });
   }
 
-  const developer = await User.findById(project.developerId)
-    .select("_id name developerProfile")
-    .lean();
-  const units = await Unit.find({ projectId: project._id }).sort({ unitNumber: 1 }).lean();
+  const [developer] = await db
+    .select({ _id: users._id, name: users.name, developerProfile: users.developerProfile })
+    .from(users)
+    .where(eq(users._id, project.developerId));
+  const unitRows = await db
+    .select()
+    .from(units)
+    .where(eq(units.projectId, project._id))
+    .orderBy(asc(units.unitNumber));
 
-  res.json({ project: { ...project, developerId: developer || project.developerId }, units });
+  res.json({ project: { ...project, developerId: developer || project.developerId }, units: unitRows });
 });
 
 const updateProjectSchema = z.object({
@@ -114,28 +138,36 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
 
-  const project = await Project.findById(req.params.id);
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
   if (!project) return res.status(404).json({ error: "Project not found" });
   if (req.user!.role === "DEVELOPER" && String(project.developerId) !== req.user!.userId) {
     return res.status(403).json({ error: "Not your project" });
   }
 
-  Object.assign(project, parsed.data);
-  await project.save();
-  res.json({ project });
+  const [updated] = await db
+    .update(projects)
+    .set(parsed.data)
+    .where(eq(projects._id, project._id))
+    .returning();
+  res.json({ project: updated });
 });
 
 router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
-  const project = await Project.create({
-    ...parsed.data,
-    brochureUrl: parsed.data.brochureUrl || undefined,
-    priceListUrl: parsed.data.priceListUrl || undefined,
-    developerId: req.user!.userId,
-    approvalStatus: "PENDING",
-  });
+  const db = getDb();
+  const [project] = await db
+    .insert(projects)
+    .values({
+      ...parsed.data,
+      brochureUrl: parsed.data.brochureUrl || undefined,
+      priceListUrl: parsed.data.priceListUrl || undefined,
+      developerId: req.user!.userId,
+      approvalStatus: "PENDING",
+    })
+    .returning();
 
   res.status(201).json({ project });
 });

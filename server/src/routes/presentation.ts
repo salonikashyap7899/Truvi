@@ -3,9 +3,10 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
-import { isValidObjectId } from "mongoose";
-import { Project } from "../models/Project";
-import { ProjectAsset, ASSET_CATEGORIES } from "../models/ProjectAsset";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { projects, projectAssets, users, ASSET_CATEGORIES, IProject, ProjectType, PresentationInfo } from "../db/schema";
+import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
@@ -73,31 +74,45 @@ function optionalUser(req: AuthedRequest) {
 
 // ── GET /api/presentation/:id — full presentation profile (public) ─────────
 router.get("/:id", async (req: AuthedRequest, res) => {
-  if (!isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+  if (!isValidId(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
 
-  const project = await Project.findById(req.params.id).populate("developerId", "name developerProfile");
-  if (!project) return res.status(404).json({ error: "Project not found" });
+  const db = getDb();
+  const [row] = await db
+    .select({
+      project: projects,
+      developer: { _id: users._id, name: users.name, developerProfile: users.developerProfile },
+    })
+    .from(projects)
+    .leftJoin(users, eq(projects.developerId, users._id))
+    .where(eq(projects._id, req.params.id));
+  if (!row) return res.status(404).json({ error: "Project not found" });
 
+  const project = row.project;
   if (project.approvalStatus !== "APPROVED") {
     const user = optionalUser(req);
-    const isOwner = user && String(project.developerId?._id ?? project.developerId) === user.userId;
+    const isOwner = user && String(project.developerId) === user.userId;
     if (!user || (user.role !== "ADMIN" && !isOwner)) {
       return res.status(404).json({ error: "Project not found" });
     }
   }
 
-  const assets = await ProjectAsset.find({ projectId: project._id }).sort({ category: 1, createdAt: -1 });
-  res.json({ project, assets });
+  const assets = await db
+    .select()
+    .from(projectAssets)
+    .where(eq(projectAssets.projectId, project._id))
+    .orderBy(asc(projectAssets.category), desc(projectAssets.createdAt));
+  res.json({ project: { ...project, developerId: row.developer ?? project.developerId }, assets });
 });
 
 // ── Mutations below require auth ────────────────────────────────────────────
 
-async function loadOwnedProject(req: AuthedRequest, res: any) {
-  if (!isValidObjectId(req.params.id)) {
+async function loadOwnedProject(req: AuthedRequest, res: any): Promise<IProject | null> {
+  if (!isValidId(req.params.id)) {
     res.status(400).json({ error: "Invalid project id" });
     return null;
   }
-  const project = await Project.findById(req.params.id);
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
   if (!project) {
     res.status(404).json({ error: "Project not found" });
     return null;
@@ -133,17 +148,21 @@ router.post(
       return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
     }
 
-    const asset = await ProjectAsset.create({
-      projectId: project._id,
-      category: parsed.data.category,
-      title: parsed.data.title,
-      description: parsed.data.description,
-      fileUrl: assetFileUrl(req.file.filename),
-      fileName: req.file.originalname,
-      mimeType: req.file.mimetype,
-      sizeBytes: req.file.size,
-      uploadedBy: req.user!.userId,
-    });
+    const db = getDb();
+    const [asset] = await db
+      .insert(projectAssets)
+      .values({
+        projectId: project._id,
+        category: parsed.data.category,
+        title: parsed.data.title,
+        description: parsed.data.description,
+        fileUrl: assetFileUrl(req.file.filename),
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+        uploadedBy: req.user!.userId,
+      })
+      .returning();
 
     res.status(201).json({ asset });
   },
@@ -158,8 +177,12 @@ router.delete(
     const project = await loadOwnedProject(req, res);
     if (!project) return;
 
-    if (!isValidObjectId(req.params.assetId)) return res.status(400).json({ error: "Invalid asset id" });
-    const asset = await ProjectAsset.findOneAndDelete({ _id: req.params.assetId, projectId: project._id });
+    if (!isValidId(req.params.assetId)) return res.status(400).json({ error: "Invalid asset id" });
+    const db = getDb();
+    const [asset] = await db
+      .delete(projectAssets)
+      .where(and(eq(projectAssets._id, req.params.assetId), eq(projectAssets.projectId, project._id)))
+      .returning();
     if (!asset) return res.status(404).json({ error: "Asset not found" });
 
     // Best-effort disk cleanup; basename() guards against path traversal.
@@ -194,11 +217,19 @@ router.put(
     if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
     const { projectType, ...info } = parsed.data;
-    if (projectType) project.projectType = projectType;
-    project.presentationInfo = { ...(project.presentationInfo ?? {}), ...info } as typeof project.presentationInfo;
-    await project.save();
+    const presentationInfo: PresentationInfo = { ...(project.presentationInfo ?? {}), ...info };
 
-    res.json({ project });
+    const db = getDb();
+    const [updated] = await db
+      .update(projects)
+      .set({
+        presentationInfo,
+        ...(projectType ? { projectType: projectType as ProjectType } : {}),
+      })
+      .where(eq(projects._id, project._id))
+      .returning();
+
+    res.json({ project: updated });
   },
 );
 
