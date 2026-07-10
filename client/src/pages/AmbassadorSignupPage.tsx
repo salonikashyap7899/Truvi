@@ -14,11 +14,11 @@ const signupSchema = z
     email: z.string().email("Enter a valid email"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number").optional().or(z.literal("")),
-    role: z.literal("CP"),
+    role: z.literal("AMBASSADOR"),
     companyName: z.string().optional(),
   })
   .superRefine(() => {
-    // Role is fixed to CP for ambassadors, so no extra role-specific validation is required.
+    // Role is fixed to AMBASSADOR here, so no extra role-specific validation is required.
   });
 
 type SignupForm = z.infer<typeof signupSchema>;
@@ -33,7 +33,7 @@ export default function AmbassadorSignupPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { role: "CP", email: defaultEmail, name: "", phone: "", password: "", companyName: "" },
+    defaultValues: { role: "AMBASSADOR", email: defaultEmail, name: "", phone: "", password: "", companyName: "" },
   });
 
   async function onSubmit(data: SignupForm) {
@@ -41,7 +41,7 @@ export default function AmbassadorSignupPage() {
     try {
       await signup({
         ...data,
-        role: "CP",
+        role: "AMBASSADOR",
       });
       setSuccess(true);
       setTimeout(() => navigate("/ambassador/login"), 1800);

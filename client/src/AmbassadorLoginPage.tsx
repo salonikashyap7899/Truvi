@@ -27,7 +27,8 @@ export default function AmbassadorLoginPage() {
           navigate("/admin/dashboard");
         }
       } else if (user.role === "DEVELOPER") navigate("/developer/dashboard");
-      else if (user.role === "CP") navigate("/ambassador/dashboard");
+      else if (user.role === "AMBASSADOR") navigate("/ambassador/dashboard");
+      else if (user.role === "CP") navigate("/cp/dashboard");
       else navigate("/buyer/dashboard");
     } catch (err: any) {
       setError(err?.response?.data?.error || "Invalid email or password");

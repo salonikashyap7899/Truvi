@@ -6,7 +6,7 @@ export const signupSchema = z
     email: z.string().email("Enter a valid email"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number").optional().or(z.literal("")),
-    role: z.enum(["DEVELOPER", "CP", "BUYER"], { error: "Select a role" }),
+    role: z.enum(["DEVELOPER", "CP", "BUYER", "AMBASSADOR"], { error: "Select a role" }),
     companyName: z.string().optional(),
     reraNumber: z.string().optional(),
   })

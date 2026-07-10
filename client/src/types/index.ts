@@ -1,5 +1,38 @@
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
+
+export interface AmbassadorTaskChecklist {
+  gpsOn: boolean;
+  internetOn: boolean;
+  liveLocation?: { lat: number; lng: number; capturedAt: string } | null;
+}
+
+export interface AmbassadorTaskDocument {
+  url: string;
+  label?: string;
+  uploadedAt: string;
+}
+
+export interface AmbassadorTask {
+  _id: string;
+  title: string;
+  address: string;
+  mapUrl?: string | null;
+  deadline: string;
+  payoutAmount: number;
+  instructions?: string | null;
+  status: AmbassadorTaskStatus;
+  acceptedById?: string | null;
+  acceptedAt?: string | null;
+  lockExpiresAt?: string | null;
+  checklist?: AmbassadorTaskChecklist | null;
+  documents: AmbassadorTaskDocument[];
+  completedAt?: string | null;
+  payoutPaid: boolean;
+  createdById: string;
+  createdAt: string;
+}
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
 export type LeadStage =

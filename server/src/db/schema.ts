@@ -27,7 +27,8 @@ import {
 // Shared enum-ish types (kept identical to the old model exports)
 // ---------------------------------------------------------------------------
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
+export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type ListingTier = "STANDARD" | "FEATURED";
@@ -128,6 +129,23 @@ export interface PresentationInfo {
 export interface PriceHistoryEntry {
   price: number;
   changedAt: string; // ISO date string
+}
+
+// --- Ambassador task workflow (site-verification jobs) ---
+export interface AmbassadorTaskChecklist {
+  gpsOn: boolean;
+  internetOn: boolean;
+  liveLocation?: {
+    lat: number;
+    lng: number;
+    capturedAt: string; // ISO date string
+  } | null;
+}
+
+export interface AmbassadorTaskDocument {
+  url: string;
+  label?: string;
+  uploadedAt: string; // ISO date string
 }
 
 export interface CommissionMilestone {
@@ -476,6 +494,39 @@ export const courseProgress = pgTable(
   (t) => [uniqueIndex("course_progress_user_course_unique").on(t.userId, t.courseId)]
 );
 
+/**
+ * Ambassador site-verification tasks. Mirrors the SQL migration run in
+ * Supabase (truvi_supabase_ambassador_update.sql). An ambassador accepts a
+ * task, which locks it for 6 hours (YELLOW). If not completed in time it
+ * returns to the pool (GREEN/AVAILABLE). On completion it is RED/COMPLETED.
+ */
+export const ambassadorTasks = pgTable(
+  "ambassador_tasks",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    address: text("address").notNull(),
+    mapUrl: text("map_url"),
+    deadline: timestamp("deadline", { withTimezone: true, mode: "date" }).notNull(),
+    payoutAmount: doublePrecision("payout_amount").notNull().default(500),
+    instructions: text("instructions"),
+    status: text("status").$type<AmbassadorTaskStatus>().notNull().default("AVAILABLE"),
+    acceptedById: uuid("accepted_by_id").references(() => users._id),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
+    lockExpiresAt: timestamp("lock_expires_at", { withTimezone: true, mode: "date" }),
+    checklist: jsonb("checklist").$type<AmbassadorTaskChecklist>(),
+    documents: jsonb("documents").$type<AmbassadorTaskDocument[]>().notNull().default([]),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    payoutPaid: boolean("payout_paid").notNull().default(false),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_tasks_status_lock_idx").on(t.status, t.lockExpiresAt),
+    index("ambassador_tasks_accepted_by_idx").on(t.acceptedById),
+  ]
+);
+
 // ---------------------------------------------------------------------------
 // Inferred row types (replacements for the old IUser/IProject/... interfaces)
 // ---------------------------------------------------------------------------
@@ -502,6 +553,8 @@ export type IBuyerDocument = typeof buyerDocuments.$inferSelect;
 export type ISharedDocument = typeof sharedDocuments.$inferSelect;
 export type IProjectAsset = typeof projectAssets.$inferSelect;
 export type ICourseProgress = typeof courseProgress.$inferSelect;
+export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
+export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;
 
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;

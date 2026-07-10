@@ -113,7 +113,7 @@ export default function App() {
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
-        <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["CP"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
+        <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
 
         {/* Developer */}
         <Route path="/developer/dashboard" element={<ProtectedRoute roles={["DEVELOPER"]}><DeveloperDashboardPage /></ProtectedRoute>} />

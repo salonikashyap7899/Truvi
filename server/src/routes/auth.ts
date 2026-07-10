@@ -81,6 +81,9 @@ router.post("/signup", async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  // Ambassadors don't need admin approval — their gate is the onboarding
+  // verification flow (Aadhaar + phone OTP + email OTP), per the Ambassador SOP.
+  // Every other self-signup role stays PENDING until an admin approves.
   const [user] = await db
     .insert(users)
     .values({
@@ -89,44 +92,51 @@ router.post("/signup", async (req, res) => {
       password: hashedPassword,
       phone: phone || undefined,
       role,
-      approvalStatus: "PENDING",
+      approvalStatus: role === "AMBASSADOR" ? "APPROVED" : "PENDING",
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
+      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS } } : {}),
     })
     .returning();
 
-  // Notify all admins about the new pending account in real-time
-  try {
-    const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-    const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
-    const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
+  // Notify all admins about the new pending account in real-time.
+  // Ambassadors are auto-approved, so they don't generate an approval alert.
+  if (role !== "AMBASSADOR") {
+    try {
+      const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
+      const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
+      const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
 
-    await Promise.all(
-      admins.map(async (admin) => {
-        const [notification] = await db
-          .insert(notifications)
-          .values({ userId: admin._id, message })
-          .returning();
-        emitNotification(String(admin._id), notification);
-      })
-    );
+      await Promise.all(
+        admins.map(async (admin) => {
+          const [notification] = await db
+            .insert(notifications)
+            .values({ userId: admin._id, message })
+            .returning();
+          emitNotification(String(admin._id), notification);
+        })
+      );
 
-    // Also emit a role-level event so the admin dashboard list refreshes live
-    emitToRole("ADMIN", "user:pending", {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      approvalStatus: user.approvalStatus,
-      developerProfile: user.developerProfile,
-    });
-  } catch (err) {
-    console.error("Failed to notify admins on signup:", err);
+      // Also emit a role-level event so the admin dashboard list refreshes live
+      emitToRole("ADMIN", "user:pending", {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+        developerProfile: user.developerProfile,
+      });
+    } catch (err) {
+      console.error("Failed to notify admins on signup:", err);
+    }
   }
 
   return res.status(201).json({
-    message: "Account created. An admin will review and approve your account before you can access the platform.",
+    message:
+      role === "AMBASSADOR"
+        ? "Account created. Sign in and complete verification (Aadhaar, phone, email) to start accepting tasks."
+        : "Account created. An admin will review and approve your account before you can access the platform.",
     userId: user._id,
   });
 });
@@ -211,7 +221,9 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.role !== "CP") return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  if (user.role !== "CP" && user.role !== "AMBASSADOR") {
+    return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  }
 
   const checks: OnboardingChecks = {
     aadhaarVerified: Boolean(req.body?.aadhaarVerified),

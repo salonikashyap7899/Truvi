@@ -29,6 +29,7 @@ import academyRoutes from "./routes/academy";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
+import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -78,6 +79,7 @@ export function createApp() {
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/presentation", presentationRoutes);
+  app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));
