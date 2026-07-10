@@ -199,42 +199,73 @@ export default function AmbassadorDashboardPage() {
  */
 function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () => Promise<void> }) {
   const completed = task.status === "COMPLETED";
-  const [gpsOn, setGpsOn] = useState(Boolean(task.checklist?.gpsOn));
-  const [internetOn, setInternetOn] = useState(Boolean(task.checklist?.internetOn));
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    task.checklist?.liveLocation ? { lat: task.checklist.liveLocation.lat, lng: task.checklist.liveLocation.lng } : null,
+  // Real GPS fix (lat/lng + accuracy in metres) — only set when the device
+  // actually returns a satellite/location fix, so GPS "ON" can't be faked.
+  const [gpsFix, setGpsFix] = useState<{ lat: number; lng: number; accuracy: number } | null>(
+    task.checklist?.liveLocation
+      ? { lat: task.checklist.liveLocation.lat, lng: task.checklist.liveLocation.lng, accuracy: 0 }
+      : null,
   );
+  // Live internet status straight from the browser/device.
+  const [internetOn, setInternetOn] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [capturing, setCapturing] = useState(false);
   const [files, setFiles] = useState<FileList | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [completing, setCompleting] = useState(false);
 
+  // Track real connectivity changes as they happen.
+  useEffect(() => {
+    const update = () => setInternetOn(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  const gpsOn = !!gpsFix; // derived from a genuine location fix, not a toggle
   const hasDocs = (task.documents?.length ?? 0) > 0;
-  const checklistDone = gpsOn && internetOn && !!location;
+  const checklistDone = gpsOn && internetOn;
 
   function captureLocation() {
     if (!navigator.geolocation) {
       toast.error("Geolocation isn't supported on this device");
       return;
     }
+    setCapturing(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        toast.success("Live location captured");
+        setGpsFix({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        setCapturing(false);
+        toast.success("Live GPS location captured");
       },
-      () => toast.error("Couldn't get location. Enable GPS and allow access."),
-      { enableHighAccuracy: true, timeout: 10_000 },
+      (err) => {
+        setCapturing(false);
+        setGpsFix(null);
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission denied — enable GPS access for this site."
+            : "Couldn't get a GPS fix. Turn GPS on and try again outdoors.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
     );
   }
 
   async function saveChecklist() {
+    if (!gpsFix) {
+      toast.error("Capture your live GPS location first");
+      return;
+    }
     setSaving(true);
     try {
       await api.post(`/ambassador-tasks/${task._id}/checklist`, {
-        gpsOn,
-        internetOn,
-        lat: location?.lat,
-        lng: location?.lng,
+        gpsOn: true,
+        internetOn: navigator.onLine,
+        lat: gpsFix.lat,
+        lng: gpsFix.lng,
       });
       toast.success("Checklist saved");
       await onChanged();
@@ -318,28 +349,38 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
               <ClipboardCheck size={16} /> Site-visit checklist
             </p>
-            <div className="mt-3 flex flex-wrap gap-3">
-              <button
-                onClick={() => setGpsOn((v) => !v)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${gpsOn ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/5 text-muted-foreground"}`}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Live-detected from your device — capture your real GPS location on site.
+            </p>
+            <div className="mt-3 space-y-2">
+              {/* Internet — read live from the device, not a toggle */}
+              <div
+                className={`inline-flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:w-auto ${internetOn ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" : "border-rose-400/40 bg-rose-500/10 text-rose-200"}`}
               >
-                <Navigation size={12} /> GPS {gpsOn ? "ON" : "OFF"}
-              </button>
-              <button
-                onClick={() => setInternetOn((v) => !v)}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${internetOn ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/5 text-muted-foreground"}`}
-              >
-                <Wifi size={12} /> Internet {internetOn ? "ON" : "OFF"}
-              </button>
-              <button
-                onClick={captureLocation}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs transition ${location ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/5 text-muted-foreground"}`}
-              >
-                <MapPin size={12} />
-                {location ? `Location ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "Capture live location"}
-              </button>
+                <Wifi size={12} />
+                {internetOn ? "Internet connected" : "Offline — reconnect to continue"}
+              </div>
+
+              {/* GPS — derived from a genuine location fix */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={captureLocation}
+                  disabled={capturing}
+                  className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-200 transition hover:bg-sky-500/20 disabled:opacity-60"
+                >
+                  {capturing ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} />}
+                  {capturing ? "Locating…" : gpsFix ? "Update GPS location" : "Capture live GPS location"}
+                </button>
+                {gpsFix && (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    <MapPin size={12} />
+                    {gpsFix.lat.toFixed(5)}, {gpsFix.lng.toFixed(5)}
+                    {gpsFix.accuracy ? ` · ±${Math.round(gpsFix.accuracy)}m` : ""}
+                  </span>
+                )}
+              </div>
             </div>
-            <Button size="sm" variant="outline" className="mt-3" disabled={saving} onClick={saveChecklist}>
+            <Button size="sm" variant="outline" className="mt-3" disabled={saving || !gpsFix} onClick={saveChecklist}>
               {saving ? <Loader2 size={14} className="animate-spin" /> : "Save checklist"}
             </Button>
           </div>
