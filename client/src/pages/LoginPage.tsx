@@ -33,6 +33,7 @@ export default function LoginPage() {
           navigate("/admin/dashboard");
         }
       } else if (user.role === "DEVELOPER") navigate("/developer/dashboard");
+      else if (user.role === "AMBASSADOR") navigate("/ambassador/dashboard");
       else if (user.role === "CP") navigate("/cp/dashboard");
       else navigate("/buyer/dashboard");
     } catch (err: any) {

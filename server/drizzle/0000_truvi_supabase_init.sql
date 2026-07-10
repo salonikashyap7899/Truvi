@@ -1,3 +1,23 @@
+CREATE TABLE "ambassador_tasks" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"title" text NOT NULL,
+	"address" text NOT NULL,
+	"map_url" text,
+	"deadline" timestamp with time zone NOT NULL,
+	"payout_amount" double precision DEFAULT 500 NOT NULL,
+	"instructions" text,
+	"status" text DEFAULT 'AVAILABLE' NOT NULL,
+	"accepted_by_id" uuid,
+	"accepted_at" timestamp with time zone,
+	"lock_expires_at" timestamp with time zone,
+	"checklist" jsonb,
+	"documents" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"completed_at" timestamp with time zone,
+	"payout_paid" boolean DEFAULT false NOT NULL,
+	"created_by_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "buyer_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"buyer_id" uuid NOT NULL,
@@ -219,6 +239,8 @@ CREATE TABLE "users" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "ambassador_tasks" ADD CONSTRAINT "ambassador_tasks_accepted_by_id_users_id_fk" FOREIGN KEY ("accepted_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ambassador_tasks" ADD CONSTRAINT "ambassador_tasks_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "buyer_documents" ADD CONSTRAINT "buyer_documents_buyer_id_users_id_fk" FOREIGN KEY ("buyer_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commissions" ADD CONSTRAINT "commissions_lead_id_leads_id_fk" FOREIGN KEY ("lead_id") REFERENCES "public"."leads"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commissions" ADD CONSTRAINT "commissions_cp_id_users_id_fk" FOREIGN KEY ("cp_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -243,6 +265,8 @@ ALTER TABLE "site_visits" ADD CONSTRAINT "site_visits_cp_id_users_id_fk" FOREIGN
 ALTER TABLE "site_visits" ADD CONSTRAINT "site_visits_buyer_id_users_id_fk" FOREIGN KEY ("buyer_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "units" ADD CONSTRAINT "units_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "units" ADD CONSTRAINT "units_locked_by_cp_id_users_id_fk" FOREIGN KEY ("locked_by_cp_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "ambassador_tasks_status_lock_idx" ON "ambassador_tasks" USING btree ("status","lock_expires_at");--> statement-breakpoint
+CREATE INDEX "ambassador_tasks_accepted_by_idx" ON "ambassador_tasks" USING btree ("accepted_by_id");--> statement-breakpoint
 CREATE INDEX "buyer_documents_buyer_doctype_idx" ON "buyer_documents" USING btree ("buyer_id","doc_type");--> statement-breakpoint
 CREATE UNIQUE INDEX "commissions_lead_unique" ON "commissions" USING btree ("lead_id");--> statement-breakpoint
 CREATE INDEX "commissions_cp_idx" ON "commissions" USING btree ("cp_id");--> statement-breakpoint

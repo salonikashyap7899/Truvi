@@ -32,7 +32,7 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
  * Also enforces the approval gate for DEVELOPER/CP (ADMIN is exempt,
  * since it's seeded, never self-signup, and never PENDING).
  */
-export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER">) {
+export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR">) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
     if (!roles.includes(req.user.role)) {
@@ -41,7 +41,9 @@ export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYE
     if (req.user.role !== "ADMIN" && req.user.approvalStatus !== "APPROVED") {
       return res.status(403).json({ error: "Account pending admin approval" });
     }
-    if (req.user.role === "CP" && req.user.onboardingVerified !== true) {
+    // CPs and Ambassadors must finish verification (Aadhaar + phone OTP +
+    // email OTP) before any listings become visible (Ambassador SOP step 0).
+    if ((req.user.role === "CP" || req.user.role === "AMBASSADOR") && req.user.onboardingVerified !== true) {
       return res.status(403).json({ error: "Complete onboarding verification to access project details" });
     }
     next();

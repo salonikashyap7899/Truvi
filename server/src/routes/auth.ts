@@ -100,7 +100,10 @@ router.post("/signup", async (req, res) => {
       password: hashedPassword,
       phone: normalizedPhone,
       role,
-      approvalStatus: "PENDING",
+      // Ambassadors are gated by their own verification steps (Aadhaar +
+      // phone OTP + email OTP), not by admin approval — per the Ambassador
+      // SOP their profile goes "Active" as soon as verification completes.
+      approvalStatus: role === "AMBASSADOR" ? "APPROVED" : "PENDING",
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
@@ -110,8 +113,12 @@ router.post("/signup", async (req, res) => {
   // Notify all admins about the new pending account in real-time
   try {
     const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-    const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
-    const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
+    const roleLabel =
+      role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : role === "AMBASSADOR" ? "Ambassador" : "Channel Partner";
+    const message =
+      role === "AMBASSADOR"
+        ? `New Ambassador account created (self-verifying): ${name} (${normalizedEmail})`
+        : `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
 
     await Promise.all(
       admins.map(async (admin) => {
@@ -134,7 +141,10 @@ router.post("/signup", async (req, res) => {
   }
 
   return res.status(201).json({
-    message: "Account created. An admin will review and approve your account before you can access the platform.",
+    message:
+      role === "AMBASSADOR"
+        ? "Account created. Complete Aadhaar, phone and email verification to activate your ambassador profile."
+        : "Account created. An admin will review and approve your account before you can access the platform.",
     userId: user._id,
   });
 });
@@ -222,7 +232,9 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.role !== "CP") return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  if (user.role !== "CP" && user.role !== "AMBASSADOR") {
+    return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  }
 
   const checks: OnboardingChecks = {
     aadhaarVerified: Boolean(req.body?.aadhaarVerified),

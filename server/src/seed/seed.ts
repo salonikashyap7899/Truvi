@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
+import { eq } from "drizzle-orm";
 import { connectDb, closeDb } from "../db";
 import {
   users,
@@ -9,6 +10,7 @@ import {
   leads,
   siteVisits,
   commissions,
+  ambassadorTasks,
   notifications,
   posts,
   enquiries,
@@ -54,6 +56,7 @@ async function seed() {
 
   console.log("Clearing existing data...");
   // Delete order respects foreign keys: children before parents.
+  await db.delete(ambassadorTasks);
   await db.delete(commissions);
   await db.delete(siteVisits);
   await db.delete(leadPurchases);
@@ -260,6 +263,46 @@ async function seed() {
     });
   }
 
+  // --- Ambassadors: 1 fully verified + demo field-verification tasks ---
+  await db.insert(users).values({
+    name: "Ravi Ambassador",
+    email: "ambassador1@truvi.app",
+    password: hashedPassword,
+    role: "AMBASSADOR",
+    approvalStatus: "APPROVED",
+    phone: randomPhone(),
+    onboardingVerified: true,
+    onboardingChecks: { aadhaarVerified: true, phoneVerified: true, emailVerified: true },
+  });
+
+  const [adminUser] = await db.select().from(users).where(eq(users.email, "admin@truvi.app"));
+  const taskSeedData = [
+    {
+      title: "Emerald Heights — Site Verification",
+      address: "Gachibowli Main Road, Hyderabad, Telangana 500032",
+      mapUrl: "https://maps.google.com/?q=Gachibowli+Hyderabad",
+      deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      instructions: "Photograph the entrance, tower progress, and RERA board. Confirm construction activity.",
+    },
+    {
+      title: "Sarjapur Road Plot — Boundary Check",
+      address: "Sarjapur Road, Bengaluru, Karnataka 560035",
+      mapUrl: "https://maps.google.com/?q=Sarjapur+Road+Bengaluru",
+      deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      instructions: "Capture plot boundary markers and the access road condition.",
+    },
+    {
+      title: "Thane West Project — Amenity Audit",
+      address: "Ghodbunder Road, Thane West, Maharashtra 400615",
+      mapUrl: "https://maps.google.com/?q=Ghodbunder+Road+Thane",
+      deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      instructions: "Verify clubhouse, pool and gym exist as advertised; photograph each.",
+    },
+  ];
+  for (const t of taskSeedData) {
+    await db.insert(ambassadorTasks).values({ ...t, createdById: adminUser._id });
+  }
+
   console.log("Seed complete.\n");
   console.log("--- Login credentials (all use password: Password123!) ---");
   console.log("Admin:      admin@truvi.app");
@@ -268,6 +311,7 @@ async function seed() {
   console.log("Developer:  dev4@truvi.app (pending — test the approval flow)");
   console.log("CP:         cp1@truvi.app (approved, Silver)");
   console.log("CP:         cp7@truvi.app (approved, Diamond)");
+  console.log("Ambassador: ambassador1@truvi.app (verified — 3 demo tasks waiting)");
 
   await closeDb();
 }

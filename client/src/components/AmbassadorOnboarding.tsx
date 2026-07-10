@@ -5,6 +5,24 @@ import { Button } from "@/components/ui/button";
 import { CircleCheckBig, Mail, Phone, FileText, Loader2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
+/**
+ * The access token bakes in `onboardingVerified` at issue time, so after a
+ * verification step succeeds we refresh the token — otherwise gated routes
+ * keep seeing the stale "not verified" claim until the 15-min expiry.
+ */
+async function refreshSessionToken(updatedUser: any) {
+  try {
+    const res = await api.post("/auth/refresh");
+    if (res.data?.accessToken) {
+      useAuthStore.getState().setAuth(updatedUser, res.data.accessToken);
+      return;
+    }
+  } catch {
+    /* fall through — keep the old token; it renews on next 401 */
+  }
+  useAuthStore.getState().setAuth(updatedUser, useAuthStore.getState().accessToken!);
+}
+
 export function AmbassadorOnboarding() {
   const user = useAuthStore((s) => s.user);
   const [currentStep, setCurrentStep] = useState<"phone" | "email" | "aadhaar" | "complete">("phone");
@@ -59,10 +77,7 @@ export function AmbassadorOnboarding() {
     setPhoneVerifying(true);
     try {
       const res = await api.post("/auth/verify-phone-otp", { otp: phoneOtp });
-      useAuthStore.getState().setAuth(
-        { ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified } as any,
-        useAuthStore.getState().accessToken!,
-      );
+      await refreshSessionToken({ ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified });
       toast.success("Phone verified!");
       setPhoneOtp("");
       setPhoneOtpRequested(false);
@@ -96,10 +111,7 @@ export function AmbassadorOnboarding() {
     setEmailVerifying(true);
     try {
       const res = await api.post("/auth/verify-email-otp", { otp: emailOtp });
-      useAuthStore.getState().setAuth(
-        { ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified } as any,
-        useAuthStore.getState().accessToken!,
-      );
+      await refreshSessionToken({ ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified });
       toast.success("Email verified!");
       setEmailOtp("");
       setEmailOtpRequested(false);
@@ -125,10 +137,7 @@ export function AmbassadorOnboarding() {
       const res = await api.post("/auth/upload-aadhaar", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      useAuthStore.getState().setAuth(
-        { ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified } as any,
-        useAuthStore.getState().accessToken!,
-      );
+      await refreshSessionToken({ ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified });
       toast.success("Aadhaar verified!");
       setAadhaarFile(null);
       setCurrentStep("complete");

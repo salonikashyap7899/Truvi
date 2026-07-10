@@ -30,7 +30,13 @@ import {
 // Shared enum-ish types (kept identical to the old model exports)
 // ---------------------------------------------------------------------------
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
+
+// Ambassador task lifecycle (SOP colour system):
+//   GREEN  = Available       — anyone can accept
+//   YELLOW = Locked/Working  — accepted, exclusive for 6 hours
+//   RED    = Completed       — checklist + documents done, payout earned
+export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type ListingTier = "STANDARD" | "FEATURED";
@@ -476,6 +482,52 @@ export const projectAssets = pgTable(
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
 
+export interface TaskDocument {
+  fileName: string;
+  fileUrl: string;
+  uploadedAt: string; // ISO
+}
+
+export interface TaskChecklist {
+  gpsOn: boolean;
+  internetOn: boolean;
+  liveLat: number | null;
+  liveLng: number | null;
+  completedAt: string | null; // ISO
+}
+
+/**
+ * Ambassador field-verification tasks (Truvi Ambassador SOP).
+ * Distinct from the CP sales flow — ambassadors accept site-visit gigs,
+ * complete a GPS checklist, upload proof documents, and earn a fixed payout.
+ */
+export const ambassadorTasks = pgTable(
+  "ambassador_tasks",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(), // project name
+    address: text("address").notNull(),
+    mapUrl: text("map_url"), // Google Maps link
+    deadline: timestamp("deadline", { withTimezone: true, mode: "date" }).notNull(),
+    payoutAmount: doublePrecision("payout_amount").notNull().default(500),
+    instructions: text("instructions"),
+    status: text("status").$type<AmbassadorTaskStatus>().notNull().default("AVAILABLE"),
+    acceptedById: uuid("accepted_by_id").references(() => users._id),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
+    lockExpiresAt: timestamp("lock_expires_at", { withTimezone: true, mode: "date" }), // acceptedAt + 6h
+    checklist: jsonb("checklist").$type<TaskChecklist>(),
+    documents: jsonb("documents").$type<TaskDocument[]>().notNull().default([]),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    payoutPaid: boolean("payout_paid").notNull().default(false),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_tasks_status_lock_idx").on(t.status, t.lockExpiresAt),
+    index("ambassador_tasks_accepted_by_idx").on(t.acceptedById),
+  ]
+);
+
 export const courseProgress = pgTable(
   "course_progress",
   {
@@ -515,6 +567,8 @@ export type IBuyerDocument = typeof buyerDocuments.$inferSelect;
 export type ISharedDocument = typeof sharedDocuments.$inferSelect;
 export type IProjectAsset = typeof projectAssets.$inferSelect;
 export type ICourseProgress = typeof courseProgress.$inferSelect;
+export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
+export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;
 
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;

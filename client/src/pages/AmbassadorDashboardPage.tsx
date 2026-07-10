@@ -1,295 +1,409 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { formatINR, nameOf } from "@/lib/utils";
+import { formatINR } from "@/lib/utils";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { AmbassadorOnboarding } from "@/components/AmbassadorOnboarding";
-import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
-import { MapPin, ShieldCheck, Lock, CheckCircle2, QrCode } from "lucide-react";
-import type { Project, Unit } from "@/types";
+import {
+  MapPin, Clock, CheckCircle2, Camera, Navigation, Wifi, Loader2,
+  IndianRupee, FileText, ExternalLink, Lock, RefreshCw,
+} from "lucide-react";
+import { toast } from "sonner";
+
+/* Truvi Ambassador SOP dashboard:
+   GREEN  = Available  (anyone can accept)
+   YELLOW = Locked     (mine for 6 hours — checklist + documents + complete)
+   RED    = Completed  (₹ payout earned)                                    */
+
+interface TaskDoc { fileName: string; fileUrl: string; uploadedAt: string }
+interface Checklist { gpsOn: boolean; internetOn: boolean; liveLat: number | null; liveLng: number | null; completedAt: string | null }
+interface AmbassadorTask {
+  _id: string;
+  title: string;
+  address: string;
+  mapUrl?: string | null;
+  deadline: string;
+  payoutAmount: number;
+  instructions?: string | null;
+  status: "AVAILABLE" | "LOCKED" | "COMPLETED";
+  colour: "GREEN" | "YELLOW" | "RED";
+  isMine: boolean;
+  lockExpiresAt?: string | null;
+  checklist?: Checklist | null;
+  documents: TaskDoc[];
+  completedAt?: string | null;
+}
+interface Earnings { completedCount: number; totalEarned: number; totalPaid: number; pendingPayout: number }
+
+const COLOUR_STYLES: Record<string, string> = {
+  GREEN: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
+  YELLOW: "border-amber-400/30 bg-amber-500/10 text-amber-300",
+  RED: "border-red-400/30 bg-red-500/10 text-red-300",
+};
+const COLOUR_LABEL: Record<string, string> = {
+  GREEN: "Available",
+  YELLOW: "Locked (in progress)",
+  RED: "Completed",
+};
+
+function timeLeft(iso?: string | null): string {
+  if (!iso) return "";
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "expired";
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${h}h ${m}m left`;
+}
 
 export default function AmbassadorDashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [unitsByProject, setUnitsByProject] = useState<Record<string, Unit[]>>({});
+  const [tasks, setTasks] = useState<AmbassadorTask[]>([]);
+  const [earnings, setEarnings] = useState<Earnings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lockLoading, setLockLoading] = useState<string | null>(null);
-  const [showQRCode, setShowQRCode] = useState(false);
+  const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetRef = useRef<string | null>(null);
+
+  const verified = Boolean(user?.onboardingVerified);
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const [tasksRes, earningsRes] = await Promise.all([
+        api.get("/ambassador-tasks"),
+        api.get("/ambassador-tasks/earnings"),
+      ]);
+      setTasks(tasksRes.data.tasks);
+      setEarnings(earningsRes.data);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to load ambassador tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
-    if (!user.onboardingVerified) {
-      setProjects([]);
+    if (!verified) {
+      // SOP step 0: no listings visible until verification is complete.
+      setTasks([]);
       setLoading(false);
-      setSelectedProjectId(null);
       return;
     }
+    load();
+  }, [user, verified, load]);
 
-    async function loadProjects() {
-      setError(null);
-      setLoading(true);
-      try {
-        const res = await api.get("/projects");
-        setProjects(res.data.projects);
-      } catch (err: any) {
-        setError(err?.response?.data?.error || "Failed to load ambassador tasks");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProjects();
-  }, [user]);
-
-  const selectedProject = useMemo(
-    () => projects.find((project) => project._id === selectedProjectId) || null,
-    [projects, selectedProjectId],
-  );
-
-  async function loadUnits(projectId: string) {
+  async function acceptTask(taskId: string) {
+    setBusyTaskId(taskId);
     try {
-      const res = await api.get("/units", { params: { projectId } });
-      setUnitsByProject((prev) => ({ ...prev, [projectId]: res.data.units }));
+      const res = await api.post(`/ambassador-tasks/${taskId}/accept`);
+      toast.success(`Task accepted — it's yours for ${res.data.lockHours} hours`);
+      setExpandedId(taskId);
+      await load();
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to load units");
-    }
-  }
-
-  async function lockUnit(unitId: string, projectId: string) {
-    setLockLoading(unitId);
-    try {
-      const res = await api.post(`/units/${unitId}/lock`);
-      setUnitsByProject((prev) => {
-        const list = prev[projectId] ?? [];
-        return {
-          ...prev,
-          [projectId]: list.map((unit) => (unit._id === unitId ? res.data.unit : unit)),
-        };
-      });
-    } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to lock task");
+      toast.error(err?.response?.data?.error || "Could not accept task");
     } finally {
-      setLockLoading(null);
+      setBusyTaskId(null);
     }
   }
 
-  useEffect(() => {
-    if (!selectedProjectId) return;
-    if (unitsByProject[selectedProjectId]) return;
-    loadUnits(selectedProjectId);
-  }, [selectedProjectId, unitsByProject]);
-
-  if (!user) {
-    return <div className="min-h-screen p-10 text-white">Loading ambassador workspace…</div>;
+  /** SOP step 3: GPS ON + Internet ON + live location capture. */
+  async function runChecklist(taskId: string) {
+    setBusyTaskId(taskId);
+    try {
+      if (!navigator.onLine) {
+        toast.error("Internet is OFF — connect and try again");
+        return;
+      }
+      if (!("geolocation" in navigator)) {
+        toast.error("GPS not available on this device");
+        return;
+      }
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 })
+      );
+      await api.post(`/ambassador-tasks/${taskId}/checklist`, {
+        gpsOn: true,
+        internetOn: true,
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+      });
+      toast.success("Site-visit checklist complete — live location captured");
+      await load();
+    } catch (err: any) {
+      if (err?.code === 1) toast.error("Location permission denied — enable GPS to continue");
+      else toast.error(err?.response?.data?.error || "Checklist failed — ensure GPS is ON");
+    } finally {
+      setBusyTaskId(null);
+    }
   }
+
+  function pickDocument(taskId: string) {
+    uploadTargetRef.current = taskId;
+    fileInputRef.current?.click();
+  }
+
+  async function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const taskId = uploadTargetRef.current;
+    e.target.value = "";
+    if (!file || !taskId) return;
+    setBusyTaskId(taskId);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      await api.post(`/ambassador-tasks/${taskId}/documents`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Document uploaded");
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Upload failed");
+    } finally {
+      setBusyTaskId(null);
+    }
+  }
+
+  async function completeTask(taskId: string) {
+    setBusyTaskId(taskId);
+    try {
+      const res = await api.post(`/ambassador-tasks/${taskId}/complete`);
+      toast.success(res.data.message || "Task completed!");
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not complete task");
+    } finally {
+      setBusyTaskId(null);
+    }
+  }
+
+  const sorted = useMemo(() => {
+    // Mine-in-progress first, then available, completed last.
+    const rank = (t: AmbassadorTask) => (t.status === "LOCKED" && t.isMine ? 0 : t.status === "AVAILABLE" ? 1 : t.status === "LOCKED" ? 2 : 3);
+    return [...tasks].sort((a, b) => rank(a) - rank(b));
+  }, [tasks]);
+
+  if (!user) return null;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold">Ambassador Dashboard</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Browse live verification tasks from Truvi’s inventory. Every available project and unit reflects current backend data — no dummy listings.
+          <h1 className="text-2xl font-semibold">Ambassador Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Accept site-visit tasks, complete the checklist, upload proof — earn per completed task.
           </p>
         </div>
-        <div className="space-y-1 text-right">
-          <p className="text-sm text-muted-foreground">Logged in as</p>
-          <p className="text-base font-medium">{user.name}</p>          <button
-            onClick={() => setShowQRCode(true)}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-white/10 transition"
-          >
-            <QrCode size={16} />
-            Share Access QR
-          </button>        </div>
+        {verified && (
+          <Button variant="outline" onClick={() => { setLoading(true); load(); }} className="gap-2">
+            <RefreshCw size={14} /> Refresh
+          </Button>
+        )}
       </div>
 
-      <AmbassadorOnboarding />
-
-      {!user.onboardingVerified ? (
-        <div className="mt-8 rounded-3xl border border-amber-500/20 bg-amber-950/20 p-6 text-sm text-amber-100">
-          <p className="text-base font-semibold">Verification required</p>
-          <p className="mt-2">Complete phone, email, and Aadhaar verification to unlock project details and verification tasks.</p>
-        </div>
-      ) : (
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <section className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold">Available verification tasks</h2>
-              <p className="text-sm text-muted-foreground">
-                Select a project to view live units, lock a task, and verify property details.
-              </p>
-            </div>
-            <div className="space-y-1 text-sm text-muted-foreground">
-              <p>{projects.length} project{projects.length === 1 ? "" : "s"} available</p>
-              <p>{projects.filter((project) => project.isVerified).length} verified projects</p>
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-muted-foreground">Loading tasks…</div>
-          ) : error ? (
-            <div className="rounded-3xl border border-rose-500/20 bg-rose-950/20 p-6 text-sm text-rose-200">{error}</div>
-          ) : projects.length === 0 ? (
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-muted-foreground">No live tasks available right now.</div>
-          ) : (
-            <div className="grid gap-4">
-              {projects.map((project) => {
-                const availableUnits = (unitsByProject[project._id] ?? []).filter((unit) => unit.status === "AVAILABLE").length;
-                return (
-                  <Card key={project._id} className="border-white/10 glass p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={project.isVerified ? "success" : "outline"}>{project.approvalStatus}</Badge>
-                          {project.listingTier === "FEATURED" && <Badge variant="featured">Featured</Badge>}
-                          {project.isPrimeListing && <Badge variant="info">Prime</Badge>}
-                        </div>
-                        <div>
-                          <p className="text-lg font-semibold text-white">{project.name}</p>
-                          <p className="text-sm text-muted-foreground">{project.location}, {project.city}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-start gap-2 sm:items-end">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-muted-foreground">
-                          <MapPin size={14} />
-                          {availableUnits} available unit{availableUnits === 1 ? "" : "s"}
-                        </div>
-                        <Button
-                          variant={selectedProjectId === project._id ? "secondary" : "outline"}
-                          onClick={() => setSelectedProjectId(project._id)}
-                        >
-                          {selectedProjectId === project._id ? "Viewing" : "View"} project
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Units</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{project.unitCount ?? 0}</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Commission</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{project.commissionPercent}%</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Developer</p>
-                        <p className="mt-2 text-sm text-white">{nameOf(project.developerId) || "Unknown"}</p>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <div className="flex items-center justify-between gap-3">
+      {/* SOP step 0 — verification gate */}
+      {!verified && (
+        <>
+          <div className="mt-6 rounded-3xl border border-amber-500/20 bg-amber-950/20 p-5">
+            <div className="flex items-center gap-3">
+              <Lock size={20} className="text-amber-400" />
               <div>
-                <p className="text-sm font-semibold text-white">Selected project</p>
-                <p className="mt-1 text-xs text-muted-foreground">Choose a project to inspect units and accept a verification task.</p>
+                <p className="font-semibold text-amber-200">Verification required</p>
+                <p className="text-sm text-amber-100/70">
+                  Complete phone OTP, email OTP and Aadhaar upload below. Task listings unlock when all three are done.
+                </p>
               </div>
-              <Badge variant="info">Live data</Badge>
             </div>
-
-            {!selectedProject ? (
-              <div className="mt-6 rounded-3xl border border-dashed border-white/10 bg-white/5 p-6 text-sm text-muted-foreground">
-                Select a project from the list to load its live units and verification status.
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2 rounded-2xl border border-white/10 bg-[#06090f]/90 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold text-white">{selectedProject.name}</p>
-                      <p className="text-sm text-muted-foreground">{selectedProject.location}, {selectedProject.city}</p>
-                    </div>
-                    <Badge variant={selectedProject.isVerified ? "success" : "warning"}>
-                      {selectedProject.isVerified ? "Verified" : "Needs review"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-3">{selectedProject.description}</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Min rate</p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {selectedProject.minRate ? formatINR(selectedProject.minRate) : "—"}
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Available units</p>
-                      <p className="mt-2 text-lg font-semibold text-white">
-                        {(unitsByProject[selectedProject._id] ?? []).filter((unit) => unit.status === "AVAILABLE").length}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Live units</p>
-                  {(unitsByProject[selectedProject._id] ?? []).length === 0 ? (
-                    <div className="rounded-2xl border border-white/10 bg-[#06111d]/80 p-5 text-sm text-muted-foreground">
-                      No units loaded yet. Select a project and refresh if necessary.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {unitsByProject[selectedProject._id].map((unit) => (
-                        <div key={unit._id} className="rounded-2xl border border-white/10 bg-[#060b14]/80 p-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-white">Unit {unit.unitNumber}</p>
-                              <p className="text-xs text-muted-foreground">{unit.type} · {formatINR(unit.price)} · {unit.areaSqft} sqft</p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant={unit.status === "AVAILABLE" ? "success" : unit.status === "LOCKED" ? "warning" : "danger"}>
-                                {unit.status}
-                              </Badge>
-                              {unit.status === "AVAILABLE" ? (
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  disabled={Boolean(lockLoading)}
-                                  onClick={() => lockUnit(unit._id, selectedProject._id)}
-                                >
-                                  {lockLoading === unit._id ? "Locking…" : "Accept task"}
-                                </Button>
-                              ) : unit.status === "LOCKED" ? (
-                                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground">
-                                  <Lock size={12} /> Locked
-                                </div>
-                              ) : (
-                                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground">
-                                  <CheckCircle2 size={12} /> {unit.status}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2 text-white">
-                    <ShieldCheck size={16} />
-                    Live verification tasks are sourced from every approved project with available units in Truvi inventory.
-                  </div>
-                  <p className="mt-2">Locking a unit gives you an exclusive 6-hour window to complete the verification task before it returns to the pool.</p>
-                </div>
-              </div>
-            )}
           </div>
-          </section>
-        </div>
+          <AmbassadorOnboarding />
+        </>
       )}
 
-      {showQRCode && <AmbassadorQRCode onClose={() => setShowQRCode(false)} />}
+      {verified && (
+        <>
+          {/* Earnings summary (SOP step 7 — payment per completed task) */}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <Card className="border-white/10 glass p-5">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Completed tasks</p>
+              <p className="mt-1 text-2xl font-semibold">{earnings?.completedCount ?? 0}</p>
+            </Card>
+            <Card className="border-white/10 glass p-5">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Total earned</p>
+              <p className="mt-1 flex items-center text-2xl font-semibold text-emerald-300">
+                <IndianRupee size={20} />{(earnings?.totalEarned ?? 0).toLocaleString("en-IN")}
+              </p>
+            </Card>
+            <Card className="border-white/10 glass p-5">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Pending payout</p>
+              <p className="mt-1 flex items-center text-2xl font-semibold text-amber-300">
+                <IndianRupee size={20} />{(earnings?.pendingPayout ?? 0).toLocaleString("en-IN")}
+              </p>
+            </Card>
+          </div>
+
+          {/* Colour legend (SOP step 2) */}
+          <div className="mt-6 flex flex-wrap gap-2 text-xs">
+            {(["GREEN", "YELLOW", "RED"] as const).map((c) => (
+              <span key={c} className={`rounded-full border px-3 py-1 ${COLOUR_STYLES[c]}`}>
+                {c} — {COLOUR_LABEL[c]}
+              </span>
+            ))}
+          </div>
+
+          {error && <p className="mt-6 rounded-xl border border-red-500/25 bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</p>}
+          {loading && <p className="mt-6 text-sm text-muted-foreground">Loading tasks…</p>}
+          {!loading && sorted.length === 0 && !error && (
+            <Card className="mt-6 border-white/10 glass p-8 text-center text-muted-foreground">
+              No tasks posted yet. Check back soon — new site-visit tasks appear here.
+            </Card>
+          )}
+
+          {/* Task listing (SOP step 1) */}
+          <div className="mt-4 space-y-4">
+            {sorted.map((task) => {
+              const expanded = expandedId === task._id;
+              const busy = busyTaskId === task._id;
+              const mineInProgress = task.status === "LOCKED" && task.isMine;
+              const checklistDone = Boolean(task.checklist?.completedAt);
+              const hasDocs = (task.documents?.length ?? 0) > 0;
+
+              return (
+                <Card key={task._id} className="border-white/10 glass overflow-hidden">
+                  <button
+                    className="flex w-full flex-wrap items-center justify-between gap-3 p-5 text-left"
+                    onClick={() => setExpandedId(expanded ? null : task._id)}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{task.title}</p>
+                        <Badge className={`border ${COLOUR_STYLES[task.colour]}`}>{task.colour}</Badge>
+                        {mineInProgress && (
+                          <span className="flex items-center gap-1 text-xs text-amber-300">
+                            <Clock size={12} /> {timeLeft(task.lockExpiresAt)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                        <MapPin size={13} /> {task.address}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="flex items-center font-semibold text-emerald-300">
+                        <IndianRupee size={14} />{task.payoutAmount.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Deadline {new Date(task.deadline).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      </span>
+                    </div>
+                  </button>
+
+                  {expanded && (
+                    <div className="border-t border-white/10 p-5">
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        {task.mapUrl && (
+                          <a href={task.mapUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sky-300 underline-offset-4 hover:underline">
+                            <ExternalLink size={13} /> Google Map location
+                          </a>
+                        )}
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Clock size={13} /> Deadline: {new Date(task.deadline).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      {task.instructions && <p className="mt-3 text-sm text-muted-foreground">{task.instructions}</p>}
+
+                      {/* GREEN: accept (SOP step 2) */}
+                      {task.status === "AVAILABLE" && (
+                        <Button onClick={() => acceptTask(task._id)} disabled={busy} className="mt-4 gap-2">
+                          {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          Accept task (locks it for you — 6 hours)
+                        </Button>
+                      )}
+
+                      {/* YELLOW someone else's */}
+                      {task.status === "LOCKED" && !task.isMine && (
+                        <p className="mt-4 flex items-center gap-2 text-sm text-amber-300">
+                          <Lock size={14} /> Another ambassador is working on this task.
+                        </p>
+                      )}
+
+                      {/* YELLOW mine: checklist -> documents -> complete (SOP steps 3-4) */}
+                      {mineInProgress && (
+                        <div className="mt-5 space-y-4">
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p className="flex items-center gap-2 text-sm font-semibold">
+                              <Navigation size={14} className={checklistDone ? "text-emerald-400" : "text-amber-400"} />
+                              Step 1 — Site-visit checklist
+                              {checklistDone && <CheckCircle2 size={14} className="text-emerald-400" />}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              GPS ON • Internet ON • Live location capture (run this at the site)
+                            </p>
+                            {!checklistDone && (
+                              <Button onClick={() => runChecklist(task._id)} disabled={busy} variant="outline" className="mt-3 gap-2">
+                                {busy ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
+                                Capture live location
+                              </Button>
+                            )}
+                            {checklistDone && task.checklist && (
+                              <p className="mt-2 text-xs text-emerald-300">
+                                Location captured: {task.checklist.liveLat?.toFixed(5)}, {task.checklist.liveLng?.toFixed(5)}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <p className="flex items-center gap-2 text-sm font-semibold">
+                              <Camera size={14} className={hasDocs ? "text-emerald-400" : "text-amber-400"} />
+                              Step 2 — Upload proof documents
+                              {hasDocs && <CheckCircle2 size={14} className="text-emerald-400" />}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">Site photos, verification proof — at least one required.</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <Button onClick={() => pickDocument(task._id)} disabled={busy} variant="outline" className="gap-2">
+                                {busy ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+                                Upload document
+                              </Button>
+                              {task.documents?.map((d, i) => (
+                                <a key={i} href={d.fileUrl} target="_blank" rel="noreferrer" className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-sky-300 hover:underline">
+                                  {d.fileName}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Button
+                            onClick={() => completeTask(task._id)}
+                            disabled={busy || !checklistDone || !hasDocs}
+                            className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-emerald-400 text-black hover:opacity-90"
+                          >
+                            {busy ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                            Mark complete — earn {formatINR(task.payoutAmount)}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* RED: completed */}
+                      {task.status === "COMPLETED" && (
+                        <p className="mt-4 flex items-center gap-2 text-sm text-red-300">
+                          <CheckCircle2 size={14} />
+                          Completed{task.completedAt ? ` on ${new Date(task.completedAt).toLocaleString("en-IN")}` : ""}
+                          {task.isMine ? ` — ${formatINR(task.payoutAmount)} earned` : ""}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* hidden shared file input for document uploads */}
+      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" onChange={onFileChosen} />
     </main>
   );
 }
