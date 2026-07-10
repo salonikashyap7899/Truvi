@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 
 /**
  * Fixed, pointer-transparent 3D backdrop shared by every page except the
@@ -179,23 +180,26 @@ function SlowOrbit() {
 export function AmbientBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
-      <Canvas
-        dpr={[1, 1.5]}
-        gl={{ antialias: false, powerPreference: "high-performance" }}
-        camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
-      >
-        <color attach="background" args={["#050608"]} />
-        <fog attach="fog" args={["#050608", 34, 130]} />
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[20, 40, 10]} intensity={1} color="#9ec5ff" />
-        <pointLight position={[0, 26, 0]} intensity={1.6} color="#3B82F6" distance={110} />
-        <pointLight position={[24, 8, -18]} intensity={1.1} color="#10B981" distance={70} />
-        <Ground />
-        <Plots />
-        <Towers />
-        <Homes />
-        <SlowOrbit />
-      </Canvas>
+      {/* Decorative only — devices without WebGL just skip the scene */}
+      <SilentErrorBoundary>
+        <Canvas
+          dpr={[1, 1.5]}
+          gl={{ antialias: false, powerPreference: "high-performance" }}
+          camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
+        >
+          <color attach="background" args={["#050608"]} />
+          <fog attach="fog" args={["#050608", 34, 130]} />
+          <ambientLight intensity={0.3} />
+          <directionalLight position={[20, 40, 10]} intensity={1} color="#9ec5ff" />
+          <pointLight position={[0, 26, 0]} intensity={1.6} color="#3B82F6" distance={110} />
+          <pointLight position={[24, 8, -18]} intensity={1.1} color="#10B981" distance={70} />
+          <Ground />
+          <Plots />
+          <Towers />
+          <Homes />
+          <SlowOrbit />
+        </Canvas>
+      </SilentErrorBoundary>
       {/* Vignette so content stays readable */}
       <div
         className="pointer-events-none absolute inset-0"

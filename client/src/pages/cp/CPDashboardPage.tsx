@@ -110,7 +110,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">
             {title} <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
@@ -276,7 +276,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
         <h2 className="text-lg font-medium">My leads</h2>
         <div className="mt-3 space-y-2">
           {leads.map((l) => (
-            <Card key={l._id} className="flex items-center justify-between border-white/10 glass text-white">
+            <Card key={l._id} className="flex flex-wrap items-center justify-between gap-3 border-white/10 glass text-white">
               <div>
                 <p className="font-medium">{l.clientName}</p>
                 <p className="text-sm text-muted-foreground">{nameOf(l.projectId)} · {l.clientPhone}</p>

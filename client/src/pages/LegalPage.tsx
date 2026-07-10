@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { SiteNav } from "@/components/SiteNav";
 
 function LegalSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
@@ -24,13 +25,10 @@ export default function LegalPage() {
   }, [hash]);
 
   return (
-    <main className="min-h-screen px-6 pb-24 pt-28 md:px-12">
+    <main className="min-h-screen px-4 pb-24 pt-28 sm:px-6 md:px-12">
+      <SiteNav />
       <div className="mx-auto max-w-3xl">
-        <Link to="/" className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
-          <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[10px] font-bold">T</span>
-          TRUVI
-        </Link>
-        <h1 className="mt-6 font-display text-4xl font-semibold md:text-5xl">Legal & Methodology</h1>
+        <h1 className="mt-6 font-display text-3xl font-semibold sm:text-4xl md:text-5xl">Legal & Methodology</h1>
         <p className="mt-3 text-muted-foreground">
           How Truvi handles information, verifies data and communicates its limitations.
         </p>
