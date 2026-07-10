@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { SiteNav } from "@/components/SiteNav";
 import {
   Database, ShieldCheck, LayoutGrid, Zap, ArrowRight, Check, Clock, HelpCircle,
   FileText, Landmark, Newspaper, Map, ScrollText, HardHat, Building2,
@@ -121,6 +122,7 @@ export default function IntelligencePage() {
 
   return (
     <main className="min-h-screen text-white pb-28">
+      <SiteNav />
       {/* 1 ── HERO */}
       <Section className="pt-28 md:pt-36">
         <Reveal><Eyebrow>AI Intelligence — Verified by Design</Eyebrow></Reveal>

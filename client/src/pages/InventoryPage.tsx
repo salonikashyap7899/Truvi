@@ -12,6 +12,7 @@ import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import VisitorGateModal from "@/components/VisitorGateModal";
 import ListingIntelligence from "@/components/ListingIntelligence";
+import { SiteNav } from "@/components/SiteNav";
 import type { Project } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -63,7 +64,9 @@ export default function InventoryPage() {
 
       <VerificationDrawer project={inspecting} onClose={() => setInspecting(null)} />
 
-      <main className="min-h-screen px-6 pb-28 pt-28 text-white md:px-10">
+      <SiteNav />
+
+      <main className="min-h-screen px-4 pb-28 pt-28 text-white sm:px-6 md:px-10">
         {/* ── Hero header ── */}
         <div className="mx-auto max-w-3xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-[11px] uppercase tracking-[0.25em] text-muted-foreground">

@@ -6,6 +6,7 @@ import {
   MapPin, FileCheck, ShieldCheck, Banknote, Star, Clock, QrCode,
 } from "lucide-react";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
+import { SiteNav } from "@/components/SiteNav";
 
 /* ── Palette: blue replaces gold everywhere ─────────────────────────────── */
 const BLUE = "#3B82F6";
@@ -175,6 +176,7 @@ export default function AboutPage() {
       />
 
       <main className="relative min-h-screen text-white">
+        <SiteNav />
 
         {/* ── 1 · HERO ── */}
         <Section className="pt-32 md:pt-40">

@@ -39,7 +39,7 @@ export function AmbassadorQRCode({ onClose }: AmbassadorQRCodeProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-8 max-w-md w-full space-y-6">
+      <div className="max-h-[90vh] w-full max-w-md space-y-6 overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-6 sm:p-8">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-white">Ambassador Access</h2>

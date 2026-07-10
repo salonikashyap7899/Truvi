@@ -1,7 +1,8 @@
-import { useMemo, useRef } from "react";
+import { Suspense, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Environment } from "@react-three/drei";
 import * as THREE from "three";
+import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 
 type ProgressRef = { current: number };
 
@@ -145,7 +146,14 @@ function Scene() {
       <City progress={progress} />
       <Pillars progress={progress} />
       <CameraRig progress={progress} />
-      <Environment preset="night" />
+      {/* The night HDR comes from a CDN — if that fetch fails (offline,
+          blocked network), fall back to the scene's own lights instead of
+          crashing the page. */}
+      <SilentErrorBoundary>
+        <Suspense fallback={null}>
+          <Environment preset="night" />
+        </Suspense>
+      </SilentErrorBoundary>
     </>
   );
 }
@@ -153,14 +161,17 @@ function Scene() {
 export function CityCanvas() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0">
-      <Canvas
-        shadows={false}
-        dpr={[1, 1.75]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
-        camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
-      >
-        <Scene />
-      </Canvas>
+      {/* Decorative only — devices without WebGL just skip the scene */}
+      <SilentErrorBoundary>
+        <Canvas
+          shadows={false}
+          dpr={[1, 1.75]}
+          gl={{ antialias: true, powerPreference: "high-performance" }}
+          camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
+        >
+          <Scene />
+        </Canvas>
+      </SilentErrorBoundary>
       <div
         className="pointer-events-none absolute inset-0"
         style={{

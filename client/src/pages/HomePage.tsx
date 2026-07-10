@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 export default function HomePage() {
   return (
     <main className="min-h-screen text-foreground">
-      <nav className="flex items-center justify-between px-6 py-6 md:px-16">
+      <nav className="flex flex-wrap items-center justify-between gap-3 px-4 py-5 sm:px-6 md:px-16 md:py-6">
         <span className="font-display text-xl font-semibold">Truvi</span>
-        <div className="flex gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-3 text-sm sm:gap-4">
           <Link to="/about" className="hover:underline">About</Link>
           <Link to="/login" className="hover:underline">Log in</Link>
           <Link to="/join" className="rounded-full bg-[var(--trust)] px-4 py-2 text-white hover:bg-[var(--trust)]/85">Join Truvi</Link>
@@ -20,7 +20,7 @@ export default function HomePage() {
           Truvi is the operating system behind India&apos;s real estate transactions — live inventory,
           real-time updates, transparent commissions, and verified partners, all in one place.
         </p>
-        <div className="mt-8 flex justify-center gap-4">
+        <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Link to="/join" className="rounded-full bg-[var(--trust)] px-6 py-3 text-white hover:bg-[var(--trust)]/85">Join as Developer</Link>
           <Link to="/join" className="rounded-full border border-white/20 px-6 py-3 hover:bg-white/5">Join as Channel Partner</Link>
         </div>

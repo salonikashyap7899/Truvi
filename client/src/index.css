@@ -21,3 +21,14 @@
 html, body, #root {
   height: 100%;
 }
+
+/* Responsive safety net: decorative glows, wide diagrams and animated
+   elements must never introduce sideways page scroll on small screens. */
+html, body {
+  overflow-x: clip;
+}
+
+/* Keep long URLs, emails and IDs from forcing horizontal overflow. */
+body {
+  overflow-wrap: break-word;
+}

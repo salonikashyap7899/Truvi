@@ -64,7 +64,7 @@ export default function AdminDashboardPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Admin Command Center</h1>
           <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: approvals, listings, revenue.</p>
@@ -96,10 +96,10 @@ export default function AdminDashboardPage() {
         <div className="mt-3 space-y-3">
           {pendingUsers.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
           {pendingUsers.map((u) => (
-            <Card key={u._id} className="flex items-center justify-between border-white/10 glass text-white">
-              <div>
+            <Card key={u._id} className="flex flex-wrap items-center justify-between gap-3 border-white/10 glass text-white">
+              <div className="min-w-0">
                 <p className="font-medium">{u.name} <Badge variant="info">{u.role}</Badge></p>
-                <p className="text-sm text-muted-foreground">{u.email} {u.developerProfile?.companyName ? `· ${u.developerProfile.companyName}` : ""}</p>
+                <p className="text-sm text-muted-foreground break-all">{u.email} {u.developerProfile?.companyName ? `· ${u.developerProfile.companyName}` : ""}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => approveUser(u._id, "APPROVED")}>Approve</Button>
@@ -115,8 +115,8 @@ export default function AdminDashboardPage() {
         <div className="mt-3 space-y-3">
           {pendingProjects.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
           {pendingProjects.map((p) => (
-            <Card key={p._id} className="flex items-center justify-between border-white/10 glass text-white">
-              <div>
+            <Card key={p._id} className="flex flex-wrap items-center justify-between gap-3 border-white/10 glass text-white">
+              <div className="min-w-0">
                 <p className="font-medium">{p.name}</p>
                 <p className="text-sm text-muted-foreground">{p.city} · by {nameOf(p.developerId)}</p>
               </div>

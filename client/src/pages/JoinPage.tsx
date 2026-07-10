@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import { SiteNav } from "@/components/SiteNav";
 
 export default function JoinPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-transparent px-6 text-foreground">
-      <h1 className="font-display text-3xl font-semibold md:text-5xl">How would you like to <span className="text-gradient-aurora">join Truvi?</span></h1>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-transparent px-4 py-28 text-foreground sm:px-6">
+      <SiteNav />
+      <h1 className="text-center font-display text-3xl font-semibold md:text-5xl">How would you like to <span className="text-gradient-aurora">join Truvi?</span></h1>
       <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
         <Link to="/signup" className="w-full rounded-xl border border-white/10 glass p-8 text-center transition hover:-translate-y-1 hover:glow-trust">
           <h2 className="font-display text-xl font-semibold">I&apos;m a Developer</h2>
