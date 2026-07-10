@@ -60,8 +60,7 @@ router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
  * WHERE clause only matches if the unit is currently lockable (AVAILABLE,
  * or LOCKED-but-expired). Postgres evaluates the row predicate and applies
  * the update atomically under row-level locking, so two simultaneous lock
- * attempts can never both succeed — the same compare-and-swap guarantee the
- * previous MongoDB findOneAndUpdate provided.
+ * attempts can never both succeed.
  */
 router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });

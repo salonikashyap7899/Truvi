@@ -13,7 +13,7 @@ export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(date));
 }
 
-/** Resolves a populated-or-unpopulated Mongoose ref field to its ID string. */
+/** Resolves a ref field (object or plain ID string) to its ID string. */
 export function idOf(ref: string | { _id: string } | null | undefined): string {
   if (!ref) return "";
   return typeof ref === "string" ? ref : ref._id;

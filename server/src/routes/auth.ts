@@ -20,6 +20,7 @@ import { signupSchema, loginSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { emitNotification, emitToRole } from "../sockets";
+import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
 
 const router = Router();
 
@@ -80,6 +81,9 @@ router.post("/signup", async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
+  // Ambassadors don't need admin approval — their gate is the onboarding
+  // verification flow (Aadhaar + phone OTP + email OTP), per the Ambassador SOP.
+  // Every other self-signup role stays PENDING until an admin approves.
   const [user] = await db
     .insert(users)
     .values({
@@ -88,44 +92,51 @@ router.post("/signup", async (req, res) => {
       password: hashedPassword,
       phone: phone || undefined,
       role,
-      approvalStatus: "PENDING",
+      approvalStatus: role === "AMBASSADOR" ? "APPROVED" : "PENDING",
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
+      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS } } : {}),
     })
     .returning();
 
-  // Notify all admins about the new pending account in real-time
-  try {
-    const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-    const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
-    const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
+  // Notify all admins about the new pending account in real-time.
+  // Ambassadors are auto-approved, so they don't generate an approval alert.
+  if (role !== "AMBASSADOR") {
+    try {
+      const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
+      const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
+      const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
 
-    await Promise.all(
-      admins.map(async (admin) => {
-        const [notification] = await db
-          .insert(notifications)
-          .values({ userId: admin._id, message })
-          .returning();
-        emitNotification(String(admin._id), notification);
-      })
-    );
+      await Promise.all(
+        admins.map(async (admin) => {
+          const [notification] = await db
+            .insert(notifications)
+            .values({ userId: admin._id, message })
+            .returning();
+          emitNotification(String(admin._id), notification);
+        })
+      );
 
-    // Also emit a role-level event so the admin dashboard list refreshes live
-    emitToRole("ADMIN", "user:pending", {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      approvalStatus: user.approvalStatus,
-      developerProfile: user.developerProfile,
-    });
-  } catch (err) {
-    console.error("Failed to notify admins on signup:", err);
+      // Also emit a role-level event so the admin dashboard list refreshes live
+      emitToRole("ADMIN", "user:pending", {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+        developerProfile: user.developerProfile,
+      });
+    } catch (err) {
+      console.error("Failed to notify admins on signup:", err);
+    }
   }
 
   return res.status(201).json({
-    message: "Account created. An admin will review and approve your account before you can access the platform.",
+    message:
+      role === "AMBASSADOR"
+        ? "Account created. Sign in and complete verification (Aadhaar, phone, email) to start accepting tasks."
+        : "Account created. An admin will review and approve your account before you can access the platform.",
     userId: user._id,
   });
 });
@@ -210,7 +221,9 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.role !== "CP") return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  if (user.role !== "CP" && user.role !== "AMBASSADOR") {
+    return res.status(403).json({ error: "Only ambassadors can complete this step" });
+  }
 
   const checks: OnboardingChecks = {
     aadhaarVerified: Boolean(req.body?.aadhaarVerified),
@@ -248,8 +261,10 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
 
-  // In production, send via SMS service (Twilio, AWS SNS, etc.)
-  console.log(`[DEV] Phone OTP for ${user.phone}: ${otp}`);
+  const smsSent = await sendPhoneOtpViaSms(user.phone!, otp);
+  if (!smsSent) {
+    console.log(`[OTP] SMS service not configured — phone OTP for ${user.phone}: ${otp}`);
+  }
 
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
@@ -321,8 +336,12 @@ router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
 
-  // In production, send via email service (SendGrid, AWS SES, etc.)
-  console.log(`[DEV] Email OTP for ${user.email}: ${otp}`);
+  try {
+    await sendOtpEmail(user.email, otp);
+  } catch (err) {
+    console.error("Failed to send email OTP:", err);
+    return res.status(500).json({ error: "Failed to send OTP email. Please try again." });
+  }
 
   return res.json({ message: "OTP sent to email", email: user.email });
 });

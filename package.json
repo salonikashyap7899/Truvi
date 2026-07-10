@@ -1,5 +1,5 @@
 {
-  "name": "truvi-mern",
+  "name": "truvi",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
