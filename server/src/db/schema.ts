@@ -1,16 +1,14 @@
 /**
  * Drizzle ORM schema for Supabase (PostgreSQL).
  *
- * Migrated 1:1 from the former Mongoose models (server/src/models/*).
  * Conventions:
  *  - Every table has a UUID primary key stored in the DB column `id`, but the
  *    TypeScript property is named `_id` so API responses keep the exact shape
  *    the React client already expects (it reads `_id` everywhere).
- *  - Former embedded Mongoose subdocuments (cpProfile, verificationDetails,
- *    priceHistory, milestones, ...) are stored as JSONB columns so response
- *    shapes stay identical.
- *  - Former Mongo string enums are `text` columns with TS enum typing
- *    (enforced at the app layer, same as Mongoose did).
+ *  - Nested objects (cpProfile, verificationDetails, priceHistory, milestones,
+ *    ...) are stored as JSONB columns.
+ *  - String enums are `text` columns with TS enum typing (enforced at the app
+ *    layer).
  */
 import {
   pgTable,
