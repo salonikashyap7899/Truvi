@@ -20,6 +20,7 @@ import { signupSchema, loginSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { emitNotification, emitToRole } from "../sockets";
+import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
 
 const router = Router();
 
@@ -248,8 +249,10 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
 
-  // In production, send via SMS service (Twilio, AWS SNS, etc.)
-  console.log(`[DEV] Phone OTP for ${user.phone}: ${otp}`);
+  const smsSent = await sendPhoneOtpViaSms(user.phone!, otp);
+  if (!smsSent) {
+    console.log(`[OTP] SMS service not configured — phone OTP for ${user.phone}: ${otp}`);
+  }
 
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
@@ -321,8 +324,12 @@ router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
 
-  // In production, send via email service (SendGrid, AWS SES, etc.)
-  console.log(`[DEV] Email OTP for ${user.email}: ${otp}`);
+  try {
+    await sendOtpEmail(user.email, otp);
+  } catch (err) {
+    console.error("Failed to send email OTP:", err);
+    return res.status(500).json({ error: "Failed to send OTP email. Please try again." });
+  }
 
   return res.json({ message: "OTP sent to email", email: user.email });
 });
