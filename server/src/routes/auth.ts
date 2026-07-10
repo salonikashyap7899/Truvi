@@ -261,9 +261,11 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
 
-  const smsSent = await sendPhoneOtpViaSms(user.phone!, otp);
-  if (!smsSent) {
-    console.log(`[OTP] SMS service not configured — phone OTP for ${user.phone}: ${otp}`);
+  try {
+    await sendPhoneOtpViaSms(user.phone!, otp);
+  } catch (err) {
+    console.error("Failed to send phone OTP:", err);
+    return res.status(500).json({ error: "Failed to send OTP SMS. Please try again." });
   }
 
   return res.json({ message: "OTP sent to phone", phone: user.phone });
