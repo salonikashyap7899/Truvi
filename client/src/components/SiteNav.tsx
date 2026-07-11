@@ -8,6 +8,34 @@ import { Menu, X } from "lucide-react";
 const WA_URL =
   "https://wa.me/919196366358?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
 
+/**
+ * Header brand. Prefers the horizontal wordmark image; if that file hasn't
+ * been uploaded (or fails to load), falls back to the app icon + text so the
+ * navbar never shows a broken image.
+ */
+function BrandLogo() {
+  const [wordmarkFailed, setWordmarkFailed] = useState(false);
+
+  if (wordmarkFailed) {
+    return (
+      <>
+        <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
+          <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
+        </span>
+        <span className="truncate">TRUVI VENTURES</span>
+      </>
+    );
+  }
+  return (
+    <img
+      src="/brand/wordmark.png"
+      alt="Truvi Ventures"
+      onError={() => setWordmarkFailed(true)}
+      className="h-7 w-auto max-w-[190px] shrink-0 object-contain sm:h-8"
+    />
+  );
+}
+
 function WhatsAppNavIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
@@ -90,11 +118,7 @@ export function SiteNav() {
           onClick={close}
           className="flex min-w-0 items-center gap-2 font-display text-sm font-semibold tracking-tight sm:text-base"
         >
-          <img
-            src="/brand/wordmark.png"
-            alt="Truvi Ventures"
-            className="h-7 w-auto max-w-[190px] shrink-0 object-contain sm:h-8"
-          />
+          <BrandLogo />
         </Link>
 
         {/* Desktop links */}

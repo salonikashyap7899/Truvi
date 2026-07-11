@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import {
   ArrowLeft, Box, Loader2, MapPin, Maximize2, Building2, Trees,
-  Plane, Footprints, Orbit, RotateCw, Satellite,
+  Plane, Footprints, Orbit, RotateCw, Satellite, Moon, Sun, Gamepad2,
 } from "lucide-react";
 import type { Project } from "@/types";
 import type { ScenePreset, UnitSummary } from "@/components/Property3DScene";
@@ -29,7 +29,12 @@ export default function ThreeDViewPage() {
   const [preset, setPreset] = useState<ScenePreset>("default");
   const [presetTrigger, setPresetTrigger] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [night, setNight] = useState(false);
+  const [walk, setWalk] = useState(false);
   const viewerRef = useRef<HTMLDivElement>(null);
+
+  // First-person walking needs a mouse + keyboard; hide it on touch devices.
+  const canWalk = typeof window !== "undefined" && !("ontouchstart" in window);
 
   useEffect(() => {
     document.title = "TRUVI — 3D Property View";
@@ -146,35 +151,61 @@ export default function ThreeDViewPage() {
                 preset={preset}
                 presetTrigger={presetTrigger}
                 autoRotate={autoRotate}
+                night={night}
+                walk={walk}
+                onExitWalk={() => setWalk(false)}
               />
             </Suspense>
 
             {/* Camera controls overlay */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
-              <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-black/55 p-1.5 backdrop-blur">
-                {presetButtons.map((b) => (
+              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/15 bg-black/55 p-1.5 backdrop-blur">
+                {!walk &&
+                  presetButtons.map((b) => (
+                    <button
+                      key={b.key}
+                      onClick={() => flyTo(b.key)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                        preset === b.key ? "bg-sky-500/25 text-sky-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {b.icon} {b.label}
+                    </button>
+                  ))}
+                {canWalk && (
                   <button
-                    key={b.key}
-                    onClick={() => flyTo(b.key)}
+                    onClick={() => setWalk((v) => !v)}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                      preset === b.key ? "bg-sky-500/25 text-sky-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                      walk ? "bg-violet-500/25 text-violet-200" : "text-white/70 hover:bg-white/10 hover:text-white"
                     }`}
                   >
-                    {b.icon} {b.label}
+                    <Gamepad2 size={13} /> {walk ? "Exit walk" : "Walk"}
                   </button>
-                ))}
+                )}
                 <span className="mx-0.5 h-5 w-px bg-white/15" />
                 <button
-                  onClick={() => setAutoRotate((v) => !v)}
+                  onClick={() => setNight((v) => !v)}
                   className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                    autoRotate ? "bg-emerald-500/20 text-emerald-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                    night ? "bg-indigo-500/25 text-indigo-200" : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <RotateCw size={13} /> Auto-rotate
+                  {night ? <Sun size={13} /> : <Moon size={13} />} {night ? "Day" : "Night"}
                 </button>
+                {!walk && (
+                  <button
+                    onClick={() => setAutoRotate((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                      autoRotate ? "bg-emerald-500/20 text-emerald-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <RotateCw size={13} /> Auto-rotate
+                  </button>
+                )}
               </div>
               <p className="rounded-full bg-black/40 px-4 py-1.5 text-[11px] text-white/60 backdrop-blur">
-                Drag to rotate · Scroll / pinch to zoom · Right-drag / two fingers to pan
+                {walk
+                  ? "Click the scene to look around · WASD / arrows to move · Shift to run · Esc to exit"
+                  : "Drag to rotate · Scroll / pinch to zoom · Right-drag / two fingers to pan"}
               </p>
             </div>
 
