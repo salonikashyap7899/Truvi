@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, PointerLockControls, Sky, Stars } from "@react-three/drei";
+import { Html, OrbitControls, PointerLockControls, Sky, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import type { Project } from "@/types";
+import { formatINR } from "@/lib/utils";
 
 export interface SceneUnit {
   _id: string;
@@ -126,29 +127,108 @@ function signTexture(name: string): THREE.CanvasTexture {
   return tex;
 }
 
-/** White plot-number label on transparent background, laid on the plot top. */
-function numberTexture(label: string): THREE.CanvasTexture {
-  const key = `num-${label}`;
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * Premium plot card baked as one texture: rounded gradient tile with the
+ * plot number and status caption, laid on the plot's top face.
+ */
+function plotCardTexture(label: string, available: boolean, night: boolean): THREE.CanvasTexture {
+  const key = `plot-${label}-${available}-${night}`;
+  const hit = texCache.get(key);
+  if (hit) return hit;
+
+  const W = 256;
+  const H = 332;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Base matches the plot box so the rounded card reads as a raised tile.
+  ctx.fillStyle = night ? "#161b26" : "#232a37";
+  ctx.fillRect(0, 0, W, H);
+
+  const grad = ctx.createLinearGradient(0, 14, 0, H - 14);
+  if (available) {
+    grad.addColorStop(0, night ? "#1e7c46" : "#3ed37e");
+    grad.addColorStop(1, night ? "#11552f" : "#1d9e55");
+  } else {
+    grad.addColorStop(0, night ? "#8f3630" : "#ef6a5c");
+    grad.addColorStop(1, night ? "#5e211d" : "#c23a33");
+  }
+  ctx.fillStyle = grad;
+  roundedRect(ctx, 12, 12, W - 24, H - 24, 26);
+  ctx.fill();
+
+  // top gloss + hairline border
+  const gloss = ctx.createLinearGradient(0, 12, 0, 96);
+  gloss.addColorStop(0, "rgba(255,255,255,0.28)");
+  gloss.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gloss;
+  roundedRect(ctx, 12, 12, W - 24, 84, 26);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = 2.5;
+  roundedRect(ctx, 12, 12, W - 24, H - 24, 26);
+  ctx.stroke();
+
+  // plot number
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = 10;
+  ctx.font = "bold 68px 'Inter Tight', Inter, sans-serif";
+  let text = label;
+  while (ctx.measureText(text).width > 200 && text.length > 3) text = text.slice(0, -2) + "…";
+  ctx.fillText(text, W / 2, H / 2 - 14);
+
+  // status caption
+  ctx.shadowBlur = 0;
+  ctx.font = "600 26px 'Inter Tight', Inter, sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  const caption = available ? "A V A I L A B L E" : "B O O K E D";
+  ctx.fillText(caption, W / 2, H / 2 + 52);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  texCache.set(key, tex);
+  return tex;
+}
+
+/** Subtle paver grid so the township base reads as laid concrete blocks. */
+function paverTexture(night: boolean): THREE.CanvasTexture {
+  const key = `paver-${night}`;
   const hit = texCache.get(key);
   if (hit) return hit;
 
   const canvas = document.createElement("canvas");
-  canvas.width = 256;
+  canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, 256, 128);
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.font = "bold 56px 'Inter Tight', Inter, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(0,0,0,0.45)";
-  ctx.shadowBlur = 8;
-  let text = label;
-  while (ctx.measureText(text).width > 230 && text.length > 3) text = text.slice(0, -2) + "…";
-  ctx.fillText(text, 128, 64);
+  ctx.fillStyle = night ? "#333b47" : "#aeb4bd";
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = night ? "rgba(12,16,24,0.5)" : "rgba(88,96,108,0.35)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 128; i += 32) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 128); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(128, i); ctx.stroke();
+  }
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(22, 18);
   texCache.set(key, tex);
   return tex;
 }
@@ -272,6 +352,7 @@ function buildLayout(project: Project, units: SceneUnit[]) {
 
 const AVAILABLE_GREEN = "#2fbe63";
 const BOOKED_RED = "#e14b44";
+const GOLD = "#e8c877";
 
 function Plot({
   spec,
@@ -289,17 +370,22 @@ function Plot({
   onSelect: (sel: PlotSelection) => void;
 }) {
   const available = spec.unit.status === "AVAILABLE";
-  const base = available ? AVAILABLE_GREEN : BOOKED_RED;
-  const numTex = useMemo(() => numberTexture(spec.unit.unitNumber), [spec.unit.unitNumber]);
+  const glow = available ? AVAILABLE_GREEN : BOOKED_RED;
+  const cardTex = useMemo(
+    () => plotCardTexture(spec.unit.unitNumber, available, night),
+    [spec.unit.unitNumber, available, night],
+  );
   const ringRef = useRef<THREE.Mesh>(null);
 
   useFrame(({ clock }) => {
     if (!ringRef.current) return;
     const s = 1 + Math.sin(clock.elapsedTime * 3.2) * 0.05;
     ringRef.current.scale.setScalar(s);
+    (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
+      0.75 + Math.sin(clock.elapsedTime * 3.2) * 0.2;
   });
 
-  const lift = hovered || selected ? 0.55 : 0.35;
+  const lift = hovered || selected ? 0.6 : 0.35;
 
   return (
     <group position={[spec.x, 0, spec.z]}>
@@ -323,26 +409,32 @@ function Plot({
       >
         <boxGeometry args={[spec.w, 0.7, spec.d]} />
         <meshStandardMaterial
-          color={night ? shade(base, 0.55) : base}
-          roughness={0.75}
-          emissive={base}
-          emissiveIntensity={selected ? 0.55 : hovered ? 0.4 : night ? 0.22 : 0.08}
+          color={night ? "#161b26" : "#232a37"}
+          roughness={0.65}
+          emissive={glow}
+          emissiveIntensity={selected ? 0.28 : hovered ? 0.2 : night ? 0.1 : 0}
         />
       </mesh>
-      {/* white kerb outline */}
-      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[spec.w + 0.9, spec.d + 0.9]} />
-        <meshStandardMaterial color={night ? "#5a626e" : "#dfe4ea"} roughness={1} />
+      {/* premium card face with number + status */}
+      <mesh position={[0, lift + 0.36, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[spec.w, spec.d]} />
+        <meshStandardMaterial
+          map={cardTex}
+          emissiveMap={cardTex}
+          emissive="#ffffff"
+          emissiveIntensity={selected ? 0.5 : hovered ? 0.35 : night ? 0.4 : 0.12}
+          roughness={0.6}
+        />
       </mesh>
-      {/* plot number */}
-      <mesh position={[0, lift + 0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[spec.w * 0.86, spec.d * 0.42]} />
-        <meshBasicMaterial map={numTex} transparent depthWrite={false} />
+      {/* light kerb frame */}
+      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[spec.w + 1, spec.d + 1]} />
+        <meshStandardMaterial color={night ? "#4b525e" : "#d7dce2"} roughness={1} />
       </mesh>
       {selected && (
         <mesh ref={ringRef} position={[0, 0.95, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[Math.max(spec.w, spec.d) * 0.62, Math.max(spec.w, spec.d) * 0.72, 40]} />
-          <meshBasicMaterial color="#ffffff" transparent opacity={0.9} side={THREE.DoubleSide} />
+          <meshBasicMaterial color={GOLD} transparent opacity={0.9} side={THREE.DoubleSide} />
         </mesh>
       )}
     </group>
@@ -579,7 +671,13 @@ export default function Property3DScene({
   const layout = useMemo(() => buildLayout(project, units), [project, units]);
   const sign = useMemo(() => signTexture(project.name), [project.name]);
   const grass = useMemo(() => grassTexture(night), [night]);
+  const paver = useMemo(() => paverTexture(night), [night]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const hoveredSpec = useMemo(
+    () => (hoveredId ? layout.plots.find((p) => p.unit._id === hoveredId) ?? null : null),
+    [hoveredId, layout.plots],
+  );
 
   const focusPlot = useMemo(() => {
     if (!selectedUnitId) return null;
@@ -634,10 +732,10 @@ export default function Property3DScene({
         <meshStandardMaterial map={grass} roughness={1} />
       </mesh>
 
-      {/* Township base */}
+      {/* Township base — paved concrete blocks */}
       <mesh position={[0, 0.02, baseCenterZ]} receiveShadow>
         <boxGeometry args={[132, 0.08, baseDepth]} />
-        <meshStandardMaterial color={night ? "#333b47" : "#a7adb6"} roughness={0.95} />
+        <meshStandardMaterial map={paver} roughness={0.95} />
       </mesh>
 
       {/* Boundary walls */}
@@ -699,12 +797,28 @@ export default function Property3DScene({
         </mesh>
       ))}
 
-      {/* Cross roads between plot bands */}
-      {layout.crossRoadZs.map((z) => (
-        <mesh key={`cr${z}`} position={[0, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[112, 6]} />
-          <meshStandardMaterial color={night ? "#22262d" : "#3d424b"} roughness={1} />
+      {/* Spine sidewalks */}
+      {[-4.9, 4.9].map((x) => (
+        <mesh key={`sw${x}`} position={[x, 0.055, 50 - spineLen / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[1.4, spineLen]} />
+          <meshStandardMaterial color={night ? "#454c58" : "#c6ccd4"} roughness={1} />
         </mesh>
+      ))}
+
+      {/* Cross roads between plot bands (with sidewalks) */}
+      {layout.crossRoadZs.map((z) => (
+        <group key={`cr${z}`}>
+          <mesh position={[0, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+            <planeGeometry args={[112, 6]} />
+            <meshStandardMaterial color={night ? "#22262d" : "#3d424b"} roughness={1} />
+          </mesh>
+          {[-3.7, 3.7].map((dz) => (
+            <mesh key={`crs${dz}`} position={[0, 0.045, z + dz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <planeGeometry args={[112, 1.2]} />
+              <meshStandardMaterial color={night ? "#454c58" : "#c6ccd4"} roughness={1} />
+            </mesh>
+          ))}
+        </group>
       ))}
 
       {/* Numbered plots — green available / red booked */}
@@ -723,6 +837,35 @@ export default function Property3DScene({
       {layout.towers.map((t, i) => <Tower key={`${i}-${night}`} spec={t} night={night} />)}
       <Trees specs={layout.trees} night={night} />
       <Lamps night={night} />
+
+      {/* Hover tooltip — glass chip with plot facts */}
+      {hoveredSpec && !walk && hoveredSpec.unit._id !== selectedUnitId && (
+        <Html
+          position={[hoveredSpec.x, 3.2, hoveredSpec.z]}
+          center
+          distanceFactor={55}
+          zIndexRange={[20, 0]}
+          style={{ pointerEvents: "none" }}
+        >
+          <div
+            style={{
+              whiteSpace: "nowrap",
+              padding: "8px 14px",
+              borderRadius: 999,
+              background: "rgba(6,10,18,0.85)",
+              border: "1px solid rgba(232,200,119,0.45)",
+              color: "#fff",
+              fontFamily: "'Inter Tight', Inter, sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              boxShadow: "0 8px 30px rgba(0,0,0,0.45)",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            {hoveredSpec.unit.unitNumber} · {formatINR(hoveredSpec.unit.price)} · {hoveredSpec.unit.areaSqft.toLocaleString("en-IN")} sqft
+          </div>
+        </Html>
+      )}
 
       {walk ? (
         <WalkControls onExit={onExitWalk} backZ={backZ} />

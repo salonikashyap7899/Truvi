@@ -195,17 +195,24 @@ export default function ThreeDViewPage() {
             </Suspense>
 
             {/* Legend + live availability */}
-            <div className="absolute left-4 top-4 space-y-2 rounded-2xl border border-white/12 bg-black/55 px-4 py-3 text-xs backdrop-blur">
-              <p className="font-semibold text-white">Master plan</p>
-              <p className="flex items-center gap-2 text-white/80">
-                <span className="inline-block size-3 rounded-sm bg-[#2fbe63]" /> Available ({availableCount})
-              </p>
-              <p className="flex items-center gap-2 text-white/80">
-                <span className="inline-block size-3 rounded-sm bg-[#e14b44]" /> Booked ({units.length - availableCount})
-              </p>
-              <p className="max-w-[170px] text-[11px] leading-snug text-white/50">
-                Tap a green plot to see details &amp; book
-              </p>
+            <div
+              className="absolute left-4 top-4 rounded-[20px] p-px"
+              style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.5), rgba(255,255,255,0.08) 70%)" }}
+            >
+              <div className="space-y-2 rounded-[19px] bg-black/70 px-4 py-3 text-xs backdrop-blur">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#e8c877]">Master plan</p>
+                <p className="flex items-center gap-2 text-white/85">
+                  <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#3ed37e] to-[#1d9e55] shadow-[0_0_8px_rgba(62,211,126,0.5)]" />
+                  Available <span className="text-white/50">({availableCount})</span>
+                </p>
+                <p className="flex items-center gap-2 text-white/85">
+                  <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#ef6a5c] to-[#c23a33] shadow-[0_0_8px_rgba(239,106,92,0.4)]" />
+                  Booked <span className="text-white/50">({units.length - availableCount})</span>
+                </p>
+                <p className="max-w-[170px] text-[11px] leading-snug text-white/50">
+                  Tap a green plot to see details &amp; book
+                </p>
+              </div>
             </div>
 
             {/* Camera controls overlay */}
@@ -283,78 +290,193 @@ function PlotPanel({
   const { unit, facing } = selection;
   const available = unit.status === "AVAILABLE";
   const isPlot = unit.type.toLowerCase().includes("plot");
+  const kind = isPlot ? "Plot" : "Unit";
+
+  const [view, setView] = useState<"details" | "form" | "done">("details");
+  const [form, setForm] = useState({ name: "", phone: "", email: "", note: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Reset the flow whenever a different plot is opened.
+  useEffect(() => {
+    setView("details");
+    setFormError(null);
+  }, [unit._id]);
 
   const waMessage = encodeURIComponent(
-    `Hi Truvi Ventures, I'm interested in booking ${isPlot ? "Plot" : "Unit"} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft) at ${project.name}, ${project.location}, ${project.city}. Please share the next steps.`,
+    `Hi Truvi Ventures, I'm interested in booking ${kind} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft) at ${project.name}, ${project.location}, ${project.city}. Please share the next steps.`,
   );
 
+  async function submitBooking(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (form.name.trim().length < 2) return setFormError("Please enter your name");
+    if (!/^[6-9]\d{9}$/.test(form.phone.trim())) return setFormError("Enter a valid 10-digit mobile number");
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setFormError("Enter a valid email address");
+
+    setSubmitting(true);
+    try {
+      await api.post("/enquiries", {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        purposeType: "BUYER",
+        projectId: project._id,
+        projectName: project.name,
+        message:
+          `BOOKING REQUEST — ${kind} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft, ${formatINR(unit.price)}, facing ${facing}) ` +
+          `at ${project.name}, ${project.location}, ${project.city}. Phone: ${form.phone.trim()}.` +
+          (form.note.trim() ? ` Note: ${form.note.trim()}` : ""),
+      });
+      setView("done");
+    } catch (err: any) {
+      setFormError(err?.response?.data?.error || "Something went wrong — please try again");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const inputCls =
+    "h-11 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#e8c877]/60";
+
   return (
-    <aside className="absolute inset-x-3 bottom-24 z-10 rounded-3xl border border-white/15 bg-[#0a0f18]/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-80">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.25em] text-sky-300">{isPlot ? "Plot" : "Unit"} details</p>
-          <h2 className="mt-1 font-display text-xl font-semibold text-white">
-            {isPlot ? "Plot" : "Unit"} {unit.unitNumber}
-          </h2>
+    <aside className="absolute inset-x-3 bottom-24 z-10 md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-[21rem]">
+      <div
+        className="rounded-[26px] p-px shadow-[0_24px_70px_rgba(0,0,0,0.55)]"
+        style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.55), rgba(59,130,246,0.25) 45%, rgba(255,255,255,0.06) 85%)" }}
+      >
+        <div className="max-h-[70vh] overflow-y-auto rounded-[25px] bg-[#0a0f18]/97 p-5 backdrop-blur">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.25em] text-[#e8c877]">
+                {view === "form" ? "Book on website" : `${kind} details`}
+              </p>
+              <h2 className="mt-1 font-display text-xl font-semibold text-white">
+                {kind} {unit.unitNumber}
+              </h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-muted-foreground transition hover:bg-white/10 hover:text-white"
+            >
+              <X size={13} />
+            </button>
+          </div>
+
+          {view === "done" ? (
+            <div className="mt-5 flex flex-col items-center gap-3 py-4 text-center">
+              <span className="grid size-14 place-items-center rounded-full border border-emerald-400/30 bg-emerald-500/15">
+                <CheckCircle2 size={26} className="text-emerald-300" />
+              </span>
+              <p className="font-display text-lg font-semibold text-white">Booking request received!</p>
+              <p className="max-w-[240px] text-sm text-muted-foreground">
+                Our team will call you shortly to confirm {kind.toLowerCase()} {unit.unitNumber} and guide you through the next steps.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-1 rounded-full border border-white/15 px-6 py-2.5 text-sm text-white transition hover:bg-white/10"
+              >
+                Explore more plots
+              </button>
+            </div>
+          ) : view === "form" ? (
+            <form onSubmit={submitBooking} className="mt-4 space-y-3">
+              <p className="rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-xs text-white/80">
+                {unit.type} · {unit.areaSqft.toLocaleString("en-IN")} sqft ·{" "}
+                <span className="font-semibold text-white">{formatINR(unit.price)}</span>
+              </p>
+              <input className={inputCls} placeholder="Full name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+              <input className={inputCls} placeholder="10-digit mobile number" inputMode="numeric" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              <input className={inputCls} type="email" placeholder="Email address" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <textarea
+                className="w-full rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#e8c877]/60"
+                rows={2}
+                placeholder="Anything we should know? (optional)"
+                value={form.note}
+                onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              />
+              {formError && (
+                <p className="rounded-xl border border-rose-500/25 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">{formError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e8c877] to-[#f5e3b3] py-3 text-sm font-semibold text-[#231a05] transition-all hover:shadow-[0_0_28px_rgba(232,200,119,0.35)] disabled:opacity-60"
+              >
+                {submitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                {submitting ? "Submitting…" : "Confirm booking request"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("details")}
+                className="w-full py-1 text-center text-xs text-muted-foreground transition hover:text-white"
+              >
+                ← Back to details
+              </button>
+            </form>
+          ) : (
+            <>
+              <div className="mt-3 flex items-center gap-2">
+                {available ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300">
+                    <CheckCircle2 size={12} /> Available
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-300">
+                    <XCircle size={12} /> Booked
+                  </span>
+                )}
+                <span className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-xs text-white/80">{unit.type}</span>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+                  <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <Ruler size={11} /> Size
+                  </dt>
+                  <dd className="mt-1 font-semibold text-white">{unit.areaSqft.toLocaleString("en-IN")} sqft</dd>
+                  <dd className="text-[11px] text-muted-foreground">{plotDimensions(unit.areaSqft)}</dd>
+                </div>
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+                  <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <Compass size={11} /> Facing
+                  </dt>
+                  <dd className="mt-1 font-semibold text-white">{facing}</dd>
+                  <dd className="text-[11px] text-muted-foreground">as per master plan</dd>
+                </div>
+                <div className="col-span-2 rounded-2xl border border-[#e8c877]/20 bg-gradient-to-r from-[#e8c877]/10 to-transparent p-3">
+                  <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-[#e8c877]/90">
+                    <IndianRupee size={11} /> Price
+                  </dt>
+                  <dd className="mt-1 font-display text-xl font-semibold text-white">{formatINR(unit.price)}</dd>
+                </div>
+              </dl>
+
+              {available ? (
+                <div className="mt-4 space-y-2">
+                  <button
+                    onClick={() => setView("form")}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#e8c877] to-[#f5e3b3] py-3 text-sm font-semibold text-[#231a05] transition-all hover:shadow-[0_0_28px_rgba(232,200,119,0.35)]"
+                  >
+                    <CheckCircle2 size={15} /> Book on website
+                  </button>
+                  <a
+                    href={`https://wa.me/${WA_NUMBER}?text=${waMessage}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/10 py-3 text-sm font-medium text-emerald-300 transition-all hover:bg-emerald-500/20"
+                  >
+                    <MessageCircle size={15} /> Book via WhatsApp
+                  </a>
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-xs text-rose-200">
+                  This {kind.toLowerCase()} is already booked. Tap a green plot on the map to explore available options.
+                </p>
+              )}
+            </>
+          )}
         </div>
-        <button
-          onClick={onClose}
-          className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-muted-foreground transition hover:bg-white/10 hover:text-white"
-        >
-          <X size={13} />
-        </button>
       </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        {available ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300">
-            <CheckCircle2 size={12} /> Available
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-300">
-            <XCircle size={12} /> Booked
-          </span>
-        )}
-        <span className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-xs text-white/80">{unit.type}</span>
-      </div>
-
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
-          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            <Ruler size={11} /> Size
-          </dt>
-          <dd className="mt-1 font-semibold text-white">{unit.areaSqft.toLocaleString("en-IN")} sqft</dd>
-          <dd className="text-[11px] text-muted-foreground">{plotDimensions(unit.areaSqft)}</dd>
-        </div>
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
-          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            <Compass size={11} /> Facing
-          </dt>
-          <dd className="mt-1 font-semibold text-white">{facing}</dd>
-          <dd className="text-[11px] text-muted-foreground">as per master plan</dd>
-        </div>
-        <div className="col-span-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
-          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            <IndianRupee size={11} /> Price
-          </dt>
-          <dd className="mt-1 font-display text-lg font-semibold text-white">{formatINR(unit.price)}</dd>
-        </div>
-      </dl>
-
-      {available ? (
-        <a
-          href={`https://wa.me/${WA_NUMBER}?text=${waMessage}`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-300 py-3 text-sm font-semibold text-[#052e16] transition-all hover:shadow-[0_0_28px_rgba(52,211,153,0.35)]"
-        >
-          <MessageCircle size={15} /> Book this {isPlot ? "plot" : "unit"}
-        </a>
-      ) : (
-        <p className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-xs text-rose-200">
-          This {isPlot ? "plot" : "unit"} is already booked. Tap a green plot on the map to explore available options.
-        </p>
-      )}
     </aside>
   );
 }
