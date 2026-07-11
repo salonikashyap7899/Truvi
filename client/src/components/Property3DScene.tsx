@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
-  AdaptiveDpr, Html, OrbitControls, PerformanceMonitor, PointerLockControls, Sky, Stars,
+  Environment, Html, Lightformer, OrbitControls, PerformanceMonitor, PointerLockControls, Sky, Stars,
 } from "@react-three/drei";
 import * as THREE from "three";
 import type { Project } from "@/types";
@@ -52,13 +52,16 @@ const texCache = new Map<string, THREE.CanvasTexture>();
 function makeTex(key: string, w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const hit = texCache.get(key);
   if (hit) return hit;
+  // Render at 2x for crisp text and edges at any zoom level.
   const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  draw(canvas.getContext("2d")!);
+  canvas.width = w * 2;
+  canvas.height = h * 2;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(2, 2);
+  draw(ctx);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 8;
   texCache.set(key, tex);
   return tex;
 }
@@ -493,8 +496,9 @@ function Tower({ spec, night, blob }: { spec: TowerSpec; night: boolean; blob: T
     emissiveMap: night ? glass : null,
     emissive: night ? ("#ffffff" as const) : ("#000000" as const),
     emissiveIntensity: night ? 0.7 : 0,
-    roughness: 0.35,
-    metalness: 0.25,
+    roughness: 0.18,
+    metalness: 0.55,
+    envMapIntensity: 1.4,
   };
   const finColor = night ? "#3a4150" : "#e8ebef";
   const podium = night ? "#3d4654" : "#c9cdd4";
@@ -543,7 +547,7 @@ function Tower({ spec, night, blob }: { spec: TowerSpec; night: boolean; blob: T
       </mesh>
       <mesh position={[0, 4 + h - 0.05, 0]}>
         <boxGeometry args={[spec.w * 1.08, 0.22, spec.d * 1.08]} />
-        <meshStandardMaterial color={GOLD} roughness={0.4} metalness={0.5} emissive={GOLD} emissiveIntensity={night ? 0.7 : 0.1} />
+        <meshStandardMaterial color={GOLD} roughness={0.2} metalness={0.85} envMapIntensity={1.6} emissive={GOLD} emissiveIntensity={night ? 0.7 : 0.08} />
       </mesh>
       {/* rooftop mechanical + mast */}
       <mesh position={[spec.w * 0.16, 4 + h + 2.6, spec.d * 0.1]}>
@@ -1058,8 +1062,9 @@ export default function Property3DScene({
   const paver = useMemo(() => paverTexture(night), [night]);
   const blob = useMemo(() => blobTexture(), []);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // PerformanceMonitor drops resolution on weak GPUs instead of stuttering.
-  const [dprMax, setDprMax] = useState(1.35);
+  // Render at native resolution; PerformanceMonitor only steps down on
+  // genuinely weak GPUs (and never below a crisp floor).
+  const [dprMax, setDprMax] = useState(2);
 
   const hoveredSpec = useMemo(
     () => (hoveredId ? layout.plots.find((p) => p.unit._id === hoveredId) ?? null : null),
@@ -1079,14 +1084,34 @@ export default function Property3DScene({
 
   return (
     <Canvas
-      dpr={[0.75, dprMax]}
+      dpr={[1, dprMax]}
+      gl={{ antialias: true, powerPreference: "high-performance" }}
+      onCreated={({ gl }) => {
+        gl.toneMappingExposure = 1.12;
+      }}
       // Camera starts far out; CameraRig flies it in for a cinematic intro.
       camera={{ position: [150, 118, 190], fov: 50, near: 0.5, far: 900 }}
       style={{ width: "100%", height: "100%", touchAction: "none" }}
       onPointerMissed={() => onSelectPlot(null)}
     >
-      <PerformanceMonitor onDecline={() => setDprMax(1)} onIncline={() => setDprMax(1.5)}>
-        <AdaptiveDpr pixelated />
+      <PerformanceMonitor onDecline={() => setDprMax(1.25)} onIncline={() => setDprMax(2)}>
+        {/* Baked reflection environment — makes glass, gold and gloss read as
+            true 3D materials. Rendered once (frames={1}); zero per-frame cost. */}
+        <Environment resolution={128} frames={1} key={night ? "env-n" : "env-d"}>
+          {night ? (
+            <>
+              <Lightformer intensity={0.5} rotation-x={Math.PI / 2} position={[0, 60, 0]} scale={[120, 120, 1]} color="#26324d" />
+              <Lightformer intensity={1.2} position={[-50, 25, 30]} scale={[24, 10, 1]} color="#ffca7a" />
+              <Lightformer intensity={0.7} position={[55, 18, -35]} scale={[18, 8, 1]} color="#8fa8e8" />
+            </>
+          ) : (
+            <>
+              <Lightformer intensity={1.6} rotation-x={Math.PI / 2} position={[0, 60, 0]} scale={[120, 120, 1]} color="#dfeaff" />
+              <Lightformer intensity={3.2} position={[70, 40, -50]} scale={[26, 26, 1]} color="#fff2d5" />
+              <Lightformer intensity={1} position={[-60, 22, 45]} scale={[36, 50, 1]} color="#cfe0ff" />
+            </>
+          )}
+        </Environment>
         {night ? (
           <>
             <color attach="background" args={["#070d1d"]} />
