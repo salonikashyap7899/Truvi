@@ -1,13 +1,21 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, PointerLockControls, Sky, Stars } from "@react-three/drei";
 import * as THREE from "three";
 import type { Project } from "@/types";
 
-export interface UnitSummary {
-  total: number;
-  available: number;
-  byType: Record<string, number>;
+export interface SceneUnit {
+  _id: string;
+  unitNumber: string;
+  type: string;
+  areaSqft: number;
+  price: number;
+  status: string;
+}
+
+export interface PlotSelection {
+  unit: SceneUnit;
+  facing: string;
 }
 
 export type ScenePreset = "default" | "aerial" | "street";
@@ -34,7 +42,7 @@ function mulberry32(seed: number) {
   };
 }
 
-/* ── Baked textures (one canvas per facade — replaces hundreds of meshes) ─── */
+/* ── Baked canvas textures (cached) ───────────────────────────────────────── */
 
 const texCache = new Map<string, THREE.CanvasTexture>();
 
@@ -118,39 +126,121 @@ function signTexture(name: string): THREE.CanvasTexture {
   return tex;
 }
 
-/* ── Scene layout derived from the project's real unit mix ────────────────── */
+/** White plot-number label on transparent background, laid on the plot top. */
+function numberTexture(label: string): THREE.CanvasTexture {
+  const key = `num-${label}`;
+  const hit = texCache.get(key);
+  if (hit) return hit;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.clearRect(0, 0, 256, 128);
+  ctx.fillStyle = "rgba(255,255,255,0.95)";
+  ctx.font = "bold 56px 'Inter Tight', Inter, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 8;
+  let text = label;
+  while (ctx.measureText(text).width > 230 && text.length > 3) text = text.slice(0, -2) + "…";
+  ctx.fillText(text, 128, 64);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  texCache.set(key, tex);
+  return tex;
+}
+
+/** Soft mottled lawn so the ground doesn't read as one flat green. */
+function grassTexture(night: boolean): THREE.CanvasTexture {
+  const key = `grass-${night}`;
+  const hit = texCache.get(key);
+  if (hit) return hit;
+
+  const rand = mulberry32(97531);
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = night ? "#141f16" : "#4a7040";
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 260; i++) {
+    const r = 6 + rand() * 22;
+    ctx.fillStyle = night
+      ? `rgba(${18 + rand() * 14}, ${34 + rand() * 16}, ${20 + rand() * 10}, 0.5)`
+      : `rgba(${58 + rand() * 26}, ${104 + rand() * 30}, ${52 + rand() * 22}, 0.5)`;
+    ctx.beginPath();
+    ctx.arc(rand() * 256, rand() * 256, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(46, 46);
+  texCache.set(key, tex);
+  return tex;
+}
+
+/* ── Master-plan layout: numbered plots along internal roads ──────────────── */
 
 interface TowerSpec { x: number; z: number; w: number; d: number; floors: number; color: string; seed: number }
 interface TreeSpec { x: number; z: number; s: number }
-interface ParcelSpec { x: number; z: number; w: number; d: number; hasHouse: boolean }
+interface PlotSpec { unit: SceneUnit; x: number; z: number; w: number; d: number; facing: string }
 
 const FACADES = ["#d8dee9", "#e6dcc8", "#cdd8e3", "#d9d3c4", "#c8d2cb"];
 const FLOOR_H = 3;
+const PLOT_W = 10;
+const PLOT_D = 13;
+const PITCH_X = 12;
+const BAND_PITCH = 34; // cross road + two facing rows of plots
+const COLS_PER_SIDE = 4;
+const PER_ROW = COLS_PER_SIDE * 2;
+const MAX_PLOTS = 64;
 
-function buildLayout(project: Project, summary: UnitSummary | null) {
+function buildLayout(project: Project, units: SceneUnit[]) {
   const rand = mulberry32(hashSeed(project._id));
 
-  const byType = summary?.byType ?? {};
-  let apartments = 0;
-  let plotUnits = 0;
-  for (const [type, count] of Object.entries(byType)) {
-    if (type.toLowerCase().includes("plot")) plotUnits += count;
-    else apartments += count;
-  }
-  if (apartments === 0 && plotUnits === 0) apartments = 20;
+  const shown = units.slice(0, MAX_PLOTS);
+  const apartments = units.filter((u) => !u.type.toLowerCase().includes("plot")).length || (units.length === 0 ? 20 : 0);
 
+  // Plot grid: bands of [cross road + row above + row below], split across a
+  // central spine road that runs from the entrance gate.
+  const plots: PlotSpec[] = [];
+  const crossRoadZs: number[] = [];
+  const rows = Math.ceil(shown.length / PER_ROW);
+  const bands = Math.max(1, Math.ceil(rows / 2));
+  for (let b = 0; b < bands; b++) crossRoadZs.push(30 - b * BAND_PITCH);
+
+  shown.forEach((unit, i) => {
+    const row = Math.floor(i / PER_ROW);
+    const idxInRow = i % PER_ROW;
+    const side = idxInRow < COLS_PER_SIDE ? -1 : 1;
+    const col = idxInRow % COLS_PER_SIDE;
+    const band = Math.floor(row / 2);
+    const isFrontRow = row % 2 === 0;
+    const roadZ = crossRoadZs[band];
+    const z = isFrontRow ? roadZ + 9.5 : roadZ - 9.5;
+    const x = side * (10 + PLOT_W / 2 + col * PITCH_X);
+    const facing =
+      col === COLS_PER_SIDE - 1 ? (side < 0 ? "West" : "East") : isFrontRow ? "South" : "North";
+    plots.push({ unit, x, z, w: PLOT_W, d: PLOT_D, facing });
+  });
+
+  const plotsBackZ = plots.length ? Math.min(...plots.map((p) => p.z)) - PLOT_D / 2 : 30;
+
+  // Towers (for apartment inventory) sit behind the plot sectors.
   const towers: TowerSpec[] = [];
   if (apartments > 0) {
-    const towerCount = Math.min(9, Math.max(2, Math.ceil(apartments / 22)));
-    const cols = Math.ceil(Math.sqrt(towerCount));
-    const spacing = 26;
+    const towerCount = Math.min(7, Math.max(2, Math.ceil(apartments / 24)));
+    const towersZ = plots.length ? plotsBackZ - 24 : -12;
     for (let i = 0; i < towerCount; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
       const floors = Math.max(6, Math.min(18, Math.round(apartments / towerCount / 3) + Math.floor(rand() * 5)));
       towers.push({
-        x: (col - (cols - 1) / 2) * spacing + (rand() - 0.5) * 5,
-        z: (row - (Math.ceil(towerCount / cols) - 1) / 2) * spacing - 8 + (rand() - 0.5) * 4,
+        x: (i - (towerCount - 1) / 2) * 24 + (rand() - 0.5) * 4,
+        z: towersZ - (i % 2) * 16 - rand() * 4,
         w: 9 + rand() * 4,
         d: 9 + rand() * 4,
         floors,
@@ -160,66 +250,138 @@ function buildLayout(project: Project, summary: UnitSummary | null) {
     }
   }
 
-  const parcels: ParcelSpec[] = [];
-  if (plotUnits > 0) {
-    const count = Math.min(12, plotUnits);
-    for (let i = 0; i < count; i++) {
-      parcels.push({
-        x: -52 + (i % 4) * 11,
-        z: 26 + Math.floor(i / 4) * 13,
-        w: 9, d: 11,
-        hasHouse: rand() > 0.6,
-      });
-    }
-  }
+  const towersBackZ = towers.length ? Math.min(...towers.map((t) => t.z)) - 16 : plotsBackZ - 8;
+  const backZ = Math.min(-50, towersBackZ);
+  const baseDepth = 50 - backZ;
+  const baseCenterZ = (50 + backZ) / 2;
 
   const trees: TreeSpec[] = [];
   for (let i = 0; i < 30; i++) {
-    const edge = rand();
+    const alongX = rand() < 0.5;
     trees.push({
-      x: edge < 0.5 ? -62 + rand() * 124 : (rand() < 0.5 ? -62 : 62) + (rand() - 0.5) * 6,
-      z: edge < 0.5 ? (rand() < 0.5 ? -46 : 46) + (rand() - 0.5) * 6 : -46 + rand() * 92,
+      x: alongX ? -60 + rand() * 120 : (rand() < 0.5 ? -61 : 61) + (rand() - 0.5) * 4,
+      z: alongX ? (rand() < 0.5 ? backZ + 3 : 46) + (rand() - 0.5) * 4 : backZ + 6 + rand() * (baseDepth - 12),
       s: 0.8 + rand() * 0.8,
     });
   }
 
-  return { towers, parcels, trees };
+  return { plots, crossRoadZs, towers, trees, backZ, baseDepth, baseCenterZ };
 }
 
-/* ── Mesh pieces ───────────────────────────────────────────────────────────── */
+/* ── Clickable plot ───────────────────────────────────────────────────────── */
+
+const AVAILABLE_GREEN = "#2fbe63";
+const BOOKED_RED = "#e14b44";
+
+function Plot({
+  spec,
+  night,
+  hovered,
+  selected,
+  onHover,
+  onSelect,
+}: {
+  spec: PlotSpec;
+  night: boolean;
+  hovered: boolean;
+  selected: boolean;
+  onHover: (id: string | null) => void;
+  onSelect: (sel: PlotSelection) => void;
+}) {
+  const available = spec.unit.status === "AVAILABLE";
+  const base = available ? AVAILABLE_GREEN : BOOKED_RED;
+  const numTex = useMemo(() => numberTexture(spec.unit.unitNumber), [spec.unit.unitNumber]);
+  const ringRef = useRef<THREE.Mesh>(null);
+
+  useFrame(({ clock }) => {
+    if (!ringRef.current) return;
+    const s = 1 + Math.sin(clock.elapsedTime * 3.2) * 0.05;
+    ringRef.current.scale.setScalar(s);
+  });
+
+  const lift = hovered || selected ? 0.55 : 0.35;
+
+  return (
+    <group position={[spec.x, 0, spec.z]}>
+      <mesh
+        position={[0, lift, 0]}
+        castShadow
+        receiveShadow
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect({ unit: spec.unit, facing: spec.facing });
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          onHover(spec.unit._id);
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          onHover(null);
+          document.body.style.cursor = "";
+        }}
+      >
+        <boxGeometry args={[spec.w, 0.7, spec.d]} />
+        <meshStandardMaterial
+          color={night ? shade(base, 0.55) : base}
+          roughness={0.75}
+          emissive={base}
+          emissiveIntensity={selected ? 0.55 : hovered ? 0.4 : night ? 0.22 : 0.08}
+        />
+      </mesh>
+      {/* white kerb outline */}
+      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[spec.w + 0.9, spec.d + 0.9]} />
+        <meshStandardMaterial color={night ? "#5a626e" : "#dfe4ea"} roughness={1} />
+      </mesh>
+      {/* plot number */}
+      <mesh position={[0, lift + 0.37, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[spec.w * 0.86, spec.d * 0.42]} />
+        <meshBasicMaterial map={numTex} transparent depthWrite={false} />
+      </mesh>
+      {selected && (
+        <mesh ref={ringRef} position={[0, 0.95, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[Math.max(spec.w, spec.d) * 0.62, Math.max(spec.w, spec.d) * 0.72, 40]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.9} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+/* ── Towers / trees / lamps (visual context, unchanged behaviour) ─────────── */
 
 function Tower({ spec, night }: { spec: TowerSpec; night: boolean }) {
   const h = spec.floors * FLOOR_H;
   const tex = useMemo(() => facadeTexture(spec.color, spec.floors, night, spec.seed), [spec, night]);
   const plain = night ? shade(spec.color, 0.25) : spec.color;
+  const sideProps = {
+    map: tex,
+    emissiveMap: night ? tex : null,
+    emissive: night ? ("#ffffff" as const) : ("#000000" as const),
+    emissiveIntensity: night ? 0.65 : 0,
+    roughness: 0.85,
+  };
 
   return (
     <group position={[spec.x, 0, spec.z]}>
       <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[spec.w, h, spec.d]} />
-        {/* +x, -x sides */}
-        <meshStandardMaterial attach="material-0" map={tex} emissiveMap={night ? tex : null} emissive={night ? "#ffffff" : "#000000"} emissiveIntensity={night ? 0.65 : 0} roughness={0.85} />
-        <meshStandardMaterial attach="material-1" map={tex} emissiveMap={night ? tex : null} emissive={night ? "#ffffff" : "#000000"} emissiveIntensity={night ? 0.65 : 0} roughness={0.85} />
-        {/* roof / base */}
+        <meshStandardMaterial attach="material-0" {...sideProps} />
+        <meshStandardMaterial attach="material-1" {...sideProps} />
         <meshStandardMaterial attach="material-2" color={plain} roughness={0.95} />
         <meshStandardMaterial attach="material-3" color={plain} roughness={0.95} />
-        {/* +z, -z sides */}
-        <meshStandardMaterial attach="material-4" map={tex} emissiveMap={night ? tex : null} emissive={night ? "#ffffff" : "#000000"} emissiveIntensity={night ? 0.65 : 0} roughness={0.85} />
-        <meshStandardMaterial attach="material-5" map={tex} emissiveMap={night ? tex : null} emissive={night ? "#ffffff" : "#000000"} emissiveIntensity={night ? 0.65 : 0} roughness={0.85} />
+        <meshStandardMaterial attach="material-4" {...sideProps} />
+        <meshStandardMaterial attach="material-5" {...sideProps} />
       </mesh>
       <mesh position={[0, h + 0.35, 0]} castShadow>
         <boxGeometry args={[spec.w * 1.04, 0.7, spec.d * 1.04]} />
         <meshStandardMaterial color={night ? "#3d4654" : "#94a3b8"} roughness={0.9} />
       </mesh>
-      <mesh position={[spec.w * 0.18, h + 1.6, spec.d * 0.12]} castShadow>
-        <boxGeometry args={[3, 2.4, 3]} />
-        <meshStandardMaterial color={plain} roughness={0.9} />
-      </mesh>
     </group>
   );
 }
 
-/** All trees drawn as 3 instanced meshes (trunks + two foliage cones). */
 function Trees({ specs, night }: { specs: TreeSpec[]; night: boolean }) {
   const trunk = useRef<THREE.InstancedMesh>(null);
   const lower = useRef<THREE.InstancedMesh>(null);
@@ -264,99 +426,78 @@ function Trees({ specs, night }: { specs: TreeSpec[]; night: boolean }) {
 }
 
 function Lamps({ night }: { night: boolean }) {
-  const xs = [-55, -33, -11, 11, 33, 55];
+  const spots: Array<[number, number]> = [
+    [-55, 51], [-33, 51], [-11, 51], [11, 51], [33, 51], [55, 51],
+    [-6, 22], [6, -2], [-6, -26],
+  ];
   return (
     <group>
-      {xs.map((x) => (
-        <group key={x} position={[x, 0, 51]}>
+      {spots.map(([x, z]) => (
+        <group key={`${x}-${z}`} position={[x, 0, z]}>
           <mesh position={[0, 2.6, 0]}>
             <cylinderGeometry args={[0.09, 0.12, 5.2, 6]} />
             <meshStandardMaterial color="#334155" />
           </mesh>
           <mesh position={[0, 5.3, 0]}>
             <sphereGeometry args={[0.35, 8, 8]} />
-            <meshStandardMaterial
-              color="#fde68a"
-              emissive="#ffb84d"
-              emissiveIntensity={night ? 3.2 : 0.8}
-            />
+            <meshStandardMaterial color="#fde68a" emissive="#ffb84d" emissiveIntensity={night ? 3.2 : 0.8} />
           </mesh>
         </group>
       ))}
-      {/* Real light pools at night — kept to a handful for performance */}
       {night && (
         <>
           <pointLight position={[-33, 6, 51]} color="#ffca7a" intensity={60} distance={42} decay={2} />
           <pointLight position={[33, 6, 51]} color="#ffca7a" intensity={60} distance={42} decay={2} />
           <pointLight position={[0, 8, 46]} color="#ffdca3" intensity={70} distance={55} decay={2} />
+          <pointLight position={[0, 7, 0]} color="#ffca7a" intensity={55} distance={50} decay={2} />
         </>
       )}
     </group>
   );
 }
 
-function Parcel({ spec, night }: { spec: ParcelSpec; night: boolean }) {
-  return (
-    <group position={[spec.x, 0, spec.z]}>
-      <mesh position={[0, 0.03, 0]} receiveShadow>
-        <boxGeometry args={[spec.w, 0.06, spec.d]} />
-        <meshStandardMaterial color={night ? "#33482c" : "#7a9c68"} roughness={1} />
-      </mesh>
-      {[-1, 1].map((sx) =>
-        [-1, 1].map((sz) => (
-          <mesh key={`${sx}${sz}`} position={[(sx * spec.w) / 2, 0.45, (sz * spec.d) / 2]}>
-            <boxGeometry args={[0.18, 0.9, 0.18]} />
-            <meshStandardMaterial color={night ? "#7c8494" : "#e2e8f0"} />
-          </mesh>
-        )),
-      )}
-      {spec.hasHouse && (
-        <group>
-          <mesh position={[0, 1.1, 0]} castShadow>
-            <boxGeometry args={[4.4, 2.2, 5]} />
-            <meshStandardMaterial
-              color={night ? "#4d463a" : "#e6dcc8"}
-              emissive={night ? "#ffca7a" : "#000000"}
-              emissiveIntensity={night ? 0.18 : 0}
-            />
-          </mesh>
-          <mesh position={[0, 2.85, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-            <coneGeometry args={[3.6, 1.6, 4]} />
-            <meshStandardMaterial color={night ? "#4a2a20" : "#9a4a32"} />
-          </mesh>
-        </group>
-      )}
-    </group>
-  );
-}
-
-/* ── Camera: orbit presets + first-person walk mode ───────────────────────── */
+/* ── Camera: orbit presets, fly-to-plot focus, walk mode ──────────────────── */
 
 const PRESET_POS: Record<ScenePreset, [number, number, number]> = {
-  default: [70, 48, 92],
-  aerial: [2, 165, 2],
+  default: [64, 44, 86],
+  aerial: [2, 150, 2],
   street: [4, 3.2, 68],
 };
 
-function CameraRig({ preset, trigger }: { preset: ScenePreset; trigger: number }) {
+function CameraRig({
+  preset,
+  trigger,
+  focus,
+}: {
+  preset: ScenePreset;
+  trigger: number;
+  focus: { x: number; z: number } | null;
+}) {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; update: () => void } | null;
   };
   const goal = useRef(new THREE.Vector3(...PRESET_POS.default));
+  const look = useRef(new THREE.Vector3(0, 0, 0));
   const animating = useRef(false);
 
   useEffect(() => {
-    goal.current.set(...PRESET_POS[preset]);
+    if (focus) {
+      goal.current.set(focus.x + 13, 12, focus.z + 16);
+      look.current.set(focus.x, 0.8, focus.z);
+    } else {
+      goal.current.set(...PRESET_POS[preset]);
+      look.current.set(0, preset === "street" ? 12 : 0, 0);
+    }
     animating.current = true;
-  }, [preset, trigger]);
+  }, [preset, trigger, focus]);
 
   useFrame(() => {
     if (!animating.current) return;
-    camera.position.lerp(goal.current, 0.06);
-    controls?.target.lerp(new THREE.Vector3(0, preset === "street" ? 12 : 0, 0), 0.06);
+    camera.position.lerp(goal.current, 0.07);
+    controls?.target.lerp(look.current, 0.07);
     controls?.update();
-    if (camera.position.distanceTo(goal.current) < 0.4) animating.current = false;
+    if (camera.position.distanceTo(goal.current) < 0.35) animating.current = false;
   });
   return null;
 }
@@ -368,8 +509,7 @@ const KEY_DIRS: Record<string, [number, number]> = {
   KeyD: [1, 0], ArrowRight: [1, 0],
 };
 
-/** First-person WASD exploration with pointer-lock mouse look. */
-function WalkControls({ onExit }: { onExit: () => void }) {
+function WalkControls({ onExit, backZ }: { onExit: () => void; backZ: number }) {
   const { camera } = useThree();
   const keys = useRef<Record<string, boolean>>({});
 
@@ -404,8 +544,8 @@ function WalkControls({ onExit }: { onExit: () => void }) {
     camera.position.addScaledVector(forward, mz * speed * dt);
     camera.position.addScaledVector(right, mx * speed * dt);
     camera.position.x = THREE.MathUtils.clamp(camera.position.x, -78, 78);
-    camera.position.z = THREE.MathUtils.clamp(camera.position.z, -56, 84);
-    camera.position.y = 2.2; // eye height — stay on the ground like a game
+    camera.position.z = THREE.MathUtils.clamp(camera.position.z, backZ - 4, 84);
+    camera.position.y = 2.2;
   });
 
   return <PointerLockControls makeDefault onUnlock={onExit} />;
@@ -415,27 +555,42 @@ function WalkControls({ onExit }: { onExit: () => void }) {
 
 export default function Property3DScene({
   project,
-  unitSummary,
+  units,
   preset,
   presetTrigger,
   autoRotate,
   night,
   walk,
   onExitWalk,
+  selectedUnitId,
+  onSelectPlot,
 }: {
   project: Project;
-  unitSummary: UnitSummary | null;
+  units: SceneUnit[];
   preset: ScenePreset;
   presetTrigger: number;
   autoRotate: boolean;
   night: boolean;
   walk: boolean;
   onExitWalk: () => void;
+  selectedUnitId: string | null;
+  onSelectPlot: (sel: PlotSelection | null) => void;
 }) {
-  const layout = useMemo(() => buildLayout(project, unitSummary), [project, unitSummary]);
+  const layout = useMemo(() => buildLayout(project, units), [project, units]);
   const sign = useMemo(() => signTexture(project.name), [project.name]);
+  const grass = useMemo(() => grassTexture(night), [night]);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const fogColor = night ? "#070d1d" : "#cfd9e4";
+  const focusPlot = useMemo(() => {
+    if (!selectedUnitId) return null;
+    const spec = layout.plots.find((p) => p.unit._id === selectedUnitId);
+    return spec ? { x: spec.x, z: spec.z } : null;
+  }, [selectedUnitId, layout.plots]);
+
+  const { backZ, baseDepth, baseCenterZ } = layout;
+  const fogColor = night ? "#070d1d" : "#d4e0ec";
+  const wall = night ? "#4c525e" : "#cfd3d9";
+  const spineLen = 50 - (backZ + 6);
 
   return (
     <Canvas
@@ -443,6 +598,7 @@ export default function Property3DScene({
       dpr={[1, 1.5]}
       camera={{ position: PRESET_POS.default, fov: 50, near: 0.5, far: 900 }}
       style={{ width: "100%", height: "100%", touchAction: "none" }}
+      onPointerMissed={() => onSelectPlot(null)}
     >
       {night ? (
         <>
@@ -453,54 +609,56 @@ export default function Property3DScene({
         </>
       ) : (
         <>
-          <Sky distance={4500} sunPosition={[120, 65, -80]} turbidity={6} rayleigh={2.2} />
-          <ambientLight intensity={0.55} />
+          <Sky distance={4500} sunPosition={[110, 55, -60]} turbidity={4.5} rayleigh={1.6} />
+          <hemisphereLight intensity={0.5} color="#eaf2ff" groundColor="#5c7350" />
+          <ambientLight intensity={0.32} />
           <directionalLight
             position={[90, 110, -60]}
-            intensity={1.6}
+            intensity={1.7}
+            color="#fff3dd"
             castShadow
             shadow-mapSize-width={1024}
             shadow-mapSize-height={1024}
-            shadow-camera-left={-120}
-            shadow-camera-right={120}
-            shadow-camera-top={120}
-            shadow-camera-bottom={-120}
+            shadow-camera-left={-130}
+            shadow-camera-right={130}
+            shadow-camera-top={130}
+            shadow-camera-bottom={-130}
           />
         </>
       )}
-      <fog attach="fog" args={[fogColor, night ? 160 : 220, night ? 480 : 620]} />
+      <fog attach="fog" args={[fogColor, night ? 160 : 240, night ? 480 : 680]} />
 
-      {/* Ground */}
+      {/* Lawn */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[900, 900]} />
-        <meshStandardMaterial color={night ? "#16241a" : "#4c7a45"} roughness={1} />
+        <meshStandardMaterial map={grass} roughness={1} />
       </mesh>
 
-      {/* Township plot base */}
-      <mesh position={[0, 0.02, 0]} receiveShadow>
-        <boxGeometry args={[132, 0.08, 100]} />
-        <meshStandardMaterial color={night ? "#333b47" : "#8d9aa8"} roughness={0.95} />
+      {/* Township base */}
+      <mesh position={[0, 0.02, baseCenterZ]} receiveShadow>
+        <boxGeometry args={[132, 0.08, baseDepth]} />
+        <meshStandardMaterial color={night ? "#333b47" : "#a7adb6"} roughness={0.95} />
       </mesh>
 
       {/* Boundary walls */}
-      {([[-66, 0, 0.6, 100] as const, [66, 0, 0.6, 100] as const]).map(([x, z, w, d], i) => (
-        <mesh key={`wx${i}`} position={[x, 1, z]} castShadow>
-          <boxGeometry args={[w, 2, d]} />
-          <meshStandardMaterial color={night ? "#4c525e" : "#c9ccd2"} roughness={0.9} />
+      {[-66, 66].map((x) => (
+        <mesh key={`wx${x}`} position={[x, 1, baseCenterZ]} castShadow>
+          <boxGeometry args={[0.6, 2, baseDepth]} />
+          <meshStandardMaterial color={wall} roughness={0.9} />
         </mesh>
       ))}
-      <mesh position={[0, 1, -50]} castShadow>
+      <mesh position={[0, 1, backZ]} castShadow>
         <boxGeometry args={[132, 2, 0.6]} />
-        <meshStandardMaterial color={night ? "#4c525e" : "#c9ccd2"} roughness={0.9} />
+        <meshStandardMaterial color={wall} roughness={0.9} />
       </mesh>
       {[[-39.5, 53] as const, [39.5, 53] as const].map(([x, w], i) => (
         <mesh key={`fw${i}`} position={[x, 1, 50]} castShadow>
           <boxGeometry args={[w, 2, 0.6]} />
-          <meshStandardMaterial color={night ? "#4c525e" : "#c9ccd2"} roughness={0.9} />
+          <meshStandardMaterial color={wall} roughness={0.9} />
         </mesh>
       ))}
 
-      {/* Gate: pillars + arch carrying the project name */}
+      {/* Entrance gate with project sign */}
       {[-13, 13].map((x) => (
         <mesh key={`gp${x}`} position={[x, 2.4, 50]} castShadow>
           <boxGeometry args={[1.6, 4.8, 1.6]} />
@@ -517,68 +675,70 @@ export default function Property3DScene({
         <meshStandardMaterial attach="material-5" map={sign} emissiveMap={night ? sign : null} emissive={night ? "#ffffff" : "#000000"} emissiveIntensity={night ? 0.8 : 0} />
       </mesh>
 
-      {/* Roads */}
+      {/* Front road with markings */}
       <mesh position={[0, 0.01, 56]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[180, 8]} />
-        <meshStandardMaterial color={night ? "#1c2027" : "#3b4048"} roughness={1} />
+        <meshStandardMaterial color={night ? "#1c2027" : "#31353c"} roughness={1} />
       </mesh>
       {Array.from({ length: 16 }, (_, i) => -72 + i * 9.5).map((x) => (
         <mesh key={x} position={[x, 0.05, 56]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[4, 0.5]} />
-          <meshStandardMaterial color={night ? "#8b94a3" : "#e2e8f0"} />
+          <meshStandardMaterial color={night ? "#8b94a3" : "#e8edf3"} />
         </mesh>
       ))}
-      <mesh position={[0, 0.06, 24]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[7, 52]} />
-        <meshStandardMaterial color={night ? "#262b33" : "#4a505a"} roughness={1} />
-      </mesh>
 
-      {/* Clubhouse + pool */}
-      <group position={[42, 0, 30]}>
-        <mesh position={[0, 2, 0]} castShadow>
-          <boxGeometry args={[14, 4, 9]} />
-          <meshStandardMaterial
-            color={night ? "#4d4639" : "#dbcfb6"}
-            emissive={night ? "#ffca7a" : "#000000"}
-            emissiveIntensity={night ? 0.22 : 0}
-          />
+      {/* Central spine road from the gate */}
+      <mesh position={[0, 0.05, 50 - spineLen / 2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[8, spineLen]} />
+        <meshStandardMaterial color={night ? "#22262d" : "#3d424b"} roughness={1} />
+      </mesh>
+      {Array.from({ length: Math.floor(spineLen / 8) }, (_, i) => 46 - i * 8).map((z) => (
+        <mesh key={`sd${z}`} position={[0, 0.08, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.5, 3.5]} />
+          <meshStandardMaterial color={night ? "#8b94a3" : "#e8edf3"} />
         </mesh>
-        <mesh position={[0, 4.4, 0]} castShadow>
-          <boxGeometry args={[15, 0.8, 10]} />
-          <meshStandardMaterial color={night ? "#3a414c" : "#7c8794"} />
+      ))}
+
+      {/* Cross roads between plot bands */}
+      {layout.crossRoadZs.map((z) => (
+        <mesh key={`cr${z}`} position={[0, 0.04, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[112, 6]} />
+          <meshStandardMaterial color={night ? "#22262d" : "#3d424b"} roughness={1} />
         </mesh>
-        <mesh position={[0, 0.08, 11]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[11, 6]} />
-          <meshStandardMaterial
-            color={night ? "#0e5f86" : "#38bdf8"}
-            roughness={0.12}
-            metalness={0.3}
-            emissive={night ? "#0ea5e9" : "#000000"}
-            emissiveIntensity={night ? 0.35 : 0}
-          />
-        </mesh>
-      </group>
+      ))}
+
+      {/* Numbered plots — green available / red booked */}
+      {layout.plots.map((p) => (
+        <Plot
+          key={p.unit._id}
+          spec={p}
+          night={night}
+          hovered={hoveredId === p.unit._id}
+          selected={selectedUnitId === p.unit._id}
+          onHover={setHoveredId}
+          onSelect={onSelectPlot}
+        />
+      ))}
 
       {layout.towers.map((t, i) => <Tower key={`${i}-${night}`} spec={t} night={night} />)}
-      {layout.parcels.map((p, i) => <Parcel key={i} spec={p} night={night} />)}
       <Trees specs={layout.trees} night={night} />
       <Lamps night={night} />
 
       {walk ? (
-        <WalkControls onExit={onExitWalk} />
+        <WalkControls onExit={onExitWalk} backZ={backZ} />
       ) : (
         <>
           <OrbitControls
             makeDefault
             enableDamping
             dampingFactor={0.08}
-            autoRotate={autoRotate}
+            autoRotate={autoRotate && !selectedUnitId}
             autoRotateSpeed={0.6}
             minDistance={6}
             maxDistance={280}
             maxPolarAngle={Math.PI / 2 - 0.04}
           />
-          <CameraRig preset={preset} trigger={presetTrigger} />
+          <CameraRig preset={preset} trigger={presetTrigger} focus={focusPlot} />
         </>
       )}
     </Canvas>

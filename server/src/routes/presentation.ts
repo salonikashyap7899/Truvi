@@ -102,12 +102,22 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .where(eq(projectAssets.projectId, project._id))
     .orderBy(asc(projectAssets.category), desc(projectAssets.createdAt));
 
-  // Lightweight inventory summary (no prices) used by the 3D scene to lay
-  // out towers/plots that mirror the project's real unit mix.
+  // Public per-unit data powering the interactive 3D master plan: each unit
+  // renders as a clickable plot colored by its live status. Prices are
+  // already public on the inventory list (minPrice/maxPrice), so exposing
+  // the per-unit price here is consistent. Lock ownership stays private.
   const unitRows = await db
-    .select({ type: units.type, status: units.status })
+    .select({
+      _id: units._id,
+      unitNumber: units.unitNumber,
+      type: units.type,
+      areaSqft: units.areaSqft,
+      price: units.price,
+      status: units.status,
+    })
     .from(units)
-    .where(eq(units.projectId, project._id));
+    .where(eq(units.projectId, project._id))
+    .orderBy(asc(units.unitNumber));
   const byType: Record<string, number> = {};
   let available = 0;
   for (const u of unitRows) {
@@ -116,7 +126,12 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   }
   const unitSummary = { total: unitRows.length, available, byType };
 
-  res.json({ project: { ...project, developerId: row.developer ?? project.developerId }, assets, unitSummary });
+  res.json({
+    project: { ...project, developerId: row.developer ?? project.developerId },
+    assets,
+    unitSummary,
+    units: unitRows,
+  });
 });
 
 // ── Mutations below require auth ────────────────────────────────────────────
