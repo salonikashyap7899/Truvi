@@ -5,7 +5,7 @@ import fs from "fs";
 import { z } from "zod";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, projectAssets, users, ASSET_CATEGORIES, IProject, ProjectType, PresentationInfo } from "../db/schema";
+import { projects, projectAssets, units, users, ASSET_CATEGORIES, IProject, ProjectType, PresentationInfo } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/jwt";
@@ -101,7 +101,22 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .from(projectAssets)
     .where(eq(projectAssets.projectId, project._id))
     .orderBy(asc(projectAssets.category), desc(projectAssets.createdAt));
-  res.json({ project: { ...project, developerId: row.developer ?? project.developerId }, assets });
+
+  // Lightweight inventory summary (no prices) used by the 3D scene to lay
+  // out towers/plots that mirror the project's real unit mix.
+  const unitRows = await db
+    .select({ type: units.type, status: units.status })
+    .from(units)
+    .where(eq(units.projectId, project._id));
+  const byType: Record<string, number> = {};
+  let available = 0;
+  for (const u of unitRows) {
+    byType[u.type] = (byType[u.type] ?? 0) + 1;
+    if (u.status === "AVAILABLE") available += 1;
+  }
+  const unitSummary = { total: unitRows.length, available, byType };
+
+  res.json({ project: { ...project, developerId: row.developer ?? project.developerId }, assets, unitSummary });
 });
 
 // ── Mutations below require auth ────────────────────────────────────────────

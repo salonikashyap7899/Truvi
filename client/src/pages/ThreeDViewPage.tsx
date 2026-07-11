@@ -1,35 +1,64 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
-import { ArrowLeft, Box, Loader2, MapPin, Maximize2 } from "lucide-react";
+import {
+  ArrowLeft, Box, Loader2, MapPin, Maximize2, Building2, Trees,
+  Plane, Footprints, Orbit, RotateCw, Satellite,
+} from "lucide-react";
 import type { Project } from "@/types";
+import type { ScenePreset, UnitSummary } from "@/components/Property3DScene";
+
+// The three.js scene is its own chunk so the page shell paints instantly.
+const Property3DScene = lazy(() => import("@/components/Property3DScene"));
 
 /**
- * Immersive 3D viewer for a listing. Embeds the third-party 3D experience
- * (Matterport, Sketchfab, Google Maps 3D/satellite, ...) stored on the
- * project's threeDModelUrl. The iframe fills the viewport so the user can
- * rotate/zoom/pan with the platform's native controls on any device.
+ * Immersive, game-style 3D exploration of a listing. A procedurally built
+ * township — towers, plots, roads, clubhouse, trees — generated from the
+ * project's real unit mix, freely explorable with rotate/zoom/pan.
+ * If the admin has attached an external embed (satellite / Matterport / ...)
+ * it is offered as an alternate view.
  */
 export default function ThreeDViewPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [unitSummary, setUnitSummary] = useState<UnitSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [frameLoaded, setFrameLoaded] = useState(false);
+
+  const [mode, setMode] = useState<"scene" | "embed">("scene");
+  const [preset, setPreset] = useState<ScenePreset>("default");
+  const [presetTrigger, setPresetTrigger] = useState(0);
+  const [autoRotate, setAutoRotate] = useState(true);
+  const viewerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.title = "TRUVI — 3D Property View";
     if (!id) return;
     api
       .get(`/presentation/${id}`)
-      .then((res) => setProject(res.data.project))
+      .then((res) => {
+        setProject(res.data.project);
+        setUnitSummary(res.data.unitSummary ?? null);
+      })
       .catch((err: any) => setError(err?.response?.data?.error || "Failed to load the listing"))
       .finally(() => setLoading(false));
   }, [id]);
 
-  function enterFullscreen() {
-    document.getElementById("truvi-3d-frame")?.requestFullscreen?.();
+  function flyTo(next: ScenePreset) {
+    setPreset(next);
+    setPresetTrigger((n) => n + 1);
+    setAutoRotate(false);
   }
+
+  function enterFullscreen() {
+    viewerRef.current?.requestFullscreen?.();
+  }
+
+  const presetButtons: Array<{ key: ScenePreset; label: string; icon: React.ReactNode }> = [
+    { key: "default", label: "Orbit", icon: <Orbit size={13} /> },
+    { key: "aerial", label: "Aerial", icon: <Plane size={13} /> },
+    { key: "street", label: "Street", icon: <Footprints size={13} /> },
+  ];
 
   return (
     <main className="flex h-screen flex-col bg-[#06090f] text-white">
@@ -56,79 +85,124 @@ export default function ThreeDViewPage() {
             )}
           </div>
         </div>
-        {project?.threeDModelUrl && (
+        <div className="flex shrink-0 items-center gap-2">
+          {project?.threeDModelUrl && (
+            <button
+              onClick={() => setMode((m) => (m === "scene" ? "embed" : "scene"))}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium text-white transition hover:bg-white/10"
+            >
+              {mode === "scene" ? <Satellite size={13} /> : <Box size={13} />}
+              <span className="hidden sm:inline">{mode === "scene" ? "Satellite view" : "3D scene"}</span>
+            </button>
+          )}
           <button
             onClick={enterFullscreen}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium text-white transition hover:bg-white/10"
+            className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-medium text-white transition hover:bg-white/10"
           >
             <Maximize2 size={13} />
             <span className="hidden sm:inline">Fullscreen</span>
           </button>
-        )}
+        </div>
       </header>
 
       {/* Viewer */}
-      <div className="relative flex-1">
+      <div ref={viewerRef} className="relative flex-1 bg-[#06090f]">
         {loading ? (
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
-              <Loader2 size={28} className="animate-spin text-sky-300" />
-              <p className="text-sm">Preparing 3D experience…</p>
-            </div>
-          </div>
+          <CenterNote>
+            <Loader2 size={28} className="animate-spin text-sky-300" />
+            <p className="text-sm text-muted-foreground">Building 3D world…</p>
+          </CenterNote>
         ) : error || !project ? (
-          <div className="absolute inset-0 grid place-items-center px-6 text-center">
-            <div>
-              <p className="text-lg font-semibold">Listing not found</p>
-              <p className="mt-2 text-sm text-muted-foreground">{error || "This property is no longer available."}</p>
-              <Link to="/inventory" className="mt-5 inline-block rounded-full border border-white/15 px-5 py-2.5 text-sm hover:bg-white/10">
-                Back to inventory
-              </Link>
-            </div>
-          </div>
-        ) : !project.threeDModelUrl ? (
-          <div className="absolute inset-0 grid place-items-center px-6 text-center">
-            <div>
-              <div className="mx-auto grid size-16 place-items-center rounded-3xl border border-sky-400/25 bg-sky-500/10">
-                <Box size={26} className="text-sky-300" />
-              </div>
-              <p className="mt-5 text-lg font-semibold">3D View Coming Soon</p>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-                Our team is preparing the interactive 3D experience for {project.name}. Check back shortly.
-              </p>
-              <Link
-                to={`/inventory/${project._id}/presentation`}
-                className="mt-5 inline-block rounded-full border border-white/15 px-5 py-2.5 text-sm hover:bg-white/10"
-              >
-                View project presentation instead
-              </Link>
-            </div>
-          </div>
+          <CenterNote>
+            <p className="text-lg font-semibold">Listing not found</p>
+            <p className="text-sm text-muted-foreground">{error || "This property is no longer available."}</p>
+            <Link to="/inventory" className="mt-2 rounded-full border border-white/15 px-5 py-2.5 text-sm hover:bg-white/10">
+              Back to inventory
+            </Link>
+          </CenterNote>
+        ) : mode === "embed" && project.threeDModelUrl ? (
+          <iframe
+            src={project.threeDModelUrl}
+            title={`Satellite view of ${project.name}`}
+            className="h-full w-full border-0"
+            loading="lazy"
+            allow="fullscreen; xr-spatial-tracking; accelerometer; gyroscope; magnetometer"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+          />
         ) : (
           <>
-            {/* Loading shimmer under the iframe until the scene is ready */}
-            {!frameLoaded && (
-              <div className="absolute inset-0 grid place-items-center bg-[#06090f]">
-                <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Suspense
+              fallback={
+                <CenterNote>
                   <Loader2 size={28} className="animate-spin text-sky-300" />
-                  <p className="text-sm">Loading 3D scene…</p>
-                </div>
+                  <p className="text-sm text-muted-foreground">Loading 3D engine…</p>
+                </CenterNote>
+              }
+            >
+              <Property3DScene
+                project={project}
+                unitSummary={unitSummary}
+                preset={preset}
+                presetTrigger={presetTrigger}
+                autoRotate={autoRotate}
+              />
+            </Suspense>
+
+            {/* Camera controls overlay */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
+              <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-black/55 p-1.5 backdrop-blur">
+                {presetButtons.map((b) => (
+                  <button
+                    key={b.key}
+                    onClick={() => flyTo(b.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                      preset === b.key ? "bg-sky-500/25 text-sky-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {b.icon} {b.label}
+                  </button>
+                ))}
+                <span className="mx-0.5 h-5 w-px bg-white/15" />
+                <button
+                  onClick={() => setAutoRotate((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
+                    autoRotate ? "bg-emerald-500/20 text-emerald-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <RotateCw size={13} /> Auto-rotate
+                </button>
+              </div>
+              <p className="rounded-full bg-black/40 px-4 py-1.5 text-[11px] text-white/60 backdrop-blur">
+                Drag to rotate · Scroll / pinch to zoom · Right-drag / two fingers to pan
+              </p>
+            </div>
+
+            {/* Live inventory legend */}
+            {unitSummary && unitSummary.total > 0 && (
+              <div className="absolute left-4 top-4 space-y-1.5 rounded-2xl border border-white/12 bg-black/55 px-4 py-3 text-xs backdrop-blur">
+                <p className="flex items-center gap-1.5 font-semibold text-white">
+                  <Building2 size={12} /> Live inventory
+                </p>
+                <p className="text-white/70">
+                  {unitSummary.total} units · <span className="text-emerald-300">{unitSummary.available} available</span>
+                </p>
+                <p className="flex items-center gap-1.5 text-white/50">
+                  <Trees size={11} /> Layout generated from this project's real unit mix
+                </p>
               </div>
             )}
-            <iframe
-              id="truvi-3d-frame"
-              src={project.threeDModelUrl}
-              title={`3D view of ${project.name}`}
-              className="h-full w-full border-0"
-              loading="lazy"
-              allow="fullscreen; xr-spatial-tracking; accelerometer; gyroscope; magnetometer"
-              allowFullScreen
-              referrerPolicy="no-referrer-when-downgrade"
-              onLoad={() => setFrameLoaded(true)}
-            />
           </>
         )}
       </div>
     </main>
+  );
+}
+
+function CenterNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute inset-0 grid place-items-center px-6 text-center">
+      <div className="flex flex-col items-center gap-3">{children}</div>
+    </div>
   );
 }
