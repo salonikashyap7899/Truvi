@@ -81,47 +81,97 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
  * ribbon (booked) — the whole look is baked into one texture per plot.
  */
 function plotCardTexture(label: string, available: boolean, night: boolean): THREE.CanvasTexture {
-  return makeTex(`plot2-${label}-${available}-${night}`, 256, 332, (ctx) => {
+  return makeTex(`plot3-${label}-${available}-${night}`, 256, 332, (ctx) => {
     const W = 256;
     const H = 332;
 
-    // Kerb frame
-    ctx.fillStyle = night ? "#3c414b" : "#e9e6df";
+    if (night) {
+      // ── Brand "digital twin" tile: dark navy glass with a neon border ──
+      const accent = available ? "#34d399" : "#f87171";
+      ctx.fillStyle = "#0a1220";
+      ctx.fillRect(0, 0, W, H);
+
+      // faint inner glass gradient
+      const g = ctx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, available ? "rgba(52,211,153,0.14)" : "rgba(248,113,113,0.12)");
+      g.addColorStop(1, "rgba(59,130,246,0.06)");
+      ctx.fillStyle = g;
+      roundedRect(ctx, 10, 10, W - 20, H - 20, 18);
+      ctx.fill();
+
+      // neon border with glow
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 18;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 5;
+      roundedRect(ctx, 12, 12, W - 24, H - 24, 17);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // corner ticks (holo feel)
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 2;
+      const t = 18;
+      [[24, 24], [W - 24, 24], [24, H - 24], [W - 24, H - 24]].forEach(([cx, cy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx - (cx > W / 2 ? t : -t), cy);
+        ctx.lineTo(cx, cy);
+        ctx.lineTo(cx, cy - (cy > H / 2 ? t : -t));
+        ctx.stroke();
+      });
+
+      // number with accent glow
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 22;
+      ctx.fillStyle = "#f4f8ff";
+      ctx.font = "bold 62px 'Inter Tight', Inter, sans-serif";
+      let text = label;
+      while (ctx.measureText(text).width > 190 && text.length > 3) text = text.slice(0, -2) + "…";
+      ctx.fillText(text, W / 2, H / 2 - 8);
+      ctx.shadowBlur = 0;
+
+      // status caption
+      ctx.font = "600 22px 'Inter Tight', Inter, sans-serif";
+      ctx.fillStyle = accent;
+      ctx.fillText(available ? "A V A I L A B L E" : "S O L D", W / 2, H / 2 + 52);
+      return;
+    }
+
+    // ── Daytime: manicured lawn parcel / grey SOLD parcel ──
+    ctx.fillStyle = "#e9e6df";
     ctx.fillRect(0, 0, W, H);
 
-    // Parcel fill
     roundedRect(ctx, 10, 10, W - 20, H - 20, 18);
     ctx.save();
     ctx.clip();
     const grad = ctx.createLinearGradient(0, 10, 0, H - 10);
     if (available) {
-      grad.addColorStop(0, night ? "#2a5c39" : "#63b56f");
-      grad.addColorStop(1, night ? "#1a3d26" : "#3c8c4d");
+      grad.addColorStop(0, "#63b56f");
+      grad.addColorStop(1, "#3c8c4d");
     } else {
-      grad.addColorStop(0, night ? "#4a463f" : "#b8b0a3");
-      grad.addColorStop(1, night ? "#37342e" : "#98907f");
+      grad.addColorStop(0, "#b8b0a3");
+      grad.addColorStop(1, "#98907f");
     }
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Mowing stripes on lawn
     if (available) {
       ctx.fillStyle = "rgba(255,255,255,0.055)";
       for (let y = 10; y < H - 10; y += 40) ctx.fillRect(10, y, W - 20, 20);
     }
 
-    // Inner hairline
     ctx.strokeStyle = available ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.28)";
     ctx.lineWidth = 2;
     roundedRect(ctx, 16, 16, W - 32, H - 32, 13);
     ctx.stroke();
 
-    // Plot number
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.shadowColor = "rgba(0,0,0,0.35)";
     ctx.shadowBlur = 8;
-    ctx.fillStyle = available ? "#ffffff" : night ? "#c9c2b4" : "#57503f";
+    ctx.fillStyle = available ? "#ffffff" : "#57503f";
     ctx.font = "bold 62px 'Inter Tight', Inter, sans-serif";
     let text = label;
     while (ctx.measureText(text).width > 190 && text.length > 3) text = text.slice(0, -2) + "…";
@@ -129,7 +179,6 @@ function plotCardTexture(label: string, available: boolean, night: boolean): THR
     ctx.shadowBlur = 0;
 
     if (available) {
-      // status pill
       const pw = 168;
       ctx.fillStyle = "rgba(8,32,16,0.55)";
       roundedRect(ctx, (W - pw) / 2, H / 2 + 44, pw, 40, 20);
@@ -141,11 +190,10 @@ function plotCardTexture(label: string, available: boolean, night: boolean): THR
     ctx.restore();
 
     if (!available) {
-      // red SOLD ribbon across the top-left corner
       ctx.save();
       ctx.translate(58, 58);
       ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = night ? "#8f2f2a" : "#d64541";
+      ctx.fillStyle = "#d64541";
       ctx.fillRect(-110, -19, 220, 38);
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.fillRect(-110, -19, 220, 3);
@@ -191,13 +239,15 @@ function glassTexture(floors: number, night: boolean, seed: number): THREE.Canva
       ctx.fill();
     }
 
-    // lit windows at night
+    // lit windows at night — mostly brand blue-white with a few warm ones
     const rows = Math.min(18, floors);
     if (night) {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < 6; c++) {
-          if (rand() < 0.4) {
-            ctx.fillStyle = rand() < 0.5 ? "rgba(255,214,132,0.9)" : "rgba(255,233,184,0.75)";
+          if (rand() < 0.45) {
+            const roll = rand();
+            ctx.fillStyle =
+              roll < 0.55 ? "rgba(147,197,253,0.9)" : roll < 0.8 ? "rgba(224,236,255,0.85)" : "rgba(255,214,132,0.8)";
             ctx.fillRect(c * 42 + 6, r * 40 + 8, 32, 24);
           }
         }
@@ -231,15 +281,28 @@ function signTexture(name: string): THREE.CanvasTexture {
 }
 
 function grassTexture(night: boolean): THREE.CanvasTexture {
-  const tex = makeTex(`grass-${night}`, 256, 256, (ctx) => {
+  const tex = makeTex(`grass2-${night}`, 256, 256, (ctx) => {
+    if (night) {
+      // Holographic ground grid in brand blue — mirrors the landing page.
+      ctx.fillStyle = "#060a12";
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = "rgba(59,130,246,0.16)";
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i <= 256; i += 32) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(59,130,246,0.32)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0.5, 0.5, 255, 255);
+      return;
+    }
     const rand = mulberry32(97531);
-    ctx.fillStyle = night ? "#131d14" : "#476d3e";
+    ctx.fillStyle = "#476d3e";
     ctx.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 260; i++) {
       const r = 6 + rand() * 22;
-      ctx.fillStyle = night
-        ? `rgba(${16 + rand() * 14}, ${32 + rand() * 16}, ${18 + rand() * 10}, 0.5)`
-        : `rgba(${56 + rand() * 26}, ${100 + rand() * 30}, ${50 + rand() * 22}, 0.5)`;
+      ctx.fillStyle = `rgba(${56 + rand() * 26}, ${100 + rand() * 30}, ${50 + rand() * 22}, 0.5)`;
       ctx.beginPath();
       ctx.arc(rand() * 256, rand() * 256, r, 0, Math.PI * 2);
       ctx.fill();
@@ -462,8 +525,8 @@ function Plot({
         }}
       >
         <boxGeometry args={[spec.w, 0.6, spec.d]} />
-        <meshStandardMaterial attach="material-0" color={night ? "#3c414b" : "#d9d6cf"} roughness={0.9} />
-        <meshStandardMaterial attach="material-1" color={night ? "#3c414b" : "#d9d6cf"} roughness={0.9} />
+        <meshStandardMaterial attach="material-0" color={night ? "#101826" : "#d9d6cf"} roughness={0.9} />
+        <meshStandardMaterial attach="material-1" color={night ? "#101826" : "#d9d6cf"} roughness={0.9} />
         <meshStandardMaterial
           attach="material-2"
           map={cardTex}
@@ -472,9 +535,9 @@ function Plot({
           emissiveIntensity={selected ? 0.5 : hovered ? 0.32 : night ? 0.35 : 0.1}
           roughness={0.7}
         />
-        <meshStandardMaterial attach="material-3" color={night ? "#2b2f37" : "#b6b3ac"} roughness={0.9} />
-        <meshStandardMaterial attach="material-4" color={night ? "#3c414b" : "#d9d6cf"} roughness={0.9} />
-        <meshStandardMaterial attach="material-5" color={night ? "#3c414b" : "#d9d6cf"} roughness={0.9} />
+        <meshStandardMaterial attach="material-3" color={night ? "#0b111c" : "#b6b3ac"} roughness={0.9} />
+        <meshStandardMaterial attach="material-4" color={night ? "#101826" : "#d9d6cf"} roughness={0.9} />
+        <meshStandardMaterial attach="material-5" color={night ? "#101826" : "#d9d6cf"} roughness={0.9} />
       </mesh>
       {selected && (
         <mesh ref={ringRef} position={[0, 0.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -1078,7 +1141,7 @@ export default function Property3DScene({
   }, [selectedUnitId, layout.plots]);
 
   const { backZ, baseDepth, baseCenterZ } = layout;
-  const fogColor = night ? "#070d1d" : "#d4e0ec";
+  const fogColor = night ? "#06090f" : "#d4e0ec";
   const wall = night ? "#4c525e" : "#cfd3d9";
   const spineLen = 50 - (backZ + 6);
 
@@ -1114,7 +1177,7 @@ export default function Property3DScene({
         </Environment>
         {night ? (
           <>
-            <color attach="background" args={["#070d1d"]} />
+            <color attach="background" args={["#06090f"]} />
             <Stars radius={320} depth={60} count={2200} factor={4.2} saturation={0} fade speed={0.6} />
             <ambientLight intensity={0.18} color="#9db4ff" />
             <directionalLight position={[-70, 90, 40]} intensity={0.35} color="#8fa8e8" />
@@ -1140,6 +1203,23 @@ export default function Property3DScene({
           <boxGeometry args={[132, 0.08, baseDepth]} />
           <meshStandardMaterial map={paver} roughness={0.95} />
         </mesh>
+        {/* Neon platform edge (brand blue) in dark mode */}
+        {night && (
+          <group>
+            {[-66.4, 66.4].map((x) => (
+              <mesh key={`ne${x}`} position={[x, 0.12, baseCenterZ]}>
+                <boxGeometry args={[0.35, 0.22, baseDepth]} />
+                <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={1.6} toneMapped={false} />
+              </mesh>
+            ))}
+            {[backZ - 0.2, 50.2].map((z) => (
+              <mesh key={`nz${z}`} position={[0, 0.12, z]}>
+                <boxGeometry args={[133, 0.22, 0.35]} />
+                <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={1.6} toneMapped={false} />
+              </mesh>
+            ))}
+          </group>
+        )}
 
         {/* Boundary walls */}
         {[-66, 66].map((x) => (
@@ -1184,7 +1264,7 @@ export default function Property3DScene({
         {Array.from({ length: 16 }, (_, i) => -72 + i * 9.5).map((x) => (
           <mesh key={x} position={[x, 0.05, 56]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[4, 0.5]} />
-            <meshStandardMaterial color={night ? "#8b94a3" : "#e8edf3"} />
+            <meshStandardMaterial color={night ? "#7fb0ff" : "#e8edf3"} emissive={night ? "#3b82f6" : "#000000"} emissiveIntensity={night ? 1.1 : 0} />
           </mesh>
         ))}
 
