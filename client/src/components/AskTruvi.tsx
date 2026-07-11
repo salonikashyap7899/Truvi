@@ -3,6 +3,7 @@ import {
   X, Send, Bot, User, Sparkles, SlidersHorizontal, ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 
 /* ============================================================
    Ask Truvi AI — Real Estate Decision Intelligence Assistant
@@ -267,6 +268,7 @@ interface AskTruviProps {
 }
 
 export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
+  const accessToken = useAuthStore((s) => s.accessToken);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -434,6 +436,33 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
           </div>
         </div>
 
+        {/* Ask Truvi is member-only: guests see a sign-in gate instead of chat */}
+        {!accessToken ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-400/25 bg-blue-500/10">
+              <Sparkles size={20} className="text-blue-300" />
+            </div>
+            <p className="text-base font-semibold text-white">Sign in to use Ask Truvi</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Create a free account to get source-backed property intelligence, verified project data and personalized advice.
+            </p>
+            <div className="mt-2 flex w-full flex-col gap-2">
+              <a
+                href="/login"
+                className="w-full rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-2.5 text-center text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_24px_rgba(219,234,254,0.3)]"
+              >
+                Sign in
+              </a>
+              <a
+                href="/signup"
+                className="w-full rounded-full border border-white/15 py-2.5 text-center text-sm text-white transition hover:bg-white/10"
+              >
+                Create a free account
+              </a>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Personalized advisor profile */}
         {showAdvisor && (
           <AdvisorPanel profile={profile} onChange={setProfile} onClose={() => setShowAdvisor(false)} />
@@ -534,6 +563,8 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
             Source-backed answers · Not legal or financial advice
           </p>
         </div>
+        </>
+        )}
       </div>
     </>
   );

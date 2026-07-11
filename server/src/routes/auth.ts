@@ -263,8 +263,15 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
 
   try {
     await sendPhoneOtpViaSms(user.phone!, otp);
-  } catch (err) {
+  } catch (err: any) {
     console.error("Failed to send phone OTP:", err);
+    // Twilio trial accounts can only text numbers verified on that account.
+    if (err?.code === 21608 || err?.code === 21211 || err?.code === 21408) {
+      return res.status(400).json({
+        error:
+          "SMS could not be delivered to this number. Twilio trial accounts only send to verified numbers — upgrade the Twilio account (add billing) to send OTPs to any number.",
+      });
+    }
     return res.status(500).json({ error: "Failed to send OTP SMS. Please try again." });
   }
 

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box,
+  ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box, Eye,
   Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
@@ -142,6 +142,8 @@ export default function ProjectPresentationPage() {
       })
       .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load presentation"))
       .finally(() => setLoading(false));
+    // Count this visit (fire-and-forget).
+    api.post(`/inventory/${id}/view`).catch(() => null);
   }, [id]);
 
   const bySection = useMemo(() => {
@@ -259,6 +261,9 @@ export default function ProjectPresentationPage() {
         <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin size={13} /> {project.location}, {project.city}
           {devName && <span className="ml-2 inline-flex items-center gap-1.5"><Building2 size={13} /> by {devName}</span>}
+          <span className="ml-2 inline-flex items-center gap-1.5">
+            <Eye size={13} /> {(project.viewCount ?? 0).toLocaleString("en-IN")} views
+          </span>
         </p>
         <p className="max-w-3xl text-sm text-foreground/90">{project.description}</p>
         <Link

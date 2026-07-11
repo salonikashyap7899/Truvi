@@ -1,28 +1,9 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { verifyAccessToken } from "../lib/jwt";
-import { AuthedRequest } from "../middleware/auth";
+import { authenticate, AuthedRequest } from "../middleware/auth";
 import { retrieveContext } from "../services/askTruviService";
 
 const router = Router();
-
-/**
- * Ask Truvi is available to everyone — including buyers browsing the
- * landing page before signup. If a valid token is present we attach the
- * user (so answers can be personalized); if not, we proceed as a guest.
- */
-function optionalAuth(req: AuthedRequest, _res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (token) {
-    try {
-      req.user = verifyAccessToken(token);
-    } catch {
-      /* guest */
-    }
-  }
-  next();
-}
 
 /* ---------------- Sales Copilot modes ---------------- */
 
@@ -141,7 +122,8 @@ router.get("/health", async (_req, res) => {
   }
 });
 
-router.post("/", optionalAuth, async (req: AuthedRequest, res) => {
+// Ask Truvi requires a signed-in account — signup completes access.
+router.post("/", authenticate, async (req: AuthedRequest, res) => {
   const { message, propertyContext, mode, history, advisorProfile } = req.body as {
     message?: string;
     propertyContext?: Record<string, unknown>;

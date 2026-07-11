@@ -238,6 +238,8 @@ export const projects = pgTable(
     // Google Maps 3D/satellite embed, ...). When set, the frontend shows a
     // "View in 3D" button on the listing.
     threeDModelUrl: text("three_d_model_url"),
+    // Public visit counter shown on listings ("N views").
+    viewCount: integer("view_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

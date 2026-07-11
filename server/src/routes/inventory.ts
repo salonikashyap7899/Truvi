@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, users } from "../db/schema";
 import { isValidId } from "../lib/ids";
@@ -54,6 +54,19 @@ router.get("/", async (_req, res) => {
   });
 
   res.json({ projects: enriched });
+});
+
+// Public visit counter — called once per page view of a listing.
+router.post("/:id/view", async (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Listing not found" });
+  const db = getDb();
+  const [row] = await db
+    .update(projects)
+    .set({ viewCount: sql`${projects.viewCount} + 1` })
+    .where(eq(projects._id, req.params.id))
+    .returning({ viewCount: projects.viewCount });
+  if (!row) return res.status(404).json({ error: "Listing not found" });
+  res.json({ viewCount: row.viewCount });
 });
 
 router.get("/:id/intelligence", async (req, res) => {

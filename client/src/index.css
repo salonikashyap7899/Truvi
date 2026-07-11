@@ -18,6 +18,13 @@
   }
 }
 
+/* ── Truvi premium brand cursor (navy/gold shield — TruviPremiumCursor spec).
+   Unlayered so it outranks the @layer base pointer rules; every element,
+   including buttons and links, shares the same branded cursor. ── */
+* {
+  cursor: url("/brand/cursor.png") 18 2, auto;
+}
+
 html, body, #root {
   height: 100%;
 }

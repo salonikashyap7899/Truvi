@@ -465,7 +465,7 @@ export default function AboutPage() {
             <div className="mx-auto mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
               {[
                 { icon: <Globe size={14} />, label: "Website", value: "www.truviventures.com",   href: "https://www.truviventures.com" },
-                { icon: <Mail  size={14} />, label: "Email",   value: "truviventures@gmail.com", href: "mailto:truviventures@gmail.com" },
+                { icon: <Mail  size={14} />, label: "Email",   value: "info@truviventures.com", href: "mailto:info@truviventures.com" },
                 { icon: <Phone size={14} />, label: "Phone",   value: "+91 91963 66358",          href: "tel:+919196366358" },
               ].map((c) => (
                 <motion.a
