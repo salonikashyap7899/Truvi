@@ -62,7 +62,9 @@ export default function ThreeDViewPage() {
     load()
       .catch((err: any) => setError(err?.response?.data?.error || "Failed to load the listing"))
       .finally(() => setLoading(false));
-  }, [load]);
+    // Count this visit (fire-and-forget).
+    if (id) api.post(`/inventory/${id}/view`).catch(() => null);
+  }, [load, id]);
 
   // Live availability: bookings flip plots green → red without a reload.
   useEffect(() => {

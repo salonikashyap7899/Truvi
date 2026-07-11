@@ -468,6 +468,7 @@ function Plot({
   onSelect: (sel: PlotSelection) => void;
 }) {
   const available = spec.unit.status === "AVAILABLE";
+  const { gl } = useThree();
   const cardTex = useMemo(
     () => plotCardTexture(spec.unit.unitNumber, available, night),
     [spec.unit.unitNumber, available, night],
@@ -517,11 +518,12 @@ function Plot({
         onPointerOver={(e) => {
           e.stopPropagation();
           onHover(spec.unit._id);
-          document.body.style.cursor = "pointer";
+          // Inline style on the canvas outranks the site-wide brand cursor.
+          gl.domElement.style.cursor = "pointer";
         }}
         onPointerOut={() => {
           onHover(null);
-          document.body.style.cursor = "";
+          gl.domElement.style.cursor = "";
         }}
       >
         <boxGeometry args={[spec.w, 0.6, spec.d]} />

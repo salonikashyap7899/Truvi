@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Search, Star, ShieldCheck, CheckCircle2, XCircle, Building2, MapPin,
-  Presentation, ArrowRight, X, Sparkles, BadgeCheck, Box,
+  Presentation, ArrowRight, X, Sparkles, BadgeCheck, Box, Eye,
 } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
@@ -192,6 +192,10 @@ function ListingCard({
               by {devName}
             </p>
           )}
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Eye size={12} className="shrink-0" />
+            {(project.viewCount ?? 0).toLocaleString("en-IN")} view{(project.viewCount ?? 0) === 1 ? "" : "s"}
+          </p>
         </div>
 
         <p className="line-clamp-2 text-sm leading-relaxed text-foreground/80">{project.description}</p>
