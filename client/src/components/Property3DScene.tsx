@@ -274,6 +274,33 @@ function blobTexture(): THREE.CanvasTexture {
   });
 }
 
+/** Puffy cloud sprite. */
+function cloudTexture(): THREE.CanvasTexture {
+  return makeTex("cloud", 256, 128, (ctx) => {
+    const rand = mulberry32(24681);
+    for (let i = 0; i < 14; i++) {
+      const x = 40 + rand() * 176;
+      const y = 44 + rand() * 40;
+      const r = 18 + rand() * 26;
+      const g = ctx.createRadialGradient(x, y, 2, x, y, r);
+      g.addColorStop(0, "rgba(255,255,255,0.55)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 256, 128);
+    }
+  });
+}
+
+/** Navy flag with a gold band, waved on the CPU (tiny vertex count). */
+function flagTexture(): THREE.CanvasTexture {
+  return makeTex("flag", 128, 80, (ctx) => {
+    ctx.fillStyle = "#12263f";
+    ctx.fillRect(0, 0, 128, 80);
+    ctx.fillStyle = "#d4af5f";
+    ctx.fillRect(0, 32, 128, 16);
+  });
+}
+
 /* ── Master-plan layout ───────────────────────────────────────────────────── */
 
 interface TowerSpec { x: number; z: number; w: number; d: number; floors: number; seed: number }
@@ -359,6 +386,7 @@ const GOLD = "#e8c877";
 
 function Plot({
   spec,
+  index,
   night,
   hovered,
   selected,
@@ -366,6 +394,7 @@ function Plot({
   onSelect,
 }: {
   spec: PlotSpec;
+  index: number;
   night: boolean;
   hovered: boolean;
   selected: boolean;
@@ -378,21 +407,43 @@ function Plot({
     [spec.unit.unitNumber, available, night],
   );
   const ringRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const boxRef = useRef<THREE.Mesh>(null);
+  // Staggered rise-in on load, then smooth lift on hover/select.
+  const entrance = useRef(0);
+  const liftNow = useRef(0.3);
 
-  useFrame(({ clock }) => {
-    if (!ringRef.current) return;
-    const s = 1 + Math.sin(clock.elapsedTime * 3.2) * 0.05;
-    ringRef.current.scale.setScalar(s);
-    (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
-      0.75 + Math.sin(clock.elapsedTime * 3.2) * 0.2;
+  useFrame(({ clock }, dt) => {
+    // entrance: plots pop out of the ground one after another
+    const delay = 0.35 + index * 0.045;
+    if (entrance.current < 1 && clock.elapsedTime > delay) {
+      entrance.current = Math.min(1, entrance.current + dt * 2.2);
+    }
+    const e = entrance.current;
+    const ease = 1 - Math.pow(1 - e, 3); // easeOutCubic
+    if (groupRef.current) {
+      groupRef.current.position.y = -2.2 * (1 - ease);
+      groupRef.current.scale.setScalar(0.6 + 0.4 * ease);
+    }
+
+    // hover/selection lift, smoothly damped
+    const target = hovered || selected ? 0.62 : 0.3;
+    liftNow.current += (target - liftNow.current) * Math.min(1, dt * 10);
+    if (boxRef.current) boxRef.current.position.y = liftNow.current;
+
+    if (ringRef.current) {
+      const s = 1 + Math.sin(clock.elapsedTime * 3.2) * 0.05;
+      ringRef.current.scale.setScalar(s);
+      (ringRef.current.material as THREE.MeshBasicMaterial).opacity =
+        0.75 + Math.sin(clock.elapsedTime * 3.2) * 0.2;
+    }
   });
 
-  const lift = hovered || selected ? 0.55 : 0.3;
-
   return (
-    <group position={[spec.x, 0, spec.z]}>
+    <group ref={groupRef} position={[spec.x, -2.2, spec.z]}>
       <mesh
-        position={[0, lift, 0]}
+        ref={boxRef}
+        position={[0, 0.3, 0]}
         onClick={(e) => {
           e.stopPropagation();
           onSelect({ unit: spec.unit, facing: spec.facing });
@@ -517,6 +568,7 @@ function Trees({ specs, night }: { specs: TreeSpec[]; night: boolean }) {
   useLayoutEffect(() => {
     const dummy = new THREE.Object3D();
     specs.forEach((t, i) => {
+      dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(t.s);
       dummy.position.set(t.x, t.s * 1, t.z);
       dummy.updateMatrix();
@@ -532,6 +584,25 @@ function Trees({ specs, night }: { specs: TreeSpec[]; night: boolean }) {
       if (ref.current) ref.current.instanceMatrix.needsUpdate = true;
     }
   }, [specs]);
+
+  // Gentle breeze: the foliage cones sway; trunks stay planted.
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    const dummy = new THREE.Object3D();
+    specs.forEach((tr, i) => {
+      const sway = Math.sin(t * 1.3 + i * 1.7) * 0.055;
+      dummy.rotation.set(0, 0, sway);
+      dummy.scale.setScalar(tr.s);
+      dummy.position.set(tr.x + sway * 1.4, tr.s * 2.8, tr.z);
+      dummy.updateMatrix();
+      lower.current?.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(tr.x + sway * 2.2, tr.s * 4.1, tr.z);
+      dummy.updateMatrix();
+      upper.current?.setMatrixAt(i, dummy.matrix);
+    });
+    if (lower.current) lower.current.instanceMatrix.needsUpdate = true;
+    if (upper.current) upper.current.instanceMatrix.needsUpdate = true;
+  });
 
   const count = specs.length;
   return (
@@ -598,7 +669,41 @@ function Lamps({ night }: { night: boolean }) {
   );
 }
 
-/** Landscaped roundabout with a fountain where the spine meets the entry. */
+/** Animated fountain jet: droplets rise, fade, and loop. */
+function FountainSpray({ night }: { night: boolean }) {
+  const drops = useRef<Array<THREE.Mesh | null>>([]);
+  const N = 5;
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    for (let i = 0; i < N; i++) {
+      const m = drops.current[i];
+      if (!m) continue;
+      const p = (t * 0.9 + i / N) % 1;
+      m.position.set(Math.sin(i * 2.4) * 0.3 * p, 1.6 + p * 1.9, Math.cos(i * 2.4) * 0.3 * p);
+      m.scale.setScalar(1 - p * 0.6);
+      (m.material as THREE.MeshStandardMaterial).opacity = 0.85 * (1 - p);
+    }
+  });
+
+  return (
+    <group>
+      {Array.from({ length: N }, (_, i) => (
+        <mesh key={i} ref={(el) => { drops.current[i] = el; }}>
+          <sphereGeometry args={[0.16, 6, 6]} />
+          <meshStandardMaterial
+            color="#aee3ff"
+            transparent
+            emissive={night ? "#38bdf8" : "#ffffff"}
+            emissiveIntensity={night ? 0.8 : 0.3}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** Landscaped roundabout with an animated fountain where the spine meets the entry. */
 function Roundabout({ night }: { night: boolean }) {
   const water = night ? "#0e5f86" : "#38bdf8";
   return (
@@ -623,7 +728,207 @@ function Roundabout({ night }: { night: boolean }) {
         <sphereGeometry args={[0.34, 10, 10]} />
         <meshStandardMaterial color={water} roughness={0.2} emissive={night ? "#38bdf8" : "#000000"} emissiveIntensity={night ? 0.5 : 0} />
       </mesh>
+      <FountainSpray night={night} />
     </group>
+  );
+}
+
+/** Slow-drifting cloud sprites (daytime only). */
+function Clouds() {
+  const cloud = useMemo(() => cloudTexture(), []);
+  const refs = useRef<Array<THREE.Sprite | null>>([]);
+  const seeds = useMemo(() => {
+    const rand = mulberry32(13579);
+    return Array.from({ length: 6 }, () => ({
+      x: -300 + rand() * 600,
+      y: 110 + rand() * 60,
+      z: -260 + rand() * 420,
+      s: 70 + rand() * 70,
+      v: 1.2 + rand() * 1.6,
+    }));
+  }, []);
+
+  useFrame((_, dt) => {
+    seeds.forEach((c, i) => {
+      const s = refs.current[i];
+      if (!s) return;
+      s.position.x += c.v * dt;
+      if (s.position.x > 340) s.position.x = -340;
+    });
+  });
+
+  return (
+    <group>
+      {seeds.map((c, i) => (
+        <sprite
+          key={i}
+          ref={(el) => { refs.current[i] = el; }}
+          position={[c.x, c.y, c.z]}
+          scale={[c.s, c.s * 0.5, 1]}
+        >
+          <spriteMaterial map={cloud} transparent opacity={0.85} depthWrite={false} />
+        </sprite>
+      ))}
+    </group>
+  );
+}
+
+/** A small flock circling the township with flapping wings (daytime only). */
+function Birds() {
+  const birds = useRef<Array<THREE.Group | null>>([]);
+  const N = 4;
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    for (let i = 0; i < N; i++) {
+      const g = birds.current[i];
+      if (!g) continue;
+      const a = t * 0.22 + (i * Math.PI * 2) / N;
+      const r = 78 + i * 9;
+      g.position.set(Math.cos(a) * r, 46 + Math.sin(t * 0.7 + i) * 5, Math.sin(a) * r - 10);
+      g.rotation.y = -a - Math.PI / 2;
+      const flap = Math.sin(t * 9 + i * 2) * 0.55;
+      (g.children[0] as THREE.Mesh).rotation.z = flap;
+      (g.children[1] as THREE.Mesh).rotation.z = -flap;
+    }
+  });
+
+  return (
+    <group>
+      {Array.from({ length: N }, (_, i) => (
+        <group key={i} ref={(el) => { birds.current[i] = el; }}>
+          <mesh position={[-0.7, 0, 0]}>
+            <boxGeometry args={[1.5, 0.06, 0.34]} />
+            <meshStandardMaterial color="#2c3440" />
+          </mesh>
+          <mesh position={[0.7, 0, 0]}>
+            <boxGeometry args={[1.5, 0.06, 0.34]} />
+            <meshStandardMaterial color="#2c3440" />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Cars cruising the front road in both directions; lit up at night. */
+const CAR_COLORS = ["#e8eaee", "#12263f", "#8c1d18"];
+
+function Traffic({ night }: { night: boolean }) {
+  const cars = useRef<Array<THREE.Group | null>>([]);
+  const seeds = useMemo(
+    () => [
+      { lane: 54, dir: 1, speed: 11, offset: 0, color: CAR_COLORS[0] },
+      { lane: 58, dir: -1, speed: 9, offset: 70, color: CAR_COLORS[1] },
+      { lane: 54, dir: 1, speed: 13, offset: 120, color: CAR_COLORS[2] },
+    ],
+    [],
+  );
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    seeds.forEach((c, i) => {
+      const g = cars.current[i];
+      if (!g) return;
+      const span = 200;
+      const x = ((t * c.speed + c.offset) % span) - span / 2;
+      g.position.set(c.dir === 1 ? x : -x, 0.5, c.lane);
+      g.rotation.y = c.dir === 1 ? 0 : Math.PI;
+    });
+  });
+
+  return (
+    <group>
+      {seeds.map((c, i) => (
+        <group key={i} ref={(el) => { cars.current[i] = el; }}>
+          <mesh position={[0, 0.25, 0]}>
+            <boxGeometry args={[3.2, 0.7, 1.5]} />
+            <meshStandardMaterial color={c.color} roughness={0.4} metalness={0.3} />
+          </mesh>
+          <mesh position={[-0.2, 0.85, 0]}>
+            <boxGeometry args={[1.7, 0.55, 1.3]} />
+            <meshStandardMaterial color={night ? "#1a222e" : "#9fb3c8"} roughness={0.2} metalness={0.4} />
+          </mesh>
+          {/* headlights / taillights */}
+          <mesh position={[1.62, 0.25, 0.45]}>
+            <sphereGeometry args={[0.11, 6, 6]} />
+            <meshStandardMaterial color="#fff7d6" emissive="#fff2b0" emissiveIntensity={night ? 3 : 0.5} />
+          </mesh>
+          <mesh position={[1.62, 0.25, -0.45]}>
+            <sphereGeometry args={[0.11, 6, 6]} />
+            <meshStandardMaterial color="#fff7d6" emissive="#fff2b0" emissiveIntensity={night ? 3 : 0.5} />
+          </mesh>
+          <mesh position={[-1.62, 0.3, 0]}>
+            <boxGeometry args={[0.06, 0.16, 1.2]} />
+            <meshStandardMaterial color="#7f1d1d" emissive="#ef4444" emissiveIntensity={night ? 2 : 0.4} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Waving brand flags flanking the entrance gate. */
+function Flags() {
+  const tex = useMemo(() => flagTexture(), []);
+  const flagRefs = useRef<Array<THREE.Mesh | null>>([]);
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    flagRefs.current.forEach((m, fi) => {
+      if (!m) return;
+      const pos = (m.geometry as THREE.PlaneGeometry).attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        // wave grows toward the free edge of the flag
+        pos.setZ(i, Math.sin(x * 2 + t * 5 + fi * 1.3) * 0.16 * (x + 1.6) * 0.4);
+      }
+      pos.needsUpdate = true;
+    });
+  });
+
+  return (
+    <group>
+      {[-18, 18].map((x, fi) => (
+        <group key={x} position={[x, 0, 50.5]}>
+          <mesh position={[0, 4.5, 0]}>
+            <cylinderGeometry args={[0.07, 0.1, 9, 6]} />
+            <meshStandardMaterial color="#8d949e" roughness={0.5} metalness={0.4} />
+          </mesh>
+          <mesh
+            ref={(el) => { flagRefs.current[fi] = el; }}
+            position={[1.65, 8.1, 0]}
+          >
+            <planeGeometry args={[3.2, 1.7, 8, 3]} />
+            <meshStandardMaterial map={tex} side={THREE.DoubleSide} roughness={0.8} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Vertical golden light beam marking the selected plot. */
+function SelectionBeacon({ x, z }: { x: number; z: number }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    (ref.current.material as THREE.MeshBasicMaterial).opacity =
+      0.12 + Math.sin(clock.elapsedTime * 2.6) * 0.05;
+    ref.current.rotation.y = clock.elapsedTime * 0.5;
+  });
+  return (
+    <mesh ref={ref} position={[x, 13, z]}>
+      <cylinderGeometry args={[1.6, 2.6, 26, 12, 1, true]} />
+      <meshBasicMaterial
+        color={GOLD}
+        transparent
+        opacity={0.15}
+        side={THREE.DoubleSide}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </mesh>
   );
 }
 
@@ -775,7 +1080,8 @@ export default function Property3DScene({
   return (
     <Canvas
       dpr={[0.75, dprMax]}
-      camera={{ position: PRESET_POS.default, fov: 50, near: 0.5, far: 900 }}
+      // Camera starts far out; CameraRig flies it in for a cinematic intro.
+      camera={{ position: [150, 118, 190], fov: 50, near: 0.5, far: 900 }}
       style={{ width: "100%", height: "100%", touchAction: "none" }}
       onPointerMissed={() => onSelectPlot(null)}
     >
@@ -886,12 +1192,21 @@ export default function Property3DScene({
         ))}
 
         <Roundabout night={night} />
+        <Flags />
+        <Traffic night={night} />
+        {!night && (
+          <>
+            <Clouds />
+            <Birds />
+          </>
+        )}
 
         {/* Numbered plots — lawn tiles / SOLD tiles */}
-        {layout.plots.map((p) => (
+        {layout.plots.map((p, i) => (
           <Plot
             key={p.unit._id}
             spec={p}
+            index={i}
             night={night}
             hovered={hoveredId === p.unit._id}
             selected={selectedUnitId === p.unit._id}
@@ -899,6 +1214,7 @@ export default function Property3DScene({
             onSelect={onSelectPlot}
           />
         ))}
+        {focusPlot && <SelectionBeacon x={focusPlot.x} z={focusPlot.z} />}
 
         {layout.towers.map((t, i) => <Tower key={`${i}-${night}`} spec={t} night={night} blob={blob} />)}
         <Trees specs={layout.trees} night={night} />

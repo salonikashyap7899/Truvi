@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { formatINR } from "@/lib/utils";
 import {
@@ -195,7 +196,10 @@ export default function ThreeDViewPage() {
             </Suspense>
 
             {/* Legend + live availability */}
-            <div
+            <motion.div
+              initial={{ opacity: 0, x: -24 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
               className="absolute left-4 top-4 rounded-[20px] p-px"
               style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.5), rgba(255,255,255,0.08) 70%)" }}
             >
@@ -213,10 +217,15 @@ export default function ThreeDViewPage() {
                   Tap a green plot to see details &amp; book
                 </p>
               </div>
-            </div>
+            </motion.div>
 
             {/* Camera controls overlay */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4"
+            >
               <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/15 bg-black/55 p-1.5 backdrop-blur">
                 {!walk &&
                   presetButtons.map((b) => (
@@ -265,12 +274,14 @@ export default function ThreeDViewPage() {
                   ? "Click the scene to look around · WASD / arrows to move · Shift to run · Esc to exit"
                   : "Drag to rotate · Scroll / pinch to zoom · Tap a plot for details"}
               </p>
-            </div>
+            </motion.div>
 
             {/* Plot detail panel — side card on desktop, bottom sheet on mobile */}
-            {selected && project && (
-              <PlotPanel selection={selected} project={project} onClose={() => setSelected(null)} />
-            )}
+            <AnimatePresence>
+              {selected && project && (
+                <PlotPanel selection={selected} project={project} onClose={() => setSelected(null)} />
+              )}
+            </AnimatePresence>
           </>
         )}
       </div>
@@ -339,7 +350,13 @@ function PlotPanel({
     "h-11 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3.5 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#e8c877]/60";
 
   return (
-    <aside className="absolute inset-x-3 bottom-24 z-10 md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-[21rem]">
+    <motion.aside
+      initial={{ opacity: 0, y: 40, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 24, scale: 0.97 }}
+      transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      className="absolute inset-x-3 bottom-24 z-10 md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-[21rem]"
+    >
       <div
         className="rounded-[26px] p-px shadow-[0_24px_70px_rgba(0,0,0,0.55)]"
         style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.55), rgba(59,130,246,0.25) 45%, rgba(255,255,255,0.06) 85%)" }}
@@ -477,7 +494,7 @@ function PlotPanel({
           )}
         </div>
       </div>
-    </aside>
+    </motion.aside>
   );
 }
 
