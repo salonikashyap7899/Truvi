@@ -176,7 +176,28 @@ async function seed() {
         approvalStatus: "APPROVED",
         listingTier: i === 0 ? "FEATURED" : "STANDARD",
         featuredUntil: i === 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
+        isPrimeListing: i === 0,
         commissionPercent: [2.5, 3, 3.5, 3][i],
+        // Fully Truvi-verified so listings show up (badges, trust score, risk
+        // profile) across the public inventory and for every seller.
+        isVerified: true,
+        verifiedAt: new Date(),
+        trustScore: [92, 88, 90, 85][i],
+        legalRiskLevel: "LOW",
+        floodRiskLevel: i % 2 === 0 ? "LOW" : "MEDIUM",
+        crimeIndexLevel: "LOW",
+        reraStatus: "REGISTERED",
+        projectType: "RESIDENTIAL",
+        verificationDetails: {
+          reraVerified: true,
+          titleClearance: true,
+          encumbranceFree: true,
+          constructionApproval: true,
+          verificationSource: "Truvi verification team",
+          portfolioVerified: true,
+          lastVerifiedAt: new Date().toISOString(),
+          notes: "Documents and site verified by the Truvi team.",
+        },
       })
       .returning();
     projectRows.push(project);
