@@ -90,10 +90,11 @@ export function SiteNav() {
           onClick={close}
           className="flex min-w-0 items-center gap-2 font-display text-sm font-semibold tracking-tight sm:text-base"
         >
-          <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
-            <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
-          </span>
-          <span className="truncate">TRUVI VENTURES</span>
+          <img
+            src="/brand/wordmark.png"
+            alt="Truvi Ventures"
+            className="h-7 w-auto max-w-[190px] shrink-0 object-contain sm:h-8"
+          />
         </Link>
 
         {/* Desktop links */}
