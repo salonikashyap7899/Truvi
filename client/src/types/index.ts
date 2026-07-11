@@ -109,6 +109,7 @@ export interface Project {
   description: string;
   city: string;
   location: string;
+  threeDModelUrl?: string | null;
   brochureUrl?: string;
   priceListUrl?: string;
   reraNumber?: string;

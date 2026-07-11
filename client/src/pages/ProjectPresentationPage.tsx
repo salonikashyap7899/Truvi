@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf,
+  ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box,
   Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
@@ -261,6 +261,14 @@ export default function ProjectPresentationPage() {
           {devName && <span className="ml-2 inline-flex items-center gap-1.5"><Building2 size={13} /> by {devName}</span>}
         </p>
         <p className="max-w-3xl text-sm text-foreground/90">{project.description}</p>
+        {project.threeDModelUrl && (
+          <Link
+            to={`/inventory/${project._id}/3d`}
+            className="mt-1 inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-200 transition-all hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_24px_rgba(139,92,246,0.2)]"
+          >
+            <Box size={15} /> View in 3D — explore the property interactively
+          </Link>
+        )}
       </div>
 
       {/* Features & facilities */}

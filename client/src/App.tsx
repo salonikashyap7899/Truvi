@@ -45,6 +45,9 @@ import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
 import InventoryPage from "@/pages/InventoryPage";
 import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
+
+// Lazy-loaded so the 3D viewer never weighs down the main bundle.
+const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
 
@@ -103,6 +106,7 @@ export default function App() {
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
+        <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
 
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />
