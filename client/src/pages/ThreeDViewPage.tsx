@@ -40,7 +40,9 @@ export default function ThreeDViewPage() {
   const [preset, setPreset] = useState<ScenePreset>("default");
   const [presetTrigger, setPresetTrigger] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
-  const [night, setNight] = useState(false);
+  // Dark "digital twin" mode is the default — it matches the site's brand;
+  // the toggle switches to a realistic daylight render.
+  const [night, setNight] = useState(true);
   const [walk, setWalk] = useState(false);
   const [selected, setSelected] = useState<PlotSelection | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
