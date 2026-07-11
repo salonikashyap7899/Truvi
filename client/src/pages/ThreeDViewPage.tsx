@@ -1,27 +1,37 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
+import { formatINR } from "@/lib/utils";
 import {
-  ArrowLeft, Box, Loader2, MapPin, Maximize2, Building2, Trees,
+  ArrowLeft, Box, Loader2, MapPin, Maximize2,
   Plane, Footprints, Orbit, RotateCw, Satellite, Moon, Sun, Gamepad2,
+  X, Compass, Ruler, IndianRupee, CheckCircle2, XCircle, MessageCircle,
 } from "lucide-react";
 import type { Project } from "@/types";
-import type { ScenePreset, UnitSummary } from "@/components/Property3DScene";
+import type { PlotSelection, SceneUnit, ScenePreset } from "@/components/Property3DScene";
 
 // The three.js scene is its own chunk so the page shell paints instantly.
 const Property3DScene = lazy(() => import("@/components/Property3DScene"));
 
+const WA_NUMBER = "919196366358";
+
+/** Approximate plot dimensions from area, assuming a 40 ft depth. */
+function plotDimensions(areaSqft: number): string {
+  const depth = 40;
+  const width = Math.max(10, Math.round(areaSqft / depth));
+  return `≈ ${width} ft × ${depth} ft`;
+}
+
 /**
- * Immersive, game-style 3D exploration of a listing. A procedurally built
- * township — towers, plots, roads, clubhouse, trees — generated from the
- * project's real unit mix, freely explorable with rotate/zoom/pan.
- * If the admin has attached an external embed (satellite / Matterport / ...)
- * it is offered as an alternate view.
+ * Immersive, game-style 3D master plan of a listing. Every unit renders as a
+ * numbered plot — green when available, red when booked — clickable for full
+ * details and booking. Towers, night mode, walk mode, camera presets, and the
+ * optional satellite/provider embed are all preserved.
  */
 export default function ThreeDViewPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
-  const [unitSummary, setUnitSummary] = useState<UnitSummary | null>(null);
+  const [units, setUnits] = useState<SceneUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,25 +41,48 @@ export default function ThreeDViewPage() {
   const [autoRotate, setAutoRotate] = useState(true);
   const [night, setNight] = useState(false);
   const [walk, setWalk] = useState(false);
+  const [selected, setSelected] = useState<PlotSelection | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
 
   // First-person walking needs a mouse + keyboard; hide it on touch devices.
   const canWalk = typeof window !== "undefined" && !("ontouchstart" in window);
 
-  useEffect(() => {
-    document.title = "TRUVI — 3D Property View";
+  const load = useCallback(async () => {
     if (!id) return;
-    api
-      .get(`/presentation/${id}`)
-      .then((res) => {
-        setProject(res.data.project);
-        setUnitSummary(res.data.unitSummary ?? null);
-      })
-      .catch((err: any) => setError(err?.response?.data?.error || "Failed to load the listing"))
-      .finally(() => setLoading(false));
+    const res = await api.get(`/presentation/${id}`);
+    setProject(res.data.project);
+    setUnits(res.data.units ?? []);
   }, [id]);
 
+  useEffect(() => {
+    document.title = "TRUVI — 3D Property View";
+    load()
+      .catch((err: any) => setError(err?.response?.data?.error || "Failed to load the listing"))
+      .finally(() => setLoading(false));
+  }, [load]);
+
+  // Live availability: bookings flip plots green → red without a reload.
+  useEffect(() => {
+    const tick = () => load().catch(() => null);
+    const interval = setInterval(tick, 30_000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", tick);
+    };
+  }, [load]);
+
+  // Keep the open panel in sync when a poll changes the selected plot's status.
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = units.find((u) => u._id === selected.unit._id);
+    if (fresh && fresh.status !== selected.unit.status) {
+      setSelected({ ...selected, unit: fresh });
+    }
+  }, [units]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function flyTo(next: ScenePreset) {
+    setSelected(null);
     setPreset(next);
     setPresetTrigger((n) => n + 1);
     setAutoRotate(false);
@@ -64,6 +97,8 @@ export default function ThreeDViewPage() {
     { key: "aerial", label: "Aerial", icon: <Plane size={13} /> },
     { key: "street", label: "Street", icon: <Footprints size={13} /> },
   ];
+
+  const availableCount = units.filter((u) => u.status === "AVAILABLE").length;
 
   return (
     <main className="flex h-screen flex-col bg-[#06090f] text-white">
@@ -115,7 +150,7 @@ export default function ThreeDViewPage() {
         {loading ? (
           <CenterNote>
             <Loader2 size={28} className="animate-spin text-sky-300" />
-            <p className="text-sm text-muted-foreground">Building 3D world…</p>
+            <p className="text-sm text-muted-foreground">Building 3D master plan…</p>
           </CenterNote>
         ) : error || !project ? (
           <CenterNote>
@@ -147,15 +182,31 @@ export default function ThreeDViewPage() {
             >
               <Property3DScene
                 project={project}
-                unitSummary={unitSummary}
+                units={units}
                 preset={preset}
                 presetTrigger={presetTrigger}
                 autoRotate={autoRotate}
                 night={night}
                 walk={walk}
                 onExitWalk={() => setWalk(false)}
+                selectedUnitId={selected?.unit._id ?? null}
+                onSelectPlot={setSelected}
               />
             </Suspense>
+
+            {/* Legend + live availability */}
+            <div className="absolute left-4 top-4 space-y-2 rounded-2xl border border-white/12 bg-black/55 px-4 py-3 text-xs backdrop-blur">
+              <p className="font-semibold text-white">Master plan</p>
+              <p className="flex items-center gap-2 text-white/80">
+                <span className="inline-block size-3 rounded-sm bg-[#2fbe63]" /> Available ({availableCount})
+              </p>
+              <p className="flex items-center gap-2 text-white/80">
+                <span className="inline-block size-3 rounded-sm bg-[#e14b44]" /> Booked ({units.length - availableCount})
+              </p>
+              <p className="max-w-[170px] text-[11px] leading-snug text-white/50">
+                Tap a green plot to see details &amp; book
+              </p>
+            </div>
 
             {/* Camera controls overlay */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
@@ -166,7 +217,7 @@ export default function ThreeDViewPage() {
                       key={b.key}
                       onClick={() => flyTo(b.key)}
                       className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
-                        preset === b.key ? "bg-sky-500/25 text-sky-200" : "text-white/70 hover:bg-white/10 hover:text-white"
+                        preset === b.key && !selected ? "bg-sky-500/25 text-sky-200" : "text-white/70 hover:bg-white/10 hover:text-white"
                       }`}
                     >
                       {b.icon} {b.label}
@@ -174,7 +225,7 @@ export default function ThreeDViewPage() {
                   ))}
                 {canWalk && (
                   <button
-                    onClick={() => setWalk((v) => !v)}
+                    onClick={() => { setSelected(null); setWalk((v) => !v); }}
                     className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition ${
                       walk ? "bg-violet-500/25 text-violet-200" : "text-white/70 hover:bg-white/10 hover:text-white"
                     }`}
@@ -205,28 +256,106 @@ export default function ThreeDViewPage() {
               <p className="rounded-full bg-black/40 px-4 py-1.5 text-[11px] text-white/60 backdrop-blur">
                 {walk
                   ? "Click the scene to look around · WASD / arrows to move · Shift to run · Esc to exit"
-                  : "Drag to rotate · Scroll / pinch to zoom · Right-drag / two fingers to pan"}
+                  : "Drag to rotate · Scroll / pinch to zoom · Tap a plot for details"}
               </p>
             </div>
 
-            {/* Live inventory legend */}
-            {unitSummary && unitSummary.total > 0 && (
-              <div className="absolute left-4 top-4 space-y-1.5 rounded-2xl border border-white/12 bg-black/55 px-4 py-3 text-xs backdrop-blur">
-                <p className="flex items-center gap-1.5 font-semibold text-white">
-                  <Building2 size={12} /> Live inventory
-                </p>
-                <p className="text-white/70">
-                  {unitSummary.total} units · <span className="text-emerald-300">{unitSummary.available} available</span>
-                </p>
-                <p className="flex items-center gap-1.5 text-white/50">
-                  <Trees size={11} /> Layout generated from this project's real unit mix
-                </p>
-              </div>
+            {/* Plot detail panel — side card on desktop, bottom sheet on mobile */}
+            {selected && project && (
+              <PlotPanel selection={selected} project={project} onClose={() => setSelected(null)} />
             )}
           </>
         )}
       </div>
     </main>
+  );
+}
+
+function PlotPanel({
+  selection,
+  project,
+  onClose,
+}: {
+  selection: PlotSelection;
+  project: Project;
+  onClose: () => void;
+}) {
+  const { unit, facing } = selection;
+  const available = unit.status === "AVAILABLE";
+  const isPlot = unit.type.toLowerCase().includes("plot");
+
+  const waMessage = encodeURIComponent(
+    `Hi Truvi Ventures, I'm interested in booking ${isPlot ? "Plot" : "Unit"} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft) at ${project.name}, ${project.location}, ${project.city}. Please share the next steps.`,
+  );
+
+  return (
+    <aside className="absolute inset-x-3 bottom-24 z-10 rounded-3xl border border-white/15 bg-[#0a0f18]/95 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur md:inset-x-auto md:bottom-auto md:right-4 md:top-4 md:w-80">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-sky-300">{isPlot ? "Plot" : "Unit"} details</p>
+          <h2 className="mt-1 font-display text-xl font-semibold text-white">
+            {isPlot ? "Plot" : "Unit"} {unit.unitNumber}
+          </h2>
+        </div>
+        <button
+          onClick={onClose}
+          className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-muted-foreground transition hover:bg-white/10 hover:text-white"
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        {available ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300">
+            <CheckCircle2 size={12} /> Available
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-medium text-rose-300">
+            <XCircle size={12} /> Booked
+          </span>
+        )}
+        <span className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-xs text-white/80">{unit.type}</span>
+      </div>
+
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <Ruler size={11} /> Size
+          </dt>
+          <dd className="mt-1 font-semibold text-white">{unit.areaSqft.toLocaleString("en-IN")} sqft</dd>
+          <dd className="text-[11px] text-muted-foreground">{plotDimensions(unit.areaSqft)}</dd>
+        </div>
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <Compass size={11} /> Facing
+          </dt>
+          <dd className="mt-1 font-semibold text-white">{facing}</dd>
+          <dd className="text-[11px] text-muted-foreground">as per master plan</dd>
+        </div>
+        <div className="col-span-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3">
+          <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <IndianRupee size={11} /> Price
+          </dt>
+          <dd className="mt-1 font-display text-lg font-semibold text-white">{formatINR(unit.price)}</dd>
+        </div>
+      </dl>
+
+      {available ? (
+        <a
+          href={`https://wa.me/${WA_NUMBER}?text=${waMessage}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-300 py-3 text-sm font-semibold text-[#052e16] transition-all hover:shadow-[0_0_28px_rgba(52,211,153,0.35)]"
+        >
+          <MessageCircle size={15} /> Book this {isPlot ? "plot" : "unit"}
+        </a>
+      ) : (
+        <p className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-center text-xs text-rose-200">
+          This {isPlot ? "plot" : "unit"} is already booked. Tap a green plot on the map to explore available options.
+        </p>
+      )}
+    </aside>
   );
 }
 
