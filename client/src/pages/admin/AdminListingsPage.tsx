@@ -4,7 +4,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { Star, ChevronDown, ChevronUp, ShieldCheck, Box } from "lucide-react";
 import type { Project } from "@/types";
 
 interface VerificationDetails {
@@ -32,6 +32,7 @@ export default function AdminListingsPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [vdDraft, setVdDraft] = useState<Record<string, VerificationDetails>>({});
+  const [threeDDraft, setThreeDDraft] = useState<Record<string, string>>({});
 
   async function load() {
     const res = await api.get("/admin/projects", { params: { approvalStatus: "APPROVED" } });
@@ -87,6 +88,20 @@ export default function AdminListingsPage() {
     setLoading(null);
     setExpandedId(null);
     load();
+  }
+
+  async function saveThreeD(project: Project) {
+    const url = (threeDDraft[project._id] ?? project.threeDModelUrl ?? "").trim();
+    setLoading(project._id + "-3d");
+    try {
+      await api.patch("/admin/projects", { projectId: project._id, threeDModelUrl: url });
+      toast.success(url ? "3D model link saved — 'View in 3D' is now live on this listing" : "3D model link removed");
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Enter a valid URL (https://…)");
+    } finally {
+      setLoading(null);
+    }
   }
 
   function getDraft(project: Project): VerificationDetails {
@@ -157,6 +172,11 @@ export default function AdminListingsPage() {
                         <ShieldCheck size={11} /> Verified
                       </span>
                     )}
+                    {p.threeDModelUrl && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-900/40 px-2 py-0.5 text-xs font-medium text-violet-300 border border-violet-700">
+                        <Box size={11} /> 3D
+                      </span>
+                    )}
                   </p>
                   <p className="text-sm text-muted-foreground">{p.city} · {nameOf(p.developerId)}</p>
                 </div>
@@ -210,6 +230,34 @@ export default function AdminListingsPage() {
               {/* Expandable verification details panel */}
               {isExpanded && (
                 <div className="border-t border-white/10 pt-4 space-y-4">
+                  {/* 3D model embed link */}
+                  <div>
+                    <p className="text-xs font-semibold text-violet-300 uppercase tracking-wide">3D Property View</p>
+                    <label className="mt-2 block text-xs text-muted-foreground">
+                      3D Model URL / Embed Link (Matterport, Sketchfab, Google Maps 3D…)
+                    </label>
+                    <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="url"
+                        placeholder="https://my.matterport.com/show/?m=…  or  https://sketchfab.com/models/…/embed"
+                        value={threeDDraft[p._id] ?? p.threeDModelUrl ?? ""}
+                        onChange={(e) => setThreeDDraft((prev) => ({ ...prev, [p._id]: e.target.value }))}
+                        className="w-full flex-1 rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => saveThreeD(p)}
+                        disabled={loading === p._id + "-3d"}
+                        className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
+                      >
+                        {loading === p._id + "-3d" ? "Saving…" : "Save 3D Link"}
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      When set, a "View in 3D" button appears on this listing. Leave empty and save to remove it.
+                    </p>
+                  </div>
+
                   <p className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Verification Details</p>
 
                   {/* Checkboxes */}

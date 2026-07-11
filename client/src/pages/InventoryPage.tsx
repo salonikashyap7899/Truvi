@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Search, Star, ShieldCheck, CheckCircle2, XCircle, Building2, MapPin,
-  Presentation, ArrowRight, X, Sparkles, BadgeCheck,
+  Presentation, ArrowRight, X, Sparkles, BadgeCheck, Box,
 } from "lucide-react";
 import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
 import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
@@ -246,6 +246,18 @@ function ListingCard({
             </span>
             <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
           </Link>
+          {project.threeDModelUrl && (
+            <Link
+              to={`/inventory/${project._id}/3d`}
+              className="group/btn flex w-full items-center justify-between rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-200 transition-all hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_24px_rgba(139,92,246,0.2)]"
+            >
+              <span className="flex items-center gap-2">
+                <Box size={15} />
+                View in 3D
+              </span>
+              <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
+            </Link>
+          )}
         </div>
       </div>
     </motion.div>

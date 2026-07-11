@@ -164,6 +164,7 @@ async function seed() {
   for (let i = 0; i < 4; i++) {
     const dev = approvedDevelopers[i % approvedDevelopers.length];
     const cityInfo = pick(CITIES);
+    const location = pick(cityInfo.locations);
     const [project] = await db
       .insert(projects)
       .values({
@@ -171,7 +172,10 @@ async function seed() {
         name: `${pick(["Emerald", "Sapphire", "Crest", "Meridian", "Solace"])} ${pick(["Heights", "Residency", "Enclave", "Towers"])}`,
         description: "A thoughtfully designed residential development with modern amenities, verified RERA compliance, and flexible unit configurations.",
         city: cityInfo.city,
-        location: pick(cityInfo.locations),
+        location,
+        // Satellite embed of the real locality so "View in 3D" works out of
+        // the box; admins replace this with a Matterport/Sketchfab link.
+        threeDModelUrl: `https://maps.google.com/maps?q=${encodeURIComponent(`${location}, ${cityInfo.city}`)}&t=k&z=17&output=embed`,
         reraNumber: `RERA-${Math.floor(100000 + Math.random() * 899999)}`,
         approvalStatus: "APPROVED",
         listingTier: i === 0 ? "FEATURED" : "STANDARD",

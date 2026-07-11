@@ -234,6 +234,10 @@ export const projects = pgTable(
     verificationDetails: jsonb("verification_details").$type<VerificationDetails>().default(DEFAULT_VERIFICATION_DETAILS),
     projectType: text("project_type").$type<ProjectType>(),
     presentationInfo: jsonb("presentation_info").$type<PresentationInfo>(),
+    // Embed link from a third-party 3D platform (Matterport, Sketchfab,
+    // Google Maps 3D/satellite embed, ...). When set, the frontend shows a
+    // "View in 3D" button on the listing.
+    threeDModelUrl: text("three_d_model_url"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
