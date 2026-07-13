@@ -27,7 +27,6 @@ export default function AmbassadorSignupPage() {
   const navigate = useNavigate();
   const { signup } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [searchParams] = useSearchParams();
   const defaultEmail = searchParams.get("email") ?? "";
 
@@ -43,8 +42,8 @@ export default function AmbassadorSignupPage() {
         ...data,
         role: "AMBASSADOR",
       });
-      setSuccess(true);
-      setTimeout(() => navigate("/ambassador/login"), 1800);
+      // Verify the emailed OTP before first sign-in.
+      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }
@@ -69,12 +68,7 @@ export default function AmbassadorSignupPage() {
             <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Join Truvi as an Ambassador</h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">Get started with verified site reporting and earn for every completed ambassador task.</p>
 
-            {success ? (
-              <p className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-                Account created! Redirecting to ambassador sign-in.
-              </p>
-            ) : (
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
                 <div>
                   <Label>Full name</Label>
                   <Input {...register("name")} placeholder="Priya Sharma" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
@@ -101,7 +95,6 @@ export default function AmbassadorSignupPage() {
                   {isSubmitting ? "Joining…" : "Join as Ambassador"}
                 </button>
               </form>
-            )}
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Already have an ambassador account? <a href="/ambassador/login" className="font-medium text-sky-300 underline-offset-4 hover:underline">Sign in</a>
             </p>

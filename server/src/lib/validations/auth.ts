@@ -22,3 +22,16 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+// Public email-verification endpoints (no auth token yet — the account is
+// created but cannot log in until the emailed OTP is confirmed).
+export const verifyEmailSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
+});
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+export const resendOtpSchema = z.object({
+  email: z.string().email(),
+});
+export type ResendOtpInput = z.infer<typeof resendOtpSchema>;

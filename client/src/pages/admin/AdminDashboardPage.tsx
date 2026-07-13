@@ -1,29 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
+import { Card, CardTitle, CardValue } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { formatINR, nameOf } from "@/lib/utils";
-import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
-import type { User, Project } from "@/types";
+import type { Project } from "@/types";
 
 export default function AdminDashboardPage() {
-  const [pendingUsers, setPendingUsers] = useState<User[]>([]);
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, cpCommissions: 0 });
   const [loading, setLoading] = useState(true);
 
   async function load() {
-    const [usersRes, projectsRes, revenueRes, allUsersRes, allProjectsRes] = await Promise.all([
-      api.get("/admin/users", { params: { approvalStatus: "PENDING" } }),
+    const [projectsRes, revenueRes, allUsersRes, allProjectsRes] = await Promise.all([
       api.get("/admin/projects", { params: { approvalStatus: "PENDING" } }),
       api.get("/revenue"),
       api.get("/admin/users"),
       api.get("/admin/projects"),
     ]);
-    setPendingUsers(usersRes.data.users);
     setPendingProjects(projectsRes.data.projects);
     setStats({
       totalUsers: allUsersRes.data.users.length,
@@ -38,22 +34,6 @@ export default function AdminDashboardPage() {
     load();
   }, []);
 
-  // Real-time: new signup appears instantly in the pending list
-  useSocketEvent<User>("user:pending", (newUser) => {
-    setPendingUsers((prev) => {
-      if (prev.some((u) => u._id === newUser._id)) return prev;
-      return [newUser, ...prev];
-    });
-    setStats((s) => ({ ...s, totalUsers: s.totalUsers + 1 }));
-    toast.info(`New account pending approval: ${newUser.name}`);
-  });
-
-  async function approveUser(userId: string, approvalStatus: "APPROVED" | "REJECTED") {
-    await api.patch("/admin/users", { userId, approvalStatus });
-    toast.success(`User ${approvalStatus.toLowerCase()}`);
-    load();
-  }
-
   async function approveProject(projectId: string, approvalStatus: "APPROVED" | "REJECTED") {
     await api.patch("/admin/projects", { projectId, approvalStatus });
     toast.success(`Project ${approvalStatus.toLowerCase()}`);
@@ -67,7 +47,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Admin Command Center</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: approvals, listings, revenue.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: listings, verification, revenue.</p>
         </div>
         <NotificationBell />
       </div>
@@ -90,25 +70,6 @@ export default function AdminDashboardPage() {
           <CardValue>{formatINR(stats.cpCommissions)}</CardValue>
         </Card>
       </div>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-medium">Pending account approvals ({pendingUsers.length})</h2>
-        <div className="mt-3 space-y-3">
-          {pendingUsers.length === 0 && <p className="text-sm text-muted-foreground">Nothing pending.</p>}
-          {pendingUsers.map((u) => (
-            <Card key={u._id} className="flex flex-wrap items-center justify-between gap-3 border-white/10 glass text-white">
-              <div className="min-w-0">
-                <p className="font-medium">{u.name} <Badge variant="info">{u.role}</Badge></p>
-                <p className="text-sm text-muted-foreground break-all">{u.email} {u.developerProfile?.companyName ? `· ${u.developerProfile.companyName}` : ""}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => approveUser(u._id, "APPROVED")}>Approve</Button>
-                <Button size="sm" variant="destructive" onClick={() => approveUser(u._id, "REJECTED")}>Reject</Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
 
       <section className="mt-10">
         <h2 className="text-lg font-medium">Pending project approvals ({pendingProjects.length})</h2>

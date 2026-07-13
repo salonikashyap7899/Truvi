@@ -7,7 +7,6 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   users,
-  notifications,
   IUser,
   OnboardingChecks,
   UserVerification,
@@ -16,10 +15,9 @@ import {
   DEFAULT_ONBOARDING_CHECKS,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
-import { signupSchema, loginSchema } from "../lib/validations/auth";
+import { signupSchema, loginSchema, verifyEmailSchema, resendOtpSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
-import { emitNotification, emitToRole } from "../sockets";
 import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
 
 const router = Router();
@@ -64,6 +62,55 @@ async function findUserById(userId: string): Promise<IUser | null> {
   return user ?? null;
 }
 
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Generate a fresh email OTP for `user`, persist it (10-minute expiry) and
+ * e-mail it. Shared by signup, resend and the login-when-unverified path.
+ */
+async function issueEmailOtp(user: IUser): Promise<void> {
+  const otp = generateOtp();
+  const verification: UserVerification = {
+    ...(user.verification ?? {}),
+    emailOtp: otp,
+    emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  };
+  const db = getDb();
+  await db.update(users).set({ verification }).where(eq(users._id, user._id));
+  await sendOtpEmail(user.email, otp);
+}
+
+/**
+ * Issue an authenticated session: set the refresh cookie and return the
+ * access token + safe user shape. Shared by login and verify-email so both
+ * paths log the user in identically.
+ */
+function issueSession(res: import("express").Response, user: IUser) {
+  const accessToken = signAccessToken({
+    userId: String(user._id),
+    role: user.role,
+    approvalStatus: user.approvalStatus,
+    onboardingVerified: user.onboardingVerified,
+  });
+  const refreshToken = signRefreshToken({ userId: String(user._id) });
+  res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTS);
+  return {
+    accessToken,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      approvalStatus: user.approvalStatus,
+      emailVerified: user.emailVerified,
+      onboardingVerified: user.onboardingVerified,
+      onboardingChecks: user.onboardingChecks,
+    },
+  };
+}
+
 router.post("/signup", async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -81,9 +128,10 @@ router.post("/signup", async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
-  // Ambassadors don't need admin approval — their gate is the onboarding
-  // verification flow (Aadhaar + phone OTP + email OTP), per the Ambassador SOP.
-  // Every other self-signup role stays PENDING until an admin approves.
+  // Admin account-approval has been removed — every account is auto-approved
+  // and instead gated by email OTP verification. New accounts start with
+  // emailVerified = false and must confirm the code we e-mail them before they
+  // can log in.
   const [user] = await db
     .insert(users)
     .values({
@@ -92,7 +140,8 @@ router.post("/signup", async (req, res) => {
       password: hashedPassword,
       phone: phone || undefined,
       role,
-      approvalStatus: role === "AMBASSADOR" ? "APPROVED" : "PENDING",
+      approvalStatus: "APPROVED",
+      emailVerified: false,
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
@@ -100,43 +149,18 @@ router.post("/signup", async (req, res) => {
     })
     .returning();
 
-  // Notify all admins about the new pending account in real-time.
-  // Ambassadors are auto-approved, so they don't generate an approval alert.
-  if (role !== "AMBASSADOR") {
-    try {
-      const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-      const roleLabel = role === "BUYER" ? "Buyer" : role === "DEVELOPER" ? "Developer" : "Channel Partner";
-      const message = `New ${roleLabel} account pending approval: ${name} (${normalizedEmail})`;
-
-      await Promise.all(
-        admins.map(async (admin) => {
-          const [notification] = await db
-            .insert(notifications)
-            .values({ userId: admin._id, message })
-            .returning();
-          emitNotification(String(admin._id), notification);
-        })
-      );
-
-      // Also emit a role-level event so the admin dashboard list refreshes live
-      emitToRole("ADMIN", "user:pending", {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        approvalStatus: user.approvalStatus,
-        developerProfile: user.developerProfile,
-      });
-    } catch (err) {
-      console.error("Failed to notify admins on signup:", err);
-    }
+  try {
+    await issueEmailOtp(user);
+  } catch (err) {
+    console.error("Failed to send signup verification email:", err);
+    // The account exists; the user can request a fresh code from the verify
+    // screen, so don't fail the signup outright.
   }
 
   return res.status(201).json({
-    message:
-      role === "AMBASSADOR"
-        ? "Account created. Sign in and complete verification (Aadhaar, phone, email) to start accepting tasks."
-        : "Account created. An admin will review and approve your account before you can access the platform.",
+    message: "Account created. Enter the 6-digit code we e-mailed you to verify your account.",
+    needsEmailVerification: true,
+    email: user.email,
     userId: user._id,
   });
 });
@@ -155,28 +179,92 @@ router.post("/login", async (req, res) => {
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(401).json({ error: "Invalid email or password" });
 
-  const payload = {
-    userId: String(user._id),
-    role: user.role,
-    approvalStatus: user.approvalStatus,
-    onboardingVerified: user.onboardingVerified,
-  };
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken({ userId: String(user._id) });
-
-  res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTS);
-  return res.json({
-    accessToken,
-    user: {
-      id: user._id,
-      name: user.name,
+  // Email OTP gate: an unverified account can't log in. Send a fresh code and
+  // tell the client to route to the verification screen.
+  if (!user.emailVerified) {
+    try {
+      await issueEmailOtp(user);
+    } catch (err) {
+      console.error("Failed to send login verification email:", err);
+    }
+    return res.status(403).json({
+      error: "Please verify your email. We've sent a new 6-digit code.",
+      needsEmailVerification: true,
       email: user.email,
-      role: user.role,
-      approvalStatus: user.approvalStatus,
-      onboardingVerified: user.onboardingVerified,
-      onboardingChecks: user.onboardingChecks,
-    },
-  });
+    });
+  }
+
+  return res.json(issueSession(res, user));
+});
+
+// Public: confirm the emailed OTP, mark the account verified and log in.
+router.post("/verify-email", async (req, res) => {
+  const parsed = verifyEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  }
+
+  const { email, otp } = parsed.data;
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+  if (!user) return res.status(404).json({ error: "Account not found" });
+
+  if (user.emailVerified) {
+    // Already verified — just log them in so a stale verify screen still works.
+    return res.json(issueSession(res, user));
+  }
+
+  if (!user.verification?.emailOtp || !user.verification?.emailOtpExpiry) {
+    return res.status(400).json({ error: "No code requested. Please resend a new code." });
+  }
+  if (new Date(user.verification.emailOtpExpiry) < new Date()) {
+    return res.status(400).json({ error: "Code expired. Please resend a new code." });
+  }
+  if (user.verification.emailOtp !== otp) {
+    return res.status(400).json({ error: "Invalid code" });
+  }
+
+  // Clear the OTP and flip emailVerified. If the account already tracks
+  // onboarding checks (CP / Ambassador), the email step is satisfied too.
+  const verification: UserVerification = {
+    ...(user.verification ?? {}),
+    emailOtp: null,
+    emailOtpExpiry: null,
+  };
+  const onboardingChecks: OnboardingChecks | undefined = user.onboardingChecks
+    ? { ...user.onboardingChecks, emailVerified: true }
+    : undefined;
+
+  const [updated] = await db
+    .update(users)
+    .set({ emailVerified: true, verification, ...(onboardingChecks ? { onboardingChecks } : {}) })
+    .where(eq(users._id, user._id))
+    .returning();
+
+  return res.json(issueSession(res, updated));
+});
+
+// Public: resend the email verification OTP for an unverified account.
+router.post("/resend-email-otp", async (req, res) => {
+  const parsed = resendOtpSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  }
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email.toLowerCase().trim()));
+  // Don't reveal whether an email exists; respond the same either way.
+  if (!user || user.emailVerified) {
+    return res.json({ message: "If that account needs verification, a new code has been sent." });
+  }
+
+  try {
+    await issueEmailOtp(user);
+  } catch (err) {
+    console.error("Failed to resend verification email:", err);
+    return res.status(500).json({ error: "Failed to send verification email. Please try again." });
+  }
+  return res.json({ message: "A new 6-digit code has been sent to your email.", email: user.email });
 });
 
 router.post("/refresh", async (req, res) => {

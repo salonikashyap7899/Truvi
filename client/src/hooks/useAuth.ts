@@ -28,6 +28,21 @@ export function useAuth() {
     return res.data;
   }, []);
 
+  // Confirm the emailed OTP. On success the account is verified and logged in.
+  const verifyEmail = useCallback(
+    async (email: string, otp: string) => {
+      const res = await api.post("/auth/verify-email", { email, otp });
+      setAuth(res.data.user as User, res.data.accessToken as string);
+      return res.data.user as User;
+    },
+    [setAuth]
+  );
+
+  const resendOtp = useCallback(async (email: string) => {
+    const res = await api.post("/auth/resend-email-otp", { email });
+    return res.data;
+  }, []);
+
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => null);
     disconnectSocket();
@@ -35,5 +50,5 @@ export function useAuth() {
     useCompareStore.getState().clear(); // prevent stale selections carrying across sessions
   }, [clearAuth]);
 
-  return { user, accessToken, login, signup, logout, isAuthenticated: !!accessToken };
+  return { user, accessToken, login, signup, verifyEmail, resendOtp, logout, isAuthenticated: !!accessToken };
 }

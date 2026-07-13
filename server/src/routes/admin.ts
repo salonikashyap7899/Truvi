@@ -2,11 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { users, projects, notifications, Role, ApprovalStatus, VerificationDetails } from "../db/schema";
+import { users, projects, Role, ApprovalStatus, VerificationDetails } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
-import { emitNotification } from "../sockets";
-import { sendApprovalEmail } from "../services/emailService";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 
 const router = Router();
@@ -37,48 +35,9 @@ router.get("/users", requireRole("ADMIN"), async (req, res) => {
   res.json({ users: safeUsers });
 });
 
-const patchUserSchema = z.object({
-  userId: z.string().min(1),
-  approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]),
-});
-
-router.patch("/users", requireRole("ADMIN"), async (req, res) => {
-  const parsed = patchUserSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
-
-  if (!isValidId(parsed.data.userId)) return res.status(404).json({ error: "User not found" });
-
-  const db = getDb();
-  const [user] = await db
-    .update(users)
-    .set({ approvalStatus: parsed.data.approvalStatus })
-    .where(eq(users._id, parsed.data.userId))
-    .returning();
-
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  const message =
-    parsed.data.approvalStatus === "APPROVED"
-      ? "Your Truvi account has been approved. You now have full access."
-      : parsed.data.approvalStatus === "REJECTED"
-      ? "Your Truvi account application was not approved. Contact support for details."
-      : "Your Truvi account status was updated to pending review.";
-
-  const [notification] = await db
-    .insert(notifications)
-    .values({ userId: user._id, message })
-    .returning();
-  emitNotification(String(user._id), notification);
-
-  if (parsed.data.approvalStatus !== "PENDING") {
-    sendApprovalEmail(user.email, user.name, parsed.data.approvalStatus === "APPROVED").catch((err) =>
-      console.error("Approval email failed:", err)
-    );
-  }
-
-  const { password: _p, ...safeUser } = user;
-  res.json({ user: safeUser });
-});
+// Admin account-approval has been removed — accounts self-approve on signup
+// and are gated by email OTP verification instead, so there is no longer a
+// user approval/rejection endpoint here.
 
 // GET /api/admin/projects?approvalStatus=
 router.get("/projects", requireRole("ADMIN"), async (req, res) => {
