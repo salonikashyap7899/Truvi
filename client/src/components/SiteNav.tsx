@@ -31,7 +31,7 @@ function BrandLogo() {
       src="/brand/wordmark.png"
       alt="Truvi Ventures"
       onError={() => setWordmarkFailed(true)}
-      className="h-7 w-auto max-w-[190px] shrink-0 object-contain sm:h-8 sm:max-w-[210px]"
+      className="h-6 w-auto max-w-[150px] shrink-0 object-contain sm:h-7 sm:max-w-[175px]"
     />
   );
 }
