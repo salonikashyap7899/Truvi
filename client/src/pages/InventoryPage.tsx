@@ -7,8 +7,8 @@ import {
   Search, Star, ShieldCheck, CheckCircle2, XCircle, Building2, MapPin,
   Presentation, ArrowRight, X, Sparkles, BadgeCheck, Box, Eye,
 } from "lucide-react";
-import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
-import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
+import TrustScoreWidget from "@/components/TrustScoreWidget";
+import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import VisitorGateModal from "@/components/VisitorGateModal";
 import ListingIntelligence from "@/components/ListingIntelligence";
@@ -223,8 +223,8 @@ function ListingCard({
 
         {/* Intelligence snapshot */}
         <div className="space-y-2.5 border-t border-white/[0.07] pt-4">
-          <TrustScoreWidget score={project.trustScore ?? mockScoreFromId(project._id)} compact />
-          <LegalRiskCard level={project.legalRiskLevel ?? mockRiskFromId(project._id)} compact />
+          <TrustScoreWidget score={project.trustScore} compact />
+          <LegalRiskCard level={project.legalRiskLevel} compact />
           <PriceFairnessMeter projectId={project._id} compact />
         </div>
 
@@ -347,21 +347,22 @@ function VerificationDrawer({ project, onClose }: { project: Project | null; onC
               <div className="mt-2 divide-y divide-white/[0.06] rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4">
                 {vd ? (
                   <>
-                    <VerificationRow ok={vd.reraVerified} label="RERA Registered" />
-                    <VerificationRow ok={vd.titleClearance} label="Title Clearance" />
-                    <VerificationRow ok={vd.encumbranceFree} label="Encumbrance Free" />
-                    <VerificationRow ok={vd.constructionApproval} label="Construction Approval" />
-                    <VerificationRow ok={vd.portfolioVerified} label="Developer Portfolio Verified" />
-                  </>
-                ) : project.isVerified ? (
-                  <>
-                    <VerificationRow ok={true} label="RERA Verified" />
-                    <VerificationRow ok={true} label="Truvi Platform Verified" />
+                    <VerificationRow ok={!!vd.reraVerified} label="RERA Registered" />
+                    <VerificationRow ok={!!vd.titleClearance} label="Title Clearance" />
+                    <VerificationRow ok={!!vd.encumbranceFree} label="Encumbrance Free" />
+                    <VerificationRow ok={!!vd.constructionApproval} label="Construction Approval" />
+                    <VerificationRow ok={!!vd.portfolioVerified} label="Developer Portfolio Verified" />
                   </>
                 ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    Verification details not yet available for this listing.
-                  </p>
+                  // No admin verification recorded yet — every check reads Pending
+                  // (never auto-"verified" just because the listing is live).
+                  <>
+                    <VerificationRow ok={false} label="RERA Registered" />
+                    <VerificationRow ok={false} label="Title Clearance" />
+                    <VerificationRow ok={false} label="Encumbrance Free" />
+                    <VerificationRow ok={false} label="Construction Approval" />
+                    <VerificationRow ok={false} label="Developer Portfolio Verified" />
+                  </>
                 )}
               </div>
 

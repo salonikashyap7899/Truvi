@@ -1,9 +1,9 @@
-import { ShieldCheck, ShieldAlert, ShieldOff } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldOff, ShieldQuestion } from "lucide-react";
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 interface LegalRiskCardProps {
-  level: RiskLevel;
+  level: RiskLevel | null | undefined;
   compact?: boolean;
 }
 
@@ -43,16 +43,38 @@ const LEVEL_CONFIG: Record<RiskLevel, LevelConfig> = {
   },
 };
 
-/** Derives a deterministic placeholder risk level from a project ID string. */
-export function mockRiskFromId(id: string): RiskLevel {
-  if (!id) return "LOW";
-  const n = parseInt(id.slice(-2), 16);
-  if (n % 5 === 0) return "HIGH";
-  if (n % 3 === 0) return "MEDIUM";
-  return "LOW";
-}
-
 export default function LegalRiskCard({ level, compact = false }: LegalRiskCardProps) {
+  // No admin legal assessment yet → honest "not assessed" state.
+  if (level == null) {
+    if (compact) {
+      return (
+        <div className="flex items-center gap-2 rounded-xl border border-white/10 glass px-3 py-2">
+          <ShieldQuestion size={14} className="text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Legal Risk</span>
+          <span className="ml-auto inline-flex items-center rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+            Not assessed
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-2xl border border-white/10 glass p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShieldQuestion size={18} className="text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground/90">Legal Risk</span>
+          </div>
+          <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+            Not assessed
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Legal risk will appear once Truvi completes the verification review.
+        </p>
+      </div>
+    );
+  }
+
   const cfg = LEVEL_CONFIG[level];
   const { Icon } = cfg;
 
