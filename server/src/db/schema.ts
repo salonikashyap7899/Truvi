@@ -27,7 +27,7 @@ import {
 // Shared enum-ish types (kept identical to the old model exports)
 // ---------------------------------------------------------------------------
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
@@ -581,3 +581,7 @@ export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;
 export type IPriceHistoryEntry = PriceHistoryEntry;
 export type ICommissionMilestone = CommissionMilestone;
+
+// Dynamic AI verification & Q&A engine (Phase 1). Re-exported so the whole
+// schema is reachable from "../db/schema" and included in `import * as schema`.
+export * from "./verificationSchema";

@@ -1,5 +1,6 @@
 import type { Db } from "../db";
 import { connectDb, closeDb, getDb } from "../db";
+import { VERIFICATION_BOOT_SQL, ensureVerificationDefaults } from "../db/verificationBootSql";
 
 let isConnected = false;
 let connectionError: Error | null = null;
@@ -16,13 +17,23 @@ async function ensureSchema(db: Db): Promise<void> {
   const statements = [
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_verified" boolean NOT NULL DEFAULT true`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_verified" boolean NOT NULL DEFAULT true`,
+    // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
+    ...VERIFICATION_BOOT_SQL,
   ];
   for (const stmt of statements) {
     try {
       await db.execute(stmt);
     } catch (err) {
-      console.warn(`ensureSchema failed for "${stmt}":`, err instanceof Error ? err.message : err);
+      console.warn(`ensureSchema failed for "${stmt.split("\n")[0]}…":`, err instanceof Error ? err.message : err);
     }
+  }
+
+  // Seed single-row config defaults (thresholds + active AI prompt). Depends on
+  // the Drizzle tables existing (`drizzle-kit push`); best-effort until then.
+  try {
+    await ensureVerificationDefaults(db);
+  } catch (err) {
+    console.warn("ensureVerificationDefaults skipped:", err instanceof Error ? err.message : err);
   }
 }
 
