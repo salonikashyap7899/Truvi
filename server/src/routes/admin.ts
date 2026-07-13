@@ -127,6 +127,7 @@ const patchProjectSchema = z.object({
   isVerified: z.boolean().optional(),
   isPrimeListing: z.boolean().optional(),
   threeDModelUrl: z.string().url().or(z.literal("")).nullable().optional(),
+  masterPlanUrl: z.string().min(1).or(z.literal("")).nullable().optional(),
   verificationDetails: verificationDetailsSchema,
 });
 
@@ -151,6 +152,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   }
   if (data.isPrimeListing !== undefined) update.isPrimeListing = data.isPrimeListing;
   if (data.threeDModelUrl !== undefined) update.threeDModelUrl = data.threeDModelUrl || null;
+  if (data.masterPlanUrl !== undefined) update.masterPlanUrl = data.masterPlanUrl || null;
   if (data.verificationDetails !== undefined) {
     const merged = {
       reraVerified: false,

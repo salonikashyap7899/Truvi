@@ -33,6 +33,7 @@ export default function AdminListingsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [vdDraft, setVdDraft] = useState<Record<string, VerificationDetails>>({});
   const [threeDDraft, setThreeDDraft] = useState<Record<string, string>>({});
+  const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
 
   async function load() {
     const res = await api.get("/admin/projects", { params: { approvalStatus: "APPROVED" } });
@@ -99,6 +100,20 @@ export default function AdminListingsPage() {
       load();
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Enter a valid URL (https://…)");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function savePlan(project: Project) {
+    const url = (planDraft[project._id] ?? project.masterPlanUrl ?? "").trim();
+    setLoading(project._id + "-plan");
+    try {
+      await api.patch("/admin/projects", { projectId: project._id, masterPlanUrl: url });
+      toast.success(url ? "Master-plan image saved — it now powers the 3D board" : "Master-plan image removed");
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not save master plan");
     } finally {
       setLoading(null);
     }
@@ -255,6 +270,30 @@ export default function AdminListingsPage() {
                     </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       When set, a "View in 3D" button appears on this listing. Leave empty and save to remove it.
+                    </p>
+
+                    <label className="mt-4 block text-xs text-muted-foreground">
+                      Master-plan image URL (real brochure layout → shown as a 3D board)
+                    </label>
+                    <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                      <input
+                        type="text"
+                        placeholder="/masterplans/your-layout.jpg  or  https://…/layout.png"
+                        value={planDraft[p._id] ?? p.masterPlanUrl ?? ""}
+                        onChange={(e) => setPlanDraft((prev) => ({ ...prev, [p._id]: e.target.value }))}
+                        className="w-full flex-1 rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => savePlan(p)}
+                        disabled={loading === p._id + "-plan"}
+                        className="shrink-0 bg-violet-600 hover:bg-violet-500 text-white"
+                      >
+                        {loading === p._id + "-plan" ? "Saving…" : "Save Master Plan"}
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      When set, "View in 3D" shows the real layout as an interactive tilt/zoom board instead of the generated township.
                     </p>
                   </div>
 

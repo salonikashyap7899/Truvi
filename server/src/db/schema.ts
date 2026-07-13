@@ -238,6 +238,10 @@ export const projects = pgTable(
     // Google Maps 3D/satellite embed, ...). When set, the frontend shows a
     // "View in 3D" button on the listing.
     threeDModelUrl: text("three_d_model_url"),
+    // Real 2D master-plan image (developer brochure layout). When set, the
+    // 3D view shows it as an interactive tilt/orbit/zoom master-plan board
+    // instead of the procedurally generated township.
+    masterPlanUrl: text("master_plan_url"),
     // Public visit counter shown on listings ("N views").
     viewCount: integer("view_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),

@@ -110,6 +110,7 @@ export interface Project {
   city: string;
   location: string;
   threeDModelUrl?: string | null;
+  masterPlanUrl?: string | null;
   viewCount?: number;
   brochureUrl?: string;
   priceListUrl?: string;
