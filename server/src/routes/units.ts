@@ -34,13 +34,15 @@ router.get("/", async (req: AuthedRequest, res) => {
   res.json({ units: rows });
 });
 
-router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
+router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = createUnitSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
   const db = getDb();
   const [project] = await db.select().from(projects).where(eq(projects._id, parsed.data.projectId));
-  if (!project || String(project.developerId) !== req.user!.userId) {
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  // Admins can add plots to any project; developers only to their own.
+  if (req.user!.role === "DEVELOPER" && String(project.developerId) !== req.user!.userId) {
     return res.status(404).json({ error: "Project not found" });
   }
 
@@ -53,6 +55,24 @@ router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
     .returning();
 
   res.status(201).json({ unit });
+});
+
+// DELETE /api/units/:id — remove a plot (admin any project, developer own).
+router.delete("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const db = getDb();
+  const [unit] = await db.select().from(units).where(eq(units._id, req.params.id));
+  if (!unit) return res.status(404).json({ error: "Unit not found" });
+
+  if (req.user!.role === "DEVELOPER") {
+    const [project] = await db.select().from(projects).where(eq(projects._id, unit.projectId));
+    if (!project || String(project.developerId) !== req.user!.userId) {
+      return res.status(403).json({ error: "Not your project" });
+    }
+  }
+
+  await db.delete(units).where(eq(units._id, unit._id));
+  res.json({ ok: true });
 });
 
 /**
