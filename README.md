@@ -82,12 +82,23 @@ All seeded users share the password: **`Password123!`**
 - Live notifications
 - Socket.io powered updates
 
-## Optional: enabling real integrations
+## Enabling real integrations
+
+**Required for signups in production** — every new account must confirm a
+6-digit code sent to **both** their email and phone before they can log in, so
+account creation is dead in the water unless these are configured:
+
+- **SMTP (email OTP):** `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`.
+  Without `SMTP_HOST` the server falls back to a dev transport that only logs
+  the code to the console and sends no email.
+- **Twilio (phone OTP):** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_FROM`. Without these the SMS code is only logged to the console.
+  Note: Twilio trial accounts can only text numbers verified on the account —
+  add billing to send to any number.
 
 Optional
 
-- SMTP credentials
-- Razorpay credentials
+- Razorpay credentials (test-mode checkout)
 
 ## Deploying to Render
 

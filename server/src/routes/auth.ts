@@ -15,7 +15,7 @@ import {
   DEFAULT_ONBOARDING_CHECKS,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
-import { signupSchema, loginSchema, verifyEmailSchema, resendOtpSchema } from "../lib/validations/auth";
+import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
@@ -66,20 +66,49 @@ function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function maskPhone(phone?: string | null): string {
+  if (!phone) return "";
+  return phone.length >= 4 ? `••••••${phone.slice(-4)}` : phone;
+}
+
 /**
- * Generate a fresh email OTP for `user`, persist it (10-minute expiry) and
- * e-mail it. Shared by signup, resend and the login-when-unverified path.
+ * Generate fresh email + phone OTPs for `user`, persist them (10-minute
+ * expiry) and dispatch both an e-mail and an SMS. Shared by signup, resend
+ * and the login-when-unverified path. Returns which channels were dispatched
+ * so callers can warn the user if SMS/email isn't configured on the server.
  */
-async function issueEmailOtp(user: IUser): Promise<void> {
-  const otp = generateOtp();
+async function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean; smsSent: boolean }> {
+  const emailOtp = generateOtp();
+  const phoneOtp = generateOtp();
+  const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   const verification: UserVerification = {
     ...(user.verification ?? {}),
-    emailOtp: otp,
-    emailOtpExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    emailOtp,
+    emailOtpExpiry: expiry,
+    phoneOtp,
+    phoneOtpExpiry: expiry,
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
-  await sendOtpEmail(user.email, otp);
+
+  let emailSent = false;
+  let smsSent = false;
+  try {
+    await sendOtpEmail(user.email, emailOtp);
+    emailSent = true;
+  } catch (err) {
+    console.error("Failed to send verification email:", err);
+  }
+  if (user.phone) {
+    try {
+      // Returns false when Twilio isn't configured (the OTP is logged instead),
+      // throws when configured but delivery fails.
+      smsSent = await sendPhoneOtpViaSms(user.phone, phoneOtp);
+    } catch (err) {
+      console.error("Failed to send verification SMS:", err);
+    }
+  }
+  return { emailSent, smsSent };
 }
 
 /**
@@ -105,6 +134,7 @@ function issueSession(res: import("express").Response, user: IUser) {
       role: user.role,
       approvalStatus: user.approvalStatus,
       emailVerified: user.emailVerified,
+      phoneVerified: user.phoneVerified,
       onboardingVerified: user.onboardingVerified,
       onboardingChecks: user.onboardingChecks,
     },
@@ -129,19 +159,20 @@ router.post("/signup", async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 12);
 
   // Admin account-approval has been removed — every account is auto-approved
-  // and instead gated by email OTP verification. New accounts start with
-  // emailVerified = false and must confirm the code we e-mail them before they
-  // can log in.
+  // and instead gated by email + phone OTP verification. New accounts start
+  // unverified and must confirm the codes we send to their email AND phone
+  // before they can log in.
   const [user] = await db
     .insert(users)
     .values({
       name,
       email: normalizedEmail,
       password: hashedPassword,
-      phone: phone || undefined,
+      phone,
       role,
       approvalStatus: "APPROVED",
       emailVerified: false,
+      phoneVerified: false,
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
@@ -149,18 +180,14 @@ router.post("/signup", async (req, res) => {
     })
     .returning();
 
-  try {
-    await issueEmailOtp(user);
-  } catch (err) {
-    console.error("Failed to send signup verification email:", err);
-    // The account exists; the user can request a fresh code from the verify
-    // screen, so don't fail the signup outright.
-  }
+  const { smsSent } = await issueVerificationOtps(user);
 
   return res.status(201).json({
-    message: "Account created. Enter the 6-digit code we e-mailed you to verify your account.",
-    needsEmailVerification: true,
+    message: "Account created. Enter the codes we sent to your email and phone to verify your account.",
+    needsVerification: true,
     email: user.email,
+    phone: maskPhone(user.phone),
+    smsSent,
     userId: user._id,
   });
 });
@@ -179,73 +206,84 @@ router.post("/login", async (req, res) => {
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(401).json({ error: "Invalid email or password" });
 
-  // Email OTP gate: an unverified account can't log in. Send a fresh code and
-  // tell the client to route to the verification screen.
-  if (!user.emailVerified) {
-    try {
-      await issueEmailOtp(user);
-    } catch (err) {
-      console.error("Failed to send login verification email:", err);
-    }
+  // OTP gate: an account can't log in until BOTH email and phone are verified.
+  // Send fresh codes and tell the client to route to the verification screen.
+  if (!user.emailVerified || !user.phoneVerified) {
+    const { smsSent } = await issueVerificationOtps(user);
     return res.status(403).json({
-      error: "Please verify your email. We've sent a new 6-digit code.",
-      needsEmailVerification: true,
+      error: "Please verify your account. We've sent fresh codes to your email and phone.",
+      needsVerification: true,
       email: user.email,
+      phone: maskPhone(user.phone),
+      smsSent,
     });
   }
 
   return res.json(issueSession(res, user));
 });
 
-// Public: confirm the emailed OTP, mark the account verified and log in.
-router.post("/verify-email", async (req, res) => {
-  const parsed = verifyEmailSchema.safeParse(req.body);
+// Public: confirm BOTH the emailed and texted OTPs, mark the account verified
+// and log in.
+router.post("/verify-account", async (req, res) => {
+  const parsed = verifyAccountSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   }
 
-  const { email, otp } = parsed.data;
+  const { email, emailOtp, phoneOtp } = parsed.data;
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
   if (!user) return res.status(404).json({ error: "Account not found" });
 
-  if (user.emailVerified) {
+  if (user.emailVerified && user.phoneVerified) {
     // Already verified — just log them in so a stale verify screen still works.
     return res.json(issueSession(res, user));
   }
 
-  if (!user.verification?.emailOtp || !user.verification?.emailOtpExpiry) {
-    return res.status(400).json({ error: "No code requested. Please resend a new code." });
+  const v = user.verification;
+  if (!v?.emailOtp || !v?.emailOtpExpiry || !v?.phoneOtp || !v?.phoneOtpExpiry) {
+    return res.status(400).json({ error: "No codes requested. Please resend new codes." });
   }
-  if (new Date(user.verification.emailOtpExpiry) < new Date()) {
-    return res.status(400).json({ error: "Code expired. Please resend a new code." });
+  const now = new Date();
+  if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
+    return res.status(400).json({ error: "Codes expired. Please resend new codes." });
   }
-  if (user.verification.emailOtp !== otp) {
-    return res.status(400).json({ error: "Invalid code" });
+  if (v.emailOtp !== emailOtp) {
+    return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
+  }
+  if (v.phoneOtp !== phoneOtp) {
+    return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
   }
 
-  // Clear the OTP and flip emailVerified. If the account already tracks
-  // onboarding checks (CP / Ambassador), the email step is satisfied too.
+  // Clear both OTPs and flip the flags. If the account already tracks onboarding
+  // checks (CP / Ambassador), the email + phone steps are satisfied too.
   const verification: UserVerification = {
     ...(user.verification ?? {}),
     emailOtp: null,
     emailOtpExpiry: null,
+    phoneOtp: null,
+    phoneOtpExpiry: null,
   };
   const onboardingChecks: OnboardingChecks | undefined = user.onboardingChecks
-    ? { ...user.onboardingChecks, emailVerified: true }
+    ? { ...user.onboardingChecks, emailVerified: true, phoneVerified: true }
     : undefined;
 
   const [updated] = await db
     .update(users)
-    .set({ emailVerified: true, verification, ...(onboardingChecks ? { onboardingChecks } : {}) })
+    .set({
+      emailVerified: true,
+      phoneVerified: true,
+      verification,
+      ...(onboardingChecks ? { onboardingChecks } : {}),
+    })
     .where(eq(users._id, user._id))
     .returning();
 
   return res.json(issueSession(res, updated));
 });
 
-// Public: resend the email verification OTP for an unverified account.
-router.post("/resend-email-otp", async (req, res) => {
+// Public: resend BOTH verification OTPs for an unverified account.
+router.post("/resend-otp", async (req, res) => {
   const parsed = resendOtpSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
@@ -254,17 +292,17 @@ router.post("/resend-email-otp", async (req, res) => {
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email.toLowerCase().trim()));
   // Don't reveal whether an email exists; respond the same either way.
-  if (!user || user.emailVerified) {
-    return res.json({ message: "If that account needs verification, a new code has been sent." });
+  if (!user || (user.emailVerified && user.phoneVerified)) {
+    return res.json({ message: "If that account needs verification, fresh codes have been sent." });
   }
 
-  try {
-    await issueEmailOtp(user);
-  } catch (err) {
-    console.error("Failed to resend verification email:", err);
-    return res.status(500).json({ error: "Failed to send verification email. Please try again." });
-  }
-  return res.json({ message: "A new 6-digit code has been sent to your email.", email: user.email });
+  const { smsSent } = await issueVerificationOtps(user);
+  return res.json({
+    message: "Fresh 6-digit codes have been sent to your email and phone.",
+    email: user.email,
+    phone: maskPhone(user.phone),
+    smsSent,
+  });
 });
 
 router.post("/refresh", async (req, res) => {

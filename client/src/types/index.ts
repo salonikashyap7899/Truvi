@@ -84,6 +84,7 @@ export interface User {
   approvalStatus: ApprovalStatus;
   phone?: string;
   emailVerified?: boolean;
+  phoneVerified?: boolean;
   onboardingVerified?: boolean;
   onboardingChecks?: {
     aadhaarVerified?: boolean;

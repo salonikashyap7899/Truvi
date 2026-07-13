@@ -11,9 +11,18 @@ import { Loader2 } from "lucide-react";
 const signupSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Enter a valid email"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number").optional().or(z.literal("")),
+    email: z
+      .string()
+      .email("Enter a valid email")
+      .regex(/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i, "Enter a valid email"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[a-z]/, "Add at least one lowercase letter")
+      .regex(/[A-Z]/, "Add at least one uppercase letter")
+      .regex(/[0-9]/, "Add at least one number")
+      .regex(/[^A-Za-z0-9]/, "Add at least one special character"),
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
     role: z.literal("AMBASSADOR"),
     companyName: z.string().optional(),
   })
@@ -42,8 +51,8 @@ export default function AmbassadorSignupPage() {
         ...data,
         role: "AMBASSADOR",
       });
-      // Verify the emailed OTP before first sign-in.
-      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      // Verify the email + phone OTPs before first sign-in.
+      navigate(`/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`);
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }
@@ -86,8 +95,12 @@ export default function AmbassadorSignupPage() {
                 </div>
                 <div>
                   <Label>Password</Label>
-                  <Input type="password" {...register("password")} placeholder="At least 8 characters" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
-                  {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>}
+                  <Input type="password" {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
+                  {errors.password ? (
+                    <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">At least 8 characters with an uppercase, lowercase, number and special character.</p>
+                  )}
                 </div>
                 {serverError && <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>}
                 <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.35)] disabled:opacity-60">
