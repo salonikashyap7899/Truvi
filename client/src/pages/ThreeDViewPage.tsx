@@ -11,9 +11,11 @@ import {
 } from "lucide-react";
 import type { Project } from "@/types";
 import type { PlotSelection, SceneUnit, ScenePreset } from "@/components/Property3DScene";
+import type { PlotHoverInfo } from "@/components/PrimeEstateScene";
 
-// The three.js scene is its own chunk so the page shell paints instantly.
+// The three.js scenes are their own chunks so the page shell paints instantly.
 const Property3DScene = lazy(() => import("@/components/Property3DScene"));
+const PrimeEstateScene = lazy(() => import("@/components/PrimeEstateScene"));
 
 const WA_NUMBER = "919196366358";
 
@@ -47,6 +49,15 @@ export default function ThreeDViewPage() {
   const [walk, setWalk] = useState(false);
   const [selected, setSelected] = useState<PlotSelection | null>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
+
+  // Prime Estate gets its bespoke 3D recreation of the official master plan
+  // with a cinematic guided tour; "2D Plan" toggles the exact brochure image.
+  const [tourPlaying, setTourPlaying] = useState(true);
+  const [tourNonce, setTourNonce] = useState(0);
+  const [caption, setCaption] = useState<string | null>(null);
+  const [hoverInfo, setHoverInfo] = useState<PlotHoverInfo | null>(null);
+  const [view2D, setView2D] = useState(false);
+  const isPrime = /prime estate/i.test(project?.name ?? "");
 
   // First-person walking needs a mouse + keyboard; hide it on touch devices.
   const canWalk = typeof window !== "undefined" && !("ontouchstart" in window);
@@ -132,6 +143,15 @@ export default function ThreeDViewPage() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {isPrime && project?.masterPlanUrl && (
+            <button
+              onClick={() => setView2D((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-full border border-[#e8c877]/40 bg-[#e8c877]/10 px-4 py-2 text-xs font-medium text-[#e8c877] transition hover:bg-[#e8c877]/20"
+            >
+              <MapIcon size={13} />
+              <span className="hidden sm:inline">{view2D ? "3D Tour" : "2D Plan"}</span>
+            </button>
+          )}
           {project?.threeDModelUrl && (
             <button
               onClick={() => setMode((m) => (m === "scene" ? "embed" : "scene"))}
@@ -176,6 +196,91 @@ export default function ThreeDViewPage() {
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"
           />
+        ) : isPrime && !view2D ? (
+          // Bespoke 3D recreation of the Prime Estate master plan + guided tour
+          <>
+            <Suspense
+              fallback={
+                <CenterNote>
+                  <Loader2 size={28} className="animate-spin text-sky-300" />
+                  <p className="text-sm text-muted-foreground">Building Prime Estate in 3D…</p>
+                </CenterNote>
+              }
+            >
+              <PrimeEstateScene
+                playTour={tourPlaying}
+                tourNonce={tourNonce}
+                onCaption={setCaption}
+                onTourEnd={() => setTourPlaying(false)}
+                onHoverPlot={setHoverInfo}
+              />
+            </Suspense>
+
+            {/* Tour caption */}
+            <AnimatePresence mode="wait">
+              {tourPlaying && caption && (
+                <motion.div
+                  key={caption}
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                  className="pointer-events-none absolute inset-x-4 bottom-24 flex justify-center"
+                >
+                  <div
+                    className="rounded-[22px] p-px"
+                    style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.6), rgba(255,255,255,0.08) 70%)" }}
+                  >
+                    <p className="rounded-[21px] bg-black/75 px-6 py-3 text-center font-display text-sm font-semibold text-white backdrop-blur sm:text-base">
+                      {caption}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Tour controls */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
+              <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-black/60 p-1.5 backdrop-blur">
+                {tourPlaying ? (
+                  <button
+                    onClick={() => { setTourPlaying(false); setCaption(null); }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white transition hover:bg-white/20"
+                  >
+                    Skip tour
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setTourNonce((n) => n + 1); setTourPlaying(true); }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#e8c877]/20 px-4 py-2 text-xs font-medium text-[#e8c877] transition hover:bg-[#e8c877]/30"
+                  >
+                    <RotateCw size={13} /> Replay tour
+                  </button>
+                )}
+              </div>
+              <p className="rounded-full bg-black/40 px-4 py-1.5 text-[11px] text-white/60 backdrop-blur">
+                {tourPlaying
+                  ? "Touring the township — every zone, one by one"
+                  : "Drag to rotate · Scroll / pinch to zoom · Hover a plot for details"}
+              </p>
+            </div>
+
+            {/* Hovered plot chip */}
+            <AnimatePresence>
+              {hoverInfo && !tourPlaying && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="pointer-events-none absolute right-4 top-4 rounded-2xl border border-white/15 bg-black/70 px-4 py-3 text-xs backdrop-blur"
+                >
+                  <p className="font-display text-base font-semibold text-white">{hoverInfo.label}</p>
+                  <p className="mt-0.5 text-white/75">{hoverInfo.category}</p>
+                  <p className="text-[11px] text-[#e8c877]">{hoverInfo.size}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
         ) : project.masterPlanUrl ? (
           // Exact official master plan — pixel-perfect, deep zoom + pan
           <MasterPlanViewer url={project.masterPlanUrl} name={project.name} />
