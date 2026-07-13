@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 
