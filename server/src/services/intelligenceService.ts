@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import { IProject } from "../db/schema";
 
 /**
@@ -9,11 +8,11 @@ import { IProject } from "../db/schema";
  * so a buyer can open a listing's arrow panel and see exactly where each
  * fact was sourced and whether it has been verified.
  *
- * Statuses are anchored to the project's real verification fields
- * (verificationDetails, reraStatus, risk levels) where they exist; the
- * remaining data points are simulated deterministically per listing — the
- * same convention the rest of the platform uses for demo intelligence
- * (trust score, legal risk, price fairness).
+ * Statuses are anchored ONLY to the project's real verification fields
+ * (verificationDetails, reraStatus, risk levels). Any data point an admin
+ * has not actually verified stays PENDING — nothing is ever shown as
+ * VERIFIED unless a real admin action backs it (or the whole listing has
+ * been fully admin-verified). No simulated / random "verified" statuses.
  */
 
 export type IntelStatus = "VERIFIED" | "PENDING" | "UNAVAILABLE";
@@ -51,16 +50,6 @@ export interface IntelligenceProfile {
   ai: AIVerification;
 }
 
-// Deterministic per (projectId, label) so a listing's profile is stable
-// across requests without needing a stored document per data point.
-function hashStatus(projectId: string, label: string): IntelStatus {
-  const h = crypto.createHash("sha256").update(`${projectId}:${label}`).digest();
-  const n = h[0] % 100;
-  if (n < 72) return "VERIFIED";
-  if (n < 92) return "PENDING";
-  return "UNAVAILABLE";
-}
-
 type ItemDef = [label: string, source: string] | [label: string, source: string, override: () => IntelItem | null];
 
 function buildCategory(
@@ -70,7 +59,6 @@ function buildCategory(
   defs: ItemDef[],
   fullyVerified: boolean,
 ): IntelCategory {
-  const id = String(project._id);
   const items: IntelItem[] = defs.map((def) => {
     const [label, source, override] = def;
     // Once an admin has uploaded and verified every document (see
@@ -87,7 +75,10 @@ function buildCategory(
     }
     const overridden = override?.();
     if (overridden) return overridden;
-    return { label, source, status: hashStatus(id, label) };
+    // Not backed by any real admin verification → stays PENDING (never a
+    // fake "verified"). It flips to VERIFIED only once an admin fully
+    // verifies the listing.
+    return { label, source, status: "PENDING" };
   });
   return {
     key,

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
-import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
-import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
+import TrustScoreWidget from "@/components/TrustScoreWidget";
+import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import FloodRiskCard, { mockFloodRiskFromId } from "@/components/FloodRiskCard";
@@ -95,8 +95,8 @@ export default function ProjectDetailPage() {
 
   if (!project) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
-  const trustScore = project.trustScore ?? mockScoreFromId(project._id);
-  const legalRisk = project.legalRiskLevel ?? mockRiskFromId(project._id);
+  const trustScore = project.trustScore ?? null;
+  const legalRisk = project.legalRiskLevel ?? null;
   const floodRisk = project.floodRiskLevel ?? mockFloodRiskFromId(project._id);
   const crimeIndex = project.crimeIndexLevel ?? mockCrimeFromId(project._id);
   const ownerHistory = mockOwnerHistoryFromId(project._id);

@@ -9,8 +9,8 @@ import { CompareBar } from "@/components/CompareBar";
 import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { toast } from "sonner";
 import { Bookmark, Search } from "lucide-react";
-import TrustScoreWidget, { mockScoreFromId } from "@/components/TrustScoreWidget";
-import LegalRiskCard, { mockRiskFromId } from "@/components/LegalRiskCard";
+import TrustScoreWidget from "@/components/TrustScoreWidget";
+import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import type { Project } from "@/types";
 
@@ -152,11 +152,11 @@ function ProjectCard({
         </div>
 
         <TrustScoreWidget
-          score={project.trustScore ?? mockScoreFromId(project._id)}
+          score={project.trustScore}
           compact
         />
         <LegalRiskCard
-          level={project.legalRiskLevel ?? mockRiskFromId(project._id)}
+          level={project.legalRiskLevel}
           compact
         />
         <PriceFairnessMeter projectId={project._id} compact />
