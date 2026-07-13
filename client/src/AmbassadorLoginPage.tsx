@@ -18,9 +18,7 @@ export default function AmbassadorLoginPage() {
     setError(null);
     try {
       const user = await login(email, password);
-      if (user.role !== "ADMIN" && user.approvalStatus !== "APPROVED") {
-        navigate("/pending-approval");
-      } else if (user.role === "ADMIN") {
+      if (user.role === "ADMIN") {
         if (user.email?.toLowerCase() === "founder@truvi.app") {
           navigate("/founder/dashboard");
         } else {
@@ -31,6 +29,11 @@ export default function AmbassadorLoginPage() {
       else if (user.role === "CP") navigate("/cp/dashboard");
       else navigate("/buyer/dashboard");
     } catch (err: any) {
+      // Unverified email: the server sent a fresh OTP — route to verification.
+      if (err?.response?.data?.needsEmailVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       setError(err?.response?.data?.error || "Invalid email or password");
     } finally {
       setLoading(false);

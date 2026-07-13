@@ -99,12 +99,12 @@ async function seed() {
     phone: randomPhone(),
   });
 
-  // --- Developers: 3 approved, 1 pending ---
+  // --- Developers (all auto-approved; email pre-verified for seed data) ---
   const developerData = [
-    { name: "Skyline Developers", email: "dev1@truvi.app", company: "Skyline Developers Pvt Ltd", status: "APPROVED" },
-    { name: "Horizon Realty", email: "dev2@truvi.app", company: "Horizon Realty LLP", status: "APPROVED" },
-    { name: "Prestige Builders", email: "dev3@truvi.app", company: "Prestige Builders India", status: "APPROVED" },
-    { name: "Newline Constructions", email: "dev4@truvi.app", company: "Newline Constructions Pvt Ltd", status: "PENDING" },
+    { name: "Skyline Developers", email: "dev1@truvi.app", company: "Skyline Developers Pvt Ltd" },
+    { name: "Horizon Realty", email: "dev2@truvi.app", company: "Horizon Realty LLP" },
+    { name: "Prestige Builders", email: "dev3@truvi.app", company: "Prestige Builders India" },
+    { name: "Newline Constructions", email: "dev4@truvi.app", company: "Newline Constructions Pvt Ltd" },
   ] as const;
 
   const developers = [];
@@ -116,14 +116,15 @@ async function seed() {
         email: d.email,
         password: hashedPassword,
         role: "DEVELOPER",
-        approvalStatus: d.status,
+        approvalStatus: "APPROVED",
+        emailVerified: true,
         phone: randomPhone(),
         developerProfile: { companyName: d.company, reraNumber: `RERA-${Math.floor(100000 + Math.random() * 899999)}` },
       })
       .returning();
     developers.push(user);
   }
-  const approvedDevelopers = developers.filter((_, i) => developerData[i].status === "APPROVED");
+  const approvedDevelopers = developers;
 
   // --- CPs: 8 across all 4 tiers ---
   const cpTierPlan = [
@@ -349,10 +350,10 @@ async function seed() {
   console.log("--- Login credentials (all use password: Password123!) ---");
   console.log("Admin:      admin@truvi.app");
   console.log("Admin:      founder@truvi.app");
-  console.log("Developer:  dev1@truvi.app (approved)");
-  console.log("Developer:  dev4@truvi.app (pending — test the approval flow)");
-  console.log("CP/Seller:  cp1@truvi.app (approved, Silver)");
-  console.log("CP/Seller:  cp7@truvi.app (approved, Diamond)");
+  console.log("Developer:  dev1@truvi.app");
+  console.log("Developer:  dev4@truvi.app");
+  console.log("CP/Seller:  cp1@truvi.app (Silver)");
+  console.log("CP/Seller:  cp7@truvi.app (Diamond)");
   console.log("Ambassador: ambassador1@truvi.app (verified — login at /ambassador/login)");
 
   await closeDb();

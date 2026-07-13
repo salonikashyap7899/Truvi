@@ -43,7 +43,7 @@ const ROLES: { id: GateRole; label: string; tagline: string; icon: React.ReactNo
 ];
 
 // Paths where the gate must never appear (auth flow itself, admin, errors)
-const EXCLUDED_PREFIXES = ["/login", "/signup", "/pending-approval", "/unauthorized", "/admin", "/legal", "/ambassador"];
+const EXCLUDED_PREFIXES = ["/login", "/signup", "/verify-email", "/unauthorized", "/admin", "/legal", "/ambassador"];
 
 export default function WelcomeGate() {
   const { user } = useAuth();

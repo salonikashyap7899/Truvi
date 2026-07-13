@@ -37,7 +37,6 @@ export default function SignupPage() {
   const [searchParams] = useSearchParams();
   const { signup } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   // Role pre-selected by the welcome gate (?role=BUYER|CP|DEVELOPER)
   const paramRole = searchParams.get("role");
@@ -59,8 +58,8 @@ export default function SignupPage() {
     setServerError(null);
     try {
       await signup(data);
-      setSuccess(true);
-      setTimeout(() => navigate("/login"), 2000);
+      // Account created — go verify the emailed OTP before first login.
+      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }
@@ -93,7 +92,7 @@ export default function SignupPage() {
 
             <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Create your account</h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">
-              An admin verifies and approves every account before full access.
+              We&apos;ll email you a 6-digit code to verify your account.
             </p>
 
             {/* Role selector */}
@@ -115,12 +114,7 @@ export default function SignupPage() {
               ))}
             </div>
 
-            {success ? (
-              <p className="mt-6 rounded-xl border border-emerald-500/25 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
-                Account created! Redirecting to sign-in — your account is pending admin approval.
-              </p>
-            ) : (
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
                 <div>
                   <Label>Full name</Label>
                   <Input {...register("name")} placeholder="Priya Sharma" className={inputCls} />
@@ -166,7 +160,6 @@ export default function SignupPage() {
                   </Link>
                 </p>
               </form>
-            )}
           </div>
         </div>
       </motion.div>

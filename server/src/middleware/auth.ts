@@ -29,17 +29,17 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
 
 /**
  * Restricts a route to the given roles. Must run after `authenticate`.
- * Also enforces the approval gate for DEVELOPER/CP (ADMIN is exempt,
- * since it's seeded, never self-signup, and never PENDING).
+ *
+ * Admin account-approval has been removed — accounts are gated at login by
+ * email OTP verification instead, so there is no approvalStatus check here.
+ * The CP onboarding gate (Aadhaar + phone + email, per the Ambassador SOP)
+ * still applies before a CP can reach project details.
  */
 export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR">) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
-    }
-    if (req.user.role !== "ADMIN" && req.user.approvalStatus !== "APPROVED") {
-      return res.status(403).json({ error: "Account pending admin approval" });
     }
     if (req.user.role === "CP" && req.user.onboardingVerified !== true) {
       return res.status(403).json({ error: "Complete onboarding verification to access project details" });

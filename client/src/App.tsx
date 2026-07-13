@@ -19,7 +19,7 @@ import JoinPage from "@/pages/JoinPage";
 import AboutPage from "@/pages/AboutPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
-import PendingApprovalPage from "@/pages/PendingApprovalPage";
+import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
 import LegalPage from "@/pages/LegalPage";
 
@@ -100,7 +100,7 @@ export default function App() {
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/pending-approval" element={<PendingApprovalPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
         {/* Public inventory */}

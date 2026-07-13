@@ -189,8 +189,17 @@ export const users = pgTable(
     email: text("email").notNull(),
     password: text("password").notNull(),
     role: text("role").$type<Role>().notNull(),
-    approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("PENDING"),
+    // Admin account-approval has been removed — every self-signup is auto-approved
+    // and the real gate is email OTP verification (see `emailVerified`). The
+    // column is kept (defaulting to APPROVED) so existing rows and any code that
+    // still reads it keep working.
+    approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("APPROVED"),
     phone: text("phone"),
+    // Universal email verification: a new signup must confirm a one-time code
+    // e-mailed to them before they can log in. Defaults to `true` at the DB level
+    // so pre-existing/seeded accounts are never locked out; the signup path
+    // explicitly sets it to `false` for fresh accounts.
+    emailVerified: boolean("email_verified").notNull().default(true),
     onboardingVerified: boolean("onboarding_verified").notNull().default(false),
     onboardingChecks: jsonb("onboarding_checks").$type<OnboardingChecks>(),
     verification: jsonb("verification").$type<UserVerification>(),

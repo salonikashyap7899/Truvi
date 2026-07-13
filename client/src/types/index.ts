@@ -83,6 +83,7 @@ export interface User {
   role: Role;
   approvalStatus: ApprovalStatus;
   phone?: string;
+  emailVerified?: boolean;
   onboardingVerified?: boolean;
   onboardingChecks?: {
     aadhaarVerified?: boolean;

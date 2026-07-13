@@ -68,10 +68,23 @@ function buildCategory(
   key: string,
   title: string,
   defs: ItemDef[],
+  fullyVerified: boolean,
 ): IntelCategory {
   const id = String(project._id);
   const items: IntelItem[] = defs.map((def) => {
     const [label, source, override] = def;
+    // Once an admin has uploaded and verified every document (see
+    // `fullyAdminVerified` below), every option in every category flips to
+    // VERIFIED — the whole listing reads 100% verified.
+    if (fullyVerified) {
+      const overridden = override?.();
+      return {
+        label,
+        source: overridden?.source ?? source,
+        status: "VERIFIED",
+        detail: overridden?.detail ?? "Document verified by Truvi admin.",
+      };
+    }
     const overridden = override?.();
     if (overridden) return overridden;
     return { label, source, status: hashStatus(id, label) };
@@ -91,6 +104,18 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
   const reraSource = project.reraNumber
     ? `UP RERA Portal (Reg. No. ${project.reraNumber})`
     : "UP RERA Portal";
+
+  // Fully admin-verified = the listing has been marked Verified AND every core
+  // verification check has been ticked by an admin (all documents uploaded and
+  // verified). When true, every intelligence option reads VERIFIED (100%).
+  const coreChecks = [
+    vd?.reraVerified,
+    vd?.titleClearance,
+    vd?.encumbranceFree,
+    vd?.constructionApproval,
+    vd?.portfolioVerified,
+  ];
+  const fullyAdminVerified = project.isVerified === true && coreChecks.every(Boolean);
 
   const government = buildCategory(project, "government", "Government & Legal Data", [
     ["LDA Master Plan", "LDA (Lucknow Development Authority) Master Plan 2031"],
@@ -169,7 +194,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ],
     ["Government Notifications", "UP Government Gazette & Notifications"],
     ["Smart City / Urban Planning Data", "Smart City Mission Portal"],
-  ]);
+  ], fullyAdminVerified);
 
   const infrastructure = buildCategory(project, "infrastructure", "Infrastructure Intelligence", [
     ["Roads", "PWD — Public Works Department"],
@@ -181,7 +206,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Bus Terminals", "UPSRTC — Terminal & Depot Records"],
     ["Future Infrastructure Projects", "State Infrastructure Pipeline Disclosures"],
     ["Government Development Projects", "State Development Authority Announcements"],
-  ]);
+  ], fullyAdminVerified);
 
   const location = buildCategory(project, "location", "Location Intelligence", [
     ["Schools", "OpenStreetMap + Field Survey"],
@@ -195,7 +220,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Fire Stations", "UP Fire Services Directory"],
     ["Banks & ATMs", "RBI Branch/ATM Locator"],
     ["Fuel Stations", "OMC (IOCL/BPCL/HPCL) Outlet Registry"],
-  ]);
+  ], fullyAdminVerified);
 
   const market = buildCategory(project, "market", "Market Intelligence", [
     ["Property Rates", "IGRS Transactions + Truvi Market Index"],
@@ -207,7 +232,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Price Appreciation", "Circle Rate History + IGRS Transactions"],
     ["Resale Trends", "Truvi Resale Listings Analysis"],
     ["Investment Score", "Truvi AI Investment Model"],
-  ]);
+  ], fullyAdminVerified);
 
   const environmental = buildCategory(project, "environmental", "Environmental Intelligence", [
     [
@@ -238,7 +263,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Noise Pollution", "CPCB Noise Monitoring Network"],
     ["Heat Map", "Satellite Thermal Imaging (Landsat)"],
     ["Disaster Risk", "NDMA — Disaster Risk Assessments"],
-  ]);
+  ], fullyAdminVerified);
 
   const gis = buildCategory(project, "gis", "Satellite & GIS Intelligence", [
     ["Satellite Imagery", "ISRO Bhuvan + Sentinel-2"],
@@ -248,7 +273,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Nearby Amenities", "GIS Amenity Layers + Field Survey"],
     ["Elevation", "SRTM Digital Elevation Model"],
     ["Land Cover", "Sentinel-2 Land Cover Classification"],
-  ]);
+  ], fullyAdminVerified);
 
   const community = buildCategory(project, "community", "Community Intelligence", [
     [
@@ -278,7 +303,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Traffic Density", "GPS Probe Data + Field Survey"],
     ["Safety Index", "Truvi Safety Model (Crime + Lighting + Patrols)"],
     ["Livability Score", "Truvi Livability Model (Composite)"],
-  ]);
+  ], fullyAdminVerified);
 
   const categories = [government, infrastructure, location, market, environmental, gis, community];
 
