@@ -195,11 +195,12 @@ export const users = pgTable(
     // still reads it keep working.
     approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("APPROVED"),
     phone: text("phone"),
-    // Universal email verification: a new signup must confirm a one-time code
-    // e-mailed to them before they can log in. Defaults to `true` at the DB level
-    // so pre-existing/seeded accounts are never locked out; the signup path
-    // explicitly sets it to `false` for fresh accounts.
+    // Universal account verification: a new signup must confirm one-time codes
+    // sent to both their email and phone before they can log in. Both default to
+    // `true` at the DB level so pre-existing/seeded accounts are never locked
+    // out; the signup path explicitly sets them to `false` for fresh accounts.
     emailVerified: boolean("email_verified").notNull().default(true),
+    phoneVerified: boolean("phone_verified").notNull().default(true),
     onboardingVerified: boolean("onboarding_verified").notNull().default(false),
     onboardingChecks: jsonb("onboarding_checks").$type<OnboardingChecks>(),
     verification: jsonb("verification").$type<UserVerification>(),

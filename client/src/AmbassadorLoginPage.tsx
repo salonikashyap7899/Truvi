@@ -29,12 +29,14 @@ export default function AmbassadorLoginPage() {
       else if (user.role === "CP") navigate("/cp/dashboard");
       else navigate("/buyer/dashboard");
     } catch (err: any) {
-      // Unverified email: the server sent a fresh OTP — route to verification.
-      if (err?.response?.data?.needsEmailVerification) {
-        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+      // Unverified account: the server sent fresh OTPs — route to verification.
+      const data = err?.response?.data;
+      if (data?.needsVerification) {
+        const phoneParam = data.phone ? `&phone=${encodeURIComponent(data.phone)}` : "";
+        navigate(`/verify-email?email=${encodeURIComponent(email)}${phoneParam}`);
         return;
       }
-      setError(err?.response?.data?.error || "Invalid email or password");
+      setError(data?.error || "Invalid email or password");
     } finally {
       setLoading(false);
     }

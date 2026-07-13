@@ -11,9 +11,18 @@ import { User, Handshake, Building2, Loader2 } from "lucide-react";
 const signupSchema = z
   .object({
     name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z.string().email("Enter a valid email"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number").optional().or(z.literal("")),
+    email: z
+      .string()
+      .email("Enter a valid email")
+      .regex(/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i, "Enter a valid email"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[a-z]/, "Add at least one lowercase letter")
+      .regex(/[A-Z]/, "Add at least one uppercase letter")
+      .regex(/[0-9]/, "Add at least one number")
+      .regex(/[^A-Za-z0-9]/, "Add at least one special character"),
+    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
     role: z.enum(["DEVELOPER", "CP", "BUYER"]),
     companyName: z.string().optional(),
   })
@@ -58,8 +67,8 @@ export default function SignupPage() {
     setServerError(null);
     try {
       await signup(data);
-      // Account created — go verify the emailed OTP before first login.
-      navigate(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      // Account created — verify the email + phone OTPs before first login.
+      navigate(`/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`);
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }
@@ -92,7 +101,7 @@ export default function SignupPage() {
 
             <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Create your account</h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">
-              We&apos;ll email you a 6-digit code to verify your account.
+              We&apos;ll send 6-digit codes to your email and phone to verify your account.
             </p>
 
             {/* Role selector */}
@@ -132,8 +141,12 @@ export default function SignupPage() {
                 </div>
                 <div>
                   <Label>Password</Label>
-                  <Input type="password" {...register("password")} placeholder="At least 8 characters" className={inputCls} />
-                  {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>}
+                  <Input type="password" {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className={inputCls} />
+                  {errors.password ? (
+                    <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">At least 8 characters with an uppercase, lowercase, number and special character.</p>
+                  )}
                 </div>
                 {role === "DEVELOPER" && (
                   <div>
