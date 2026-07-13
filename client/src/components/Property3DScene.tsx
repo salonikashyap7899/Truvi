@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   Environment, Html, Lightformer, OrbitControls, PerformanceMonitor, PointerLockControls, Sky, Stars,
 } from "@react-three/drei";
@@ -1098,48 +1098,6 @@ function WalkControls({ onExit, backZ }: { onExit: () => void; backZ: number }) 
 
 /* ── Public component ─────────────────────────────────────────────────────── */
 
-/**
- * Real developer master-plan image shown as an interactive 3D board: the
- * brochure layout laid flat on a raised platform the user can orbit, tilt,
- * zoom and pan — used when a project has a masterPlanUrl.
- */
-function MasterPlanBoard({ url, night }: { url: string; night: boolean }) {
-  const tex = useLoader(THREE.TextureLoader, url);
-  useMemo(() => {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
-  }, [tex]);
-  const aspect = (tex.image?.width ?? 1519) / (tex.image?.height ?? 2200);
-  const W = 130;
-  const D = W / aspect;
-
-  return (
-    <group position={[0, 0, 0]}>
-      {/* raised platform */}
-      <mesh position={[0, 0.6, 0]}>
-        <boxGeometry args={[W + 6, 1.2, D + 6]} />
-        <meshStandardMaterial color={night ? "#0c1424" : "#243049"} roughness={0.7} metalness={0.2} />
-      </mesh>
-      {/* gold trim */}
-      <mesh position={[0, 1.22, 0]}>
-        <boxGeometry args={[W + 3, 0.14, D + 3]} />
-        <meshStandardMaterial color="#e8c877" roughness={0.3} metalness={0.7} emissive="#e8c877" emissiveIntensity={night ? 0.5 : 0.12} />
-      </mesh>
-      {/* the master plan itself */}
-      <mesh position={[0, 1.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[W, D]} />
-        <meshStandardMaterial
-          map={tex}
-          emissiveMap={night ? tex : null}
-          emissive={night ? "#6474a0" : "#000000"}
-          emissiveIntensity={night ? 0.4 : 0}
-          roughness={0.85}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 export default function Property3DScene({
   project,
   units,
@@ -1151,7 +1109,6 @@ export default function Property3DScene({
   onExitWalk,
   selectedUnitId,
   onSelectPlot,
-  masterPlanUrl,
 }: {
   project: Project;
   units: SceneUnit[];
@@ -1163,7 +1120,6 @@ export default function Property3DScene({
   onExitWalk: () => void;
   selectedUnitId: string | null;
   onSelectPlot: (sel: PlotSelection | null) => void;
-  masterPlanUrl?: string | null;
 }) {
   const layout = useMemo(() => buildLayout(project, units), [project, units]);
   const sign = useMemo(() => signTexture(project.name), [project.name]);
@@ -1244,14 +1200,6 @@ export default function Property3DScene({
           <meshStandardMaterial map={grass} roughness={1} />
         </mesh>
 
-        {/* Real developer master plan (Prime Estate etc.) as a 3D board */}
-        {masterPlanUrl && (
-          <Suspense fallback={null}>
-            <MasterPlanBoard url={masterPlanUrl} night={night} />
-          </Suspense>
-        )}
-
-        {!masterPlanUrl && (<>
         {/* Township base — paved blocks */}
         <mesh position={[0, 0.02, baseCenterZ]}>
           <boxGeometry args={[132, 0.08, baseDepth]} />
@@ -1407,7 +1355,6 @@ export default function Property3DScene({
             </div>
           </Html>
         )}
-        </>)}
 
         {walk ? (
           <WalkControls onExit={onExitWalk} backZ={backZ} />

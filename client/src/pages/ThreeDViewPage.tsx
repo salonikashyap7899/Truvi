@@ -7,6 +7,7 @@ import {
   ArrowLeft, Box, Loader2, MapPin, Maximize2,
   Plane, Footprints, Orbit, RotateCw, Satellite, Moon, Sun, Gamepad2,
   X, Compass, Ruler, IndianRupee, CheckCircle2, XCircle, MessageCircle,
+  ZoomIn, ZoomOut, Scan, Map as MapIcon,
 } from "lucide-react";
 import type { Project } from "@/types";
 import type { PlotSelection, SceneUnit, ScenePreset } from "@/components/Property3DScene";
@@ -175,6 +176,9 @@ export default function ThreeDViewPage() {
             allowFullScreen
             referrerPolicy="no-referrer-when-downgrade"
           />
+        ) : project.masterPlanUrl ? (
+          // Exact official master plan — pixel-perfect, deep zoom + pan
+          <MasterPlanViewer url={project.masterPlanUrl} name={project.name} />
         ) : (
           <>
             <Suspense
@@ -196,7 +200,6 @@ export default function ThreeDViewPage() {
                 onExitWalk={() => setWalk(false)}
                 selectedUnitId={selected?.unit._id ?? null}
                 onSelectPlot={setSelected}
-                masterPlanUrl={project.masterPlanUrl}
               />
             </Suspense>
 
@@ -299,6 +302,212 @@ export default function ThreeDViewPage() {
         )}
       </div>
     </main>
+  );
+}
+
+/**
+ * Pixel-perfect interactive viewer for the official master-plan image:
+ * wheel / pinch zoom around the cursor, drag to pan, double-click to zoom,
+ * plus on-screen zoom controls. No 3D — the exact brochure map, sharp.
+ */
+function MasterPlanViewer({ url, name }: { url: string; name: string }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [img, setImg] = useState<{ w: number; h: number } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const view = useRef({ s: 0.2, tx: 0, ty: 0, min: 0.05 });
+  const [, force] = useState(0);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDist = useRef(0);
+
+  const rerender = () => force((n) => n + 1);
+
+  const fit = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el || !img) return;
+    const s = Math.min(el.clientWidth / img.w, el.clientHeight / img.h) * 0.97;
+    view.current = {
+      s,
+      tx: (el.clientWidth - img.w * s) / 2,
+      ty: (el.clientHeight - img.h * s) / 2,
+      min: s * 0.6,
+    };
+    rerender();
+  }, [img]);
+
+  useEffect(() => {
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [fit]);
+
+  const zoomAt = useCallback((cx: number, cy: number, factor: number) => {
+    const v = view.current;
+    const next = Math.min(Math.max(v.s * factor, v.min), v.min * 30);
+    const k = next / v.s;
+    v.tx = cx - (cx - v.tx) * k;
+    v.ty = cy - (cy - v.ty) * k;
+    v.s = next;
+    rerender();
+  }, []);
+
+  // Native wheel listener — React's onWheel is passive, so preventDefault
+  // (needed to stop page scroll) must be attached manually.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.18 : 1 / 1.18);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomAt]);
+
+  function onPointerDown(e: React.PointerEvent) {
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const prev = pointers.current.get(e.pointerId);
+    if (!prev) return;
+    const cur = { x: e.clientX, y: e.clientY };
+    pointers.current.set(e.pointerId, cur);
+
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist.current > 0) {
+        const el = wrapRef.current!;
+        const rect = el.getBoundingClientRect();
+        zoomAt((a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top, d / pinchDist.current);
+      }
+      pinchDist.current = d;
+    } else {
+      view.current.tx += cur.x - prev.x;
+      view.current.ty += cur.y - prev.y;
+      rerender();
+    }
+  }
+
+  function onPointerEnd(e: React.PointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchDist.current = 0;
+  }
+
+  const v = view.current;
+  const center = () => {
+    const el = wrapRef.current;
+    return el ? { x: el.clientWidth / 2, y: el.clientHeight / 2 } : { x: 0, y: 0 };
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className="absolute inset-0 overflow-hidden bg-[#0a0f18] select-none"
+      style={{ touchAction: "none", overscrollBehavior: "contain" }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onDoubleClick={(e) => {
+        const rect = wrapRef.current!.getBoundingClientRect();
+        zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1.9);
+      }}
+    >
+      {failed ? (
+        <CenterNote>
+          <p className="text-lg font-semibold">Master plan unavailable</p>
+          <p className="text-sm text-muted-foreground">The layout image could not be loaded. Please try again later.</p>
+        </CenterNote>
+      ) : (
+        <>
+          {!img && (
+            <CenterNote>
+              <Loader2 size={28} className="animate-spin text-sky-300" />
+              <p className="text-sm text-muted-foreground">Loading master plan…</p>
+            </CenterNote>
+          )}
+          <img
+            src={url}
+            alt={`Master plan of ${name}`}
+            draggable={false}
+            onLoad={(e) => {
+              const t = e.currentTarget;
+              setImg({ w: t.naturalWidth, h: t.naturalHeight });
+            }}
+            onError={() => setFailed(true)}
+            className="absolute left-0 top-0"
+            style={{
+              width: img ? img.w : undefined,
+              height: img ? img.h : undefined,
+              maxWidth: "none",
+              transform: `translate(${v.tx}px, ${v.ty}px) scale(${v.s})`,
+              transformOrigin: "0 0",
+              opacity: img ? 1 : 0,
+              willChange: "transform",
+            }}
+          />
+
+          {/* Info chip */}
+          <motion.div
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-none absolute left-4 top-4 rounded-[20px] p-px"
+            style={{ background: "linear-gradient(160deg, rgba(232,200,119,0.5), rgba(255,255,255,0.08) 70%)" }}
+          >
+            <div className="space-y-1.5 rounded-[19px] bg-black/70 px-4 py-3 text-xs backdrop-blur">
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#e8c877]">
+                <MapIcon size={11} /> Official master plan
+              </p>
+              <p className="max-w-[200px] text-[11px] leading-snug text-white/70">
+                Exact layout of <span className="text-white">{name}</span> — zoom in to read every plot number.
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Zoom controls */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute bottom-6 right-4 flex flex-col gap-1.5 rounded-full border border-white/15 bg-black/60 p-1.5 backdrop-blur"
+          >
+            <button
+              onClick={() => { const c = center(); zoomAt(c.x, c.y, 1.35); }}
+              className="grid size-10 place-items-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white"
+              aria-label="Zoom in"
+            >
+              <ZoomIn size={17} />
+            </button>
+            <button
+              onClick={() => { const c = center(); zoomAt(c.x, c.y, 1 / 1.35); }}
+              className="grid size-10 place-items-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white"
+              aria-label="Zoom out"
+            >
+              <ZoomOut size={17} />
+            </button>
+            <button
+              onClick={fit}
+              className="grid size-10 place-items-center rounded-full text-white/80 transition hover:bg-white/10 hover:text-white"
+              aria-label="Fit to screen"
+            >
+              <Scan size={17} />
+            </button>
+          </motion.div>
+
+          <p className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-4 py-1.5 text-[11px] text-white/60 backdrop-blur">
+            Scroll / pinch to zoom · Drag to pan · Double-tap to zoom in
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
