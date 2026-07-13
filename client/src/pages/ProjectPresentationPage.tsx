@@ -6,11 +6,34 @@ import {
   ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box, Eye,
   Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
+import { formatINR } from "@/lib/utils";
 import type { Project, ProjectAsset } from "@/types";
 
 const IMAGE_MIMES = /^image\//;
 const VIDEO_MIMES = /^video\//;
+
+interface PresentationUnit {
+  _id: string;
+  unitNumber: string;
+  type: string;
+  areaSqft: number;
+  price: number;
+  status: "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
+}
+interface UnitSummary {
+  total: number;
+  available: number;
+  byType: Record<string, number>;
+}
+
+const UNIT_STATUS_META: Record<PresentationUnit["status"], { label: string; cls: string }> = {
+  AVAILABLE: { label: "Available", cls: "bg-green-900/40 text-green-300 border-green-700/60" },
+  LOCKED: { label: "On hold", cls: "bg-amber-900/40 text-amber-300 border-amber-700/60" },
+  RESERVED: { label: "Reserved", cls: "bg-sky-900/40 text-sky-300 border-sky-700/60" },
+  SOLD: { label: "Sold", cls: "bg-white/10 text-muted-foreground border-white/15" },
+};
 
 function formatSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -130,6 +153,8 @@ export default function ProjectPresentationPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
+  const [units, setUnits] = useState<PresentationUnit[]>([]);
+  const [unitSummary, setUnitSummary] = useState<UnitSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<{ images: ProjectAsset[]; index: number } | null>(null);
 
@@ -139,6 +164,8 @@ export default function ProjectPresentationPage() {
       .then((res) => {
         setProject(res.data.project);
         setAssets(res.data.assets);
+        setUnits(res.data.units ?? []);
+        setUnitSummary(res.data.unitSummary ?? null);
       })
       .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load presentation"))
       .finally(() => setLoading(false));
@@ -297,6 +324,64 @@ export default function ProjectPresentationPage() {
         </section>
       )}
 
+      {/* Plots & availability */}
+      {units.length > 0 && (
+        <section className="mt-10">
+          <h2 className="flex items-center gap-2 text-lg font-medium">
+            <LayoutGrid size={17} className="text-[var(--trust)]" />
+            Plots & Availability <span className="text-xs text-muted-foreground">({units.length})</span>
+          </h2>
+
+          {unitSummary && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-foreground/90">
+                Total: <span className="font-semibold text-white">{unitSummary.total}</span>
+              </span>
+              <span className="rounded-full border border-green-700/60 bg-green-900/30 px-3 py-1 text-xs text-green-300">
+                Available: <span className="font-semibold">{unitSummary.available}</span>
+              </span>
+              {Object.entries(unitSummary.byType).map(([type, count]) => (
+                <span key={type} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-foreground/90">
+                  {type}: <span className="font-semibold text-white">{count}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10 glass">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-3 font-medium">Plot</th>
+                  <th className="px-4 py-3 font-medium">Type</th>
+                  <th className="px-4 py-3 font-medium">Area (sq.ft)</th>
+                  <th className="px-4 py-3 font-medium">Price</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {units.map((u) => {
+                  const meta = UNIT_STATUS_META[u.status];
+                  return (
+                    <tr key={u._id} className="border-b border-white/5 last:border-0">
+                      <td className="px-4 py-3 font-medium text-white">{u.unitNumber}</td>
+                      <td className="px-4 py-3 text-foreground/90">{u.type}</td>
+                      <td className="px-4 py-3 text-foreground/90">{u.areaSqft.toLocaleString("en-IN")}</td>
+                      <td className="px-4 py-3 text-foreground/90">{formatINR(u.price)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${meta.cls}`}>
+                          {meta.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {/* Asset sections */}
       {ASSET_SECTIONS.map((section) => {
         const items = bySection.get(section.key);
@@ -314,10 +399,10 @@ export default function ProjectPresentationPage() {
         );
       })}
 
-      {assets.length === 0 && (
+      {assets.length === 0 && units.length === 0 && (
         <div className="mt-10 rounded-2xl border border-white/10 glass p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            The developer hasn't published presentation materials for this project yet.
+            No presentation materials have been published for this project yet.
           </p>
         </div>
       )}

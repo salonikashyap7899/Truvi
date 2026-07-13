@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, ChevronDown, ChevronUp, ShieldCheck, Box } from "lucide-react";
+import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid } from "lucide-react";
 import type { Project } from "@/types";
 
 interface VerificationDetails {
@@ -28,6 +29,7 @@ const DEFAULT_VD: VerificationDetails = {
 };
 
 export default function AdminListingsPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -228,6 +230,16 @@ export default function AdminListingsPage() {
                     className={p.isVerified ? "border-green-700 text-green-400 hover:bg-green-900/20" : "bg-green-700 hover:bg-green-600 text-white"}
                   >
                     {p.isVerified ? "Remove Verified" : "Mark Verified ✓"}
+                  </Button>
+
+                  {/* Manage presentation content & plots */}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-violet-700 text-violet-300 hover:bg-violet-900/20"
+                    onClick={() => navigate(`/admin/listings/${p._id}`)}
+                  >
+                    <LayoutGrid size={13} className="mr-1" /> Content &amp; Plots
                   </Button>
 
                   {/* Verification details toggle */}
