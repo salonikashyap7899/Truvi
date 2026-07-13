@@ -196,6 +196,7 @@ export default function ThreeDViewPage() {
                 onExitWalk={() => setWalk(false)}
                 selectedUnitId={selected?.unit._id ?? null}
                 onSelectPlot={setSelected}
+                masterPlanUrl={project.masterPlanUrl}
               />
             </Suspense>
 
@@ -209,17 +210,25 @@ export default function ThreeDViewPage() {
             >
               <div className="space-y-2 rounded-[19px] bg-black/70 px-4 py-3 text-xs backdrop-blur">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#e8c877]">Master plan</p>
-                <p className="flex items-center gap-2 text-white/85">
-                  <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#3ed37e] to-[#1d9e55] shadow-[0_0_8px_rgba(62,211,126,0.5)]" />
-                  Available <span className="text-white/50">({availableCount})</span>
-                </p>
-                <p className="flex items-center gap-2 text-white/85">
-                  <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#ef6a5c] to-[#c23a33] shadow-[0_0_8px_rgba(239,106,92,0.4)]" />
-                  Booked <span className="text-white/50">({units.length - availableCount})</span>
-                </p>
-                <p className="max-w-[170px] text-[11px] leading-snug text-white/50">
-                  Tap a green plot to see details &amp; book
-                </p>
+                {project.masterPlanUrl ? (
+                  <p className="max-w-[190px] text-[11px] leading-snug text-white/70">
+                    Official layout of <span className="text-white">{project.name}</span>. Drag to rotate · scroll to zoom · right-drag to pan.
+                  </p>
+                ) : (
+                  <>
+                    <p className="flex items-center gap-2 text-white/85">
+                      <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#3ed37e] to-[#1d9e55] shadow-[0_0_8px_rgba(62,211,126,0.5)]" />
+                      Available <span className="text-white/50">({availableCount})</span>
+                    </p>
+                    <p className="flex items-center gap-2 text-white/85">
+                      <span className="inline-block size-3 rounded-[4px] bg-gradient-to-b from-[#ef6a5c] to-[#c23a33] shadow-[0_0_8px_rgba(239,106,92,0.4)]" />
+                      Booked <span className="text-white/50">({units.length - availableCount})</span>
+                    </p>
+                    <p className="max-w-[170px] text-[11px] leading-snug text-white/50">
+                      Tap a green plot to see details &amp; book
+                    </p>
+                  </>
+                )}
               </div>
             </motion.div>
 

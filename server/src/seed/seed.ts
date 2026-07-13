@@ -163,16 +163,24 @@ async function seed() {
   const projectRows = [];
   for (let i = 0; i < 4; i++) {
     const dev = approvedDevelopers[i % approvedDevelopers.length];
-    const cityInfo = pick(CITIES);
-    const location = pick(cityInfo.locations);
+    // The prime/featured project is the real Prime Estate, Kasmandi plotted
+    // township — it carries the actual master-plan image for the 3D board.
+    const isPrime = i === 0;
+    const cityInfo = isPrime ? { city: "Lucknow", locations: ["Kasmandi"] } : pick(CITIES);
+    const location = isPrime ? "Kasmandi" : pick(cityInfo.locations);
     const [project] = await db
       .insert(projects)
       .values({
         developerId: dev._id,
-        name: `${pick(["Emerald", "Sapphire", "Crest", "Meridian", "Solace"])} ${pick(["Heights", "Residency", "Enclave", "Towers"])}`,
-        description: "A thoughtfully designed residential development with modern amenities, verified RERA compliance, and flexible unit configurations.",
+        name: isPrime
+          ? "Prime Estate, Kasmandi"
+          : `${pick(["Emerald", "Sapphire", "Crest", "Meridian", "Solace"])} ${pick(["Heights", "Residency", "Enclave", "Towers"])}`,
+        description: isPrime
+          ? "A premium plotted township at Kasmandi, Lucknow — residential plots, premium villas, farmhouses, a central park with water bodies, clubhouse and sports facilities. Explore the full master plan in 3D."
+          : "A thoughtfully designed residential development with modern amenities, verified RERA compliance, and flexible unit configurations.",
         city: cityInfo.city,
         location,
+        masterPlanUrl: isPrime ? "/masterplans/prime-estate-kasmandi.jpg" : null,
         // Satellite embed of the real locality so "View in 3D" works out of
         // the box; admins replace this with a Matterport/Sketchfab link.
         threeDModelUrl: `https://maps.google.com/maps?q=${encodeURIComponent(`${location}, ${cityInfo.city}`)}&t=k&z=17&output=embed`,
