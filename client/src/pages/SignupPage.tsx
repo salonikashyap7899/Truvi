@@ -38,8 +38,8 @@ type Role = SignupForm["role"];
 
 const ROLE_OPTIONS: { id: Role; label: string; icon: React.ReactNode }[] = [
   { id: "BUYER", label: "Buyer", icon: <User size={16} /> },
-  { id: "CP", label: "Seller / CP", icon: <Handshake size={16} /> },
-  { id: "DEVELOPER", label: "Developer", icon: <Building2 size={16} /> },
+  { id: "CP", label: "Channel Partner", icon: <Handshake size={16} /> },
+  { id: "DEVELOPER", label: "Developer / Seller", icon: <Building2 size={16} /> },
 ];
 
 export default function SignupPage() {

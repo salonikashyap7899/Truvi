@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { AmbassadorOnboarding } from "@/components/AmbassadorOnboarding";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
-  FileUp, IndianRupee, ExternalLink, ClipboardCheck,
+  FileUp, IndianRupee, ExternalLink, ClipboardCheck, Camera, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AmbassadorTask } from "@/types";
@@ -214,6 +214,13 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
   const [uploading, setUploading] = useState(false);
   const [completing, setCompleting] = useState(false);
 
+  // Live camera capture (phone camera / webcam) for verification photos.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+
   // Track real connectivity changes as they happen.
   useEffect(() => {
     const update = () => setInternetOn(navigator.onLine);
@@ -276,20 +283,85 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
     }
   }
 
+  // Open the device camera (rear camera on phones, webcam on desktop).
+  async function openCamera() {
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera isn't supported on this device.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOn(true);
+      // Attach the stream once the <video> is in the DOM.
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      }, 0);
+    } catch (err: any) {
+      setCameraError(
+        err?.name === "NotAllowedError"
+          ? "Camera permission denied — allow camera access for this site."
+          : "Couldn't open the camera. Check your device camera and try again.",
+      );
+    }
+  }
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraOn(false);
+  }
+
+  // Grab the current video frame as a JPEG photo.
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `site-photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+        setPhotos((prev) => [...prev, file]);
+        toast.success("Photo captured");
+      },
+      "image/jpeg",
+      0.9,
+    );
+  }
+
+  // Stop the camera when the card unmounts so the light turns off.
+  useEffect(() => () => stopCamera(), []);
+
   async function uploadDocs() {
-    if (!files || files.length === 0) {
-      toast.error("Select at least one document");
+    const chosen = files ? Array.from(files) : [];
+    const all = [...photos, ...chosen];
+    if (all.length === 0) {
+      toast.error("Capture at least one photo");
       return;
     }
     setUploading(true);
     try {
       const form = new FormData();
-      Array.from(files).forEach((f) => form.append("documents", f));
+      all.forEach((f) => form.append("documents", f));
       await api.post(`/ambassador-tasks/${task._id}/documents`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success("Documents uploaded");
+      toast.success("Photos uploaded");
+      setPhotos([]);
       setFiles(null);
+      stopCamera();
       await onChanged();
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Upload failed");
@@ -385,24 +457,92 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
             </Button>
           </div>
 
-          {/* Step 4 — documents */}
+          {/* Step 4 — capture verification photos */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <p className="flex items-center gap-2 text-sm font-semibold text-white">
-              <FileUp size={16} /> Upload verification documents
+              <Camera size={16} /> Capture verification photos
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Site photos / proof (PDF or images, up to 10MB each).
+              Take live photos on site with your phone camera or webcam.
               {hasDocs && <span className="ml-1 text-emerald-300">{task.documents.length} uploaded.</span>}
             </p>
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.jpg,.jpeg,.png,.webp"
-              onChange={(e) => setFiles(e.target.files)}
-              className="mt-3 block w-full text-xs text-muted-foreground file:mr-3 file:rounded-full file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white"
-            />
-            <Button size="sm" variant="outline" className="mt-3" disabled={uploading || !files} onClick={uploadDocs}>
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : "Upload documents"}
+
+            {cameraOn ? (
+              <div className="mt-3 space-y-2">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-black">
+                  <video ref={videoRef} playsInline muted className="max-h-72 w-full object-contain" />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="primary" onClick={capturePhoto}>
+                    <Camera size={14} className="mr-1" /> Capture photo
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={stopCamera}>
+                    Close camera
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={openCamera}
+                  className="inline-flex items-center gap-2 rounded-full border border-sky-400/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-200 transition hover:bg-sky-500/20"
+                >
+                  <Camera size={12} /> Open camera
+                </button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 px-3 py-2 text-xs text-muted-foreground transition hover:bg-white/10">
+                  <FileUp size={12} /> Choose from device
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    capture="environment"
+                    onChange={(e) => setFiles(e.target.files)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+
+            {cameraError && <p className="mt-2 text-xs text-rose-300">{cameraError}</p>}
+
+            {(photos.length > 0 || (files && files.length > 0)) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {photos.map((p, i) => (
+                  <div key={i} className="relative">
+                    <img
+                      src={URL.createObjectURL(p)}
+                      alt=""
+                      className="h-16 w-16 rounded-lg border border-white/10 object-cover"
+                    />
+                    <button
+                      onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-rose-600 text-white"
+                      aria-label="Remove photo"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+                {files &&
+                  Array.from(files).map((f, i) => (
+                    <span
+                      key={`f${i}`}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-muted-foreground"
+                    >
+                      <FileUp size={11} /> {f.name}
+                    </span>
+                  ))}
+              </div>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3"
+              disabled={uploading || (photos.length === 0 && !files)}
+              onClick={uploadDocs}
+            >
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : "Upload photos"}
             </Button>
           </div>
 
