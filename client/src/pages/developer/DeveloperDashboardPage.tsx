@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import type { Project, Lead, Unit } from "@/types";
@@ -55,6 +56,7 @@ export default function DeveloperDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
+          <UserMenu />
           <Link to="/developer/projects/new">
             <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700">+ New Project</button>
           </Link>

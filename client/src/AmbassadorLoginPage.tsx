@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 
 export default function AmbassadorLoginPage() {
@@ -18,16 +19,7 @@ export default function AmbassadorLoginPage() {
     setError(null);
     try {
       const user = await login(email, password);
-      if (user.role === "ADMIN") {
-        if (user.email?.toLowerCase() === "founder@truvi.app") {
-          navigate("/founder/dashboard");
-        } else {
-          navigate("/admin/dashboard");
-        }
-      } else if (user.role === "DEVELOPER") navigate("/developer/dashboard");
-      else if (user.role === "AMBASSADOR") navigate("/ambassador/dashboard");
-      else if (user.role === "CP") navigate("/cp/dashboard");
-      else navigate("/buyer/dashboard");
+      navigate(dashboardPath(user));
     } catch (err: any) {
       // Unverified account: the server sent fresh OTPs — route to verification.
       const data = err?.response?.data;

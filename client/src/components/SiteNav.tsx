@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { dashboardPath, roleLabel } from "@/lib/rolePaths";
+import UserMenu from "@/components/UserMenu";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -92,6 +95,7 @@ function NavItem({
 export function SiteNav() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const { user, isAuthenticated, logout } = useAuth();
 
   // Close the mobile menu whenever the route changes
   useEffect(() => {
@@ -147,6 +151,9 @@ export function SiteNav() {
             <span className="hidden sm:inline">WhatsApp</span>
           </motion.a>
 
+          {/* Account: name + dashboard + logout when signed in; Sign in / Join otherwise */}
+          <UserMenu />
+
           {/* Mobile menu toggle */}
           <button
             onClick={() => setOpen((o) => !o)}
@@ -186,6 +193,37 @@ export function SiteNav() {
                   className="border-b border-white/5 px-5 py-3.5 text-sm uppercase tracking-[0.16em] text-foreground/85 transition hover:bg-white/5 hover:text-foreground"
                 />
               ))}
+              {/* Auth section (mobile) */}
+              {isAuthenticated && user ? (
+                <>
+                  <Link
+                    to={dashboardPath(user)}
+                    onClick={close}
+                    className="flex items-center gap-2 border-b border-white/5 px-5 py-3.5 text-sm font-semibold text-[var(--trust)]"
+                  >
+                    <LayoutDashboard size={15} />
+                    My {roleLabel(user.role)} Dashboard
+                  </Link>
+                  <button
+                    onClick={async () => {
+                      close();
+                      await logout();
+                    }}
+                    className="flex w-full items-center gap-2 border-b border-white/5 px-5 py-3.5 text-left text-sm font-semibold text-red-300"
+                  >
+                    <LogOut size={15} />
+                    Logout ({user.name})
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={close}
+                  className="border-b border-white/5 px-5 py-3.5 text-sm font-semibold text-[var(--trust)]"
+                >
+                  Sign in / Join
+                </Link>
+              )}
               <a
                 href={WA_URL}
                 target="_blank"

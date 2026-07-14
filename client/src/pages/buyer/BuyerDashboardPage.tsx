@@ -36,6 +36,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import UserMenu from "@/components/UserMenu";
 import type { Project, SiteVisit, SharedDocument, BuyerDocument } from "@/types";
 
 // ─── types & constants ────────────────────────────────────────────────────────
@@ -211,12 +212,15 @@ export default function BuyerDashboardPage() {
             {user?.name ? `Welcome back, ${user.name}` : "Your properties at a glance"}
           </p>
         </div>
-        <Link to="/inventory">
-          <Button size="sm">
-            <PlusCircle size={15} className="mr-1.5" />
-            Browse Inventory
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <UserMenu />
+          <Link to="/inventory">
+            <Button size="sm">
+              <PlusCircle size={15} className="mr-1.5" />
+              Browse Inventory
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}

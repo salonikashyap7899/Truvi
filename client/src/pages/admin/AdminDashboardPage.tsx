@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import { formatINR, nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Project } from "@/types";
@@ -49,7 +50,10 @@ export default function AdminDashboardPage() {
           <h1 className="text-2xl font-semibold">Admin Command Center</h1>
           <p className="mt-1 text-sm text-muted-foreground">Platform-wide oversight: listings, verification, revenue.</p>
         </div>
-        <NotificationBell />
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <UserMenu />
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

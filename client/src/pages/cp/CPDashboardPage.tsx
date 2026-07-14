@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import { formatINR, nameOf } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
@@ -121,6 +122,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
+          <UserMenu />
           <Link to="/cp/marketplace" className="text-sm text-blue-400 hover:underline">Lead marketplace →</Link>
         </div>
       </div>
