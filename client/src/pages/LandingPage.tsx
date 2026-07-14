@@ -973,8 +973,14 @@ export default function LandingPage() {
           ))}
         </div>
         <Reveal delay={0.4}>
-          <div className="mt-10">
-            <GlowButton to="/join">List Your Project on Truvi</GlowButton>
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <GlowButton to="/signup?role=DEVELOPER">List Your Project on Truvi</GlowButton>
+            <Link
+              to="/login"
+              className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground/90 transition hover:bg-white/5"
+            >
+              Sign in as Developer
+            </Link>
           </div>
         </Reveal>
       </Section>

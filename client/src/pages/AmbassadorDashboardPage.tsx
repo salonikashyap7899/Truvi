@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AmbassadorTask } from "@/types";
+import UserMenu from "@/components/UserMenu";
 
 function statusBadge(status: AmbassadorTask["status"]) {
   // SOP colour logic: GREEN = Available, YELLOW = Locked (in-progress), RED = Completed
@@ -87,8 +88,7 @@ export default function AmbassadorDashboardPage() {
           </p>
         </div>
         <div className="space-y-1 text-right">
-          <p className="text-sm text-muted-foreground">Logged in as</p>
-          <p className="text-base font-medium">{user.name}</p>
+          <div className="flex justify-end"><UserMenu /></div>
           <button
             onClick={() => setShowQRCode(true)}
             className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-white/10 transition"

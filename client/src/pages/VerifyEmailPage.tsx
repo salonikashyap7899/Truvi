@@ -3,19 +3,9 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { Loader2, ShieldCheck } from "lucide-react";
-import type { User } from "@/types";
-
-function dashboardPath(user: User): string {
-  if (user.role === "ADMIN") {
-    return user.email?.toLowerCase() === "founder@truvi.app" ? "/founder/dashboard" : "/admin/dashboard";
-  }
-  if (user.role === "DEVELOPER") return "/developer/dashboard";
-  if (user.role === "AMBASSADOR") return "/ambassador/dashboard";
-  if (user.role === "CP") return "/cp/dashboard";
-  return "/buyer/dashboard";
-}
 
 export default function VerifyEmailPage() {
   const navigate = useNavigate();

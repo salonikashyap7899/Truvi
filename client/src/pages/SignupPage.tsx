@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
+import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { User, Handshake, Building2, Loader2 } from "lucide-react";
 
@@ -44,8 +45,14 @@ const ROLE_OPTIONS: { id: Role; label: string; icon: React.ReactNode }[] = [
 export default function SignupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { signup } = useAuth();
+  const { signup, user, isAuthenticated } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Already signed in? Straight to this role's own workspace.
+  useEffect(() => {
+    if (isAuthenticated && user) navigate(dashboardPath(user), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Role pre-selected by the welcome gate (?role=BUYER|CP|DEVELOPER)
   const paramRole = searchParams.get("role");

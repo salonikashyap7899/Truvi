@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import UserMenu from "@/components/UserMenu";
 
 export default function HomePage() {
   return (
@@ -7,8 +8,8 @@ export default function HomePage() {
         <span className="font-display text-xl font-semibold">Truvi</span>
         <div className="flex flex-wrap items-center gap-3 text-sm sm:gap-4">
           <Link to="/about" className="hover:underline">About</Link>
-          <Link to="/login" className="hover:underline">Log in</Link>
-          <Link to="/join" className="rounded-full bg-[var(--trust)] px-4 py-2 text-white hover:bg-[var(--trust)]/85">Join Truvi</Link>
+          {/* Signed-in users see their name + dashboard + logout; visitors see Sign in / Join */}
+          <UserMenu />
         </div>
       </nav>
 
@@ -21,8 +22,8 @@ export default function HomePage() {
           real-time updates, transparent commissions, and verified partners, all in one place.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
-          <Link to="/join" className="rounded-full bg-[var(--trust)] px-6 py-3 text-white hover:bg-[var(--trust)]/85">Join as Developer</Link>
-          <Link to="/join" className="rounded-full border border-white/20 px-6 py-3 hover:bg-white/5">Join as Channel Partner</Link>
+          <Link to="/signup?role=DEVELOPER" className="rounded-full bg-[var(--trust)] px-6 py-3 text-white hover:bg-[var(--trust)]/85">Join as Developer</Link>
+          <Link to="/signup?role=CP" className="rounded-full border border-white/20 px-6 py-3 hover:bg-white/5">Join as Channel Partner</Link>
         </div>
       </section>
 

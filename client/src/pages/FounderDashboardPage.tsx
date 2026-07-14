@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import { formatINR } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -57,7 +58,10 @@ export default function FounderDashboardPage() {
             Welcome back to Truvi&apos;s founder command center.
           </p>
         </div>
-        <NotificationBell />
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <UserMenu />
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

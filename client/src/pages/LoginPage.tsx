@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
+import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { Loader2 } from "lucide-react";
 
@@ -10,7 +11,13 @@ export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const roleParam = searchParams.get("role");
   const isAmbassador = roleParam === "AMBASSADOR";
-  const { login } = useAuth();
+  const { login, user, isAuthenticated } = useAuth();
+
+  // Already signed in? Straight to this role's own workspace.
+  useEffect(() => {
+    if (isAuthenticated && user) navigate(dashboardPath(user), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,19 +28,10 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const user = await login(email, password);
+      const loggedIn = await login(email, password);
       // Every role lands in its own workspace — buyers see buyer things,
       // sellers see seller things, developers see developer things.
-      if (user.role === "ADMIN") {
-        if (user.email?.toLowerCase() === "founder@truvi.app") {
-          navigate("/founder/dashboard");
-        } else {
-          navigate("/admin/dashboard");
-        }
-      } else if (user.role === "DEVELOPER") navigate("/developer/dashboard");
-      else if (user.role === "AMBASSADOR") navigate("/ambassador/dashboard");
-      else if (user.role === "CP") navigate("/cp/dashboard");
-      else navigate("/buyer/dashboard");
+      navigate(dashboardPath(loggedIn));
     } catch (err: any) {
       // Unverified account: the server sent fresh OTPs — route to verification.
       const data = err?.response?.data;
