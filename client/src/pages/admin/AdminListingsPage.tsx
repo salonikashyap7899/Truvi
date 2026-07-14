@@ -5,7 +5,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid } from "lucide-react";
+import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle } from "lucide-react";
 import AdminLegalReview from "@/components/AdminLegalReview";
 import type { Project } from "@/types";
 
@@ -32,6 +32,7 @@ const DEFAULT_VD: VerificationDetails = {
 export default function AdminListingsPage() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [pending, setPending] = useState<Project[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [vdDraft, setVdDraft] = useState<Record<string, VerificationDetails>>({});
@@ -39,11 +40,41 @@ export default function AdminListingsPage() {
   const [planDraft, setPlanDraft] = useState<Record<string, string>>({});
 
   async function load() {
-    const res = await api.get("/admin/projects", { params: { approvalStatus: "APPROVED" } });
-    setProjects(res.data.projects);
+    const [approved, pend] = await Promise.all([
+      api.get("/admin/projects", { params: { approvalStatus: "APPROVED" } }),
+      api.get("/admin/projects", { params: { approvalStatus: "PENDING" } }),
+    ]);
+    setProjects(approved.data.projects);
+    setPending(pend.data.projects);
   }
 
   useEffect(() => { load(); }, []);
+
+  async function approveProject(project: Project) {
+    setLoading(project._id + "-approve");
+    try {
+      await api.patch("/admin/projects", { projectId: project._id, approvalStatus: "APPROVED" });
+      toast.success(`"${project.name}" approved — now live in inventory`);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not approve project");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function rejectProject(project: Project) {
+    setLoading(project._id + "-reject");
+    try {
+      await api.patch("/admin/projects", { projectId: project._id, approvalStatus: "REJECTED" });
+      toast.success(`"${project.name}" rejected — hidden from inventory`);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not reject project");
+    } finally {
+      setLoading(null);
+    }
+  }
 
   async function toggleFeatured(project: Project) {
     setLoading(project._id + "-featured");
@@ -163,10 +194,79 @@ export default function AdminListingsPage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">Listings Management</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Manage Featured, Verified, Prime Listing status and verification details for approved projects.
+        Approve new developer submissions, then manage Featured, Verified, Prime Listing status and verification details.
       </p>
 
-      <div className="mt-6 space-y-3">
+      {/* Pending developer submissions — approve to publish into public inventory */}
+      {pending.length > 0 && (
+        <section className="mt-6">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-amber-300">
+            <Clock size={18} /> Pending approval
+            <span className="rounded-full bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-300 border border-amber-700">
+              {pending.length}
+            </span>
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            New projects submitted by developers. They stay hidden from buyers and sellers until you approve them.
+          </p>
+          <div className="mt-4 space-y-3">
+            {pending.map((p) => (
+              <Card key={p._id} className="flex flex-col gap-3 border-amber-500/20 bg-amber-950/10 text-white">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 font-medium">
+                      {p.name}
+                      <Badge variant="warning">Pending</Badge>
+                      {p.reraNumber && (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-muted-foreground">
+                          RERA {p.reraNumber}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <MapPin size={13} /> {[p.location, p.city].filter(Boolean).join(", ")} · {nameOf(p.developerId)}
+                    </p>
+                    {p.description && (
+                      <p className="mt-1 line-clamp-2 max-w-2xl text-xs text-muted-foreground/80">{p.description}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="border-violet-700 text-violet-300 hover:bg-violet-900/20"
+                      onClick={() => navigate(`/admin/listings/${p._id}`)}
+                    >
+                      <LayoutGrid size={13} className="mr-1" /> Review details
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={loading === p._id + "-approve"}
+                      onClick={() => approveProject(p)}
+                      className="bg-green-700 text-white hover:bg-green-600"
+                    >
+                      <CheckCircle2 size={13} className="mr-1" />
+                      {loading === p._id + "-approve" ? "Approving…" : "Approve & publish"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={loading === p._id + "-reject"}
+                      onClick={() => rejectProject(p)}
+                      className="border-rose-700 text-rose-300 hover:bg-rose-900/20"
+                    >
+                      <XCircle size={13} className="mr-1" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="mt-8 text-lg font-semibold">Approved listings</h2>
+      <div className="mt-3 space-y-3">
         {projects.map((p) => {
           const isPrime = !!p.isPrimeListing;
           const isExpanded = expandedId === p._id;

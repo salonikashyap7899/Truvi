@@ -160,9 +160,9 @@ async function seed() {
     cps.push(user);
   }
 
-  // --- Projects: 4, with 15-30 units each ---
+  // --- Projects: only the real Prime Estate showcase (no dummy listings) ---
   const projectRows = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 1; i++) {
     const dev = approvedDevelopers[i % approvedDevelopers.length];
     // The prime/featured project is the real Prime Estate, Kasmandi plotted
     // township — it carries the actual master-plan image for the 3D board.

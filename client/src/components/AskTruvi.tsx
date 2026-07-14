@@ -269,6 +269,7 @@ interface AskTruviProps {
 
 export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -361,6 +362,9 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
   };
 
   const fresh = messages.length === 1;
+
+  // Ambassadors get a focused field-agent workspace — no Ask Truvi assistant.
+  if (role === "AMBASSADOR") return null;
 
   return (
     <>
