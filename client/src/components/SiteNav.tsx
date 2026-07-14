@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleLabel } from "@/lib/rolePaths";
+import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
@@ -63,24 +64,54 @@ const NAV_LINKS: NavLink[] = [
 ];
 
 /**
- * Role-scoped navigation (per the Truvi role-flow):
- *  - Buyer  → AI (Ask Truvi) + Inventory
- *  - CP / Developer → Inventory + For Developers + AI
- *  - Ambassador → only their own workspace (field agents aren't shown the
- *    marketing/inventory nav) — resolves "ambassador can see every page"
- *  - Admin / Verifier / signed-out visitors → full marketing nav
+ * Role-scoped navigation (per the Truvi role-flow). Every signed-in role gets
+ * a "Dashboard" entry first so the navbar never looks empty, followed by the
+ * pages that role is actually allowed to use:
+ *  - Buyer      → Dashboard + Inventory + Intelligence + Ask Truvi
+ *  - CP         → Dashboard + Inventory + For Developers + Ask Truvi
+ *  - Developer  → Dashboard + Inventory + For Developers
+ *  - Ambassador → Dashboard (My Tasks) only — field agents aren't shown the
+ *    marketing/inventory nav — resolves "ambassador can see every page"
+ *  - Admin / Verifier → Dashboard + Inventory + Intelligence
+ *  - Signed-out visitors → full marketing nav
  */
-function navLinksForRole(role?: string): NavLink[] {
-  switch (role) {
+function navLinksForRole(user?: Pick<User, "role" | "email"> | null): NavLink[] {
+  if (!user) return NAV_LINKS; // guests get the marketing nav
+
+  const dash = (label: string): NavLink => ({ label, to: dashboardPath(user) });
+
+  switch (user.role) {
     case "AMBASSADOR":
-      return [];
+      return [dash("My Tasks")];
     case "BUYER":
-      return NAV_LINKS.filter((l) => l.label !== "For Developers");
+      return [
+        dash("Dashboard"),
+        { label: "Inventory", to: "/inventory" },
+        { label: "Intelligence", to: "/intelligence" },
+        { label: "Ask Truvi", hash: "#ask-truvi" },
+      ];
     case "CP":
+      return [
+        dash("Dashboard"),
+        { label: "Inventory", to: "/inventory" },
+        { label: "For Developers", hash: "#developer-intelligence" },
+        { label: "Ask Truvi", hash: "#ask-truvi" },
+      ];
     case "DEVELOPER":
-      return NAV_LINKS.filter((l) => l.label !== "Intelligence");
+      return [
+        dash("Dashboard"),
+        { label: "Inventory", to: "/inventory" },
+        { label: "For Developers", hash: "#developer-intelligence" },
+      ];
+    case "ADMIN":
+    case "VERIFIER":
+      return [
+        dash("Dashboard"),
+        { label: "Inventory", to: "/inventory" },
+        { label: "Intelligence", to: "/intelligence" },
+      ];
     default:
-      return NAV_LINKS; // guests, admin, verifier
+      return NAV_LINKS;
   }
 }
 
@@ -138,7 +169,7 @@ export function SiteNav() {
 
   const close = () => setOpen(false);
 
-  const visibleLinks = navLinksForRole(user?.role);
+  const visibleLinks = navLinksForRole(user);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4 sm:px-6 md:px-12 md:py-5">
@@ -151,10 +182,10 @@ export function SiteNav() {
           <BrandLogo />
         </Link>
 
-        {/* Desktop links */}
-        <nav className="hidden gap-5 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex xl:gap-6">
+        {/* Desktop links — centered so the bar stays balanced whatever the count */}
+        <nav className="hidden flex-1 items-center justify-center gap-5 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex xl:gap-6">
           {visibleLinks.map((link) => (
-            <NavItem key={link.label} link={link} onNavigate={close} className="hover:text-foreground" />
+            <NavItem key={link.label} link={link} onNavigate={close} className="whitespace-nowrap transition-colors hover:text-foreground" />
           ))}
         </nav>
 
@@ -211,14 +242,18 @@ export function SiteNav() {
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               className="mx-auto mt-2 flex max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
             >
-              {visibleLinks.map((link) => (
-                <NavItem
-                  key={link.label}
-                  link={link}
-                  onNavigate={close}
-                  className="border-b border-white/5 px-5 py-3.5 text-sm uppercase tracking-[0.16em] text-foreground/85 transition hover:bg-white/5 hover:text-foreground"
-                />
-              ))}
+              {/* Drop the dashboard entry here — the auth section below renders
+                  a richer "My {role} Dashboard" link, so we avoid duplicating it. */}
+              {visibleLinks
+                .filter((link) => !(user && link.to === dashboardPath(user)))
+                .map((link) => (
+                  <NavItem
+                    key={link.label}
+                    link={link}
+                    onNavigate={close}
+                    className="border-b border-white/5 px-5 py-3.5 text-sm uppercase tracking-[0.16em] text-foreground/85 transition hover:bg-white/5 hover:text-foreground"
+                  />
+                ))}
               {/* Auth section (mobile) */}
               {isAuthenticated && user ? (
                 <>
