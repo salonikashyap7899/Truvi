@@ -6,6 +6,14 @@ export const createProjectSchema = z.object({
   city: z.string().min(2),
   location: z.string().min(2),
   reraNumber: z.string().optional(),
+  possessionDate: z.string().optional(),
+  salesContact: z
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+    })
+    .optional(),
   commissionPercent: z.number().min(0).max(20).default(3),
   brochureUrl: z.string().url().optional().or(z.literal("")),
   priceListUrl: z.string().url().optional().or(z.literal("")),
