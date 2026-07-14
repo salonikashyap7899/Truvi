@@ -52,13 +52,37 @@ function WhatsAppNavIcon() {
 
 /** Nav links. Hash links live on the landing page — from other routes they
  *  navigate back to "/" with the hash (the landing page scrolls to it). */
-const NAV_LINKS: { label: string; to?: string; hash?: string }[] = [
+type NavLink = { label: string; to?: string; hash?: string };
+
+const NAV_LINKS: NavLink[] = [
   { label: "Intelligence", to: "/intelligence" },
   { label: "Ask Truvi", hash: "#ask-truvi" },
   { label: "Inventory", to: "/inventory" },
   { label: "For Developers", hash: "#developer-intelligence" },
   { label: "About", to: "/about" },
 ];
+
+/**
+ * Role-scoped navigation (per the Truvi role-flow):
+ *  - Buyer  → AI (Ask Truvi) + Inventory
+ *  - CP / Developer → Inventory + For Developers + AI
+ *  - Ambassador → only their own workspace (field agents aren't shown the
+ *    marketing/inventory nav) — resolves "ambassador can see every page"
+ *  - Admin / Verifier / signed-out visitors → full marketing nav
+ */
+function navLinksForRole(role?: string): NavLink[] {
+  switch (role) {
+    case "AMBASSADOR":
+      return [];
+    case "BUYER":
+      return NAV_LINKS.filter((l) => l.label !== "For Developers");
+    case "CP":
+    case "DEVELOPER":
+      return NAV_LINKS.filter((l) => l.label !== "Intelligence");
+    default:
+      return NAV_LINKS; // guests, admin, verifier
+  }
+}
 
 function NavItem({
   link,
@@ -114,6 +138,8 @@ export function SiteNav() {
 
   const close = () => setOpen(false);
 
+  const visibleLinks = navLinksForRole(user?.role);
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-4 py-4 sm:px-6 md:px-12 md:py-5">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5">
@@ -127,7 +153,7 @@ export function SiteNav() {
 
         {/* Desktop links */}
         <nav className="hidden gap-5 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex xl:gap-6">
-          {NAV_LINKS.map((link) => (
+          {visibleLinks.map((link) => (
             <NavItem key={link.label} link={link} onNavigate={close} className="hover:text-foreground" />
           ))}
         </nav>
@@ -185,7 +211,7 @@ export function SiteNav() {
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               className="mx-auto mt-2 flex max-w-7xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
             >
-              {NAV_LINKS.map((link) => (
+              {visibleLinks.map((link) => (
                 <NavItem
                   key={link.label}
                   link={link}
