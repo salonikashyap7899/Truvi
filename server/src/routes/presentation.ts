@@ -233,6 +233,8 @@ const infoSchema = z.object({
   greenBuildingFeatures: z.array(z.string()).optional(),
   connectivityNotes: z.string().optional(),
   constructionProgressNote: z.string().optional(),
+  paymentPlans: z.array(z.string()).optional(),
+  offers: z.string().optional(),
 });
 
 router.put(

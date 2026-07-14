@@ -196,10 +196,16 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.json({ unit: updated });
   }
 
-  if (req.body?.status === "SOLD") {
+  // Availability set by the developer/admin: Available, Sold, or Blocked
+  // (Blocked maps to RESERVED). LOCKED is CP-driven and not set here.
+  if (req.body?.status !== undefined) {
+    const status = req.body.status as UnitStatus;
+    if (!["AVAILABLE", "SOLD", "RESERVED"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
     const [updated] = await db
       .update(units)
-      .set({ status: "SOLD" })
+      .set({ status, lockedByCPId: null, lockExpiresAt: null })
       .where(eq(units._id, unit._id))
       .returning();
     emitUnitUpdate(String(updated.projectId), updated);

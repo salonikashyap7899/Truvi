@@ -30,6 +30,7 @@ import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
+import legalRoutes from "./routes/legal";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -80,6 +81,7 @@ export function createApp() {
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/presentation", presentationRoutes);
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
+  app.use("/api/legal", legalRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));
