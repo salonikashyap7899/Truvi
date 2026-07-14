@@ -77,6 +77,16 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function setUnitStatus(unitId: string, status: string) {
+    try {
+      const { data } = await api.patch(`/units/${unitId}`, { status });
+      setUnits((prev) => prev.map((u) => (u._id === unitId ? data.unit : u)));
+      toast.success(`Unit marked ${status === "RESERVED" ? "BLOCKED" : status}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update unit");
+    }
+  }
+
   async function uploadBrochure(file: File) {
     setUploading(true);
     try {
@@ -201,6 +211,7 @@ export default function ProjectDetailPage() {
                 <th className="p-3 text-left">Area (sqft)</th>
                 <th className="p-3 text-left">Price</th>
                 <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Availability</th>
               </tr>
             </thead>
             <tbody>
@@ -210,10 +221,25 @@ export default function ProjectDetailPage() {
                   <td className="p-3">{u.type}</td>
                   <td className="p-3">{u.areaSqft}</td>
                   <td className="p-3">{formatINR(u.price)}</td>
-                  <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status}</Badge></td>
+                  <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
+                  <td className="p-3">
+                    {u.status === "LOCKED" ? (
+                      <span className="text-xs text-muted-foreground">CP locked</span>
+                    ) : (
+                      <select
+                        value={u.status}
+                        onChange={(e) => setUnitStatus(u._id, e.target.value)}
+                        className="rounded-lg border border-white/15 bg-card px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
+                      >
+                        <option value="AVAILABLE">Available</option>
+                        <option value="RESERVED">Blocked</option>
+                        <option value="SOLD">Sold</option>
+                      </select>
+                    )}
+                  </td>
                 </tr>
               ))}
-              {units.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
+              {units.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
             </tbody>
           </table>
         </div>

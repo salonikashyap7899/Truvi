@@ -124,6 +124,8 @@ export interface PresentationInfo {
   greenBuildingFeatures?: string[];
   connectivityNotes?: string;
   constructionProgressNote?: string;
+  paymentPlans?: string[];
+  offers?: string;
 }
 
 export interface SalesContact {
