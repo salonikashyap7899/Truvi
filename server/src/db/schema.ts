@@ -126,6 +126,12 @@ export interface PresentationInfo {
   constructionProgressNote?: string;
 }
 
+export interface SalesContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface PriceHistoryEntry {
   price: number;
   changedAt: string; // ISO date string
@@ -239,6 +245,10 @@ export const projects = pgTable(
     crimeIndexLevel: text("crime_index_level").$type<RiskLevel>(),
     reraStatus: text("rera_status").$type<ReraStatus>(),
     reraValidityDate: timestamp("rera_validity_date", { withTimezone: true, mode: "date" }),
+    // Expected possession/handover date, set by the developer.
+    possessionDate: timestamp("possession_date", { withTimezone: true, mode: "date" }),
+    // Sales enquiry contact shown on the listing.
+    salesContact: jsonb("sales_contact").$type<SalesContact>(),
     isVerified: boolean("is_verified").notNull().default(false),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
     verificationDetails: jsonb("verification_details").$type<VerificationDetails>().default(DEFAULT_VERIFICATION_DETAILS),

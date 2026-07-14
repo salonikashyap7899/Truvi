@@ -130,6 +130,21 @@ const updateProjectSchema = z.object({
   priceListUrl: z.string().url().optional(),
   description: z.string().min(10).optional(),
   commissionPercent: z.number().min(0).max(20).optional(),
+  // Developer-editable project details.
+  name: z.string().min(2).optional(),
+  city: z.string().min(2).optional(),
+  location: z.string().min(2).optional(),
+  reraNumber: z.string().max(60).or(z.literal("")).optional(),
+  reraStatus: z.enum(["REGISTERED", "PENDING", "NOT_REGISTERED"]).optional(),
+  reraValidityDate: z.string().datetime().or(z.literal("")).nullable().optional(),
+  possessionDate: z.string().datetime().or(z.literal("")).nullable().optional(),
+  salesContact: z
+    .object({
+      name: z.string().max(80).optional(),
+      phone: z.string().max(20).optional(),
+      email: z.string().email().or(z.literal("")).optional(),
+    })
+    .optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -145,9 +160,18 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.status(403).json({ error: "Not your project" });
   }
 
+  const d = parsed.data;
+  const update: Record<string, unknown> = {};
+  for (const k of ["brochureUrl", "priceListUrl", "description", "commissionPercent", "name", "city", "location", "reraStatus", "salesContact"] as const) {
+    if (d[k] !== undefined) update[k] = d[k];
+  }
+  if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;
+  if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
+  if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
+
   const [updated] = await db
     .update(projects)
-    .set(parsed.data)
+    .set(update)
     .where(eq(projects._id, project._id))
     .returning();
   res.json({ project: updated });
