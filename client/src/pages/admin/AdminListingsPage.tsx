@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid } from "lucide-react";
+import AdminLegalReview from "@/components/AdminLegalReview";
 import type { Project } from "@/types";
 
 interface VerificationDetails {
@@ -257,6 +258,14 @@ export default function AdminListingsPage() {
               {/* Expandable verification details panel */}
               {isExpanded && (
                 <div className="border-t border-white/10 pt-4 space-y-4">
+                  {/* Legal document verification — controls public visibility */}
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wide">Legal documents — verify to make public</p>
+                    <div className="mt-2">
+                      <AdminLegalReview projectId={p._id} />
+                    </div>
+                  </div>
+
                   {/* 3D model embed link */}
                   <div>
                     <p className="text-xs font-semibold text-violet-300 uppercase tracking-wide">3D Property View</p>

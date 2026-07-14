@@ -16,6 +16,7 @@ import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
+import LegalDocsManager from "@/components/LegalDocsManager";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -169,6 +170,8 @@ export default function ProjectDetailPage() {
       </section>
 
       <PresentationManager project={project} onProjectUpdated={setProject} />
+
+      <LegalDocsManager projectId={project._id} />
 
       <section className="mt-8">
         <h2 className="text-lg font-medium">Add a unit</h2>
