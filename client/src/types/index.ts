@@ -62,7 +62,19 @@ export interface ProjectAsset {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
+  verified?: boolean;
   createdAt: string;
+}
+
+export interface SalesContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface PaymentPlan {
+  name: string;
+  description?: string;
 }
 
 export interface VerificationDetails {
@@ -137,6 +149,10 @@ export interface Project {
   verificationDetails?: VerificationDetails;
   projectType?: ProjectType;
   presentationInfo?: PresentationInfo;
+  // Developer-managed commercial details
+  possessionDate?: string | null;
+  salesContact?: SalesContact | null;
+  paymentPlans?: PaymentPlan[] | null;
   // Live unit aggregates attached by GET /api/inventory
   minPrice?: number | null;
   maxPrice?: number | null;

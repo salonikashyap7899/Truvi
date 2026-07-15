@@ -17,6 +17,27 @@ async function ensureSchema(db: Db): Promise<void> {
   const statements = [
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_verified" boolean NOT NULL DEFAULT true`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_verified" boolean NOT NULL DEFAULT true`,
+    // Developer-managed project details + legal-doc verification gate.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
+    `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
+    // Config tables ensureVerificationDefaults depends on — created here too so
+    // a deploy without `drizzle-kit push` never spams boot warnings.
+    `CREATE TABLE IF NOT EXISTS "score_thresholds" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "verified_min" integer NOT NULL DEFAULT 85,
+       "pending_min" integer NOT NULL DEFAULT 50,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "ai_prompts" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "system_prompt" text NOT NULL,
+       "active" boolean NOT NULL DEFAULT false,
+       "version" integer NOT NULL DEFAULT 1,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

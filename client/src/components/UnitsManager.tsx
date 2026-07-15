@@ -79,12 +79,12 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
     }
   }
 
-  async function markSold(unit: ManagedUnit) {
+  async function setStatus(unit: ManagedUnit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
     setBusyId(unit._id);
     try {
-      const res = await api.patch(`/units/${unit._id}`, { status: "SOLD" });
+      const res = await api.patch(`/units/${unit._id}`, { status });
       setUnits((prev) => prev.map((u) => (u._id === unit._id ? res.data.unit : u)));
-      toast.success(`${unit.unitNumber} marked sold`);
+      toast.success(`${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status.toLowerCase()}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Update failed");
     } finally {
@@ -172,14 +172,19 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                   <td className={`px-4 py-3 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      {u.status !== "AVAILABLE" && (
+                        <Button size="sm" variant="secondary" disabled={busyId === u._id} onClick={() => setStatus(u, "AVAILABLE")}>
+                          Available
+                        </Button>
+                      )}
+                      {u.status !== "RESERVED" && u.status !== "SOLD" && (
+                        <Button size="sm" variant="secondary" disabled={busyId === u._id} onClick={() => setStatus(u, "RESERVED")}>
+                          Block
+                        </Button>
+                      )}
                       {u.status !== "SOLD" && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busyId === u._id}
-                          onClick={() => markSold(u)}
-                        >
-                          Mark sold
+                        <Button size="sm" variant="secondary" disabled={busyId === u._id} onClick={() => setStatus(u, "SOLD")}>
+                          Sold
                         </Button>
                       )}
                       <button

@@ -126,10 +126,29 @@ router.get("/:id", async (req: AuthedRequest, res) => {
 });
 
 const updateProjectSchema = z.object({
+  name: z.string().min(2).optional(),
+  city: z.string().min(2).optional(),
+  location: z.string().min(2).optional(),
+  reraNumber: z.string().max(60).optional().or(z.literal("")),
   brochureUrl: z.string().url().optional(),
   priceListUrl: z.string().url().optional(),
   description: z.string().min(10).optional(),
   commissionPercent: z.number().min(0).max(20).optional(),
+  // ISO datetime or null to clear
+  possessionDate: z.string().datetime().nullable().optional(),
+  salesContact: z
+    .object({
+      name: z.string().max(120).optional(),
+      phone: z.string().max(20).optional(),
+      email: z.string().email().optional().or(z.literal("")),
+    })
+    .nullable()
+    .optional(),
+  paymentPlans: z
+    .array(z.object({ name: z.string().min(1).max(120), description: z.string().max(500).optional() }))
+    .max(20)
+    .nullable()
+    .optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -145,9 +164,14 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.status(403).json({ error: "Not your project" });
   }
 
+  const { possessionDate, reraNumber, ...rest } = parsed.data;
+  const update: Record<string, unknown> = { ...rest };
+  if (possessionDate !== undefined) update.possessionDate = possessionDate ? new Date(possessionDate) : null;
+  if (reraNumber !== undefined) update.reraNumber = reraNumber || null;
+
   const [updated] = await db
     .update(projects)
-    .set(parsed.data)
+    .set(update)
     .where(eq(projects._id, project._id))
     .returning();
   res.json({ project: updated });

@@ -196,10 +196,16 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.json({ unit: updated });
   }
 
-  if (req.body?.status === "SOLD") {
+  // Availability control for the owner/admin: AVAILABLE (re-list), RESERVED
+  // ("blocked" — held off-market), or SOLD. Setting AVAILABLE clears any CP lock.
+  const status = req.body?.status as UnitStatus | undefined;
+  if (status && ["AVAILABLE", "RESERVED", "SOLD"].includes(status)) {
     const [updated] = await db
       .update(units)
-      .set({ status: "SOLD" })
+      .set({
+        status,
+        ...(status === "AVAILABLE" ? { lockedByCPId: null, lockExpiresAt: null } : {}),
+      })
       .where(eq(units._id, unit._id))
       .returning();
     emitUnitUpdate(String(updated.projectId), updated);
