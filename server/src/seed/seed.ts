@@ -160,9 +160,9 @@ async function seed() {
     cps.push(user);
   }
 
-  // --- Projects: 4, with 15-30 units each ---
+  // --- Projects: only the real Prime Estate showcase (no dummy listings) ---
   const projectRows = [];
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 1; i++) {
     const dev = approvedDevelopers[i % approvedDevelopers.length];
     // The prime/featured project is the real Prime Estate, Kasmandi plotted
     // township — it carries the actual master-plan image for the 3D board.
@@ -191,26 +191,10 @@ async function seed() {
         featuredUntil: i === 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
         isPrimeListing: i === 0,
         commissionPercent: [2.5, 3, 3.5, 3][i],
-        // Fully Truvi-verified so listings show up (badges, trust score, risk
-        // profile) across the public inventory and for every seller.
-        isVerified: true,
-        verifiedAt: new Date(),
-        trustScore: [92, 88, 90, 85][i],
-        legalRiskLevel: "LOW",
-        floodRiskLevel: i % 2 === 0 ? "LOW" : "MEDIUM",
-        crimeIndexLevel: "LOW",
-        reraStatus: "REGISTERED",
         projectType: "RESIDENTIAL",
-        verificationDetails: {
-          reraVerified: true,
-          titleClearance: true,
-          encumbranceFree: true,
-          constructionApproval: true,
-          verificationSource: "Truvi verification team",
-          portfolioVerified: true,
-          lastVerifiedAt: new Date().toISOString(),
-          notes: "Documents and site verified by the Truvi team.",
-        },
+        // Verification is NEVER pre-filled: every check, trust score and risk
+        // level stays PENDING until an admin verifies it from the admin panel.
+        isVerified: false,
       })
       .returning();
     projectRows.push(project);

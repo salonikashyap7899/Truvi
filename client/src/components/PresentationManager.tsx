@@ -52,6 +52,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
   });
   const [connectivity, setConnectivity] = useState(project.presentationInfo?.connectivityNotes ?? "");
   const [progressNote, setProgressNote] = useState(project.presentationInfo?.constructionProgressNote ?? "");
+  const [paymentPlans, setPaymentPlans] = useState((project.presentationInfo?.paymentPlans ?? []).join(", "));
+  const [offers, setOffers] = useState(project.presentationInfo?.offers ?? "");
 
   useEffect(() => {
     api
@@ -117,6 +119,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
       const payload: Record<string, unknown> = {
         connectivityNotes: connectivity,
         constructionProgressNote: progressNote,
+        paymentPlans: paymentPlans.split(",").map((s) => s.trim()).filter(Boolean),
+        offers,
       };
       if (projectType) payload.projectType = projectType;
       for (const [field] of LIST_FIELDS) {
@@ -196,6 +200,24 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
               placeholder="Tower A slab work complete, finishing underway…"
               value={progressNote}
               onChange={(e) => setProgressNote(e.target.value)}
+              className="border-white/15 bg-card text-white"
+            />
+          </div>
+          <div>
+            <Label className="text-foreground/90">Payment Plans <span className="text-muted-foreground">(comma-separated)</span></Label>
+            <Input
+              placeholder="10:80:10, Subvention scheme, 30:40:30 construction-linked…"
+              value={paymentPlans}
+              onChange={(e) => setPaymentPlans(e.target.value)}
+              className="border-white/15 bg-card text-white"
+            />
+          </div>
+          <div>
+            <Label className="text-foreground/90">Offers</Label>
+            <Input
+              placeholder="No floor-rise till 5th floor, Free modular kitchen, ₹1L off this month…"
+              value={offers}
+              onChange={(e) => setOffers(e.target.value)}
               className="border-white/15 bg-card text-white"
             />
           </div>

@@ -619,7 +619,6 @@ function Footer() {
       <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-5">
         <div className="md:col-span-2">
           <div className="flex items-center gap-2 font-display text-base font-semibold tracking-tight">
-            <span className="grid size-6 place-items-center overflow-hidden rounded-md bg-white p-0.5"><img src="/brand/icon.png" alt="" className="h-full w-full object-contain" /></span>
             TRUVI
           </div>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">

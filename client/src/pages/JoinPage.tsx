@@ -8,14 +8,14 @@ import { SiteNav } from "@/components/SiteNav";
  */
 const ROLE_CARDS = [
   {
-    title: "I'm a Developer",
-    desc: "List your projects and manage live inventory, leads, and CP performance.",
+    title: "I'm a Developer / Seller",
+    desc: "List and sell your projects, manage live inventory, leads, and CP performance.",
     signup: "/signup?role=DEVELOPER",
     login: "/login",
-    loginLabel: "Sign in as Developer",
+    loginLabel: "Sign in as Developer / Seller",
   },
   {
-    title: "I'm a Channel Partner / Seller",
+    title: "I'm a Channel Partner",
     desc: "Discover verified projects, submit leads, and track every commission.",
     signup: "/signup?role=CP",
     login: "/login",

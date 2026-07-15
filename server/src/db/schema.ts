@@ -48,6 +48,7 @@ export type EnquiryPurpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
 export type BuyerDocType = "ID_PROOF" | "ADDRESS_PROOF" | "INCOME_PROOF";
 export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED";
 export type SharedDocFileType = "BROCHURE" | "FLOOR_PLAN" | "PRICE_LIST" | "LEGAL" | "OTHER";
+export type LegalDocType = "RERA" | "APPROVAL" | "NOC" | "TITLE" | "OTHER";
 
 export const ASSET_CATEGORIES = [
   "SKETCH_LAYOUT", "MASTER_PLAN", "SITE_PLAN", "FLOOR_PLAN", "ELEVATION",
@@ -124,6 +125,14 @@ export interface PresentationInfo {
   greenBuildingFeatures?: string[];
   connectivityNotes?: string;
   constructionProgressNote?: string;
+  paymentPlans?: string[];
+  offers?: string;
+}
+
+export interface SalesContact {
+  name?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface PriceHistoryEntry {
@@ -252,6 +261,10 @@ export const projects = pgTable(
     crimeIndexLevel: text("crime_index_level").$type<RiskLevel>(),
     reraStatus: text("rera_status").$type<ReraStatus>(),
     reraValidityDate: timestamp("rera_validity_date", { withTimezone: true, mode: "date" }),
+    // Expected possession/handover date, set by the developer.
+    possessionDate: timestamp("possession_date", { withTimezone: true, mode: "date" }),
+    // Sales enquiry contact shown on the listing.
+    salesContact: jsonb("sales_contact").$type<SalesContact>(),
     isVerified: boolean("is_verified").notNull().default(false),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
     verificationDetails: jsonb("verification_details").$type<VerificationDetails>().default(DEFAULT_VERIFICATION_DETAILS),
@@ -522,8 +535,33 @@ export const projectAssets = pgTable(
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
 
+ claude/otp-email-verification-fb9zq7
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
+
+/**
+ * Legal documents (RERA certificate, approvals, NOCs, title docs) uploaded by
+ * the developer. They stay hidden from the public until an admin verifies
+ * them — only `verified` docs are returned on the public listing.
+ */
+export const legalDocuments = pgTable(
+  "legal_documents",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    title: text("title").notNull(),
+    docType: text("doc_type").$type<LegalDocType>().notNull().default("OTHER"),
+    fileUrl: text("file_url").notNull(),
+    fileName: text("file_name").notNull(),
+    verified: boolean("verified").notNull().default(false),
+    verifiedById: uuid("verified_by_id").references(() => users._id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    uploadedById: uuid("uploaded_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("legal_documents_project_verified_idx").on(t.projectId, t.verified)]
+);
+main
 
 export const courseProgress = pgTable(
   "course_progress",
@@ -596,6 +634,7 @@ export type IEnquiry = typeof enquiries.$inferSelect;
 export type IBuyerDocument = typeof buyerDocuments.$inferSelect;
 export type ISharedDocument = typeof sharedDocuments.$inferSelect;
 export type IProjectAsset = typeof projectAssets.$inferSelect;
+export type ILegalDocument = typeof legalDocuments.$inferSelect;
 export type ICourseProgress = typeof courseProgress.$inferSelect;
 export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
 export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;

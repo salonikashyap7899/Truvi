@@ -50,6 +50,8 @@ export interface PresentationInfo {
   greenBuildingFeatures?: string[];
   connectivityNotes?: string;
   constructionProgressNote?: string;
+  paymentPlans?: string[];
+  offers?: string;
 }
 
 export interface ProjectAsset {
@@ -143,6 +145,8 @@ export interface Project {
   crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: string;
+  possessionDate?: string | null;
+  salesContact?: { name?: string; phone?: string; email?: string } | null;
   isVerified?: boolean;
   verifiedAt?: string;
   isPrimeListing?: boolean;

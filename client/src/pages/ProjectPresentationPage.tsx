@@ -9,7 +9,14 @@ import {
 import { LayoutGrid, CalendarClock, Phone, Mail, IndianRupee } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
+import PublicLegalDocs from "@/components/PublicLegalDocs";
 import type { Project, ProjectAsset } from "@/types";
+
+function fmtDate(v?: string | null): string | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+}
 
 const IMAGE_MIMES = /^image\//;
 const VIDEO_MIMES = /^video\//;
@@ -330,6 +337,7 @@ export default function ProjectPresentationPage() {
         </section>
       )}
 
+ claude/otp-email-verification-fb9zq7
       {/* Payment plans & offers */}
       {(project.paymentPlans?.length ?? 0) > 0 && (
         <section className="mt-10">
@@ -366,6 +374,45 @@ export default function ProjectPresentationPage() {
           </div>
         </section>
       )}
+
+      {/* Possession · Payment plans · Offers · Sales contact (developer-entered) */}
+      {(fmtDate(project.possessionDate) || info?.paymentPlans?.length || info?.offers || project.salesContact?.phone || project.salesContact?.name) && (
+        <section className="mt-8 grid gap-4 sm:grid-cols-2">
+          {fmtDate(project.possessionDate) && (
+            <div className="rounded-2xl border border-white/10 glass p-4">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">Possession</p>
+              <p className="mt-1 text-lg font-semibold text-white">{fmtDate(project.possessionDate)}</p>
+            </div>
+          )}
+          {!!info?.paymentPlans?.length && (
+            <div className="rounded-2xl border border-white/10 glass p-4">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">Payment Plans</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {info.paymentPlans.map((pl, i) => (
+                  <span key={i} className="rounded-full border border-white/12 bg-white/5 px-3 py-1 text-xs text-white/85">{pl}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {info?.offers && (
+            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-900/10 p-4">
+              <p className="text-xs uppercase tracking-widest text-emerald-300">Current Offers</p>
+              <p className="mt-1 text-sm text-foreground/90">{info.offers}</p>
+            </div>
+          )}
+          {(project.salesContact?.name || project.salesContact?.phone || project.salesContact?.email) && (
+            <div className="rounded-2xl border border-white/10 glass p-4">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">Sales Contact</p>
+              {project.salesContact?.name && <p className="mt-1 text-sm font-medium text-white">{project.salesContact.name}</p>}
+              {project.salesContact?.phone && <a href={`tel:${project.salesContact.phone}`} className="block text-sm text-sky-300">{project.salesContact.phone}</a>}
+              {project.salesContact?.email && <a href={`mailto:${project.salesContact.email}`} className="block text-sm text-sky-300">{project.salesContact.email}</a>}
+            </div>
+          )}
+        </section>
+      )}
+
+      <PublicLegalDocs projectId={project._id} />
+ main
 
       {/* Plots & availability */}
       {units.length > 0 && (

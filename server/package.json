@@ -13,6 +13,8 @@
     "postinstall": "npm run build",
     "start": "node dist/server.js",
     "seed": "tsx src/seed/seed.ts",
+    "cleanup:demo": "tsx src/seed/cleanup-demo.ts",
+    "reset:verification": "tsx src/seed/reset-verification.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "test": "vitest run",

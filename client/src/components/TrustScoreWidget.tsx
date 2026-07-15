@@ -1,5 +1,5 @@
 interface TrustScoreWidgetProps {
-  score: number;
+  score: number | null | undefined;
   compact?: boolean;
 }
 
@@ -43,18 +43,33 @@ function getTier(score: number): TierConfig {
   };
 }
 
-/**
- * Derives a deterministic mock score (60–95) from a project ID string so
- * existing projects without a stored trustScore still display varied values.
- */
-export function mockScoreFromId(id: string): number {
-  if (!id) return 72;
-  const hex = id.slice(-4);
-  const n = parseInt(hex, 16);
-  return 60 + (n % 36);
-}
-
 export default function TrustScoreWidget({ score, compact = false }: TrustScoreWidgetProps) {
+  // No score until an admin has rated the listing — show an honest
+  // "not yet rated" state instead of a fabricated number.
+  if (score == null) {
+    return (
+      <div
+        className={`flex ${compact ? "flex-row items-center gap-3" : "flex-col items-center gap-2"} rounded-2xl border border-white/10 glass ${compact ? "p-3" : "p-5"}`}
+      >
+        <div
+          className="grid shrink-0 place-items-center rounded-full border border-dashed border-white/20 text-muted-foreground"
+          style={{ width: compact ? 56 : 96, height: compact ? 56 : 96 }}
+        >
+          <span className={compact ? "text-base" : "text-2xl"}>—</span>
+        </div>
+        <div className={compact ? "" : "text-center"}>
+          <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Trust Score</span>
+          <p className={`${compact ? "text-sm" : "text-base"} font-semibold text-white/70`}>Not yet rated</p>
+          {!compact && (
+            <p className="mt-1.5 max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+              Truvi will publish a trust score once this listing has been verified.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const tier = getTier(score);
 
   const size = compact ? 72 : 120;
