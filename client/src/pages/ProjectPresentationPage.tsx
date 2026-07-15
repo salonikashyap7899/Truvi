@@ -6,7 +6,7 @@ import {
   ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box, Eye,
   Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
-import { LayoutGrid, CalendarClock, Phone, Mail, IndianRupee } from "lucide-react";
+import { LayoutGrid, CalendarClock } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
@@ -337,44 +337,6 @@ export default function ProjectPresentationPage() {
         </section>
       )}
 
- claude/otp-email-verification-fb9zq7
-      {/* Payment plans & offers */}
-      {(project.paymentPlans?.length ?? 0) > 0 && (
-        <section className="mt-10">
-          <h2 className="flex items-center gap-2 text-lg font-medium">
-            <IndianRupee size={17} className="text-[var(--trust)]" /> Payment Plans &amp; Offers
-          </h2>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {project.paymentPlans!.map((plan) => (
-              <div key={plan.name} className="rounded-2xl border border-white/10 glass p-5">
-                <p className="text-sm font-semibold text-white">{plan.name}</p>
-                {plan.description && <p className="mt-1.5 text-sm text-muted-foreground">{plan.description}</p>}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Sales contact */}
-      {project.salesContact && (project.salesContact.name || project.salesContact.phone || project.salesContact.email) && (
-        <section className="mt-10">
-          <h2 className="text-lg font-medium">Sales Contact</h2>
-          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-white/10 glass p-5 text-sm">
-            {project.salesContact.name && <span className="font-medium text-white">{project.salesContact.name}</span>}
-            {project.salesContact.phone && (
-              <a href={`tel:${project.salesContact.phone}`} className="inline-flex items-center gap-1.5 text-blue-300 hover:underline">
-                <Phone size={13} /> {project.salesContact.phone}
-              </a>
-            )}
-            {project.salesContact.email && (
-              <a href={`mailto:${project.salesContact.email}`} className="inline-flex items-center gap-1.5 text-blue-300 hover:underline">
-                <Mail size={13} /> {project.salesContact.email}
-              </a>
-            )}
-          </div>
-        </section>
-      )}
-
       {/* Possession · Payment plans · Offers · Sales contact (developer-entered) */}
       {(fmtDate(project.possessionDate) || info?.paymentPlans?.length || info?.offers || project.salesContact?.phone || project.salesContact?.name) && (
         <section className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -412,7 +374,6 @@ export default function ProjectPresentationPage() {
       )}
 
       <PublicLegalDocs projectId={project._id} />
- main
 
       {/* Plots & availability */}
       {units.length > 0 && (

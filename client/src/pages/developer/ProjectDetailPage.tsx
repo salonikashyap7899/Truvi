@@ -16,9 +16,8 @@ import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
- claude/otp-email-verification-fb9zq7
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
-import LegalDocsManager from "@/components/LegalDocsManager"; main
+import LegalDocsManager from "@/components/LegalDocsManager";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -80,7 +79,6 @@ export default function ProjectDetailPage() {
     }
   }
 
-claude/otp-email-verification-fb9zq7
   async function setUnitStatus(unit: Unit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
     try {
       const res = await api.patch(`/units/${unit._id}`, { status });
@@ -88,12 +86,6 @@ claude/otp-email-verification-fb9zq7
       toast.success(
         `${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status === "AVAILABLE" ? "Available" : "Sold"}`
       );
-
-  async function setUnitStatus(unitId: string, status: string) {
-    try {
-      const { data } = await api.patch(`/units/${unitId}`, { status });
-      setUnits((prev) => prev.map((u) => (u._id === unitId ? data.unit : u)));
-      toast.success(`Unit marked ${status === "RESERVED" ? "BLOCKED" : status}`); main
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to update unit");
     }
@@ -160,8 +152,6 @@ claude/otp-email-verification-fb9zq7
         </div>
       </div>
 
-      <ProjectDetailsEditor project={project} onSaved={setProject} />
-
       <div className="mt-6">
         <NearbyAmenities projectId={project._id} />
       </div>
@@ -227,11 +217,8 @@ claude/otp-email-verification-fb9zq7
                 <th className="p-3 text-left">Type</th>
                 <th className="p-3 text-left">Area (sqft)</th>
                 <th className="p-3 text-left">Price</th>
-                <th className="p-3 text-left">Status</th> claude/otp-email-verification-fb9zq7
+                <th className="p-3 text-left">Status</th>
                 <th className="p-3 text-right">Availability</th>
-
-                <th className="p-3 text-left">Availability</th>
- main
               </tr>
             </thead>
             <tbody>
@@ -243,38 +230,27 @@ claude/otp-email-verification-fb9zq7
                   <td className="p-3">{formatINR(u.price)}</td>
                   <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
                   <td className="p-3">
-claude/otp-email-verification-fb9zq7
-                    <div className="flex justify-end gap-1.5">
-                      {u.status !== "AVAILABLE" && (
-                        <button onClick={() => setUnitStatus(u, "AVAILABLE")} className="rounded-full border border-green-700/60 px-2.5 py-1 text-[11px] font-medium text-green-300 hover:bg-green-900/20">
-                          Available
-                        </button>
-                      )}
-                      {u.status !== "RESERVED" && u.status !== "SOLD" && (
-                        <button onClick={() => setUnitStatus(u, "RESERVED")} className="rounded-full border border-sky-700/60 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900/20">
-                          Block
-                        </button>
-                      )}
-                      {u.status !== "SOLD" && (
-                        <button onClick={() => setUnitStatus(u, "SOLD")} className="rounded-full border border-red-700/60 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-900/20">
-                          Sold
-                        </button>
-                      )}
-                    </div>
                     {u.status === "LOCKED" ? (
-                      <span className="text-xs text-muted-foreground">CP locked</span>
+                      <span className="flex justify-end text-xs text-muted-foreground">CP locked</span>
                     ) : (
-                      <select
-                        value={u.status}
-                        onChange={(e) => setUnitStatus(u._id, e.target.value)}
-                        className="rounded-lg border border-white/15 bg-card px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
-                      >
-                        <option value="AVAILABLE">Available</option>
-                        <option value="RESERVED">Blocked</option>
-                        <option value="SOLD">Sold</option>
-                      </select>
+                      <div className="flex justify-end gap-1.5">
+                        {u.status !== "AVAILABLE" && (
+                          <button onClick={() => setUnitStatus(u, "AVAILABLE")} className="rounded-full border border-green-700/60 px-2.5 py-1 text-[11px] font-medium text-green-300 hover:bg-green-900/20">
+                            Available
+                          </button>
+                        )}
+                        {u.status !== "RESERVED" && u.status !== "SOLD" && (
+                          <button onClick={() => setUnitStatus(u, "RESERVED")} className="rounded-full border border-sky-700/60 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900/20">
+                            Block
+                          </button>
+                        )}
+                        {u.status !== "SOLD" && (
+                          <button onClick={() => setUnitStatus(u, "SOLD")} className="rounded-full border border-red-700/60 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-900/20">
+                            Sold
+                          </button>
+                        )}
+                      </div>
                     )}
- main
                   </td>
                 </tr>
               ))}
@@ -301,152 +277,5 @@ claude/otp-email-verification-fb9zq7
         </div>
       </section>
     </main>
-  );
-}
-
-/* ── Editable project details (developer-managed) ──────────────────────────── */
-
-const RERA_STATUSES = ["REGISTERED", "PENDING", "NOT_REGISTERED"] as const;
-
-/** yyyy-mm-dd for a date input from an ISO/date string. */
-function toDateInput(v?: string | null): string {
-  if (!v) return "";
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
-}
-
-function ProjectDetailsEditor({
-  project,
-  onSaved,
-}: {
-  project: Project;
-  onSaved: (p: Project) => void;
-}) {
-  const [form, setForm] = useState({
-    name: project.name ?? "",
-    city: project.city ?? "",
-    location: project.location ?? "",
-    description: project.description ?? "",
-    reraNumber: project.reraNumber ?? "",
-    reraStatus: (project.reraStatus ?? "NOT_REGISTERED") as (typeof RERA_STATUSES)[number],
-    reraValidityDate: toDateInput(project.reraValidityDate),
-    possessionDate: toDateInput(project.possessionDate),
-    contactName: project.salesContact?.name ?? "",
-    contactPhone: project.salesContact?.phone ?? "",
-    contactEmail: project.salesContact?.email ?? "",
-  });
-  const [saving, setSaving] = useState(false);
-
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (form.description.trim().length < 10) {
-      toast.error("Description must be at least 10 characters");
-      return;
-    }
-    setSaving(true);
-    try {
-      const { data } = await api.patch(`/projects/${project._id}`, {
-        name: form.name.trim(),
-        city: form.city.trim(),
-        location: form.location.trim(),
-        description: form.description.trim(),
-        reraNumber: form.reraNumber.trim(),
-        reraStatus: form.reraStatus,
-        reraValidityDate: form.reraValidityDate ? new Date(form.reraValidityDate).toISOString() : "",
-        possessionDate: form.possessionDate ? new Date(form.possessionDate).toISOString() : "",
-        salesContact: {
-          name: form.contactName.trim(),
-          phone: form.contactPhone.trim(),
-          email: form.contactEmail.trim(),
-        },
-      });
-      onSaved(data.project);
-      toast.success("Project details saved");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to save details");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputCls = "border-white/15 bg-card text-white";
-
-  return (
-    <section className="mt-8">
-      <h2 className="text-lg font-medium">Project details</h2>
-      <p className="text-xs text-muted-foreground">Name, location, RERA, possession date and sales contact — shown on your public listing.</p>
-      <form onSubmit={save} className="mt-3 grid gap-4 rounded-2xl border border-white/10 glass p-5 sm:grid-cols-2">
-        <div>
-          <Label className="text-foreground/90">Project name</Label>
-          <Input value={form.name} onChange={set("name")} className={inputCls} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-foreground/90">City</Label>
-            <Input value={form.city} onChange={set("city")} className={inputCls} />
-          </div>
-          <div>
-            <Label className="text-foreground/90">Location / area</Label>
-            <Input value={form.location} onChange={set("location")} className={inputCls} />
-          </div>
-        </div>
-        <div className="sm:col-span-2">
-          <Label className="text-foreground/90">Description</Label>
-          <textarea
-            value={form.description}
-            onChange={set("description")}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <Label className="text-foreground/90">RERA number</Label>
-          <Input value={form.reraNumber} onChange={set("reraNumber")} placeholder="UPRERAPRJ…" className={inputCls} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-foreground/90">RERA status</Label>
-            <select
-              value={form.reraStatus}
-              onChange={set("reraStatus")}
-              className="mt-1 h-11 w-full rounded-lg border border-white/15 bg-card px-3 text-sm text-white outline-none focus:border-blue-500"
-            >
-              {RERA_STATUSES.map((s) => (
-                <option key={s} value={s}>{s.replace("_", " ")}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label className="text-foreground/90">RERA valid till</Label>
-            <Input type="date" value={form.reraValidityDate} onChange={set("reraValidityDate")} className={inputCls} />
-          </div>
-        </div>
-        <div>
-          <Label className="text-foreground/90">Possession date</Label>
-          <Input type="date" value={form.possessionDate} onChange={set("possessionDate")} className={inputCls} />
-        </div>
-        <div className="sm:col-span-2 grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-3">
-          <div className="sm:col-span-3 text-xs font-semibold uppercase tracking-wide text-blue-300">Sales contact</div>
-          <div>
-            <Label className="text-foreground/90">Name</Label>
-            <Input value={form.contactName} onChange={set("contactName")} className={inputCls} />
-          </div>
-          <div>
-            <Label className="text-foreground/90">Phone</Label>
-            <Input value={form.contactPhone} onChange={set("contactPhone")} placeholder="98765 43210" className={inputCls} />
-          </div>
-          <div>
-            <Label className="text-foreground/90">Email</Label>
-            <Input type="email" value={form.contactEmail} onChange={set("contactEmail")} className={inputCls} />
-          </div>
-        </div>
-        <div className="sm:col-span-2">
-          <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save project details"}</Button>
-        </div>
-      </form>
-    </section>
   );
 }

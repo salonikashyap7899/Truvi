@@ -126,30 +126,6 @@ router.get("/:id", async (req: AuthedRequest, res) => {
 });
 
 const updateProjectSchema = z.object({
-  name: z.string().min(2).optional(),
-  city: z.string().min(2).optional(),
-  location: z.string().min(2).optional(),
-  reraNumber: z.string().max(60).optional().or(z.literal("")),
-  brochureUrl: z.string().url().optional(),
-  priceListUrl: z.string().url().optional(),
-  description: z.string().min(10).optional(),
-  commissionPercent: z.number().min(0).max(20).optional(),
- 
-  // ISO datetime or null to clear
-  possessionDate: z.string().datetime().nullable().optional(),
-  salesContact: z
-    .object({
-      name: z.string().max(120).optional(),
-      phone: z.string().max(20).optional(),
-      email: z.string().email().optional().or(z.literal("")),
-    })
-    .nullable()
-    .optional(),
-  paymentPlans: z
-    .array(z.object({ name: z.string().min(1).max(120), description: z.string().max(500).optional() }))
-    .max(20)
-    .nullable()
-
   // Developer-editable project details.
   name: z.string().min(2).optional(),
   city: z.string().min(2).optional(),
@@ -157,14 +133,18 @@ const updateProjectSchema = z.object({
   reraNumber: z.string().max(60).or(z.literal("")).optional(),
   reraStatus: z.enum(["REGISTERED", "PENDING", "NOT_REGISTERED"]).optional(),
   reraValidityDate: z.string().datetime().or(z.literal("")).nullable().optional(),
+  brochureUrl: z.string().url().optional(),
+  priceListUrl: z.string().url().optional(),
+  description: z.string().min(10).optional(),
+  commissionPercent: z.number().min(0).max(20).optional(),
   possessionDate: z.string().datetime().or(z.literal("")).nullable().optional(),
   salesContact: z
     .object({
-      name: z.string().max(80).optional(),
+      name: z.string().max(120).optional(),
       phone: z.string().max(20).optional(),
       email: z.string().email().or(z.literal("")).optional(),
     })
-main
+    .nullable()
     .optional(),
 });
 
@@ -181,12 +161,6 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.status(403).json({ error: "Not your project" });
   }
 
- claude/otp-email-verification-fb9zq7
-  const { possessionDate, reraNumber, ...rest } = parsed.data;
-  const update: Record<string, unknown> = { ...rest };
-  if (possessionDate !== undefined) update.possessionDate = possessionDate ? new Date(possessionDate) : null;
-  if (reraNumber !== undefined) update.reraNumber = reraNumber || null;
-
   const d = parsed.data;
   const update: Record<string, unknown> = {};
   for (const k of ["brochureUrl", "priceListUrl", "description", "commissionPercent", "name", "city", "location", "reraStatus", "salesContact"] as const) {
@@ -195,7 +169,6 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
- main
 
   const [updated] = await db
     .update(projects)

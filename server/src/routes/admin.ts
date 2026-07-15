@@ -2,7 +2,21 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { users, projects, Role, ApprovalStatus, VerificationDetails } from "../db/schema";
+import {
+  users,
+  projects,
+  units,
+  leads,
+  siteVisits,
+  commissions,
+  enquiries,
+  sharedDocuments,
+  projectAssets,
+  legalDocuments,
+  Role,
+  ApprovalStatus,
+  VerificationDetails,
+} from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
@@ -142,6 +156,37 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   res.json({ project });
+});
+
+// DELETE /api/admin/projects/:id — permanently delete ANY project (admin only).
+// Removes the project and every dependent row (units, leads, visits,
+// commissions, enquiries, shared docs, assets, legal docs). This cannot be
+// undone, so it is gated to ADMIN.
+router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const projectId = req.params.id;
+  if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
+
+  const db = getDb();
+  const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
+  if (!existing) return res.status(404).json({ error: "Project not found" });
+
+  // Delete dependent rows first (Postgres enforces the foreign keys).
+  const projectLeads = await db.select({ _id: leads._id }).from(leads).where(eq(leads.projectId, projectId));
+  const leadIds = projectLeads.map((l) => l._id);
+  if (leadIds.length) {
+    await db.delete(commissions).where(inArray(commissions.leadId, leadIds));
+    await db.delete(siteVisits).where(inArray(siteVisits.leadId, leadIds));
+  }
+  await db.delete(siteVisits).where(eq(siteVisits.projectId, projectId));
+  await db.delete(leads).where(eq(leads.projectId, projectId));
+  await db.delete(units).where(eq(units.projectId, projectId));
+  await db.delete(projectAssets).where(eq(projectAssets.projectId, projectId));
+  await db.delete(sharedDocuments).where(eq(sharedDocuments.projectId, projectId));
+  await db.delete(enquiries).where(eq(enquiries.projectId, projectId));
+  await db.delete(legalDocuments).where(eq(legalDocuments.projectId, projectId));
+  await db.delete(projects).where(eq(projects._id, projectId));
+
+  res.json({ ok: true, deleted: existing.name });
 });
 
 let platformFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
