@@ -675,6 +675,56 @@ export const payments = pgTable(
 );
 export type IPayment = typeof payments.$inferSelect;
 
+/**
+ * Razorpay Plan mapping — one row per internal subscription plan id
+ * (e.g. "buyer_pro_monthly") → the Razorpay `plan_id`. Populated once by the
+ * `razorpay:plans` script so we never recreate plans (Razorpay plans can't be
+ * deleted). `amountPaise` is the amount the plan charges (incl. GST).
+ */
+export const subscriptionPlans = pgTable("subscription_plans", {
+  internalPlanId: text("internal_plan_id").primaryKey(),
+  razorpayPlanId: text("razorpay_plan_id").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type ISubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+
+/**
+ * Subscriptions — one row per Razorpay subscription. `razorpaySubscriptionId`
+ * is unique so verify + webhook stay idempotent. Amounts in paise.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users._id),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerPhone: text("customer_phone").notNull(),
+    internalPlanId: text("internal_plan_id").notNull(),
+    planLabel: text("plan_label").notNull(),
+    category: text("category").notNull(),
+    interval: text("interval"),
+    // Money — paise. base + gst = charged per cycle.
+    basePaise: integer("base_paise").notNull(),
+    gstPaise: integer("gst_paise").notNull().default(0),
+    currency: text("currency").notNull().default("INR"),
+    razorpayPlanId: text("razorpay_plan_id").notNull(),
+    razorpaySubscriptionId: text("razorpay_subscription_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
+    // CREATED → ACTIVE → CANCELLED / COMPLETED (or FAILED).
+    status: text("status").$type<"CREATED" | "ACTIVE" | "CANCELLED" | "COMPLETED" | "FAILED">().notNull().default("CREATED"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("subscriptions_rzp_sub_id_idx").on(t.razorpaySubscriptionId),
+    index("subscriptions_status_created_idx").on(t.status, t.createdAt),
+  ]
+);
+export type ISubscription = typeof subscriptions.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;

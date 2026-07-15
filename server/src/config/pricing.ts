@@ -59,6 +59,16 @@ export function getPlan(planId: string): PlanDef | undefined {
   return PLANS[planId];
 }
 
+/** All subscription (recurring) plans. */
+export function getSubscriptionPlans(): PlanDef[] {
+  return Object.values(PLANS).filter((p) => p.type === "subscription");
+}
+
+/** Maps our interval to a Razorpay plan `period`. */
+export function razorpayPeriod(interval?: string): "monthly" | "yearly" {
+  return interval === "yearly" ? "yearly" : "monthly";
+}
+
 /** Adds GST on top of a base paise amount. Returns integer paise. */
 export function withGst(basePaise: number, gstPercent: number): number {
   return basePaise + Math.round((basePaise * gstPercent) / 100);

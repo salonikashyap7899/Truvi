@@ -15,6 +15,7 @@
     "seed": "tsx src/seed/seed.ts",
     "cleanup:demo": "tsx src/seed/cleanup-demo.ts",
     "reset:verification": "tsx src/seed/reset-verification.ts",
+    "razorpay:plans": "tsx src/seed/create-razorpay-plans.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "test": "vitest run",

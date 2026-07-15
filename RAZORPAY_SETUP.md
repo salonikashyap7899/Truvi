@@ -21,8 +21,9 @@ money until you add `rzp_live_*` keys.
 - **Legal pages** `/terms`, `/refund-policy`, `/privacy` (required for Razorpay onboarding).
 - All money handled in **paise** (integers). Every transaction stored in Postgres (`payments` table).
 
-> **Subscriptions** (Buyer/CP/Developer Pro) are shown but route to WhatsApp support
-> for now — one-time payments are fully live. See "Enabling subscriptions later" below.
+**Subscriptions** (Buyer/CP/Developer Pro, monthly + yearly) are fully wired via the
+Razorpay Subscriptions API. See "Subscriptions setup" below — you run one script to
+create the plans, then the Subscribe buttons charge automatically each cycle.
 
 ---
 
@@ -34,7 +35,8 @@ money until you add `rzp_live_*` keys.
 4. **Settings → Webhooks → Add New Webhook:**
    - **Webhook URL:** `https://truviventures.com/api/payments/webhook`
    - **Secret:** create a strong random string — you'll put it in `RAZORPAY_WEBHOOK_SECRET`.
-   - **Active events:** `payment.captured`, `payment.failed`.
+   - **Active events:** `payment.captured`, `payment.failed`, `subscription.activated`,
+     `subscription.charged`, `subscription.cancelled`, `subscription.completed`.
    - Save.
 
 ## 2. Environment variables
@@ -52,11 +54,35 @@ No frontend env var is needed — the browser fetches the (public) key id from t
 
 ## 3. Apply the database change
 
-The `payments` table is new. On the server:
+The `payments`, `subscriptions` and `subscription_plans` tables are new. On the server:
 
 ```bash
 cd server && npx drizzle-kit push
 ```
+
+## 3b. Subscriptions setup (one time)
+
+Create the Razorpay subscription plans (Buyer/CP/Developer Pro, monthly + yearly)
+and store their ids. Run this **after** the keys are in `server/.env`:
+
+```bash
+npm --prefix server run razorpay:plans
+```
+
+It prints each plan id and is safe to re-run (already-created plans are skipped).
+Amounts are created **incl. 18% GST**. After this, the "Subscribe" buttons on
+`/pricing` open the Razorpay modal and auto-charge every cycle.
+
+The six plans it creates (base price + 18% GST):
+
+| Plan | Cycle | Base | Charged (incl. GST) |
+|------|-------|------|---------------------|
+| Buyer Pro | monthly | ₹299 | ₹352.82 |
+| Buyer Pro | yearly | ₹1,999 | ₹2,358.82 |
+| CP Pro | monthly | ₹999 | ₹1,178.82 |
+| CP Pro | yearly | ₹9,999 | ₹11,798.82 |
+| Developer Pro | monthly | ₹9,999 | ₹11,798.82 |
+| Developer Pro | yearly | ₹99,999 | ₹117,998.82 |
 
 ## 4. Deploy & test
 
@@ -89,6 +115,8 @@ After paying you should land on `/payment-success`, and the row should appear at
 - [ ] Updated `server/.env` with `rzp_live_*` `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`.
 - [ ] Recreated the **webhook in Live Mode** (live and test webhooks are separate) pointing to
       `https://truviventures.com/api/payments/webhook`, and updated `RAZORPAY_WEBHOOK_SECRET`.
+- [ ] Re-ran `npm --prefix server run razorpay:plans` with the **live** keys — subscription
+      plans are also separate per mode, so live plans must be created once.
 - [ ] Restarted the server (`bash deploy.sh`).
 - [ ] Made one small **real** payment to yourself and confirmed it, then refunded it from the dashboard.
 
@@ -108,17 +136,23 @@ These can't be done from code:
 
 ---
 
-## Enabling subscriptions later
+## Subscriptions — how it works (already wired)
 
-The Pro plans are defined in `server/src/config/pricing.ts` as `type: "subscription"`.
-To turn them on:
+- Plans are defined in `server/src/config/pricing.ts` (`type: "subscription"`) and
+  created in Razorpay by `npm --prefix server run razorpay:plans` (step 3b).
+- `POST /api/payments/create-subscription` creates the subscription; the browser
+  opens the Razorpay modal with the `subscription_id`.
+- `POST /api/payments/verify-subscription` verifies the signature
+  (`payment_id | subscription_id`) and marks the row **ACTIVE**.
+- The webhook updates status on `subscription.activated/charged` (ACTIVE),
+  `subscription.cancelled` (CANCELLED) and `subscription.completed` (COMPLETED).
+- All subscriptions are listed at `/admin/payments`.
+- **Cancelling:** cancel a subscription from the Razorpay dashboard (Subscriptions →
+  select → Cancel); the webhook flips it to CANCELLED here automatically.
 
-1. In the Razorpay dashboard, **create Plans** (Subscriptions → Plans) for each Pro tier
-   and note the `plan_id`s.
-2. Add a `razorpay.subscriptions.create({ plan_id, ... })` flow (mirrors `create-order`),
-   store the subscription id on the `payments` row, and handle the
-   `subscription.charged` webhook event (already accepted with a 200 today).
-3. Point the "Subscribe" buttons at that flow instead of WhatsApp.
+To test a subscription: on `/pricing`, click **Subscribe** on any Pro plan, pick
+Monthly/Yearly, and authorise with a Razorpay test card. It should appear as
+**ACTIVE** under Subscriptions in `/admin/payments`.
 
 ## Security notes
 

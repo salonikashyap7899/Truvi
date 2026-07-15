@@ -6,21 +6,37 @@ import { api } from "@/lib/api";
 import { Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
+import { loadRazorpay, openRazorpayCheckout, openRazorpaySubscription } from "@/lib/razorpay";
 import { PaymentMethodsRow, RazorpayBadge } from "@/components/PaymentTrust";
 
-interface Props {
+export interface CheckoutConfig {
+  kind: "order" | "subscription";
+  title: string;
+  /** one-time: the single plan; subscription: the monthly plan. */
   planId: string;
-  planTitle: string;
   priceLabel: string;
-  onClose: () => void;
+  /** subscription only: the yearly alternative. */
+  yearlyPlanId?: string;
+  yearlyPrice?: string;
 }
 
-/** Pre-checkout form → create order → Razorpay modal → verify → success page. */
-export default function CheckoutModal({ planId, planTitle, priceLabel, onClose }: Props) {
+/** Pre-checkout form → create order/subscription → Razorpay modal → verify → success. */
+export default function CheckoutModal({ config, onClose }: { config: CheckoutConfig; onClose: () => void }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [busy, setBusy] = useState(false);
+  const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
+
+  const isSub = config.kind === "subscription";
+  const activePlanId = isSub && cycle === "yearly" && config.yearlyPlanId ? config.yearlyPlanId : config.planId;
+  const activePrice = isSub && cycle === "yearly" && config.yearlyPrice ? config.yearlyPrice : config.priceLabel;
+
+  function toSuccess(payment: unknown) {
+    navigate("/payment-success", { state: { payment } });
+  }
+  function toFailed(reason: string) {
+    navigate("/payment-failed", { state: { planTitle: config.title, reason } });
+  }
 
   async function pay(e: React.FormEvent) {
     e.preventDefault();
@@ -33,28 +49,50 @@ export default function CheckoutModal({ planId, planTitle, priceLabel, onClose }
         return;
       }
 
-      const { data } = await api.post("/payments/create-order", { planId, ...form });
-
-      openRazorpayCheckout({
-        keyId: data.keyId,
-        orderId: data.orderId,
-        amount: data.amount,
-        name: form.name,
-        description: planTitle,
-        prefill: data.prefill,
-        onSuccess: async (r) => {
-          try {
-            const verify = await api.post("/payments/verify", r);
-            navigate("/payment-success", { state: { payment: verify.data.payment } });
-          } catch {
-            navigate("/payment-failed", { state: { planId, planTitle, reason: "verification" } });
-          }
-        },
-        onDismiss: () => {
-          setBusy(false);
-          toast("Payment window closed.", { description: "You can retry any time." });
-        },
-      });
+      if (isSub) {
+        const { data } = await api.post("/payments/create-subscription", { planId: activePlanId, ...form });
+        openRazorpaySubscription({
+          keyId: data.keyId,
+          subscriptionId: data.subscriptionId,
+          name: form.name,
+          description: `${config.title} (${cycle})`,
+          prefill: data.prefill,
+          onSuccess: async (r) => {
+            try {
+              const verify = await api.post("/payments/verify-subscription", r);
+              toSuccess(verify.data.payment);
+            } catch {
+              toFailed("verification");
+            }
+          },
+          onDismiss: () => {
+            setBusy(false);
+            toast("Payment window closed.", { description: "You can retry any time." });
+          },
+        });
+      } else {
+        const { data } = await api.post("/payments/create-order", { planId: activePlanId, ...form });
+        openRazorpayCheckout({
+          keyId: data.keyId,
+          orderId: data.orderId,
+          amount: data.amount,
+          name: form.name,
+          description: config.title,
+          prefill: data.prefill,
+          onSuccess: async (r) => {
+            try {
+              const verify = await api.post("/payments/verify", r);
+              toSuccess(verify.data.payment);
+            } catch {
+              toFailed("verification");
+            }
+          },
+          onDismiss: () => {
+            setBusy(false);
+            toast("Payment window closed.", { description: "You can retry any time." });
+          },
+        });
+      }
     } catch (err: any) {
       setBusy(false);
       toast.error(err?.response?.data?.error || "Could not start payment. Please try again.");
@@ -80,14 +118,36 @@ export default function CheckoutModal({ planId, planTitle, priceLabel, onClose }
         >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Checkout</p>
-              <h3 className="mt-1 font-display text-xl font-semibold text-white">{planTitle}</h3>
-              <p className="mt-0.5 text-sm text-[var(--trust)]">{priceLabel} <span className="text-muted-foreground">+ 18% GST</span></p>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{isSub ? "Subscribe" : "Checkout"}</p>
+              <h3 className="mt-1 font-display text-xl font-semibold text-white">{config.title}</h3>
+              <p className="mt-0.5 text-sm text-[var(--trust)]">
+                {activePrice}
+                {isSub && <span className="text-muted-foreground">/{cycle === "yearly" ? "year" : "month"}</span>}{" "}
+                <span className="text-muted-foreground">+ 18% GST</span>
+              </p>
             </div>
             <button onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-full border border-white/15 text-foreground/80 hover:bg-white/10">
               <X size={16} />
             </button>
           </div>
+
+          {/* Billing cycle toggle (subscriptions with a yearly option) */}
+          {isSub && config.yearlyPlanId && (
+            <div className="mt-4 inline-flex w-full rounded-full border border-white/10 glass p-1">
+              {(["monthly", "yearly"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCycle(c)}
+                  className={`flex-1 rounded-full py-1.5 text-sm font-medium capitalize transition-colors ${
+                    cycle === c ? "bg-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
 
           <form onSubmit={pay} className="mt-5 space-y-3">
             <div>
@@ -105,9 +165,15 @@ export default function CheckoutModal({ planId, planTitle, priceLabel, onClose }
 
             <Button type="submit" disabled={busy} className="mt-2 w-full" size="lg">
               {busy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Lock size={15} className="mr-2" />}
-              {busy ? "Starting secure payment…" : `Pay ${priceLabel}`}
+              {busy ? "Starting secure payment…" : isSub ? `Subscribe · ${activePrice}` : `Pay ${activePrice}`}
             </Button>
           </form>
+
+          {isSub && (
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">
+              Auto-renews every {cycle === "yearly" ? "year" : "month"}. Cancel any time.
+            </p>
+          )}
 
           <div className="mt-4 flex flex-col items-center gap-2">
             <PaymentMethodsRow />
