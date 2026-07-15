@@ -69,7 +69,10 @@ export function razorpayPeriod(interval?: string): "monthly" | "yearly" {
   return interval === "yearly" ? "yearly" : "monthly";
 }
 
-/** Adds GST on top of a base paise amount. Returns integer paise. */
+/** Adds GST on top of a base paise amount. Returns integer paise. A non-finite
+ *  gstPercent (e.g. a bad env value) falls back to 18 so the result can never
+ *  become NaN and poison a DB insert or a Razorpay amount. */
 export function withGst(basePaise: number, gstPercent: number): number {
-  return basePaise + Math.round((basePaise * gstPercent) / 100);
+  const pct = Number.isFinite(gstPercent) ? gstPercent : 18;
+  return basePaise + Math.round((basePaise * pct) / 100);
 }
