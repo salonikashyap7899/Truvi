@@ -5,7 +5,17 @@ import fs from "fs";
 import { z } from "zod";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, projectAssets, units, users, ASSET_CATEGORIES, IProject, ProjectType, PresentationInfo } from "../db/schema";
+import {
+  projects,
+  projectAssets,
+  units,
+  users,
+  ASSET_CATEGORIES,
+  LEGAL_ASSET_CATEGORIES,
+  IProject,
+  ProjectType,
+  PresentationInfo,
+} from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken } from "../lib/jwt";
@@ -96,11 +106,21 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     }
   }
 
-  const assets = await db
+  let assets = await db
     .select()
     .from(projectAssets)
     .where(eq(projectAssets.projectId, project._id))
     .orderBy(asc(projectAssets.category), desc(projectAssets.createdAt));
+
+  // Legal documents (approvals, NOCs, RERA certs) are public ONLY after an
+  // admin verifies them. The owner and admins still see the pending ones.
+  {
+    const viewer = optionalUser(req);
+    const isOwner = viewer && String(project.developerId) === viewer.userId;
+    if (!viewer || (viewer.role !== "ADMIN" && !isOwner)) {
+      assets = assets.filter((a) => a.verified || !LEGAL_ASSET_CATEGORIES.includes(a.category));
+    }
+  }
 
   // Public per-unit data powering the interactive 3D master plan: each unit
   // renders as a clickable plot colored by its live status. Prices are
@@ -178,6 +198,12 @@ router.post(
       return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
     }
 
+    // Legal documents uploaded by a developer need admin verification before
+    // they appear publicly. Admin uploads (and non-legal categories) go live
+    // immediately.
+    const isLegal = LEGAL_ASSET_CATEGORIES.includes(parsed.data.category);
+    const verified = !isLegal || req.user!.role === "ADMIN";
+
     const db = getDb();
     const [asset] = await db
       .insert(projectAssets)
@@ -191,10 +217,40 @@ router.post(
         mimeType: req.file.mimetype,
         sizeBytes: req.file.size,
         uploadedBy: req.user!.userId,
+        verified,
       })
       .returning();
 
-    res.status(201).json({ asset });
+    res.status(201).json({
+      asset,
+      ...(isLegal && !verified
+        ? { message: "Legal document uploaded — it will appear publicly after admin verification." }
+        : {}),
+    });
+  },
+);
+
+// PATCH /api/presentation/:id/assets/:assetId/verify — admin verifies (or
+// un-verifies) a legal document so it becomes publicly visible.
+router.patch(
+  "/:id/assets/:assetId/verify",
+  authenticate,
+  requireRole("ADMIN"),
+  async (req: AuthedRequest, res) => {
+    const project = await loadOwnedProject(req, res);
+    if (!project) return;
+    if (!isValidId(req.params.assetId)) return res.status(400).json({ error: "Invalid asset id" });
+
+    const verified = req.body?.verified !== false; // default: verify
+    const db = getDb();
+    const [asset] = await db
+      .update(projectAssets)
+      .set({ verified })
+      .where(and(eq(projectAssets._id, req.params.assetId), eq(projectAssets.projectId, project._id)))
+      .returning();
+    if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+    res.json({ asset });
   },
 );
 

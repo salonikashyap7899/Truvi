@@ -140,6 +140,19 @@ export interface PriceHistoryEntry {
   changedAt: string; // ISO date string
 }
 
+/** Developer-managed sales contact shown on the public presentation page. */
+export interface SalesContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+/** Developer-managed payment plan / offer entries (e.g. "20:80 plan", "No EMI till possession"). */
+export interface PaymentPlan {
+  name: string;
+  description?: string;
+}
+
 // --- Ambassador task workflow (site-verification jobs) ---
 export interface AmbassadorTaskChecklist {
   gpsOn: boolean;
@@ -267,6 +280,10 @@ export const projects = pgTable(
     masterPlanUrl: text("master_plan_url"),
     // Public visit counter shown on listings ("N views").
     viewCount: integer("view_count").notNull().default(0),
+    // Developer-managed commercial details (all optional; shown publicly).
+    possessionDate: timestamp("possession_date", { withTimezone: true, mode: "date" }),
+    salesContact: jsonb("sales_contact").$type<SalesContact>(),
+    paymentPlans: jsonb("payment_plans").$type<PaymentPlan[]>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
@@ -509,10 +526,18 @@ export const projectAssets = pgTable(
     mimeType: text("mime_type").notNull(),
     sizeBytes: doublePrecision("size_bytes").notNull(),
     uploadedBy: uuid("uploaded_by").notNull().references(() => users._id),
+    // Legal documents (approvals, NOCs, RERA certs) uploaded by a developer
+    // start unverified and only appear publicly after an admin verifies them.
+    // Non-legal categories default to true.
+    verified: boolean("verified").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
+
+ claude/otp-email-verification-fb9zq7
+/** Asset categories treated as legal documents (admin verification required before public display). */
+export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
 
 /**
  * Legal documents (RERA certificate, approvals, NOCs, title docs) uploaded by
@@ -536,6 +561,7 @@ export const legalDocuments = pgTable(
   },
   (t) => [index("legal_documents_project_verified_idx").on(t.projectId, t.verified)]
 );
+main
 
 export const courseProgress = pgTable(
   "course_progress",

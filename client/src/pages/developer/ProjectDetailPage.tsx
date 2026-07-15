@@ -16,7 +16,9 @@ import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
-import LegalDocsManager from "@/components/LegalDocsManager";
+ claude/otp-email-verification-fb9zq7
+import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import LegalDocsManager from "@/components/LegalDocsManager"; main
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -78,11 +80,20 @@ export default function ProjectDetailPage() {
     }
   }
 
+claude/otp-email-verification-fb9zq7
+  async function setUnitStatus(unit: Unit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
+    try {
+      const res = await api.patch(`/units/${unit._id}`, { status });
+      setUnits((prev) => prev.map((u) => (u._id === unit._id ? res.data.unit : u)));
+      toast.success(
+        `${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status === "AVAILABLE" ? "Available" : "Sold"}`
+      );
+
   async function setUnitStatus(unitId: string, status: string) {
     try {
       const { data } = await api.patch(`/units/${unitId}`, { status });
       setUnits((prev) => prev.map((u) => (u._id === unitId ? data.unit : u)));
-      toast.success(`Unit marked ${status === "RESERVED" ? "BLOCKED" : status}`);
+      toast.success(`Unit marked ${status === "RESERVED" ? "BLOCKED" : status}`); main
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to update unit");
     }
@@ -155,6 +166,9 @@ export default function ProjectDetailPage() {
         <NearbyAmenities projectId={project._id} />
       </div>
 
+      {/* Editable commercial details: name/location/RERA/possession/contact/payment plans */}
+      <ProjectDetailsEditor project={project} onUpdated={setProject} />
+
       <section className="mt-8">
         <h2 className="text-lg font-medium">Brochure / price list</h2>
         <label className="mt-2 inline-block cursor-pointer rounded-lg border border-white/15 glass px-4 py-2 text-sm hover:border-blue-600">
@@ -213,8 +227,11 @@ export default function ProjectDetailPage() {
                 <th className="p-3 text-left">Type</th>
                 <th className="p-3 text-left">Area (sqft)</th>
                 <th className="p-3 text-left">Price</th>
-                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Status</th> claude/otp-email-verification-fb9zq7
+                <th className="p-3 text-right">Availability</th>
+
                 <th className="p-3 text-left">Availability</th>
+ main
               </tr>
             </thead>
             <tbody>
@@ -226,6 +243,24 @@ export default function ProjectDetailPage() {
                   <td className="p-3">{formatINR(u.price)}</td>
                   <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
                   <td className="p-3">
+claude/otp-email-verification-fb9zq7
+                    <div className="flex justify-end gap-1.5">
+                      {u.status !== "AVAILABLE" && (
+                        <button onClick={() => setUnitStatus(u, "AVAILABLE")} className="rounded-full border border-green-700/60 px-2.5 py-1 text-[11px] font-medium text-green-300 hover:bg-green-900/20">
+                          Available
+                        </button>
+                      )}
+                      {u.status !== "RESERVED" && u.status !== "SOLD" && (
+                        <button onClick={() => setUnitStatus(u, "RESERVED")} className="rounded-full border border-sky-700/60 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-900/20">
+                          Block
+                        </button>
+                      )}
+                      {u.status !== "SOLD" && (
+                        <button onClick={() => setUnitStatus(u, "SOLD")} className="rounded-full border border-red-700/60 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-900/20">
+                          Sold
+                        </button>
+                      )}
+                    </div>
                     {u.status === "LOCKED" ? (
                       <span className="text-xs text-muted-foreground">CP locked</span>
                     ) : (
@@ -239,6 +274,7 @@ export default function ProjectDetailPage() {
                         <option value="SOLD">Sold</option>
                       </select>
                     )}
+ main
                   </td>
                 </tr>
               ))}

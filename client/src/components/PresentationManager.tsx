@@ -3,10 +3,14 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
+import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { Upload, Trash2, FileText, Loader2, ExternalLink, Save } from "lucide-react";
+import { Upload, Trash2, FileText, Loader2, ExternalLink, Save, ShieldCheck, Clock } from "lucide-react";
 import { ASSET_SECTIONS, ALL_CATEGORIES, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import type { Project, ProjectAsset } from "@/types";
+
+/** Categories treated as legal documents — public only after admin verification. */
+const LEGAL_CATEGORIES = ["APPROVAL_DOC", "APPROVAL_CERT"];
 
 interface Props {
   project: Project;
@@ -24,10 +28,12 @@ const LIST_FIELDS = [
 type ListField = (typeof LIST_FIELDS)[number][0];
 
 export default function PresentationManager({ project, onProjectUpdated }: Props) {
+  const isAdmin = useAuthStore((s) => s.user?.role) === "ADMIN";
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [savingInfo, setSavingInfo] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Upload form
@@ -72,11 +78,24 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
       setTitle("");
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
-      toast.success("Asset uploaded");
+      toast.success(res.data.message || "Asset uploaded");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Upload failed");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function verifyAsset(asset: ProjectAsset, verified: boolean) {
+    setVerifyingId(asset._id);
+    try {
+      const res = await api.patch(`/presentation/${project._id}/assets/${asset._id}/verify`, { verified });
+      setAssets((prev) => prev.map((a) => (a._id === asset._id ? res.data.asset : a)));
+      toast.success(verified ? "Document verified — now public" : "Verification removed");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update verification");
+    } finally {
+      setVerifyingId(null);
     }
   }
 
@@ -267,6 +286,11 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
         <p className="mt-2 text-[11px] text-muted-foreground">
           Drawings, CAD files (DWG/DXF), PDFs, images, videos, presentations, reports & certificates — up to 50 MB.
         </p>
+        {LEGAL_CATEGORIES.includes(category) && !isAdmin && (
+          <p className="mt-1 text-[11px] text-amber-300">
+            Legal documents (approvals, NOCs, RERA certificates) appear publicly only after a Truvi admin verifies them.
+          </p>
+        )}
         <Button type="submit" size="sm" className="mt-3" disabled={uploading || !file || !title.trim()}>
           {uploading ? <><Loader2 size={13} className="animate-spin mr-1.5" /> Uploading…</> : "Upload"}
         </Button>
@@ -287,6 +311,28 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
                 {categoryLabel(asset.category)} · {asset.fileName}
               </p>
             </div>
+            {LEGAL_CATEGORIES.includes(asset.category) && (
+              asset.verified ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-green-800 bg-green-900/40 px-2 py-0.5 text-[10px] font-medium text-green-400">
+                  <ShieldCheck size={10} /> Verified
+                </span>
+              ) : (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-700 bg-amber-900/40 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                  <Clock size={10} /> Pending admin verification
+                </span>
+              )
+            )}
+            {isAdmin && LEGAL_CATEGORIES.includes(asset.category) && (
+              <Button
+                size="sm"
+                variant={asset.verified ? "outline" : "primary"}
+                disabled={verifyingId === asset._id}
+                onClick={() => verifyAsset(asset, !asset.verified)}
+                className="shrink-0"
+              >
+                {verifyingId === asset._id ? "…" : asset.verified ? "Unverify" : "Verify"}
+              </Button>
+            )}
             <a href={asset.fileUrl} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white shrink-0" title="Open">
               <ExternalLink size={14} />
             </a>
