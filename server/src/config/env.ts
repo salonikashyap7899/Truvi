@@ -21,7 +21,19 @@ export function getEnv() {
     clientUrl: process.env.CLIENT_URL || "",
     publicUrl: process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "",
     uploadDir: process.env.UPLOAD_DIR || "",
+    // ── Razorpay ──────────────────────────────────────────────────────────
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
+    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // GST added on top of every price. Configurable; India default is 18%.
+    gstPercent: Number(process.env.GST_PERCENT ?? 18),
   };
+}
+
+/** True only when both Razorpay keys are configured. */
+export function isRazorpayConfigured(): boolean {
+  const env = getEnv();
+  return Boolean(env.razorpayKeyId && env.razorpayKeySecret);
 }
 
 export function assertRequiredEnvForProduction(): void {
