@@ -4,17 +4,26 @@ import { motion } from "framer-motion";
 import { Check, ArrowRight, Sparkles } from "lucide-react";
 import { SiteNav } from "@/components/SiteNav";
 import { Button } from "@/components/ui/button";
-import CheckoutModal from "@/components/CheckoutModal";
+import CheckoutModal, { type CheckoutConfig } from "@/components/CheckoutModal";
 import { PaymentMethodsRow, RazorpayBadge } from "@/components/PaymentTrust";
 import { PRICING_TABS, type PriceItem } from "@/lib/pricing";
 
-const WA_SUPPORT =
-  "https://wa.me/919196366358?text=Hi%20Truvi%2C%20I%27d%20like%20to%20activate%20a%20Pro%20subscription.";
-
 export default function PricingPage() {
   const [tab, setTab] = useState(0);
-  const [checkout, setCheckout] = useState<{ planId: string; title: string; price: string } | null>(null);
+  const [checkout, setCheckout] = useState<CheckoutConfig | null>(null);
   const active = PRICING_TABS[tab];
+
+  function startCheckout(item: PriceItem) {
+    if (!item.planId) return;
+    setCheckout({
+      kind: item.cta === "subscribe" ? "subscription" : "order",
+      title: item.title,
+      planId: item.planId,
+      priceLabel: item.price,
+      yearlyPlanId: item.yearlyPlanId,
+      yearlyPrice: item.yearlyPrice,
+    });
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -72,11 +81,7 @@ export default function PricingPage() {
           className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
           {active.items.map((item) => (
-            <PricingCard
-              key={item.title}
-              item={item}
-              onBuy={() => item.planId && setCheckout({ planId: item.planId, title: item.title, price: item.price })}
-            />
+            <PricingCard key={item.title} item={item} onBuy={() => startCheckout(item)} />
           ))}
         </motion.div>
 
@@ -97,14 +102,7 @@ export default function PricingPage() {
         </footer>
       </main>
 
-      {checkout && (
-        <CheckoutModal
-          planId={checkout.planId}
-          planTitle={checkout.title}
-          priceLabel={checkout.price}
-          onClose={() => setCheckout(null)}
-        />
-      )}
+      {checkout && <CheckoutModal config={checkout} onClose={() => setCheckout(null)} />}
     </div>
   );
 }
@@ -138,11 +136,9 @@ function PricingCard({ item, onBuy }: { item: PriceItem; onBuy: () => void }) {
           </Button>
         )}
         {item.cta === "subscribe" && (
-          <a href={WA_SUPPORT} target="_blank" rel="noopener noreferrer">
-            <Button variant="secondary" className="w-full">
-              <Sparkles size={15} className="mr-1" /> Subscribe
-            </Button>
-          </a>
+          <Button onClick={onBuy} variant="secondary" className="w-full">
+            <Sparkles size={15} className="mr-1" /> Subscribe
+          </Button>
         )}
         {isFree && (
           <Link to="/join">

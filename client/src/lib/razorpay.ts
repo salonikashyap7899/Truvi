@@ -58,3 +58,31 @@ export function openRazorpayCheckout(opts: OpenCheckoutOptions) {
   });
   rzp.open();
 }
+
+export interface OpenSubscriptionOptions {
+  keyId: string;
+  subscriptionId: string;
+  name: string;
+  description: string;
+  prefill: { name: string; email: string; contact: string };
+  onSuccess: (r: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => void;
+  onDismiss: () => void;
+}
+
+/** Opens the Razorpay modal for a recurring subscription (subscription_id, no amount). */
+export function openRazorpaySubscription(opts: OpenSubscriptionOptions) {
+  const Razorpay = (window as any).Razorpay;
+  const rzp = new Razorpay({
+    key: opts.keyId,
+    subscription_id: opts.subscriptionId,
+    name: "Truvi Ventures",
+    description: opts.description,
+    image: "/brand/icon.png",
+    prefill: opts.prefill,
+    theme: { color: "#3B82F6" },
+    handler: opts.onSuccess,
+    modal: { ondismiss: opts.onDismiss },
+  });
+  rzp.on("payment.failed", () => opts.onDismiss());
+  rzp.open();
+}
