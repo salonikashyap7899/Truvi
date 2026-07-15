@@ -5,7 +5,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle } from "lucide-react";
+import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle, Trash2 } from "lucide-react";
 import AdminLegalReview from "@/components/AdminLegalReview";
 import type { Project } from "@/types";
 
@@ -107,6 +107,25 @@ export default function AdminListingsPage() {
     toast.success(nowPrime ? "⭐ Set as Prime Listing" : "Removed from Prime Listing");
     setLoading(null);
     load();
+  }
+
+  async function deleteProject(project: Project) {
+    if (
+      !window.confirm(
+        `Permanently delete "${project.name}"?\n\nThis removes the project and all its units, leads, enquiries and documents. This cannot be undone.`
+      )
+    )
+      return;
+    setLoading(project._id + "-delete");
+    try {
+      await api.delete(`/admin/projects/${project._id}`);
+      toast.success(`"${project.name}" deleted permanently`);
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not delete project");
+    } finally {
+      setLoading(null);
+    }
   }
 
   async function saveVerification(project: Project) {
@@ -257,6 +276,16 @@ export default function AdminListingsPage() {
                     >
                       <XCircle size={13} className="mr-1" /> Reject
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={loading === p._id + "-delete"}
+                      onClick={() => deleteProject(p)}
+                      className="border-red-700 text-red-300 hover:bg-red-900/30"
+                    >
+                      <Trash2 size={13} className="mr-1" />
+                      {loading === p._id + "-delete" ? "Deleting…" : "Delete"}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -351,6 +380,18 @@ export default function AdminListingsPage() {
                   >
                     Verify Details
                     {isExpanded ? <ChevronUp size={13} className="ml-1" /> : <ChevronDown size={13} className="ml-1" />}
+                  </Button>
+
+                  {/* Permanent delete */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={loading === p._id + "-delete"}
+                    onClick={() => deleteProject(p)}
+                    className="border-red-700 text-red-300 hover:bg-red-900/30"
+                  >
+                    <Trash2 size={13} className="mr-1" />
+                    {loading === p._id + "-delete" ? "Deleting…" : "Delete"}
                   </Button>
                 </div>
               </div>

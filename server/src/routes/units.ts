@@ -196,19 +196,8 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.json({ unit: updated });
   }
 
- claude/otp-email-verification-fb9zq7
-  // Availability control for the owner/admin: AVAILABLE (re-list), RESERVED
-  // ("blocked" — held off-market), or SOLD. Setting AVAILABLE clears any CP lock.
-  const status = req.body?.status as UnitStatus | undefined;
-  if (status && ["AVAILABLE", "RESERVED", "SOLD"].includes(status)) {
-    const [updated] = await db
-      .update(units)
-      .set({
-        status,
-        ...(status === "AVAILABLE" ? { lockedByCPId: null, lockExpiresAt: null } : {}),
-      }
   // Availability set by the developer/admin: Available, Sold, or Blocked
-  // (Blocked maps to RESERVED). LOCKED is CP-driven and not set here.
+  // (Blocked maps to RESERVED). Setting the status clears any CP lock.
   if (req.body?.status !== undefined) {
     const status = req.body.status as UnitStatus;
     if (!["AVAILABLE", "SOLD", "RESERVED"].includes(status)) {
@@ -216,7 +205,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     }
     const [updated] = await db
       .update(units)
-      .set({ status, lockedByCPId: null, lockExpiresAt: null }) main
+      .set({ status, lockedByCPId: null, lockExpiresAt: null })
       .where(eq(units._id, unit._id))
       .returning();
     emitUnitUpdate(String(updated.projectId), updated);

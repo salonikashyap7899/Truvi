@@ -280,9 +280,7 @@ export const projects = pgTable(
     masterPlanUrl: text("master_plan_url"),
     // Public visit counter shown on listings ("N views").
     viewCount: integer("view_count").notNull().default(0),
-    // Developer-managed commercial details (all optional; shown publicly).
-    possessionDate: timestamp("possession_date", { withTimezone: true, mode: "date" }),
-    salesContact: jsonb("sales_contact").$type<SalesContact>(),
+    // Developer-managed payment plans (optional; shown publicly).
     paymentPlans: jsonb("payment_plans").$type<PaymentPlan[]>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
@@ -535,7 +533,6 @@ export const projectAssets = pgTable(
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
 
- claude/otp-email-verification-fb9zq7
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
 
@@ -561,7 +558,6 @@ export const legalDocuments = pgTable(
   },
   (t) => [index("legal_documents_project_verified_idx").on(t.projectId, t.verified)]
 );
-main
 
 export const courseProgress = pgTable(
   "course_progress",
