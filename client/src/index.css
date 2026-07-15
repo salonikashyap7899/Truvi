@@ -27,6 +27,9 @@
 
 html, body, #root {
   height: 100%;
+  /* Paint the root dark so third-party overlays (e.g. the Razorpay checkout)
+     never reveal a white page behind them. */
+  background-color: var(--background);
 }
 
 /* Responsive safety net: decorative glows, wide diagrams and animated
