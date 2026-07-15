@@ -31,6 +31,7 @@ import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import legalRoutes from "./routes/legal";
+import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -48,6 +49,11 @@ export function createApp() {
   app.set("trust proxy", 1);
 
   app.use(cors({ origin: getAllowedOrigins(), credentials: true }));
+
+  // Razorpay webhook must see the RAW request body to verify the signature, so
+  // it is mounted with express.raw BEFORE the global JSON parser.
+  app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
+
   app.use(express.json());
   app.use(cookieParser());
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
@@ -82,6 +88,7 @@ export function createApp() {
   app.use("/api/presentation", presentationRoutes);
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
   app.use("/api/legal", legalRoutes);
+  app.use("/api/payments", paymentRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));

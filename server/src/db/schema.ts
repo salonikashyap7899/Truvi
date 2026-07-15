@@ -635,6 +635,46 @@ export type ICourseProgress = typeof courseProgress.$inferSelect;
 export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
 export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;
 
+/**
+ * Payments — one row per Razorpay checkout attempt. Structured so it can move
+ * to a dedicated billing store later without reshaping. Amounts are in **paise**
+ * (integer). `razorpayPaymentId` is unique so webhook + verify are idempotent.
+ */
+export const payments = pgTable(
+  "payments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    // Who paid (captured from the pre-checkout form; not necessarily a user).
+    userId: uuid("user_id").references(() => users._id),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerPhone: text("customer_phone").notNull(),
+    // What they bought.
+    planId: text("plan_id").notNull(),
+    planLabel: text("plan_label").notNull(),
+    category: text("category").notNull(),
+    // Money — all paise.
+    amountPaise: integer("amount_paise").notNull(),
+    gstPaise: integer("gst_paise").notNull().default(0),
+    currency: text("currency").notNull().default("INR"),
+    // Razorpay identifiers.
+    razorpayOrderId: text("razorpay_order_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
+    razorpaySignature: text("razorpay_signature"),
+    // CREATED → PAID / FAILED. (Subscriptions may add ACTIVE later.)
+    status: text("status").$type<"CREATED" | "PAID" | "FAILED">().notNull().default("CREATED"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("payments_razorpay_payment_id_idx").on(t.razorpayPaymentId),
+    index("payments_order_idx").on(t.razorpayOrderId),
+    index("payments_status_created_idx").on(t.status, t.createdAt),
+  ]
+);
+export type IPayment = typeof payments.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;

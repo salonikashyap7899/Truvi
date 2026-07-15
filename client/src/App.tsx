@@ -51,6 +51,11 @@ import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
 const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
+import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
+import PricingPage from "@/pages/PricingPage";
+import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
+import PaymentFailedPage from "@/pages/PaymentFailedPage";
+import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
 function Ambience() {
   const { pathname } = useLocation();
@@ -99,6 +104,12 @@ export default function App() {
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/legal" element={<LegalPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/payment-success" element={<PaymentSuccessPage />} />
+        <Route path="/payment-failed" element={<PaymentFailedPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/refund-policy" element={<RefundPolicyPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -117,6 +128,7 @@ export default function App() {
         <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
+        <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />

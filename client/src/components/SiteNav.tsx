@@ -59,6 +59,7 @@ const NAV_LINKS: NavLink[] = [
   { label: "Intelligence", to: "/intelligence" },
   { label: "Ask Truvi", hash: "#ask-truvi" },
   { label: "Inventory", to: "/inventory" },
+  { label: "Pricing", to: "/pricing" },
   { label: "For Developers", hash: "#developer-intelligence" },
   { label: "About", to: "/about" },
 ];
@@ -88,19 +89,21 @@ function navLinksForRole(user?: Pick<User, "role" | "email"> | null): NavLink[] 
         dash("Dashboard"),
         { label: "Inventory", to: "/inventory" },
         { label: "Intelligence", to: "/intelligence" },
+        { label: "Pricing", to: "/pricing" },
         { label: "Ask Truvi", hash: "#ask-truvi" },
       ];
     case "CP":
       return [
         dash("Dashboard"),
         { label: "Inventory", to: "/inventory" },
+        { label: "Pricing", to: "/pricing" },
         { label: "For Developers", hash: "#developer-intelligence" },
-        { label: "Ask Truvi", hash: "#ask-truvi" },
       ];
     case "DEVELOPER":
       return [
         dash("Dashboard"),
         { label: "Inventory", to: "/inventory" },
+        { label: "Pricing", to: "/pricing" },
         { label: "For Developers", hash: "#developer-intelligence" },
       ];
     case "ADMIN":
