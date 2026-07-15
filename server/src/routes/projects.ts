@@ -182,10 +182,12 @@ router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
   const db = getDb();
+  const { possessionDate, ...rest } = parsed.data;
   const [project] = await db
     .insert(projects)
     .values({
-      ...parsed.data,
+      ...rest,
+      possessionDate: possessionDate ? new Date(possessionDate) : undefined,
       brochureUrl: parsed.data.brochureUrl || undefined,
       priceListUrl: parsed.data.priceListUrl || undefined,
       developerId: req.user!.userId,

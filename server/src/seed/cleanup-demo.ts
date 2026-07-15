@@ -43,6 +43,25 @@ async function cleanup() {
     return;
   }
 
+  // The old seed pre-filled Truvi verification (verified badges, trust score,
+  // risk levels) on its projects. Reset all of that to PENDING — verification
+  // must only ever come from a real admin action in the admin panel.
+  const resetCount = await db
+    .update(projects)
+    .set({
+      isVerified: false,
+      verifiedAt: null,
+      trustScore: null,
+      legalRiskLevel: null,
+      floodRiskLevel: null,
+      crimeIndexLevel: null,
+      reraStatus: null,
+      verificationDetails: null,
+    })
+    .where(inArray(projects.developerId, seedDevIds))
+    .returning({ _id: projects._id });
+  console.log(`Reset seeded verification to PENDING on ${resetCount.length} project(s).`);
+
   // Demo projects = owned by a seed developer AND not the Prime Estate showcase.
   const demoProjects = await db
     .select({ _id: projects._id, name: projects.name })
