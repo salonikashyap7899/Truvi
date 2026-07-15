@@ -26,7 +26,12 @@ export function getEnv() {
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
     // GST added on top of every price. Configurable; India default is 18%.
-    gstPercent: Number(process.env.GST_PERCENT ?? 18),
+    // parseFloat tolerates values like "18%" or "18 " and we fall back to 18
+    // on anything non-numeric so a stray character can never make amounts NaN.
+    gstPercent: (() => {
+      const g = parseFloat(String(process.env.GST_PERCENT ?? "18"));
+      return Number.isFinite(g) ? g : 18;
+    })(),
   };
 }
 

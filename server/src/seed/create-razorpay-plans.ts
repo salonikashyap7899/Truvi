@@ -34,6 +34,11 @@ async function run() {
     }
 
     const amount = withGst(plan.pricePaise, env.gstPercent); // incl. GST, paise
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new Error(
+        `Computed a bad amount (${amount}) for ${plan.id}. Check GST_PERCENT in server/.env — it must be a plain number like 18 (no "%").`
+      );
+    }
     const created = await rzp.plans.create({
       period: razorpayPeriod(plan.interval),
       interval: 1,
