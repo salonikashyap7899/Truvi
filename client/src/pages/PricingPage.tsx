@@ -6,12 +6,24 @@ import { SiteNav } from "@/components/SiteNav";
 import { Button } from "@/components/ui/button";
 import CheckoutModal, { type CheckoutConfig } from "@/components/CheckoutModal";
 import { PaymentMethodsRow, RazorpayBadge } from "@/components/PaymentTrust";
-import { PRICING_TABS, type PriceItem } from "@/lib/pricing";
+import { PRICING_TABS, type PriceItem, type PriceTab } from "@/lib/pricing";
+import { useAuth } from "@/hooks/useAuth";
+
+/** Each paying role sees only its own pricing. Guests/admins see all tabs. */
+const ROLE_TAB: Record<string, PriceTab["key"]> = {
+  BUYER: "buyer",
+  CP: "cp",
+  DEVELOPER: "developer",
+};
 
 export default function PricingPage() {
+  const { user } = useAuth();
+  const roleKey = user ? ROLE_TAB[user.role] : undefined;
+  const visibleTabs = roleKey ? PRICING_TABS.filter((t) => t.key === roleKey) : PRICING_TABS;
+
   const [tab, setTab] = useState(0);
   const [checkout, setCheckout] = useState<CheckoutConfig | null>(null);
-  const active = PRICING_TABS[tab];
+  const active = visibleTabs[tab] ?? visibleTabs[0];
 
   function startCheckout(item: PriceItem) {
     if (!item.planId) return;
@@ -53,22 +65,24 @@ export default function PricingPage() {
           <p className="mt-2 text-xs text-muted-foreground">Prices exclusive of 18% GST.</p>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-8 flex justify-center">
-          <div className="inline-flex flex-wrap justify-center gap-1 rounded-full border border-white/10 glass p-1">
-            {PRICING_TABS.map((t, i) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(i)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors sm:px-5 ${
-                  i === tab ? "bg-[var(--trust)] text-white shadow-[0_0_24px_-6px_var(--trust)]" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+        {/* Tabs — hidden when the signed-in role only has one pricing group */}
+        {visibleTabs.length > 1 && (
+          <div className="mt-8 flex justify-center">
+            <div className="inline-flex flex-wrap justify-center gap-1 rounded-full border border-white/10 glass p-1">
+              {visibleTabs.map((t, i) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(i)}
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-colors sm:px-5 ${
+                    i === tab ? "bg-[var(--trust)] text-white shadow-[0_0_24px_-6px_var(--trust)]" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <p className="mt-4 text-center text-sm text-muted-foreground">{active.tagline}</p>
 
