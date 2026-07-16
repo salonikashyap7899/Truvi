@@ -32,6 +32,10 @@ import presentationRoutes from "./routes/presentation";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
+import verificationRoutes from "./routes/verification";
+import ingestRoutes from "./routes/ingest";
+import verificationAdminRoutes from "./routes/verificationAdmin";
+import { securityHeaders } from "./middleware/security";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -48,6 +52,7 @@ export function createApp() {
   // trust the first hop so req.secure/req.ip and secure cookies work.
   app.set("trust proxy", 1);
 
+  app.use(securityHeaders);
   app.use(cors({ origin: getAllowedOrigins(), credentials: true }));
 
   // Razorpay webhook must see the RAW request body to verify the signature, so
@@ -89,6 +94,9 @@ export function createApp() {
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
   app.use("/api/legal", legalRoutes);
   app.use("/api/payments", paymentRoutes);
+  app.use("/api", verificationRoutes); // /api/verify/:id, /api/verification/:id, /api/property/:id
+  app.use("/api/ingest", ingestRoutes);
+  app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));
