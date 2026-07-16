@@ -41,7 +41,7 @@ export const PLANS: Record<string, PlanDef> = {
   cp_premium_membership: { id: "cp_premium_membership", label: "Premium CP Membership (6 months)", category: "CP", type: "one_time", pricePaise: R(99), listPaise: R(999), interval: "6-months" },
   cp_verified_badge: { id: "cp_verified_badge", label: "Verified CP Badge (6 months)", category: "CP", type: "one_time", pricePaise: R(999), listPaise: R(2999), interval: "6-months" },
   cp_lead_purchase: { id: "cp_lead_purchase", label: "Lead Purchase (contact data)", category: "CP", type: "one_time", pricePaise: R(99), listPaise: R(999) },
-  cp_crm: { id: "cp_crm", label: "CRM Access (Monthly)", category: "CP", type: "one_time", pricePaise: R(99), interval: "monthly" },
+  cp_crm: { id: "cp_crm", label: "CRM Access (Monthly)", category: "CP", type: "one_time", pricePaise: R(99), listPaise: R(999), interval: "monthly" },
   cp_pro_monthly: { id: "cp_pro_monthly", label: "CP Pro (Monthly)", category: "CP", type: "subscription", pricePaise: R(999), interval: "monthly" },
   cp_pro_yearly: { id: "cp_pro_yearly", label: "CP Pro (Yearly)", category: "CP", type: "subscription", pricePaise: R(9999), interval: "yearly" },
 
