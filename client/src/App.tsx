@@ -52,6 +52,7 @@ const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
 import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
+import AdminVerificationPage from "@/pages/admin/AdminVerificationPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import PaymentFailedPage from "@/pages/PaymentFailedPage";
@@ -104,7 +105,14 @@ export default function App() {
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/legal" element={<LegalPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
+        <Route
+          path="/pricing"
+          element={
+            <ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}>
+              <PricingPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/payment-success" element={<PaymentSuccessPage />} />
         <Route path="/payment-failed" element={<PaymentFailedPage />} />
         <Route path="/terms" element={<TermsPage />} />
@@ -129,6 +137,7 @@ export default function App() {
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
         <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
+        <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
