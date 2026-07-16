@@ -2,11 +2,11 @@ import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { payments, subscriptions, subscriptionPlans } from "../db/schema";
 import { getEnv, isRazorpayConfigured } from "../config/env";
-import { getPlan, withGst } from "../config/pricing";
+import { getPlan, withGst, intervalEnd } from "../config/pricing";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
 
@@ -33,6 +33,53 @@ router.get("/config", (_req, res) => {
     gstPercent: env.gstPercent,
     configured: isRazorpayConfigured(),
   });
+});
+
+/** The signed-in user's purchases + subscriptions, each with a buy date and a
+ *  computed expiry date, newest first — powers the "My Plans" account section. */
+router.get("/mine", authenticate, async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const uid = req.user!.userId;
+
+  const [pays, subs] = await Promise.all([
+    db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.userId, uid), eq(payments.status, "PAID")))
+      .orderBy(desc(payments.createdAt)),
+    db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, uid))
+      .orderBy(desc(subscriptions.createdAt)),
+  ]);
+
+  const oneTime = pays.map((p) => ({
+    _id: p._id,
+    kind: "one_time" as const,
+    label: p.planLabel,
+    category: p.category,
+    amountPaise: p.amountPaise + p.gstPaise,
+    status: p.status,
+    interval: getPlan(p.planId)?.interval ?? null,
+    purchasedAt: p.createdAt,
+    expiresAt: intervalEnd(p.createdAt, getPlan(p.planId)?.interval),
+  }));
+
+  const recurring = subs.map((s) => ({
+    _id: s._id,
+    kind: "subscription" as const,
+    label: s.planLabel,
+    category: s.category,
+    amountPaise: s.basePaise + s.gstPaise,
+    status: s.status,
+    interval: s.interval ?? null,
+    purchasedAt: s.createdAt,
+    expiresAt: intervalEnd(s.createdAt, s.interval),
+  }));
+
+  // Subscriptions first, then one-off purchases; each group newest-first.
+  res.json({ plans: [...recurring, ...oneTime] });
 });
 
 // ── Create order ──────────────────────────────────────────────────────────

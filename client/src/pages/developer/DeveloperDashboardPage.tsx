@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MyPlans } from "@/components/MyPlans";
 import UserMenu from "@/components/UserMenu";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
@@ -122,6 +123,8 @@ export default function DeveloperDashboardPage() {
           ))}
         </div>
       </section>
+
+      <MyPlans />
     </main>
   );
 }

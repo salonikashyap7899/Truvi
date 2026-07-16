@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MyPlans } from "@/components/MyPlans";
 import UserMenu from "@/components/UserMenu";
 import { formatINR, nameOf } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
@@ -389,6 +390,8 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
           </div>
         </section>
       )}
+
+      <MyPlans />
     </main>
   );
 }
