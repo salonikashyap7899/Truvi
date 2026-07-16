@@ -186,6 +186,7 @@ function PricingCard({ item, onBuy }: { item: PriceItem; onBuy: () => void }) {
           </span>
         )}
 
+        {/* Top content — grows so the price/CTA block below always aligns across a row */}
         <div className="flex-1">
           {/* Icon */}
           <div className="grid size-12 place-items-center rounded-2xl bg-[var(--trust)]/12 text-[var(--trust)] ring-1 ring-inset ring-[var(--trust)]/25">
@@ -201,18 +202,19 @@ function PricingCard({ item, onBuy }: { item: PriceItem; onBuy: () => void }) {
               {item.offer}
             </span>
           )}
-
-          {/* Price */}
-          <div className="mt-5 flex items-end gap-2">
-            <span className="font-display text-4xl font-semibold tracking-tight text-white">{item.price}</span>
-            {item.unit && <span className="pb-1 text-sm text-muted-foreground">{item.unit}</span>}
-            {item.strike && <span className="pb-1.5 text-sm text-muted-foreground/70 line-through">{item.strike}</span>}
-          </div>
-          {!isFree && <p className="mt-1 text-[11px] text-muted-foreground/70">+ 18% GST at checkout</p>}
         </div>
 
+        {/* Price — pinned below the flexible content so it lines up across cards */}
+        <div className="mt-5 flex items-end gap-2">
+          <span className="font-display text-4xl font-semibold tracking-tight text-white">{item.price}</span>
+          {item.unit && <span className="pb-1 text-sm text-muted-foreground">{item.unit}</span>}
+          {item.strike && <span className="pb-1.5 text-sm text-muted-foreground/70 line-through">{item.strike}</span>}
+        </div>
+        {/* GST line kept in the layout for every card (invisible when free) so prices share a baseline */}
+        <p className={`mt-1 text-[11px] text-muted-foreground/70 ${isFree ? "invisible" : ""}`}>+ 18% GST at checkout</p>
+
         {/* CTA */}
-        <div className="mt-6">
+        <div className="mt-5">
           {item.cta === "buy" && (
             <Button onClick={onBuy} className="w-full">
               Buy Now <ArrowRight size={15} className="ml-1 transition-transform group-hover:translate-x-0.5" />
