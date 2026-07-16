@@ -99,6 +99,17 @@ async function seed() {
     phone: randomPhone(),
   });
 
+  // --- Buyer (email pre-verified so it can log in straight away) ---
+  await db.insert(users).values({
+    name: "Truvi Buyer",
+    email: "buyer1@truvi.app",
+    password: hashedPassword,
+    role: "BUYER",
+    approvalStatus: "APPROVED",
+    emailVerified: true,
+    phone: randomPhone(),
+  });
+
   // --- Developers (all auto-approved; email pre-verified for seed data) ---
   const developerData = [
     { name: "Skyline Developers", email: "dev1@truvi.app", company: "Skyline Developers Pvt Ltd" },
@@ -334,6 +345,7 @@ async function seed() {
   console.log("--- Login credentials (all use password: Password123!) ---");
   console.log("Admin:      admin@truvi.app");
   console.log("Admin:      founder@truvi.app");
+  console.log("Buyer:      buyer1@truvi.app");
   console.log("Developer:  dev1@truvi.app");
   console.log("Developer:  dev4@truvi.app");
   console.log("CP/Seller:  cp1@truvi.app (Silver)");
