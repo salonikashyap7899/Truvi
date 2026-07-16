@@ -41,6 +41,16 @@ export function getDb(): Db {
   return dbInstance;
 }
 
+/**
+ * The raw postgres.js client — needed by the verification/fraud engines to run
+ * admin-authored `sql_query` strings with `.unsafe(query, params)` inside a
+ * READ ONLY transaction (so a malformed or malicious check can never write).
+ */
+export function getSqlClient(): ReturnType<typeof postgres> {
+  if (!client) getDb(); // lazily initialises `client`
+  return client!;
+}
+
 export async function closeDb(): Promise<void> {
   if (client) {
     await client.end({ timeout: 5 });
