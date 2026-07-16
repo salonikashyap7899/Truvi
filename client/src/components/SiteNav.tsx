@@ -55,11 +55,12 @@ function WhatsAppNavIcon() {
  *  navigate back to "/" with the hash (the landing page scrolls to it). */
 type NavLink = { label: string; to?: string; hash?: string };
 
+// Pricing is intentionally NOT here — it's gated behind sign-in and only shown
+// to authenticated roles (see navLinksForRole).
 const NAV_LINKS: NavLink[] = [
   { label: "Intelligence", to: "/intelligence" },
   { label: "Ask Truvi", hash: "#ask-truvi" },
   { label: "Inventory", to: "/inventory" },
-  { label: "Pricing", to: "/pricing" },
   { label: "For Developers", hash: "#developer-intelligence" },
   { label: "About", to: "/about" },
 ];
