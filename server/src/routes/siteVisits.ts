@@ -2,11 +2,12 @@ import { Router } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
-import { siteVisits, leads, projects, users, SiteVisitStatus, LeadStage } from "../db/schema";
+import { siteVisits, leads, projects, users, notifications, SiteVisitStatus, LeadStage } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { createSiteVisitSchema, confirmAttendanceSchema, siteVisitReportSchema } from "../lib/validations/leads";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { upload, fileUrl } from "../services/uploadService";
+import { emitNotification } from "../sockets";
 
 const router = Router();
 router.use(authenticate);
@@ -102,6 +103,25 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
       reportNotes: parsed.data.notes || undefined,
     })
     .returning();
+
+  // Alert admins in real time (notification bell + toast) about the new booking.
+  // A failure here must never block the buyer's booking, so it's best-effort.
+  try {
+    const [buyer] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
+    const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
+    if (admins.length) {
+      const when = new Date(parsed.data.scheduledAt).toLocaleString("en-IN");
+      const slot = parsed.data.timeSlot ? ` (${parsed.data.timeSlot})` : "";
+      const message = `New site-visit booking: ${buyer?.name || "A buyer"} booked "${project.name}" for ${when}${slot}.`;
+      const rows = await db
+        .insert(notifications)
+        .values(admins.map((a) => ({ userId: a._id, message })))
+        .returning();
+      rows.forEach((n) => emitNotification(String(n.userId), n));
+    }
+  } catch {
+    /* non-fatal: booking already succeeded */
+  }
 
   res.status(201).json({ siteVisit });
 });
