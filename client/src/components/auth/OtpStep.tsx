@@ -64,7 +64,7 @@ export function OtpStep({
   }
 
   const codeInputCls =
-    "h-11 border-white/15 bg-white/5 text-center text-lg tracking-[0.5em] text-white placeholder:tracking-normal placeholder:text-white/30";
+    "h-11 border-white/12 bg-white/[0.04] text-center text-lg tracking-[0.5em] text-white placeholder:tracking-normal placeholder:text-white/30 transition-all focus:border-[var(--trust)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--trust)]/20";
 
   return (
     <>
@@ -113,10 +113,11 @@ export function OtpStep({
         <button
           type="submit"
           disabled={loading || !ready}
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.35)] disabled:opacity-60"
+          className="group relative mt-1 flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[var(--trust)] via-[#3b82f6] to-[#2563eb] py-3.5 text-sm font-semibold text-white shadow-[0_12px_32px_-8px_rgba(59,130,246,0.7)] transition-all hover:shadow-[0_16px_40px_-6px_rgba(59,130,246,0.9)] active:scale-[0.99] disabled:opacity-60"
         >
-          {loading && <Loader2 size={14} className="animate-spin" />}
-          {loading ? "Verifying…" : "Verify & continue"}
+          <span aria-hidden className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+          {loading && <Loader2 size={15} className="relative z-10 animate-spin" />}
+          <span className="relative z-10">{loading ? "Verifying…" : "Verify & continue"}</span>
         </button>
         <div className="flex items-center justify-between text-sm">
           <button

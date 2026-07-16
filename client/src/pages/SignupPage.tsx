@@ -8,7 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
-import { User, Handshake, Building2, Loader2 } from "lucide-react";
+import { AuthAurora, AuthCard } from "@/components/auth/AuthShell";
+import { User, Handshake, Building2, Loader2, ArrowRight } from "lucide-react";
 
 const signupSchema = z
   .object({
@@ -87,24 +88,20 @@ export default function SignupPage() {
     }
   }
 
-  const inputCls = "h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30";
+  const inputCls =
+    "h-11 border-white/12 bg-white/[0.04] text-white placeholder:text-white/30 transition-all focus:border-[var(--trust)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--trust)]/20";
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute left-1/2 top-[-15%] h-[45vh] w-[60vw] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
-          style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
-      </div>
+      <AuthAurora />
 
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="relative w-full max-w-md"
       >
-        <div className="rounded-[26px] p-px" style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.22), rgba(59,130,246,0.3) 45%, rgba(255,255,255,0.05) 85%)" }}>
-          <div className="rounded-[25px] bg-[#0a0d14]/95 p-8">
+        <AuthCard>
             {step === "otp" && pending ? (
               <OtpStep
                 email={pending.email}
@@ -115,34 +112,42 @@ export default function SignupPage() {
             ) : (
             <>
             <Link to="/" className="flex flex-col items-center text-center">
-              <span className="grid size-11 place-items-center overflow-hidden rounded-2xl bg-white p-1 shadow-[0_0_36px_rgba(59,130,246,0.4)]">
+              <span className="grid size-12 place-items-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-[0_0_44px_rgba(59,130,246,0.5)] ring-1 ring-white/20">
                 <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
               </span>
-              <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.35em] text-white/90">TRUVI</span>
+              <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.38em] text-white/90">TRUVI</span>
             </Link>
 
-            <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Create your account</h1>
-            <p className="mt-1 text-center text-sm text-muted-foreground">
+            <h1 className="mt-5 text-center font-display text-[26px] font-semibold leading-tight tracking-tight">
+              <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
+            </h1>
+            <p className="mx-auto mt-1.5 max-w-[19rem] text-center text-sm text-muted-foreground">
               We&apos;ll send 6-digit codes to your email and phone to verify your account.
             </p>
 
-            {/* Role selector */}
-            <div className="mt-6 flex rounded-full border border-white/12 bg-white/[0.04] p-1">
-              {ROLE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setValue("role", opt.id)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-[13px] font-medium transition-all ${
-                    role === opt.id
-                      ? "bg-gradient-to-r from-[var(--trust)] to-[#2563eb] text-white shadow-[0_0_18px_rgba(59,130,246,0.35)]"
-                      : "text-muted-foreground hover:text-white"
-                  }`}
-                >
-                  {opt.icon}
-                  {opt.label}
-                </button>
-              ))}
+            {/* Premium role selector — sliding highlight, icon over label */}
+            <div className="mt-6 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+              {ROLE_OPTIONS.map((opt) => {
+                const active = role === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setValue("role", opt.id)}
+                    className="relative flex flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-3 text-center text-[11.5px] font-medium leading-tight"
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="roleActive"
+                        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                        className="absolute inset-0 rounded-xl bg-gradient-to-b from-[var(--trust)] to-[#2563eb] shadow-[0_10px_26px_-8px_rgba(59,130,246,0.7)]"
+                      />
+                    )}
+                    <span className={`relative z-10 transition-colors ${active ? "text-white" : "text-muted-foreground"}`}>{opt.icon}</span>
+                    <span className={`relative z-10 transition-colors ${active ? "text-white" : "text-muted-foreground"}`}>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
@@ -183,10 +188,12 @@ export default function SignupPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.35)] disabled:opacity-60"
+                  className="group relative mt-1 flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[var(--trust)] via-[#3b82f6] to-[#2563eb] py-3.5 text-sm font-semibold text-white shadow-[0_12px_32px_-8px_rgba(59,130,246,0.7)] transition-all hover:shadow-[0_16px_40px_-6px_rgba(59,130,246,0.9)] active:scale-[0.99] disabled:opacity-60"
                 >
-                  {isSubmitting && <Loader2 size={14} className="animate-spin" />}
-                  {isSubmitting ? "Creating account…" : "Create account"}
+                  <span aria-hidden className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+                  {isSubmitting && <Loader2 size={15} className="relative z-10 animate-spin" />}
+                  <span className="relative z-10">{isSubmitting ? "Creating account…" : "Create account"}</span>
+                  {!isSubmitting && <ArrowRight size={15} className="relative z-10 transition-transform group-hover:translate-x-0.5" />}
                 </button>
                 <p className="text-center text-sm text-muted-foreground">
                   Already have an account?{" "}
@@ -197,8 +204,7 @@ export default function SignupPage() {
               </form>
             </>
             )}
-          </div>
-        </div>
+        </AuthCard>
       </motion.div>
     </main>
   );

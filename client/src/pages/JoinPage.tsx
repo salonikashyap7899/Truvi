@@ -28,13 +28,6 @@ const ROLE_CARDS = [
     login: "/login",
     loginLabel: "Sign in as Buyer",
   },
-  {
-    title: "I'm an Ambassador",
-    desc: "Complete verified site visits and reports — earn for every completed task.",
-    signup: "/ambassador/signup",
-    login: "/ambassador/login",
-    loginLabel: "Sign in as Ambassador",
-  },
 ];
 
 export default function JoinPage() {
@@ -44,7 +37,7 @@ export default function JoinPage() {
       <h1 className="text-center font-display text-3xl font-semibold md:text-5xl">
         How would you like to <span className="text-gradient-aurora">join Truvi?</span>
       </h1>
-      <div className="mt-10 grid w-full max-w-5xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid w-full max-w-4xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {ROLE_CARDS.map((card) => (
           <div
             key={card.title}
