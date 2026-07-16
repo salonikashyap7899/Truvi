@@ -7,6 +7,7 @@ import { HeartButton } from "@/components/HeartButton";
 import { CompareCheckbox } from "@/components/CompareCheckbox";
 import { CompareBar } from "@/components/CompareBar";
 import { SiteVisitModal } from "@/components/SiteVisitModal";
+import { MyPlans } from "@/components/MyPlans";
 import { DocumentUpload } from "@/components/DocumentUpload";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
@@ -307,6 +308,8 @@ export default function BuyerDashboardPage() {
           />
         )}
       </section>
+
+      <MyPlans />
 
       <CompareBar />
     </main>

@@ -128,7 +128,11 @@ function ProjectCard({
           <HeartButton
             projectId={project._id}
             initialSaved={!!project.isSaved}
-            onToggle={onToggle}
+            onToggle={(id, saved) => {
+              onToggle(id, saved);
+              // Saving a property instantly offers a site-visit slot booking.
+              if (saved) setModalOpen(true);
+            }}
           />
         </div>
 

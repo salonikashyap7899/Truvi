@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
+import { MyPlans } from "@/components/MyPlans";
 import UserMenu from "@/components/UserMenu";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
@@ -47,6 +48,9 @@ export default function DeveloperDashboardPage() {
   const stageCount: Record<string, number> = {};
   leads.forEach((l) => (stageCount[l.stage] = (stageCount[l.stage] || 0) + 1));
 
+  // How many buyers have viewed this developer's projects (live, from viewCount).
+  const totalViews = projects.reduce((sum, p) => sum + (p.viewCount ?? 0), 0);
+
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -63,7 +67,7 @@ export default function DeveloperDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-white/10 glass text-white">
           <CardTitle className="text-muted-foreground">Total Revenue (Sold Units)</CardTitle>
           <CardValue>{formatINR(totalRevenue)}</CardValue>
@@ -79,6 +83,10 @@ export default function DeveloperDashboardPage() {
         <Card className="border-white/10 glass text-white">
           <CardTitle className="text-muted-foreground">Total Leads</CardTitle>
           <CardValue>{leads.length}</CardValue>
+        </Card>
+        <Card className="border-white/10 glass text-white">
+          <CardTitle className="text-muted-foreground">Buyer Views</CardTitle>
+          <CardValue>{totalViews.toLocaleString("en-IN")}</CardValue>
         </Card>
       </div>
 
@@ -108,13 +116,15 @@ export default function DeveloperDashboardPage() {
                       {p.approvalStatus}
                     </Badge>
                   </p>
-                  <p className="text-sm text-muted-foreground">{p.city} · {p.unitCount ?? 0} units · {p.leadCount ?? 0} leads</p>
+                  <p className="text-sm text-muted-foreground">{p.city} · {p.unitCount ?? 0} units · {p.leadCount ?? 0} leads · {(p.viewCount ?? 0).toLocaleString("en-IN")} views</p>
                 </div>
               </Card>
             </Link>
           ))}
         </div>
       </section>
+
+      <MyPlans />
     </main>
   );
 }

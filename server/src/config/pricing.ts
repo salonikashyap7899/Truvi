@@ -69,6 +69,18 @@ export function razorpayPeriod(interval?: string): "monthly" | "yearly" {
   return interval === "yearly" ? "yearly" : "monthly";
 }
 
+/** When a plan bought/started on `start` expires, given its billing interval.
+ *  Returns null for one-off items that never expire (no interval). */
+export function intervalEnd(start: Date, interval?: string | null): Date | null {
+  if (!interval) return null;
+  const d = new Date(start);
+  if (interval === "monthly") d.setMonth(d.getMonth() + 1);
+  else if (interval === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else if (interval === "6-months") d.setMonth(d.getMonth() + 6);
+  else return null;
+  return d;
+}
+
 /** Adds GST on top of a base paise amount. Returns integer paise. A non-finite
  *  gstPercent (e.g. a bad env value) falls back to 18 so the result can never
  *  become NaN and poison a DB insert or a Razorpay amount. */

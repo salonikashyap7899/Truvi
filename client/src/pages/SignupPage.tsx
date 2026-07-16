@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
+import { OtpStep } from "@/components/auth/OtpStep";
 import { User, Handshake, Building2, Loader2 } from "lucide-react";
 
 const signupSchema = z
@@ -47,6 +48,10 @@ export default function SignupPage() {
   const [searchParams] = useSearchParams();
   const { signup, user, isAuthenticated } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Two-step flow kept on this page: "form" collects details, "otp" verifies
+  // the emailed + texted codes inline (no bounce to a separate screen).
+  const [step, setStep] = useState<"form" | "otp">("form");
+  const [pending, setPending] = useState<{ email: string; phone: string } | null>(null);
 
   // Already signed in? Straight to this role's own workspace.
   useEffect(() => {
@@ -74,8 +79,9 @@ export default function SignupPage() {
     setServerError(null);
     try {
       await signup(data);
-      // Account created — verify the email + phone OTPs before first login.
-      navigate(`/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`);
+      // Account created — verify the email + phone OTPs inline on this page.
+      setPending({ email: data.email, phone: data.phone });
+      setStep("otp");
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }
@@ -99,6 +105,15 @@ export default function SignupPage() {
       >
         <div className="rounded-[26px] p-px" style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.22), rgba(59,130,246,0.3) 45%, rgba(255,255,255,0.05) 85%)" }}>
           <div className="rounded-[25px] bg-[#0a0d14]/95 p-8">
+            {step === "otp" && pending ? (
+              <OtpStep
+                email={pending.email}
+                phone={pending.phone}
+                onVerified={(u) => navigate(dashboardPath(u))}
+                onBack={() => setStep("form")}
+              />
+            ) : (
+            <>
             <Link to="/" className="flex flex-col items-center text-center">
               <span className="grid size-11 place-items-center overflow-hidden rounded-2xl bg-white p-1 shadow-[0_0_36px_rgba(59,130,246,0.4)]">
                 <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
@@ -180,6 +195,8 @@ export default function SignupPage() {
                   </Link>
                 </p>
               </form>
+            </>
+            )}
           </div>
         </div>
       </motion.div>
