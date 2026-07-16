@@ -105,7 +105,12 @@ export default function VisitorGateModal({ onClose, projectName, projectId }: Pr
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 glass p-6 shadow-2xl">
+      {/* Gradient-bordered card — matches the signup/login auth UI */}
+      <div
+        className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[26px] p-px shadow-2xl"
+        style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.22), rgba(59,130,246,0.3) 45%, rgba(255,255,255,0.05) 85%)" }}
+      >
+       <div className="relative rounded-[25px] bg-[#0a0d14]/95 p-6">
         {/* Close */}
         <button
           onClick={onClose}
@@ -114,10 +119,12 @@ export default function VisitorGateModal({ onClose, projectName, projectId }: Pr
           <X size={16} />
         </button>
 
-        {/* Logo */}
-        <div className="mb-5 flex items-center gap-2 font-display text-sm font-semibold tracking-tight">
-          <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[9px] font-bold">T</span>
-          TRUVI
+        {/* Logo — centered, real wordmark icon (matches signup) */}
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span className="grid size-11 place-items-center overflow-hidden rounded-2xl bg-white p-1 shadow-[0_0_36px_rgba(59,130,246,0.4)]">
+            <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
+          </span>
+          <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.35em] text-white/90">TRUVI</span>
         </div>
 
         {step === "purpose" && (
@@ -264,6 +271,7 @@ export default function VisitorGateModal({ onClose, projectName, projectId }: Pr
             </form>
           </>
         )}
+       </div>
       </div>
     </div>
   );
