@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Card, Badge, Input, Label } from "@/components/ui/primitives";
+import { Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
@@ -26,6 +26,10 @@ const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> 
   RESERVED: "info",
   SOLD: "danger",
 };
+
+const LEAD_STAGES: Lead["stage"][] = [
+  "GENERATED", "ASSIGNED", "CONTACTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "LOST",
+];
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -260,21 +264,21 @@ export default function ProjectDetailPage() {
         </div>
       </section>
 
-      {/* Leads section moved below stays the same */}
+      {/* Leads: aggregate counts only — individual buyer names/numbers are not exposed here. */}
       <section className="mt-10">
         <h2 className="text-lg font-medium">Leads ({leads.length})</h2>
-        <div className="mt-3 space-y-2">
-          {leads.map((l) => (
-            <Card key={l._id} className="flex items-center justify-between border-white/10 glass text-white">
-              <div>
-                <p className="font-medium">{l.clientName}</p>
-                <p className="text-sm text-muted-foreground">{l.clientPhone}</p>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {LEAD_STAGES.map((stage) => {
+            const count = leads.filter((l) => l.stage === stage).length;
+            return (
+              <div key={stage} className="rounded-lg border border-white/10 glass px-4 py-2 text-center">
+                <p className="text-xs text-muted-foreground">{stage.replace(/_/g, " ")}</p>
+                <p className="text-lg font-semibold">{count}</p>
               </div>
-              <Badge variant="info">{l.stage}</Badge>
-            </Card>
-          ))}
-          {leads.length === 0 && <p className="text-sm text-muted-foreground">No leads yet.</p>}
+            );
+          })}
         </div>
+        {leads.length === 0 && <p className="mt-3 text-sm text-muted-foreground">No leads yet.</p>}
       </section>
     </main>
   );
