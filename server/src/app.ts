@@ -35,6 +35,7 @@ import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
 import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
 import verificationAdminRoutes from "./routes/verificationAdmin";
+import askRoutes from "./routes/ask";
 import { securityHeaders } from "./middleware/security";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -97,6 +98,7 @@ export function createApp() {
   app.use("/api", verificationRoutes); // /api/verify/:id, /api/verification/:id, /api/property/:id
   app.use("/api/ingest", ingestRoutes);
   app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs
+  app.use("/api", askRoutes); // /api/ask, /api/chat/:sessionId
 
   if (fs.existsSync(clientDistDir)) {
     app.use(express.static(clientDistDir));
