@@ -37,8 +37,8 @@ export default function AISalesCopilot() {
   // Objection fields
   const [objection, setObjection] = useState(COMMON_OBJECTIONS[0]);
 
-  // Only show for CP users — hooks must come first, return after
-  if (!user || user.role !== "CP") return null;
+  // Show for every signed-in user except ambassadors — hooks must come first.
+  if (!user || user.role === "AMBASSADOR") return null;
 
   async function generate() {
     setLoading(true);
