@@ -59,7 +59,7 @@ export function AuthCard({ children, className }: { children: React.ReactNode; c
         className="relative rounded-[28px] p-px"
         style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.30), rgba(59,130,246,0.38) 45%, rgba(255,255,255,0.04) 85%)" }}
       >
-        <div className={`relative overflow-hidden rounded-[27px] bg-[#0a0d14]/85 p-7 backdrop-blur-2xl sm:p-8 ${className ?? ""}`}>
+        <div className={`relative max-h-[88dvh] overflow-y-auto rounded-[27px] bg-[#0a0d14]/85 p-7 backdrop-blur-2xl sm:p-8 ${className ?? ""}`}>
           {/* Top sheen */}
           <div aria-hidden className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
           {children}
