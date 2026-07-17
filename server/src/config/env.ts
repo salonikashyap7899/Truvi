@@ -32,6 +32,15 @@ export function getEnv() {
       const g = parseFloat(String(process.env.GST_PERCENT ?? "18"));
       return Number.isFinite(g) ? g : 18;
     })(),
+    // ── Developer OS test access ─────────────────────────────────────────────
+    // Unlock every paid developer tool for ALL developers (staging/test deploy).
+    devUnlockAll: /^(1|true|yes|on)$/i.test(String(process.env.DEV_UNLOCK_ALL ?? "")),
+    // Unlock every paid developer tool for specific developer accounts (by email,
+    // comma-separated) — designate test "developer admin" accounts without payment.
+    devUnlockEmails: String(process.env.DEV_UNLOCK_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
   };
 }
 

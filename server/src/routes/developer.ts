@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { payments, subscriptions, users } from "../db/schema";
 import { getPlan, intervalEnd } from "../config/pricing";
+import { getEnv } from "../config/env";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 
 /**
@@ -45,9 +46,27 @@ export function freeDeveloperEntitlement(): DeveloperEntitlement {
   return { tier: "FREE", verified: false, crm: false, ai: false, campaign: false, threeDMapping: false, pro: false, expiresAt: null };
 }
 
+/** Everything unlocked — used for admins reviewing the developer workflow. */
+export function fullDeveloperEntitlement(): DeveloperEntitlement {
+  return { tier: "PRO", verified: true, crm: true, ai: true, campaign: true, threeDMapping: true, pro: true, expiresAt: null };
+}
+
 export async function resolveDeveloperEntitlement(userId: string): Promise<DeveloperEntitlement> {
   const db = getDb();
   const now = Date.now();
+
+  // Test-access shortcuts: a global unlock flag, or an email allowlist of
+  // designated "developer admin" accounts that get everything free.
+  const env = getEnv();
+  const [account] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users._id, userId))
+    .limit(1);
+  if (!account) return freeDeveloperEntitlement();
+  if (env.devUnlockAll || env.devUnlockEmails.includes(account.email.toLowerCase())) {
+    return fullDeveloperEntitlement();
+  }
 
   const [pays, subs] = await Promise.all([
     db.select().from(payments).where(and(eq(payments.userId, userId), eq(payments.status, "PAID"))),
@@ -103,16 +122,17 @@ export async function resolveDeveloperEntitlement(userId: string): Promise<Devel
 
 const router = Router();
 router.use(authenticate);
-router.use(requireRole("DEVELOPER"));
+// Admins may enter the developer workspace to review the workflow end-to-end.
+router.use(requireRole("DEVELOPER", "ADMIN"));
 
 /** Tells the developer dashboard which paid tools are unlocked. */
 router.get("/entitlement", async (req: AuthedRequest, res) => {
-  // A user row lookup keeps parity with the CP resolver and lets us fail
-  // gracefully (free tier) if the account was removed mid-session.
-  const db = getDb();
-  const [user] = await db.select({ _id: users._id }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
-  if (!user) return res.json({ entitlement: freeDeveloperEntitlement() });
+  // Admins get everything unlocked (no payment) so they can review the full
+  // developer workflow without buying each add-on.
+  if (req.user!.role === "ADMIN") return res.json({ entitlement: fullDeveloperEntitlement() });
 
+  // Developers resolve from their paid plans (with the env test-access shortcuts
+  // applied inside the resolver).
   const entitlement = await resolveDeveloperEntitlement(req.user!.userId);
   res.json({ entitlement });
 });
