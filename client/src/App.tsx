@@ -53,6 +53,7 @@ import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
 import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import AdminVerificationPage from "@/pages/admin/AdminVerificationPage";
+import AdminKycPage from "@/pages/admin/AdminKycPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import PaymentFailedPage from "@/pages/PaymentFailedPage";
@@ -138,6 +139,7 @@ export default function App() {
         <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
         <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
         <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
+        <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />

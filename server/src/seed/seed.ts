@@ -158,7 +158,7 @@ async function seed() {
         approvalStatus: "APPROVED",
         phone: randomPhone(),
         onboardingVerified: true,
-        onboardingChecks: { aadhaarVerified: true, phoneVerified: true, emailVerified: true },
+        onboardingChecks: { aadhaarVerified: true, phoneVerified: true, emailVerified: true, panVerified: true, kycStatus: "APPROVED" },
         cpTier: plan.tier,
         cpProfile: {
           totalBookings: plan.bookings,

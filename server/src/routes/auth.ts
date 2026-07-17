@@ -7,18 +7,22 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   users,
+  notifications,
   IUser,
   OnboardingChecks,
   UserVerification,
   DEFAULT_CP_PROFILE,
   DEFAULT_BUYER_PROFILE,
   DEFAULT_ONBOARDING_CHECKS,
+  isOnboardingComplete,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
+import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
+import { emitNotification } from "../sockets";
 
 const router = Router();
 
@@ -32,6 +36,23 @@ const aadhaarUpload = multer({
   dest: uploadDir,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF and image files allowed"));
+    }
+  },
+});
+
+// KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP identity.
+const kycDir = path.join(process.cwd(), "uploads", "kyc");
+if (!fs.existsSync(kycDir)) fs.mkdirSync(kycDir, { recursive: true });
+const kycUpload = multer({
+  dest: kycDir,
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6MB per file
+  fileFilter: (req, file, cb) => {
+    // Selfies are always images; Aadhaar/PAN may be a PDF scan.
     const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
@@ -356,7 +377,7 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
     phoneVerified: Boolean(req.body?.phoneVerified),
     emailVerified: Boolean(req.body?.emailVerified),
   };
-  const onboardingVerified = checks.aadhaarVerified && checks.phoneVerified && checks.emailVerified;
+  const onboardingVerified = isOnboardingComplete(checks);
 
   const db = getDb();
   await db
@@ -435,8 +456,7 @@ router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) =
     phoneOtp: null,
     phoneOtpExpiry: null,
   };
-  const onboardingVerified =
-    onboardingChecks.phoneVerified && onboardingChecks.emailVerified && onboardingChecks.aadhaarVerified;
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
   const db = getDb();
   await db
@@ -512,8 +532,7 @@ router.post("/verify-email-otp", authenticate, async (req: AuthedRequest, res) =
     emailOtp: null,
     emailOtpExpiry: null,
   };
-  const onboardingVerified =
-    onboardingChecks.phoneVerified && onboardingChecks.emailVerified && onboardingChecks.aadhaarVerified;
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
   const db = getDb();
   await db
@@ -550,8 +569,7 @@ router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), as
     aadhaarDocumentUrl,
     aadhaarVerifiedAt: new Date().toISOString(),
   };
-  const onboardingVerified =
-    onboardingChecks.phoneVerified && onboardingChecks.emailVerified && onboardingChecks.aadhaarVerified;
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
   const db = getDb();
   await db
@@ -570,6 +588,99 @@ router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), as
     aadhaarUrl: aadhaarDocumentUrl,
   });
 });
+
+// CP identity submission: Aadhaar + PAN + live selfie in one go. Documents are
+// stored and the submission is marked PENDING for review — access stays locked
+// until a provider (see kycService) or an admin approves it.
+router.post(
+  "/submit-kyc",
+  authenticate,
+  kycUpload.fields([
+    { name: "aadhaar", maxCount: 1 },
+    { name: "pan", maxCount: 1 },
+    { name: "selfie", maxCount: 1 },
+  ]),
+  async (req: AuthedRequest, res) => {
+    const userId = req.user!.userId;
+    if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+    const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+    const aadhaarFile = files?.aadhaar?.[0];
+    const panFile = files?.pan?.[0];
+    const selfieFile = files?.selfie?.[0];
+    if (!aadhaarFile || !panFile || !selfieFile) {
+      return res.status(400).json({ error: "Aadhaar, PAN and a selfie are all required" });
+    }
+
+    const aadhaarNumber = String(req.body?.aadhaarNumber || "").replace(/\s/g, "");
+    const panNumber = String(req.body?.panNumber || "").trim().toUpperCase();
+    if (!isValidAadhaar(aadhaarNumber)) {
+      return res.status(400).json({ error: "Enter a valid 12-digit Aadhaar number" });
+    }
+    if (!isValidPan(panNumber)) {
+      return res.status(400).json({ error: "Enter a valid PAN (e.g. ABCDE1234F)" });
+    }
+
+    const user = await findUserById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const aadhaarDocumentUrl = `/uploads/kyc/${aadhaarFile.filename}`;
+    const panDocumentUrl = `/uploads/kyc/${panFile.filename}`;
+    const selfieUrl = `/uploads/kyc/${selfieFile.filename}`;
+
+    // Let the provider hook decide automatically; with no provider it defers to
+    // manual admin review, so we mark PENDING and leave the checks unverified.
+    const provider = await runProviderKyc({ aadhaarNumber, panNumber, aadhaarDocumentUrl, panDocumentUrl, selfieUrl });
+    const approved = provider.outcome === "APPROVED";
+    const rejected = provider.outcome === "REJECTED";
+
+    const onboardingChecks: OnboardingChecks = {
+      ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+      aadhaarVerified: approved,
+      panVerified: approved,
+      kycStatus: approved ? "APPROVED" : rejected ? "REJECTED" : "PENDING",
+      kycRejectionReason: rejected ? provider.reason ?? null : null,
+    };
+    const verification: UserVerification = {
+      ...(user.verification ?? {}),
+      aadhaarDocumentUrl,
+      panDocumentUrl,
+      selfieUrl,
+      panNumberMasked: maskPan(panNumber),
+      kycSubmittedAt: new Date().toISOString(),
+      ...(approved ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),
+    };
+    const onboardingVerified = isOnboardingComplete(onboardingChecks);
+
+    const db = getDb();
+    await db
+      .update(users)
+      .set({ onboardingChecks, verification, onboardingVerified })
+      .where(eq(users._id, user._id));
+
+    // Alert admins there's a KYC submission to review (real-time bell + toast).
+    if (!approved) {
+      try {
+        const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
+        if (admins.length) {
+          const message = `New identity verification to review: ${user.name} (${user.role}) submitted Aadhaar + PAN + selfie.`;
+          const rows = await db.insert(notifications).values(admins.map((a) => ({ userId: a._id, message }))).returning();
+          rows.forEach((n) => emitNotification(String(n.userId), n));
+        }
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+    return res.json({
+      message: approved
+        ? "Identity verified — you're all set."
+        : "Documents submitted. We'll verify your identity shortly.",
+      onboardingChecks,
+      onboardingVerified,
+    });
+  },
+);
 
 
 export default router;

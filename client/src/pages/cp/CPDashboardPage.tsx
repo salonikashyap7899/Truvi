@@ -5,6 +5,7 @@ import { Card, CardTitle, CardValue, Badge, Input, Label } from "@/components/ui
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
+import { CpKycOnboarding } from "@/components/CpKycOnboarding";
 import UserMenu from "@/components/UserMenu";
 import { formatINR, nameOf } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
@@ -52,9 +53,13 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
     }
   }
 
+  // Channel Partners must clear identity verification before the workspace loads.
+  const needsKyc = user?.role === "CP" && !user?.onboardingVerified;
+
   useEffect(() => {
-    load();
-  }, []);
+    if (!needsKyc) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsKyc]);
 
   // Real-time: another CP locking a unit reflects here instantly — this is
   // exactly the "Developers and CPs must see literally the same live data"
@@ -95,6 +100,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
     }
   }
 
+  if (needsKyc) return <CpKycOnboarding />;
   if (loading || !user) return <div className="min-h-screen p-10 text-white">Loading…</div>;
   if (error) return <div className="min-h-screen p-10 text-white"><p className="text-red-400">{error}</p></div>;
 
