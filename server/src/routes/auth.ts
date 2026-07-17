@@ -46,7 +46,10 @@ const aadhaarUpload = multer({
 });
 
 // KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP identity.
-const kycDir = path.join(process.cwd(), "uploads", "kyc");
+// Private (NOT statically served) KYC store — identity documents must never be
+// publicly reachable by URL. Files are streamed only to admins via an
+// authenticated route and deleted once verification is decided.
+export const kycDir = path.join(process.cwd(), "private", "kyc");
 if (!fs.existsSync(kycDir)) fs.mkdirSync(kycDir, { recursive: true });
 const kycUpload = multer({
   dest: kycDir,
@@ -624,13 +627,23 @@ router.post(
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    const aadhaarDocumentUrl = `/uploads/kyc/${aadhaarFile.filename}`;
-    const panDocumentUrl = `/uploads/kyc/${panFile.filename}`;
-    const selfieUrl = `/uploads/kyc/${selfieFile.filename}`;
+    // Files are kept privately by their stored (random) filename — never a
+    // public URL. Only admins can retrieve them, via an authenticated route.
+    const kycFiles = {
+      aadhaar: { file: aadhaarFile.filename, mime: aadhaarFile.mimetype },
+      pan: { file: panFile.filename, mime: panFile.mimetype },
+      selfie: { file: selfieFile.filename, mime: selfieFile.mimetype },
+    };
 
     // Let the provider hook decide automatically; with no provider it defers to
     // manual admin review, so we mark PENDING and leave the checks unverified.
-    const provider = await runProviderKyc({ aadhaarNumber, panNumber, aadhaarDocumentUrl, panDocumentUrl, selfieUrl });
+    const provider = await runProviderKyc({
+      aadhaarNumber,
+      panNumber,
+      aadhaarDocumentUrl: kycFiles.aadhaar.file,
+      panDocumentUrl: kycFiles.pan.file,
+      selfieUrl: kycFiles.selfie.file,
+    });
     const approved = provider.outcome === "APPROVED";
     const rejected = provider.outcome === "REJECTED";
 
@@ -643,9 +656,7 @@ router.post(
     };
     const verification: UserVerification = {
       ...(user.verification ?? {}),
-      aadhaarDocumentUrl,
-      panDocumentUrl,
-      selfieUrl,
+      kycFiles,
       panNumberMasked: maskPan(panNumber),
       kycSubmittedAt: new Date().toISOString(),
       ...(approved ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),

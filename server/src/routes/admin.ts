@@ -1,4 +1,6 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -18,6 +20,7 @@ import {
   ApprovalStatus,
   VerificationDetails,
   OnboardingChecks,
+  UserVerification,
   DEFAULT_ONBOARDING_CHECKS,
   isOnboardingComplete,
 } from "../db/schema";
@@ -25,6 +28,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
+import { kycDir } from "./auth";
 
 const router = Router();
 router.use(authenticate);
@@ -240,13 +244,38 @@ router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
       phone: u.phone,
       role: u.role,
       panNumberMasked: u.verification?.panNumberMasked ?? null,
-      aadhaarDocumentUrl: u.verification?.aadhaarDocumentUrl ?? null,
-      panDocumentUrl: u.verification?.panDocumentUrl ?? null,
-      selfieUrl: u.verification?.selfieUrl ?? null,
+      // Presence flags only — the actual images are fetched through the
+      // authenticated file route below, never exposed as public URLs.
+      hasAadhaar: Boolean(u.verification?.kycFiles?.aadhaar),
+      hasPan: Boolean(u.verification?.kycFiles?.pan),
+      hasSelfie: Boolean(u.verification?.kycFiles?.selfie),
       submittedAt: u.verification?.kycSubmittedAt ?? null,
     }));
 
   res.json({ submissions: pending });
+});
+
+// GET /api/admin/kyc/:userId/file/:type — stream a KYC document to an admin.
+// This is the ONLY way to view identity docs; they are not statically served.
+router.get("/kyc/:userId/file/:type", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = String(req.params.userId);
+  const type = String(req.params.type);
+  if (!isValidId(userId)) return res.status(404).json({ error: "Not found" });
+  if (!["aadhaar", "pan", "selfie"].includes(type)) return res.status(400).json({ error: "Bad type" });
+
+  const db = getDb();
+  const [user] = await db.select({ verification: users.verification }).from(users).where(eq(users._id, userId));
+  const entry = user?.verification?.kycFiles?.[type as "aadhaar" | "pan" | "selfie"];
+  if (!entry) return res.status(404).json({ error: "Not found" });
+
+  const filePath = path.join(kycDir, entry.file);
+  // Guard against path traversal — the resolved path must stay inside kycDir.
+  if (!path.resolve(filePath).startsWith(path.resolve(kycDir)) || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Not found" });
+  }
+  res.setHeader("Content-Type", entry.mime || "application/octet-stream");
+  res.setHeader("Cache-Control", "private, no-store");
+  fs.createReadStream(filePath).pipe(res);
 });
 
 const kycDecisionSchema = z.object({ approve: z.boolean(), reason: z.string().max(300).optional() });
@@ -272,9 +301,21 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
   };
   const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
+  // Data-retention minimisation: once a decision is made we no longer need the
+  // raw identity images. Delete the files from disk and drop the references.
+  const kycFiles = user.verification?.kycFiles;
+  if (kycFiles) {
+    for (const entry of Object.values(kycFiles)) {
+      if (!entry?.file) continue;
+      const p = path.join(kycDir, entry.file);
+      if (path.resolve(p).startsWith(path.resolve(kycDir))) fs.promises.unlink(p).catch(() => null);
+    }
+  }
+  const verification: UserVerification = { ...(user.verification ?? {}), kycFiles: undefined };
+
   await db
     .update(users)
-    .set({ onboardingChecks, onboardingVerified })
+    .set({ onboardingChecks, onboardingVerified, verification })
     .where(eq(users._id, user._id));
 
   // Tell the CP the outcome in real time.

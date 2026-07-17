@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, API_BASE } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ShieldCheck, ExternalLink, Loader2, ArrowLeft } from "lucide-react";
 
@@ -11,13 +11,11 @@ interface KycSubmission {
   phone?: string;
   role: string;
   panNumberMasked: string | null;
-  aadhaarDocumentUrl: string | null;
-  panDocumentUrl: string | null;
-  selfieUrl: string | null;
+  hasAadhaar: boolean;
+  hasPan: boolean;
+  hasSelfie: boolean;
   submittedAt: string | null;
 }
-
-const fileUrl = (u: string | null) => (u ? `${API_BASE}${u}` : "");
 
 export default function AdminKycPage() {
   const [submissions, setSubmissions] = useState<KycSubmission[]>([]);
@@ -66,7 +64,8 @@ export default function AdminKycPage() {
         <ShieldCheck size={22} className="text-[var(--trust)]" /> Identity verification
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Review Channel Partner Aadhaar, PAN and selfie submissions. Approving unlocks their workspace.
+        Review Channel Partner Aadhaar, PAN and selfie submissions. Approving unlocks their workspace; documents are
+        deleted once you decide.
       </p>
 
       {loading ? (
@@ -105,9 +104,9 @@ export default function AdminKycPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <DocTile label="Aadhaar" url={s.aadhaarDocumentUrl} />
-                <DocTile label="PAN" url={s.panDocumentUrl} />
-                <DocTile label="Selfie" url={s.selfieUrl} />
+                <DocTile label="Aadhaar" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
+                <DocTile label="PAN" userId={s._id} type="pan" present={s.hasPan} />
+                <DocTile label="Selfie" userId={s._id} type="selfie" present={s.hasSelfie} />
               </div>
             </div>
           ))}
@@ -117,9 +116,33 @@ export default function AdminKycPage() {
   );
 }
 
-function DocTile({ label, url }: { label: string; url: string | null }) {
-  const src = fileUrl(url);
-  const isPdf = (url || "").toLowerCase().endsWith(".pdf");
+/** Fetches the document through the authenticated admin route (as a blob) so the
+ *  identity image is never exposed via a public URL. */
+function DocTile({ label, userId, type, present }: { label: string; userId: string; type: string; present: boolean }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [isPdf, setIsPdf] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!present) return;
+    let url: string | null = null;
+    let cancelled = false;
+    api
+      .get(`/admin/kyc/${userId}/file/${type}`, { responseType: "blob" })
+      .then((res) => {
+        if (cancelled) return;
+        const blob = res.data as Blob;
+        url = URL.createObjectURL(blob);
+        setIsPdf(blob.type === "application/pdf");
+        setSrc(url);
+      })
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [userId, type, present]);
+
   return (
     <div className="rounded-xl border border-white/10 bg-black/30 p-2">
       <div className="mb-1.5 flex items-center justify-between px-1 text-xs text-muted-foreground">
@@ -130,8 +153,10 @@ function DocTile({ label, url }: { label: string; url: string | null }) {
           </a>
         )}
       </div>
-      {!src ? (
-        <div className="grid h-36 place-items-center text-xs text-muted-foreground">Not provided</div>
+      {!present || failed ? (
+        <div className="grid h-36 place-items-center text-xs text-muted-foreground">{failed ? "Failed to load" : "Not provided"}</div>
+      ) : !src ? (
+        <div className="grid h-36 place-items-center text-muted-foreground"><Loader2 size={18} className="animate-spin" /></div>
       ) : isPdf ? (
         <a href={src} target="_blank" rel="noreferrer" className="grid h-36 place-items-center rounded-lg bg-white/5 text-sm text-[var(--trust)] hover:bg-white/10">
           View PDF
