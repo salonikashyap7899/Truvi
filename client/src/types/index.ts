@@ -212,6 +212,21 @@ export interface CpEntitlement {
   expiresAt: string | null;
 }
 
+// ── Developer OS (paid add-ons) ──────────────────────────────────────────────
+
+export type DeveloperPlanTier = "FREE" | "VERIFIED" | "CRM" | "AI" | "PRO";
+
+export interface DeveloperEntitlement {
+  tier: DeveloperPlanTier;
+  verified: boolean; // Verified Developer Badge + prime listing
+  crm: boolean; // Developer CRM — pipeline, notes, tasks, team, finance
+  ai: boolean; // AI Analytics — demand, pricing, competitor, forecasts
+  campaign: boolean; // Fully-managed marketing campaign
+  threeDMapping: boolean; // 3D mapping add-on
+  pro: boolean; // Developer Pro — everything unlocked
+  expiresAt: string | null;
+}
+
 export type LeadActivityType =
   | "CALL" | "WHATSAPP" | "EMAIL" | "NOTE" | "STAGE_CHANGE"
   | "SITE_VISIT" | "FOLLOW_UP" | "DOCUMENT" | "AI_REPORT" | "SYSTEM";

@@ -1,62 +1,89 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "@/lib/api";
+import {
+  Flame, CalendarCheck, TrendingUp, Boxes, Activity, Megaphone, BrainCircuit,
+  ShieldCheck, Zap, ArrowRight, Sparkles,
+} from "lucide-react";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
+import { DevHubNav } from "@/components/DevHubNav";
+import { DevProGate } from "@/components/DevProGate";
+import { DevUpsellModal, type DevUpsellPlan } from "@/components/DevUpsellModal";
 import UserMenu from "@/components/UserMenu";
-import { formatINR } from "@/lib/utils";
-import { useSocketEvent } from "@/lib/socket";
-import type { Project, Lead, Unit } from "@/types";
+import { useDeveloperData } from "@/lib/useDeveloperData";
+import { useDeveloperEntitlement, DEV_TIER_LABELS } from "@/lib/devEntitlements";
+import {
+  pipelineStats, inventoryHeatMap, inventoryHealth, leadQuality, campaignRoi,
+  salesIntelligence, avgUnitPrice, BOOKED_STAGES,
+} from "@/lib/devIntel";
+import { formatCompactINR } from "@/lib/utils";
 
-const STAGES: Lead["stage"][] = ["GENERATED", "ASSIGNED", "CONTACTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "LOST"];
+const isToday = (d: string | Date) => {
+  const x = new Date(d);
+  const n = new Date();
+  return x.getFullYear() === n.getFullYear() && x.getMonth() === n.getMonth() && x.getDate() === n.getDate();
+};
+const isThisMonth = (d: string | Date) => {
+  const x = new Date(d);
+  const n = new Date();
+  return x.getFullYear() === n.getFullYear() && x.getMonth() === n.getMonth();
+};
 
 export default function DeveloperDashboardPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject, loading } = useDeveloperData();
+  const { entitlement } = useDeveloperEntitlement();
+  const [upsell, setUpsell] = useState<{ plan: DevUpsellPlan; feature?: string } | null>(null);
 
-  async function load() {
-    const projectsRes = await api.get("/projects");
-    const myProjects: Project[] = projectsRes.data.projects;
-    setProjects(myProjects);
+  if (loading) return <div className="min-h-screen p-10 text-white">Loading your business dashboard…</div>;
 
-    const [leadsRes, ...unitLists] = await Promise.all([
-      api.get("/leads"),
-      ...myProjects.map((p) => api.get("/units", { params: { projectId: p._id } })),
-    ]);
-    setLeads(leadsRes.data.leads);
-    setUnits(unitLists.flatMap((r) => r.data.units));
-    setLoading(false);
-  }
+  const aiUnlocked = !!entitlement?.ai;
+  const tierLabel = entitlement ? DEV_TIER_LABELS[entitlement.tier] : "Free";
 
-  useEffect(() => {
-    load();
-  }, []);
+  // ── Business KPIs (spec PART 4) ──────────────────────────────────────────
+  const todaysLeads = leads.filter((l) => isToday(l.createdAt)).length;
+  const quality = leadQuality(leads);
+  const siteVisitsToday = siteVisits.filter((v) => isToday(v.scheduledAt)).length;
+  const bookingsThisMonth = leads.filter((l) => BOOKED_STAGES.includes(l.stage) && isThisMonth(l.updatedAt)).length;
+  const revenueThisMonth = leads
+    .filter((l) => BOOKED_STAGES.includes(l.stage) && isThisMonth(l.updatedAt))
+    .reduce((s, l) => {
+      const pid = typeof l.projectId === "string" ? l.projectId : l.projectId?._id;
+      return s + ((pid && avgPriceByProject[pid]) || 0);
+    }, 0);
+  const unsoldUnits = units.filter((u) => u.status === "AVAILABLE");
+  const unsoldValue = unsoldUnits.reduce((s, u) => s + u.price, 0);
+  const health = inventoryHealth(units);
+  const avgDeal = avgUnitPrice(units);
+  const roi = campaignRoi(leads, avgDeal, !!entitlement?.campaign);
 
-  // Real-time: inventory or lead updates elsewhere refresh this dashboard automatically.
-  useSocketEvent("unit:update", () => load());
-  useSocketEvent("lead:update", () => load());
+  const pipeline = pipelineStats(leads, avgPriceByProject);
+  const heat = inventoryHeatMap(units);
 
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
-
-  const totalRevenue = units.filter((u) => u.status === "SOLD").reduce((s, u) => s + u.price, 0);
-  const unitsSold = units.filter((u) => u.status === "SOLD").length;
-  const unitsAvailable = units.filter((u) => u.status === "AVAILABLE").length;
-
-  const stageCount: Record<string, number> = {};
-  leads.forEach((l) => (stageCount[l.stage] = (stageCount[l.stage] || 0) + 1));
-
-  // How many buyers have viewed this developer's projects (live, from viewCount).
-  const totalViews = projects.reduce((sum, p) => sum + (p.viewCount ?? 0), 0);
+  const KPIS = [
+    { label: "Today's Leads", value: String(todaysLeads), icon: Activity, tone: "text-sky-400" },
+    { label: "Hot Leads", value: String(quality.hot), icon: Flame, tone: "text-orange-400" },
+    { label: "Site Visits Today", value: String(siteVisitsToday), icon: CalendarCheck, tone: "text-emerald-400" },
+    { label: "Bookings This Month", value: String(bookingsThisMonth), icon: TrendingUp, tone: "text-violet-400" },
+    { label: "Revenue This Month", value: formatCompactINR(revenueThisMonth), icon: TrendingUp, tone: "text-emerald-400" },
+    { label: "Unsold Inventory", value: `${unsoldUnits.length}`, sub: formatCompactINR(unsoldValue), icon: Boxes, tone: "text-amber-400" },
+    { label: "Inventory Health", value: `${health.score}`, sub: health.label, icon: Activity, tone: "text-sky-400" },
+    { label: "Campaign ROI", value: `${roi.roi}X`, sub: roi.live ? "live" : "projected", icon: Megaphone, tone: "text-fuchsia-400" },
+  ];
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Developer Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Live inventory and pipeline, updated in real time.</p>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            Business Dashboard
+            {entitlement && (
+              <Badge variant={entitlement.pro ? "featured" : entitlement.tier === "FREE" ? "default" : "info"}>
+                {tierLabel}
+              </Badge>
+            )}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Your sales, marketing and analytics — one operating system, live.</p>
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
@@ -67,41 +94,149 @@ export default function DeveloperDashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-white/10 glass text-white">
-          <CardTitle className="text-muted-foreground">Total Revenue (Sold Units)</CardTitle>
-          <CardValue>{formatINR(totalRevenue)}</CardValue>
-        </Card>
-        <Card className="border-white/10 glass text-white">
-          <CardTitle className="text-muted-foreground">Active Projects</CardTitle>
-          <CardValue>{projects.filter((p) => p.approvalStatus === "APPROVED").length}</CardValue>
-        </Card>
-        <Card className="border-white/10 glass text-white">
-          <CardTitle className="text-muted-foreground">Units Sold / Available</CardTitle>
-          <CardValue>{unitsSold} / {unitsAvailable}</CardValue>
-        </Card>
-        <Card className="border-white/10 glass text-white">
-          <CardTitle className="text-muted-foreground">Total Leads</CardTitle>
-          <CardValue>{leads.length}</CardValue>
-        </Card>
-        <Card className="border-white/10 glass text-white">
-          <CardTitle className="text-muted-foreground">Buyer Views</CardTitle>
-          <CardValue>{totalViews.toLocaleString("en-IN")}</CardValue>
-        </Card>
+      <DevHubNav />
+
+      {/* Growth-engine banner for developers who haven't unlocked the paid OS */}
+      {entitlement && !entitlement.pro && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {!entitlement.verified && (
+            <UpsellCard
+              icon={ShieldCheck}
+              title="Get Verified — 3x Visibility"
+              body="Verified badge, prime listing & higher buyer trust."
+              cta="₹999"
+              onClick={() => setUpsell({ plan: "verified" })}
+            />
+          )}
+          {!entitlement.crm && (
+            <UpsellCard
+              icon={Zap}
+              title="Close 30% More Sales"
+              body="Developer CRM — pipeline, team, follow-ups & finance."
+              cta="₹49/mo"
+              onClick={() => setUpsell({ plan: "crm" })}
+            />
+          )}
+          {!entitlement.ai && (
+            <UpsellCard
+              icon={BrainCircuit}
+              title="Predict Sales Before They Happen"
+              body="AI demand, pricing, competitor & revenue forecasts."
+              cta="₹999"
+              onClick={() => setUpsell({ plan: "ai" })}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Business KPI grid (spec PART 4) */}
+      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {KPIS.map((k) => (
+          <Card key={k.label} className="border-white/10 glass text-white">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-muted-foreground">{k.label}</CardTitle>
+              <k.icon size={15} className={k.tone} />
+            </div>
+            <CardValue>{k.value}</CardValue>
+            {k.sub && <p className="mt-0.5 text-xs text-muted-foreground">{k.sub}</p>}
+          </Card>
+        ))}
       </div>
 
+      {/* Live booking pipeline — count + value at every stage (spec PART 5.6) */}
       <section className="mt-10">
-        <h2 className="text-lg font-medium">Booking pipeline</h2>
-        <div className="mt-3 flex flex-wrap gap-3">
-          {STAGES.map((stage) => (
-            <div key={stage} className="rounded-lg border border-white/10 glass px-4 py-2 text-center">
-              <p className="text-xs text-muted-foreground">{stage.replace("_", " ")}</p>
-              <p className="text-lg font-semibold">{stageCount[stage] || 0}</p>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Live booking pipeline</h2>
+          <Link to="/developer/crm" className="flex items-center gap-1 text-xs text-sky-300 hover:underline">
+            Manage in CRM <ArrowRight size={12} />
+          </Link>
+        </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+          {pipeline.map((s) => (
+            <div key={s.stage} className="min-w-[120px] shrink-0 rounded-xl border border-white/10 glass px-3 py-3 text-center">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
+              <p className="mt-1 text-xl font-semibold">{s.count}</p>
+              <p className="mt-0.5 text-[11px] text-emerald-300">{formatCompactINR(s.value)}</p>
             </div>
           ))}
         </div>
       </section>
 
+      {/* Inventory heat map (spec PART 5.2) */}
+      {heat.length > 0 && (
+        <section className="mt-10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium">Inventory heat map</h2>
+            <Link to="/developer/inventory" className="flex items-center gap-1 text-xs text-sky-300 hover:underline">
+              Open inventory <ArrowRight size={12} />
+            </Link>
+          </div>
+          <div className="mt-3 space-y-2">
+            {heat.slice(0, 6).map((b) => (
+              <div key={b.label} className="flex items-center gap-3">
+                <span className="w-16 shrink-0 text-sm text-muted-foreground">Tower {b.label}</span>
+                <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/5">
+                  <div
+                    className={`h-full rounded-full ${b.soldPercent >= 80 ? "bg-emerald-500" : b.soldPercent >= 50 ? "bg-amber-500" : "bg-sky-500"}`}
+                    style={{ width: `${Math.max(4, b.soldPercent)}%` }}
+                  />
+                </div>
+                <span className="w-24 shrink-0 text-right text-sm">
+                  {b.soldPercent}% <span className="text-xs text-muted-foreground">({b.sold}/{b.total})</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* AI Sales Intelligence preview — gated (spec PART 5.1) */}
+      <section className="mt-10">
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-medium">
+            <Sparkles size={16} className="text-purple-400" /> AI Sales Intelligence
+          </h2>
+          <Link to="/developer/analytics" className="flex items-center gap-1 text-xs text-sky-300 hover:underline">
+            Full analytics <ArrowRight size={12} />
+          </Link>
+        </div>
+        {projects.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">Add a project to unlock sales intelligence.</p>
+        ) : (
+          <DevProGate
+            unlocked={aiUnlocked}
+            feature="AI Sales Intelligence"
+            plan="ai"
+            badge="AI"
+            hook="Predict sales before they happen"
+            className="mt-3"
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {projects.slice(0, 3).map((p) => {
+                const si = salesIntelligence(p, unitsByProject[p._id] ?? [], leads.filter((l) => {
+                  const pid = typeof l.projectId === "string" ? l.projectId : l.projectId?._id;
+                  return pid === p._id;
+                }));
+                return (
+                  <Card key={p._id} className="border-purple-500/20 bg-purple-950/10 text-white">
+                    <p className="text-sm font-medium">{p.name}</p>
+                    <div className="mt-3 space-y-1.5 text-xs">
+                      <Row label="Closing probability" value={`${si.closingProbability}%`} tone="text-emerald-400" />
+                      <Row label="Expected revenue" value={formatCompactINR(si.expectedRevenue)} tone="text-amber-300" />
+                      <Row label="Expected units sold" value={String(si.expectedUnitsSold)} />
+                      <Row label="Recommended discount" value={`${si.recommendedDiscount}%`} />
+                      <Row label="Best selling" value={si.bestSellingType ?? "—"} tone="text-emerald-300" />
+                      <Row label="Worst selling" value={si.worstSellingType ?? "—"} tone="text-rose-300" />
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </DevProGate>
+        )}
+      </section>
+
+      {/* My projects */}
       <section className="mt-10">
         <h2 className="text-lg font-medium">My projects</h2>
         <div className="mt-3 space-y-3">
@@ -115,8 +250,11 @@ export default function DeveloperDashboardPage() {
                     <Badge variant={p.approvalStatus === "APPROVED" ? "success" : p.approvalStatus === "PENDING" ? "warning" : "danger"}>
                       {p.approvalStatus}
                     </Badge>
+                    {p.isVerified && <Badge variant="info" className="ml-1">Verified</Badge>}
                   </p>
-                  <p className="text-sm text-muted-foreground">{p.city} · {p.unitCount ?? 0} units · {p.leadCount ?? 0} leads · {(p.viewCount ?? 0).toLocaleString("en-IN")} views</p>
+                  <p className="text-sm text-muted-foreground">
+                    {p.city} · {(unitsByProject[p._id] ?? []).length} units · {p.leadCount ?? 0} leads · {(p.viewCount ?? 0).toLocaleString("en-IN")} views
+                  </p>
                 </div>
               </Card>
             </Link>
@@ -125,6 +263,35 @@ export default function DeveloperDashboardPage() {
       </section>
 
       <MyPlans />
+      <DevUpsellModal open={!!upsell} onClose={() => setUpsell(null)} plan={upsell?.plan} feature={upsell?.feature} />
     </main>
+  );
+}
+
+function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={tone ?? "text-white"}>{value}</span>
+    </div>
+  );
+}
+
+function UpsellCard({
+  icon: Icon, title, body, cta, onClick,
+}: { icon: typeof ShieldCheck; title: string; body: string; cta: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-start justify-between gap-3 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent px-4 py-4 text-left transition-colors hover:border-amber-400/50"
+    >
+      <div>
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-white">
+          <Icon size={14} className="text-amber-400" /> {title}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
+      </div>
+      <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1 text-xs font-semibold text-white">{cta}</span>
+    </button>
   );
 }
