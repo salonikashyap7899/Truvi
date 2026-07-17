@@ -36,8 +36,8 @@ export interface AmbassadorTask {
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
 export type LeadStage =
-  | "GENERATED" | "ASSIGNED" | "CONTACTED" | "SITE_VISIT"
-  | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "LOST";
+  | "GENERATED" | "ASSIGNED" | "CONTACTED" | "INTERESTED" | "SITE_VISIT"
+  | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "COMPLETED" | "LOST";
 export type ListingTier = "STANDARD" | "FEATURED";
 
 export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
@@ -193,9 +193,86 @@ export interface Lead {
   stage: LeadStage;
   source: string;
   notes?: string;
+  tags?: string[] | null;
   isDuplicate: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+// ── CP CRM (paid tier) ──────────────────────────────────────────────────────
+
+export type CpPlanTier = "FREE" | "CRM_LITE" | "CP_PRO" | "ENTERPRISE";
+
+export interface CpEntitlement {
+  tier: CpPlanTier;
+  crm: boolean;
+  ai: boolean;
+  analytics: boolean;
+  team: boolean;
+  expiresAt: string | null;
+}
+
+export type LeadActivityType =
+  | "CALL" | "WHATSAPP" | "EMAIL" | "NOTE" | "STAGE_CHANGE"
+  | "SITE_VISIT" | "FOLLOW_UP" | "DOCUMENT" | "AI_REPORT" | "SYSTEM";
+
+export interface LeadActivity {
+  _id: string;
+  leadId: string;
+  cpId: string;
+  type: LeadActivityType;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export type FollowUpChannel = "CALL" | "WHATSAPP" | "EMAIL" | "MEETING";
+
+export interface LeadFollowUp {
+  _id: string;
+  leadId: string;
+  cpId: string;
+  dueAt: string;
+  channel: FollowUpChannel;
+  note?: string | null;
+  status: "PENDING" | "DONE" | "MISSED";
+  createdAt: string;
+  lead?: { _id: string; clientName: string; clientPhone: string; stage: LeadStage } | null;
+}
+
+export interface CrmTask {
+  _id: string;
+  cpId: string;
+  leadId?: string | null;
+  title: string;
+  dueAt?: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH";
+  status: "OPEN" | "DONE";
+  createdAt: string;
+}
+
+export interface CrmSummary {
+  today: {
+    calls: number;
+    whatsapp: number;
+    followUpsDue: number;
+    followUpsPending: number;
+    siteVisits: number;
+    closings: number;
+    earnings: number;
+  };
+  kpis: {
+    totalLeads: number;
+    activeLeads: number;
+    conversionPercent: number;
+    siteVisitPercent: number;
+    avgDealSize: number;
+    lifetimeEarnings: number;
+    pendingCommission: number;
+    paidCommission: number;
+    ltvGenerated: number;
+  };
+  monthlyEarnings: { month: string; earned: number; paid: number }[];
 }
 
 export interface SiteVisit {

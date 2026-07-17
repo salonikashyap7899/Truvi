@@ -37,8 +37,14 @@ export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ReraStatus = "REGISTERED" | "PENDING" | "NOT_REGISTERED";
 export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
 export type LeadStage =
-  | "GENERATED" | "ASSIGNED" | "CONTACTED" | "SITE_VISIT"
-  | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "LOST";
+  | "GENERATED" | "ASSIGNED" | "CONTACTED" | "INTERESTED" | "SITE_VISIT"
+  | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "COMPLETED" | "LOST";
+export type LeadActivityType =
+  | "CALL" | "WHATSAPP" | "EMAIL" | "NOTE" | "STAGE_CHANGE"
+  | "SITE_VISIT" | "FOLLOW_UP" | "DOCUMENT" | "AI_REPORT" | "SYSTEM";
+export type FollowUpStatus = "PENDING" | "DONE" | "MISSED";
+export type CrmTaskStatus = "OPEN" | "DONE";
+export type CrmTaskPriority = "LOW" | "MEDIUM" | "HIGH";
 export type CommissionStatus = "PENDING" | "MILESTONE_DUE" | "INVOICED" | "PAID";
 export type SiteVisitStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type LeadType = "BASIC" | "QUALIFIED" | "SITE_VISIT";
@@ -354,6 +360,8 @@ export const leads = pgTable(
     stage: text("stage").$type<LeadStage>().notNull().default("GENERATED"),
     source: text("source").notNull(),
     notes: text("notes"),
+    // CRM: CP-managed labels like "Hot", "NRI", "Investor" (paid tier).
+    tags: jsonb("tags").$type<string[]>(),
     isDuplicate: boolean("is_duplicate").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
@@ -413,6 +421,60 @@ export const siteVisits = pgTable(
     index("site_visits_project_idx").on(t.projectId),
   ]
 );
+
+/**
+ * CRM (paid tier) — every touchpoint on a lead: calls, WhatsApp, emails,
+ * notes, stage changes, documents. Powers the Buyer Timeline and Call History.
+ * Append-only; created in ensureSchema() so no manual migration is needed.
+ */
+export const leadActivities = pgTable(
+  "lead_activities",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    leadId: uuid("lead_id").notNull().references(() => leads._id),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    type: text("type").$type<LeadActivityType>().notNull(),
+    content: text("content").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("lead_activities_lead_idx").on(t.leadId, t.createdAt), index("lead_activities_cp_idx").on(t.cpId, t.createdAt)]
+);
+export type ILeadActivity = typeof leadActivities.$inferSelect;
+
+/** CRM (paid tier) — scheduled follow-ups per lead: the CP's reminder queue. */
+export const leadFollowUps = pgTable(
+  "lead_follow_ups",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    leadId: uuid("lead_id").notNull().references(() => leads._id),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }).notNull(),
+    channel: text("channel").$type<"CALL" | "WHATSAPP" | "EMAIL" | "MEETING">().notNull().default("CALL"),
+    note: text("note"),
+    status: text("status").$type<FollowUpStatus>().notNull().default("PENDING"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("lead_follow_ups_cp_status_idx").on(t.cpId, t.status, t.dueAt), index("lead_follow_ups_lead_idx").on(t.leadId)]
+);
+export type ILeadFollowUp = typeof leadFollowUps.$inferSelect;
+
+/** CRM (paid tier) — the CP's personal task list, optionally linked to a lead. */
+export const crmTasks = pgTable(
+  "crm_tasks",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    leadId: uuid("lead_id").references(() => leads._id),
+    title: text("title").notNull(),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    priority: text("priority").$type<CrmTaskPriority>().notNull().default("MEDIUM"),
+    status: text("status").$type<CrmTaskStatus>().notNull().default("OPEN"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("crm_tasks_cp_status_idx").on(t.cpId, t.status)]
+);
+export type ICrmTask = typeof crmTasks.$inferSelect;
 
 export const leadPurchases = pgTable("lead_purchases", {
   _id: uuid("id").defaultRandom().primaryKey(),

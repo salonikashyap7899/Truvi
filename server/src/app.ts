@@ -16,6 +16,7 @@ import siteVisitRoutes from "./routes/siteVisits";
 import commissionRoutes from "./routes/commissions";
 import marketplaceRoutes from "./routes/marketplace";
 import premiumRoutes from "./routes/premium";
+import crmRoutes from "./routes/crm";
 import uploadRoutes from "./routes/uploads";
 import revenueRoutes from "./routes/revenue";
 import notificationRoutes from "./routes/notifications";
@@ -79,6 +80,7 @@ export function createApp() {
   app.use("/api/commissions", commissionRoutes);
   app.use("/api/marketplace", marketplaceRoutes);
   app.use("/api/premium", premiumRoutes);
+  app.use("/api/crm", crmRoutes);
   app.use("/api/uploads", uploadRoutes);
   app.use("/api/revenue", revenueRoutes);
   app.use("/api/notifications", notificationRoutes);

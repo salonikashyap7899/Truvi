@@ -22,6 +22,42 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
+    // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
+    `CREATE TABLE IF NOT EXISTS "lead_activities" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "lead_id" uuid NOT NULL REFERENCES "leads"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "type" text NOT NULL,
+       "content" text NOT NULL,
+       "metadata" jsonb,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "lead_activities_lead_idx" ON "lead_activities" ("lead_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "lead_activities_cp_idx" ON "lead_activities" ("cp_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "lead_follow_ups" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "lead_id" uuid NOT NULL REFERENCES "leads"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "due_at" timestamptz NOT NULL,
+       "channel" text NOT NULL DEFAULT 'CALL',
+       "note" text,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "lead_follow_ups_cp_status_idx" ON "lead_follow_ups" ("cp_id", "status", "due_at")`,
+    `CREATE INDEX IF NOT EXISTS "lead_follow_ups_lead_idx" ON "lead_follow_ups" ("lead_id")`,
+    `CREATE TABLE IF NOT EXISTS "crm_tasks" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "lead_id" uuid REFERENCES "leads"("id"),
+       "title" text NOT NULL,
+       "due_at" timestamptz,
+       "priority" text NOT NULL DEFAULT 'MEDIUM',
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "crm_tasks_cp_status_idx" ON "crm_tasks" ("cp_id", "status")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

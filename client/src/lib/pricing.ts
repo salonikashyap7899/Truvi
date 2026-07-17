@@ -52,8 +52,10 @@ export const PRICING_TABS: PriceTab[] = [
       { planId: "cp_premium_membership", title: "Premium CP Membership", desc: "Premium access for 6 months.", price: "₹99", unit: "/6 months", strike: "₹999", cta: "buy" },
       { planId: "cp_verified_badge", title: "Verified CP Badge", desc: "Official email + 24/7 support + template book.", price: "₹999", unit: "/6 months", strike: "₹2,999", cta: "buy" },
       { planId: "cp_lead_purchase", title: "Lead Purchase", desc: "Verified buyer contact data.", price: "₹99", unit: "/lead", strike: "₹999", cta: "buy" },
-      { planId: "cp_crm", title: "CRM Access", desc: "Manage your leads and pipeline.", price: "₹99", unit: "/month", strike: "₹999", cta: "buy" },
-      { planId: "cp_pro_monthly", title: "CP Pro", desc: "Everything, unlimited, with priority leads.", price: "₹999", unit: "/month", offer: "or ₹9,999/year", cta: "subscribe", yearlyPlanId: "cp_pro_yearly", yearlyPrice: "₹9,999" },
+      { planId: "cp_crm", title: "CRM Access", desc: "Full lead pipeline, follow-ups, buyer timeline & tasks.", price: "₹99", unit: "/month", strike: "₹999", offer: "Launch offer — CRM CPs close 2–3x more", cta: "buy" },
+      { planId: "cp_crm_lite", title: "CRM Lite", desc: "Pipeline + follow-ups + tasks at standard pricing.", price: "₹299", unit: "/month", strike: "₹999", cta: "buy" },
+      { planId: "cp_pro_monthly", title: "CP Pro", desc: "CRM + AI lead scoring, Copilot, premium leads & analytics.", price: "₹999", unit: "/month", offer: "or ₹9,999/year", cta: "subscribe", yearlyPlanId: "cp_pro_yearly", yearlyPrice: "₹9,999" },
+      { planId: "cp_enterprise_monthly", title: "Enterprise CP", desc: "Team CRM + automation + API access for CP firms.", price: "₹2,999", unit: "/month", cta: "subscribe" },
     ],
   },
   {

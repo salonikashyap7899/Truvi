@@ -2,7 +2,7 @@ import { Router } from "express";
 import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
-import { leads, projects, users, LeadStage } from "../db/schema";
+import { leads, leadActivities, projects, users, LeadStage } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { createLeadSchema, updateLeadStageSchema } from "../lib/validations/leads";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -61,7 +61,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   res.json({ leads: result });
 });
 
-const STAGE_ORDER = ["GENERATED", "ASSIGNED", "CONTACTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION"] as const;
+const STAGE_ORDER = ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"] as const;
 
 router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = createLeadSchema.safeParse(req.body);
@@ -126,19 +126,18 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   const newStage = parsed.data.stage;
   const currentIdx = STAGE_ORDER.indexOf(lead.stage as any);
   const newIdx = STAGE_ORDER.indexOf(newStage as any);
+  const bookingIdx = STAGE_ORDER.indexOf("BOOKING");
 
-  const isLostTransition = newStage === "LOST";
-  const isSequentialForward = newIdx === currentIdx + 1;
-  const isOverride = user.role !== "CP";
-
-  if (!isLostTransition && !isSequentialForward && !isOverride) {
-    return res.status(400).json({
-      error: `Leads can only move forward one stage at a time. Current: ${lead.stage}, requested: ${newStage}`,
-    });
-  }
-
-  if (user.role === "CP" && newStage === "BOOKING") {
-    return res.status(403).json({ error: "Only an Admin or Developer can mark a lead as Booked" });
+  // CPs manage their pipeline freely (Kanban drag-and-drop, forward or back),
+  // with two guardrails: only Admin/Developer can mark a lead Booked, and
+  // post-booking stages are unreachable until the lead has actually booked.
+  if (user.role === "CP" && newStage !== "LOST") {
+    if (newStage === "BOOKING") {
+      return res.status(403).json({ error: "Only an Admin or Developer can mark a lead as Booked" });
+    }
+    if (newIdx > bookingIdx && currentIdx < bookingIdx) {
+      return res.status(400).json({ error: "Lead must be Booked before it can move to Registration or Completed" });
+    }
   }
 
   const [updated] = await db
@@ -146,6 +145,20 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     .set({ stage: newStage as LeadStage })
     .where(eq(leads._id, lead._id))
     .returning();
+
+  // Timeline: record the stage change so the CRM Buyer Timeline shows it.
+  // Best-effort — a missing table (pre-boot-SQL deploy) must not fail the move.
+  try {
+    await db.insert(leadActivities).values({
+      leadId: lead._id,
+      cpId: (lead.assignedToId || lead.submittedById) as string,
+      type: "STAGE_CHANGE",
+      content: `Stage moved from ${lead.stage} to ${newStage}`,
+      metadata: { from: lead.stage, to: newStage, by: user.userId },
+    });
+  } catch {
+    /* non-fatal */
+  }
 
   emitLeadUpdate(updated);
   res.json({ lead: updated });

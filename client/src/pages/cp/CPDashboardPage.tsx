@@ -1,21 +1,28 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue, Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
 import { CpKycOnboarding } from "@/components/CpKycOnboarding";
+import { CpHubNav } from "@/components/CpHubNav";
+import { UpsellModal } from "@/components/UpsellModal";
 import UserMenu from "@/components/UserMenu";
+import { useEntitlement, TIER_LABELS } from "@/lib/entitlements";
 import { formatINR, nameOf } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { BookOpen, Users, Star, Receipt } from "lucide-react";
+import { BookOpen, Users, Star, Receipt, KanbanSquare, Zap, Activity } from "lucide-react";
 import type { Project, Unit, Lead, Commission, User } from "@/types";
 
 export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: string }) {
   const user = useAuthStore((s) => s.user);
+  const navigate = useNavigate();
+  const { entitlement } = useEntitlement();
+  const [upsellOpen, setUpsellOpen] = useState(false);
+  const [upsellFeature, setUpsellFeature] = useState<string | undefined>(undefined);
   const [projects, setProjects] = useState<Project[]>([]);
   const [unitsByProject, setUnitsByProject] = useState<Record<string, Unit[]>>({});
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -124,15 +131,35 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
             {title} <Badge variant={(user.cpTier || "silver").toLowerCase()}>{user.cpTier || "SILVER"}</Badge>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Welcome back, {user.name} {user.cpProfile?.isPremium && <Badge variant="featured" className="ml-2">Premium</Badge>}
+            Welcome back, {user.name}{" "}
+            {entitlement && (
+              <Badge variant={entitlement.crm ? "featured" : "default"} className="ml-2">
+                {TIER_LABELS[entitlement.tier]}
+              </Badge>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <NotificationBell />
           <UserMenu />
-          <Link to="/cp/marketplace" className="text-sm text-blue-400 hover:underline">Lead marketplace →</Link>
         </div>
       </div>
+
+      <CpHubNav />
+
+      {/* Growth-engine banner for free CPs */}
+      {entitlement && !entitlement.crm && (
+        <button
+          onClick={() => { setUpsellFeature(undefined); setUpsellOpen(true); }}
+          className="mt-5 flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-transparent px-5 py-4 text-left transition-colors hover:border-amber-400/50"
+        >
+          <div>
+            <p className="text-sm font-semibold text-white"><Zap size={13} className="mr-1 inline text-amber-400" /> CPs on Truvi CRM close 2–3x more deals</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Pipeline · Follow-up reminders · AI scoring · WhatsApp automation</p>
+          </div>
+          <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-1.5 text-xs font-semibold text-white">Unlock for ₹99/month</span>
+        </button>
+      )}
 
       {/* Quick links to new features */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -149,6 +176,29 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
           <Receipt size={16} /> My Commissions
         </button>
       </div>
+
+      {/* Smart notifications — behaviour-based nudges from live lead activity */}
+      {leads.length > 0 && (() => {
+        const nudges: string[] = [];
+        const now = Date.now();
+        for (const l of leads.slice(0, 20)) {
+          const days = (now - new Date(l.updatedAt).getTime()) / 86_400_000;
+          if (days < 1) nudges.push(`🟢 ${l.clientName} — activity today, strike while it's hot`);
+          else if (days >= 5 && !["COMPLETED", "LOST"].includes(l.stage)) nudges.push(`⚠️ ${l.clientName} inactive since ${Math.floor(days)} days`);
+          else if (l.stage === "SITE_VISIT") nudges.push(`📍 ${l.clientName} is at site-visit stage — follow up within 24h`);
+          if (nudges.length >= 4) break;
+        }
+        if (nudges.length === 0) return null;
+        return (
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {nudges.map((n) => (
+              <span key={n} className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-foreground/90">
+                <Activity size={11} className="text-sky-400" /> {n}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-white/10 glass text-white">
@@ -282,7 +332,22 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-medium">My leads</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-medium">My leads <span className="text-xs text-muted-foreground">— basic list (free)</span></h2>
+          <Button
+            size="sm"
+            variant={entitlement?.crm ? "primary" : "outline"}
+            onClick={() => {
+              if (entitlement?.crm) navigate("/cp/sales");
+              else { setUpsellFeature("Lead Pipeline & Follow-ups"); setUpsellOpen(true); }
+            }}
+          >
+            <KanbanSquare size={14} /> Open Pipeline
+            {!entitlement?.crm && (
+              <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-1.5 py-px text-[9px] font-bold uppercase text-white">Pro</span>
+            )}
+          </Button>
+        </div>
         <div className="mt-3 space-y-2">
           {leads.map((l) => (
             <Card key={l._id} className="flex flex-wrap items-center justify-between gap-3 border-white/10 glass text-white">
@@ -398,6 +463,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
       )}
 
       <MyPlans />
+      <UpsellModal open={upsellOpen} onClose={() => setUpsellOpen(false)} feature={upsellFeature} />
     </main>
   );
 }
