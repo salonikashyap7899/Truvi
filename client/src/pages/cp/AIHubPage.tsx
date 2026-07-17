@@ -101,7 +101,7 @@ export default function AIHubPage() {
             value={query}
             onChange={(e) => { setQuery(e.target.value); setRan(false); }}
             onKeyDown={(e) => e.key === "Enter" && setRan(true)}
-            placeholder={'e.g. "Mere paas 5 crore budget ka buyer hai" or "buyer with 80 lakh in Pune"'}
+            placeholder={'Describe your buyer — e.g. "₹5 crore budget in Mumbai" or "3BHK, ₹80 lakh in Pune"'}
             className="h-12 flex-1 rounded-xl border border-purple-500/30 bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-muted-foreground/60 focus:border-purple-400"
           />
           <Button size="lg" className="bg-purple-600 shadow-[0_0_24px_-6px_#9333ea] hover:bg-purple-500" onClick={() => setRan(true)}>
@@ -151,7 +151,7 @@ export default function AIHubPage() {
           <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-purple-300">
-                {scriptFor.kind === "call" ? "📞 Call Script Ready" : scriptFor.kind === "whatsapp" ? "💬 WhatsApp Ready" : "✉️ Email Ready"} — {scriptFor.match.project.name}
+                {scriptFor.kind === "call" ? "Call Script Ready" : scriptFor.kind === "whatsapp" ? "WhatsApp Ready" : "Email Ready"} — {scriptFor.match.project.name}
               </p>
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => copyText(script)}><Copy size={12} /> Copy</Button>
             </div>

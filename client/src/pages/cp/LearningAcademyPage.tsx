@@ -5,19 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/primitives";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { BookOpen, CheckCircle, Circle, Award, ArrowLeft, Trophy } from "lucide-react";
+import {
+  BookOpen, CheckCircle, Circle, Award, ArrowLeft, Trophy,
+  Home, Scale, Handshake, TrendingUp, Smartphone, type LucideIcon,
+} from "lucide-react";
 
 interface Module { id: string; title: string; duration: string; }
 interface Course {
   id: string; title: string; description: string; category: string;
-  modules: Module[]; badgeColor: string; icon: string;
+  modules: Module[]; badgeColor: string; Icon: LucideIcon;
 }
 
 const COURSES: Course[] = [
   {
     id: "sales-fundamentals", title: "Real Estate Sales Fundamentals",
     description: "Master the end-to-end sales process from first contact to registration.",
-    category: "Sales", badgeColor: "blue", icon: "🏠",
+    category: "Sales", badgeColor: "blue", Icon: Home,
     modules: [
       { id: "m1", title: "Understanding Buyer Psychology", duration: "12 min" },
       { id: "m2", title: "Qualifying Leads Effectively", duration: "10 min" },
@@ -29,7 +32,7 @@ const COURSES: Course[] = [
   {
     id: "rera-compliance", title: "RERA & Legal Compliance",
     description: "Everything a CP needs to know about RERA regulations and legal safeguards.",
-    category: "Legal", badgeColor: "green", icon: "⚖️",
+    category: "Legal", badgeColor: "green", Icon: Scale,
     modules: [
       { id: "m1", title: "What is RERA and Why it Matters", duration: "14 min" },
       { id: "m2", title: "Verifying a RERA-Registered Project", duration: "10 min" },
@@ -40,7 +43,7 @@ const COURSES: Course[] = [
   {
     id: "advanced-negotiation", title: "Advanced Negotiation Skills",
     description: "Handle objections, negotiate confidently, and close more deals.",
-    category: "Sales", badgeColor: "purple", icon: "🤝",
+    category: "Sales", badgeColor: "purple", Icon: Handshake,
     modules: [
       { id: "m1", title: "The Psychology of Price Negotiation", duration: "11 min" },
       { id: "m2", title: "Handling the 'Too Expensive' Objection", duration: "9 min" },
@@ -51,7 +54,7 @@ const COURSES: Course[] = [
   {
     id: "investment-analysis", title: "Investment Analysis for Buyers",
     description: "Help buyers understand ROI, appreciation, and rental yields.",
-    category: "Finance", badgeColor: "yellow", icon: "📈",
+    category: "Finance", badgeColor: "yellow", Icon: TrendingUp,
     modules: [
       { id: "m1", title: "Reading Market Trends", duration: "14 min" },
       { id: "m2", title: "Calculating ROI & Rental Yield", duration: "16 min" },
@@ -62,7 +65,7 @@ const COURSES: Course[] = [
   {
     id: "digital-marketing", title: "Digital Marketing for CPs",
     description: "Generate your own leads using WhatsApp, Instagram, and digital tools.",
-    category: "Marketing", badgeColor: "pink", icon: "📱",
+    category: "Marketing", badgeColor: "pink", Icon: Smartphone,
     modules: [
       { id: "m1", title: "Building Your Personal Brand", duration: "10 min" },
       { id: "m2", title: "WhatsApp Marketing for Real Estate", duration: "12 min" },
@@ -115,7 +118,7 @@ export default function LearningAcademyPage() {
           [course.id]: { completedModules: updated.completedModules, completedAt: updated.completedAt },
         }));
         if (updated.completedAt) {
-          toast.success(`🎓 Course completed! Certificate earned.`);
+          toast.success("Course completed! Certificate earned.");
           setCertCourse(course);
         }
       }
@@ -151,7 +154,7 @@ export default function LearningAcademyPage() {
           <span className="text-muted-foreground"> / {COURSES.length} courses completed</span>
         </div>
         {totalCompleted >= COURSES.length && (
-          <Badge variant="featured">🏆 Academy Graduate</Badge>
+          <Badge variant="featured"><Trophy size={12} className="mr-1 inline" /> Academy Graduate</Badge>
         )}
       </div>
 
@@ -180,7 +183,7 @@ export default function LearningAcademyPage() {
           <div className="rounded-2xl border border-white/10 glass p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="text-3xl">{activeCourse.icon}</span>
+                <activeCourse.Icon size={30} className="text-sky-300" />
                 <h2 className="mt-2 text-xl font-semibold">{activeCourse.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{activeCourse.description}</p>
               </div>
@@ -243,7 +246,7 @@ export default function LearningAcademyPage() {
                 className={`text-left rounded-2xl border p-5 transition-all hover:scale-[1.01] ${isDone ? "border-green-800 bg-[var(--growth)]/10" : "border-white/10 glass hover:border-white/15"}`}
               >
                 <div className="flex items-start justify-between">
-                  <span className="text-2xl">{course.icon}</span>
+                  <course.Icon size={22} className="text-sky-300" />
                   {isDone
                     ? <span className="flex items-center gap-1 text-xs text-green-400"><Award size={12} /> Certified</span>
                     : <span className="text-xs text-muted-foreground">{course.modules.length} modules</span>}

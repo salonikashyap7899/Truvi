@@ -190,16 +190,16 @@ Can I book you a site visit this weekend? Saturday or Sunday — which works bet
 }
 
 export function whatsAppScript(clientName: string, project: Project, price: number): string {
-  return `Hi ${clientName || "there"} 👋
+  return `Hi ${clientName || "there"},
 
 Sharing a handpicked option for you:
 
-🏙️ *${project.name}* — ${project.location}, ${project.city}
-${price ? `💰 Starting ~ ${inr(price)}` : ""}
-${project.isVerified ? "✅ Truvi Verified (RERA + title checked)" : ""}
-📈 Strong appreciation potential in this micro-market
+*${project.name}* — ${project.location}, ${project.city}
+${price ? `Starting around ${inr(price)}` : ""}
+${project.isVerified ? "Truvi Verified — RERA & title checked" : ""}
+Strong appreciation potential in this micro-market.
 
-Units here are moving quickly. Shall I arrange a quick site visit this weekend? Just reply YES and I'll set it up.`;
+Units here are moving quickly. Shall I arrange a site visit this weekend? Reply YES and I'll set it up.`;
 }
 
 export function emailScript(clientName: string, project: Project, price: number): string {

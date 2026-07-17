@@ -21,10 +21,10 @@ interface Post {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  ANNOUNCEMENT: "📢 Announcement",
-  DISCUSSION: "💬 Discussion",
-  TIP: "💡 Tip",
-  MARKET_UPDATE: "📊 Market Update",
+  ANNOUNCEMENT: "Announcement",
+  DISCUSSION: "Discussion",
+  TIP: "Tip",
+  MARKET_UPDATE: "Market Update",
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -123,10 +123,10 @@ export default function TruviConnectPage() {
             onChange={(e) => setCategory(e.target.value as any)}
             className="bg-white/5 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-white outline-none"
           >
-            <option value="DISCUSSION">💬 Discussion</option>
-            <option value="TIP">💡 Tip</option>
-            <option value="MARKET_UPDATE">📊 Market Update</option>
-            {user?.role === "ADMIN" && <option value="ANNOUNCEMENT">📢 Announcement</option>}
+            <option value="DISCUSSION">Discussion</option>
+            <option value="TIP">Tip</option>
+            <option value="MARKET_UPDATE">Market Update</option>
+            {user?.role === "ADMIN" && <option value="ANNOUNCEMENT">Announcement</option>}
           </select>
           <Button size="sm" onClick={submitPost} disabled={posting || !content.trim()} className="flex items-center gap-1.5">
             <Send size={13} /> {posting ? "Posting…" : "Post"}
