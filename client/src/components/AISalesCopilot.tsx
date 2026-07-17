@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Sparkles, Copy, Check, RefreshCw } from "lucide-react";
+import { X, Sparkles, Copy, Check, RefreshCw, MessageCircle, Target, Shield, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
@@ -74,10 +74,10 @@ export default function AISalesCopilot() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const TABS: { id: CopilotMode; label: string; emoji: string }[] = [
-    { id: "whatsapp", label: "WhatsApp", emoji: "💬" },
-    { id: "pitch", label: "Pitch Script", emoji: "🎯" },
-    { id: "objection", label: "Objection Handler", emoji: "🛡️" },
+  const TABS: { id: CopilotMode; label: string; Icon: LucideIcon }[] = [
+    { id: "whatsapp", label: "WhatsApp", Icon: MessageCircle },
+    { id: "pitch", label: "Pitch Script", Icon: Target },
+    { id: "objection", label: "Objection Handler", Icon: Shield },
   ];
 
   return (
@@ -132,9 +132,9 @@ export default function AISalesCopilot() {
             <button
               key={tab.id}
               onClick={() => { setMode(tab.id); setOutput(""); }}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-purple-500 text-white" : "text-muted-foreground hover:text-foreground/90"}`}
+              className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-purple-500 text-white" : "text-muted-foreground hover:text-foreground/90"}`}
             >
-              {tab.emoji} {tab.label}
+              <tab.Icon size={13} /> {tab.label}
             </button>
           ))}
         </div>

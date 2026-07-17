@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import {
   X, Phone, MessageCircle, Mail, CalendarClock, Tag, Download,
   Flame, Plus, CheckCircle2, Circle, ClipboardList, MapPin, Sparkles,
+  StickyNote, ArrowLeftRight, FileText, Bot, Settings, type LucideIcon,
 } from "lucide-react";
 import type { Lead, LeadStage, LeadActivity, LeadFollowUp, CrmTask, FollowUpChannel } from "@/types";
 
@@ -29,9 +30,9 @@ const COLUMNS: { key: string; label: string; stages: LeadStage[]; drop: LeadStag
   { key: "COMPLETED", label: "Completed", stages: ["COMPLETED"], drop: "COMPLETED" },
 ];
 
-const ACTIVITY_ICONS: Record<string, string> = {
-  CALL: "📞", WHATSAPP: "💬", EMAIL: "✉️", NOTE: "📝", STAGE_CHANGE: "🔀",
-  SITE_VISIT: "📍", FOLLOW_UP: "⏰", DOCUMENT: "📄", AI_REPORT: "🤖", SYSTEM: "⚙️",
+const ACTIVITY_ICONS: Record<string, LucideIcon> = {
+  CALL: Phone, WHATSAPP: MessageCircle, EMAIL: Mail, NOTE: StickyNote, STAGE_CHANGE: ArrowLeftRight,
+  SITE_VISIT: MapPin, FOLLOW_UP: CalendarClock, DOCUMENT: FileText, AI_REPORT: Bot, SYSTEM: Settings,
 };
 
 const QUICK_TAGS = ["Hot", "NRI", "Investor", "First Home", "Loan Needed", "Urgent"];
@@ -134,7 +135,7 @@ export default function SalesHubPage() {
                 tempFilter === t ? "bg-[var(--trust)]/20 text-white" : "bg-white/5 text-muted-foreground hover:text-white"
               )}
             >
-              {t === "HOT" ? "🔥 Hot" : t === "WARM" ? "Warm" : t === "COLD" ? "Cold" : "All"}
+              {t === "HOT" ? "Hot" : t === "WARM" ? "Warm" : t === "COLD" ? "Cold" : "All"}
             </button>
           ))}
         </div>
@@ -428,7 +429,7 @@ function LeadDrawer({ lead, followUps, onClose, onChange }: { lead: Lead; follow
         {/* AI score */}
         <div className="mt-4 rounded-xl border border-purple-500/30 bg-purple-950/20 p-3">
           <p className="text-sm font-semibold">
-            Buyer Score {score.score}% · {score.temperature === "HOT" ? "Hot Lead 🔥" : score.temperature === "WARM" ? "Warm Lead" : "Cold Lead ❄️"} · Probability to Close {score.closeProbability}%
+            Buyer Score {score.score}% · {score.temperature === "HOT" ? "Hot Lead" : score.temperature === "WARM" ? "Warm Lead" : "Cold Lead"} · Probability to Close {score.closeProbability}%
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{score.reasons.join(" · ")}</p>
           <p className="mt-2 flex items-start gap-1.5 text-xs text-purple-300"><Sparkles size={12} className="mt-0.5 shrink-0" /> {suggestFollowUp(lead)}</p>
@@ -502,15 +503,18 @@ function LeadDrawer({ lead, followUps, onClose, onChange }: { lead: Lead; follow
         <div className="mt-5">
           <h4 className="text-sm font-semibold">Buyer Timeline</h4>
           <div className="mt-2 space-y-0 border-l border-white/10 pl-4">
-            {activities.map((a) => (
-              <div key={a._id} className="relative pb-3">
-                <span className="absolute -left-[21px] top-0.5 text-xs">{ACTIVITY_ICONS[a.type] || "•"}</span>
-                <p className="text-xs text-foreground/90">{a.content}</p>
-                <p className="text-[10px] text-muted-foreground">{new Date(a.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
-              </div>
-            ))}
+            {activities.map((a) => {
+              const Icon = ACTIVITY_ICONS[a.type] ?? Circle;
+              return (
+                <div key={a._id} className="relative pb-3">
+                  <Icon size={12} className="absolute -left-[22px] top-1 text-muted-foreground" />
+                  <p className="text-xs text-foreground/90">{a.content}</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(a.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+              );
+            })}
             <div className="relative">
-              <span className="absolute -left-[21px] top-0.5 text-xs">✨</span>
+              <Sparkles size={12} className="absolute -left-[22px] top-1 text-muted-foreground" />
               <p className="text-xs text-foreground/90">Lead created via {lead.source}</p>
               <p className="text-[10px] text-muted-foreground">{formatDate(lead.createdAt)}</p>
             </div>
@@ -524,7 +528,7 @@ function LeadDrawer({ lead, followUps, onClose, onChange }: { lead: Lead; follow
             <p className="mt-1 text-xs text-muted-foreground">No calls logged yet — tap Call above to start.</p>
           ) : (
             activities.filter((a) => a.type === "CALL").map((a) => (
-              <p key={a._id} className="mt-1 text-xs text-muted-foreground">📞 {new Date(a.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+              <p key={a._id} className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><Phone size={11} /> {new Date(a.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
             ))
           )}
         </div>

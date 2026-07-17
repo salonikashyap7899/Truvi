@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   X, Send, Bot, User, Sparkles, SlidersHorizontal, ChevronRight,
+  Search, Scale, Building2, MapPin, Wallet, ShieldCheck, Star, TrendingUp,
+  FolderOpen, ClipboardList, AlertTriangle, HelpCircle, Info, FileWarning, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -48,31 +50,31 @@ const EMPTY_PROFILE: AdvisorProfile = { budget: "", city: "", bhk: "", purpose: 
 const PROFILE_KEY = "truvi-advisor-profile";
 
 /* ---- Source Labeling System (spec p.16) ---- */
-const SOURCE_META: Record<string, { icon: string; name: string; cls: string }> = {
-  TRUVI_VERIFIED: { icon: "✅", name: "Truvi Verified", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20" },
-  PUBLIC_RECORD: { icon: "📂", name: "Public Record", cls: "bg-sky-500/15 text-sky-300 border-sky-400/20" },
-  BUILDER_SUBMITTED: { icon: "📋", name: "Builder Submitted", cls: "bg-amber-500/15 text-amber-300 border-amber-400/20" },
-  USER_SUBMITTED: { icon: "👤", name: "User Submitted", cls: "bg-violet-500/15 text-violet-300 border-violet-400/20" },
+const SOURCE_META: Record<string, { Icon: LucideIcon; name: string; cls: string }> = {
+  TRUVI_VERIFIED: { Icon: ShieldCheck, name: "Truvi Verified", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20" },
+  PUBLIC_RECORD: { Icon: FolderOpen, name: "Public Record", cls: "bg-sky-500/15 text-sky-300 border-sky-400/20" },
+  BUILDER_SUBMITTED: { Icon: ClipboardList, name: "Builder Submitted", cls: "bg-amber-500/15 text-amber-300 border-amber-400/20" },
+  USER_SUBMITTED: { Icon: User, name: "User Submitted", cls: "bg-violet-500/15 text-violet-300 border-violet-400/20" },
 };
 
 /* ---- Red Flag & Attention Points (spec feature 11) ---- */
-const FLAG_META: Record<string, { icon: string; name: string; cls: string }> = {
-  ATTENTION_REQUIRED: { icon: "⚠️", name: "Attention Required", cls: "border-amber-400/30 bg-amber-500/10 text-amber-200" },
-  DATA_UNAVAILABLE: { icon: "❓", name: "Data Unavailable", cls: "border-white/15 bg-white/5 text-foreground/80" },
-  NEEDS_VERIFICATION: { icon: "🔍", name: "Needs Verification", cls: "border-sky-400/30 bg-sky-500/10 text-sky-200" },
-  INFORMATION_MISMATCH: { icon: "📋", name: "Information Mismatch", cls: "border-red-400/30 bg-red-500/10 text-red-200" },
+const FLAG_META: Record<string, { Icon: LucideIcon; name: string; cls: string }> = {
+  ATTENTION_REQUIRED: { Icon: AlertTriangle, name: "Attention Required", cls: "border-amber-400/30 bg-amber-500/10 text-amber-200" },
+  DATA_UNAVAILABLE: { Icon: HelpCircle, name: "Data Unavailable", cls: "border-white/15 bg-white/5 text-foreground/80" },
+  NEEDS_VERIFICATION: { Icon: Search, name: "Needs Verification", cls: "border-sky-400/30 bg-sky-500/10 text-sky-200" },
+  INFORMATION_MISMATCH: { Icon: FileWarning, name: "Information Mismatch", cls: "border-red-400/30 bg-red-500/10 text-red-200" },
 };
 
 /* ---- Quick-start intents covering the core features ---- */
-const QUICK_ACTIONS: { icon: string; label: string; q: string; autosend: boolean }[] = [
-  { icon: "🔍", label: "About a project", q: "Tell me about ", autosend: false },
-  { icon: "⚖️", label: "Compare projects", q: "Compare  vs ", autosend: false },
-  { icon: "🏗️", label: "Builder track record", q: "Show the builder profile and track record for ", autosend: false },
-  { icon: "📍", label: "Location check", q: "Is this location good for buying? Area: ", autosend: false },
-  { icon: "💰", label: "Match my budget", q: "₹70 lakh budget, 3BHK — which projects match?", autosend: true },
-  { icon: "✅", label: "How Truvi verifies", q: "How does Truvi verify projects?", autosend: true },
-  { icon: "⭐", label: "Explain a trust score", q: "Why is the trust score what it is for ", autosend: false },
-  { icon: "📈", label: "Invest or self-use?", q: "Self-use ya investment ke liye better hai? Project: ", autosend: false },
+const QUICK_ACTIONS: { Icon: LucideIcon; label: string; q: string; autosend: boolean }[] = [
+  { Icon: Search, label: "About a project", q: "Tell me about ", autosend: false },
+  { Icon: Scale, label: "Compare projects", q: "Compare  vs ", autosend: false },
+  { Icon: Building2, label: "Builder track record", q: "Show the builder profile and track record for ", autosend: false },
+  { Icon: MapPin, label: "Location check", q: "Is this location good for buying? Area: ", autosend: false },
+  { Icon: Wallet, label: "Match my budget", q: "₹70 lakh budget, 3BHK — which projects match?", autosend: true },
+  { Icon: ShieldCheck, label: "How Truvi verifies", q: "How does Truvi verify projects?", autosend: true },
+  { Icon: Star, label: "Explain a trust score", q: "Why is the trust score what it is for ", autosend: false },
+  { Icon: TrendingUp, label: "Invest or self-use?", q: "Is this better for self-use or investment? Project: ", autosend: false },
 ];
 
 let msgCounter = 0;
@@ -155,14 +157,14 @@ function SourceChips({ sources }: { sources: Source[] }) {
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {sources.map((s, i) => {
-        const meta = SOURCE_META[s.label] ?? { icon: "ℹ️", name: s.label, cls: "bg-white/10 text-foreground/80 border-white/15" };
+        const meta = SOURCE_META[s.label] ?? { Icon: Info, name: s.label, cls: "bg-white/10 text-foreground/80 border-white/15" };
         return (
           <span
             key={i}
             title={s.detail || meta.name}
             className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${meta.cls}`}
           >
-            <span aria-hidden>{meta.icon}</span>
+            <meta.Icon size={11} className="shrink-0" />
             {meta.name}
             {s.lastUpdated && <span className="opacity-70">· {s.lastUpdated}</span>}
           </span>
@@ -181,7 +183,7 @@ function FlagCallouts({ flags }: { flags: Flag[] }) {
         const meta = FLAG_META[f.type] ?? FLAG_META.ATTENTION_REQUIRED;
         return (
           <div key={i} className={`rounded-lg border px-2.5 py-1.5 text-[11px] leading-snug ${meta.cls}`}>
-            <span className="font-semibold">{meta.icon} {meta.name}</span>
+            <span className="inline-flex items-center gap-1.5 font-semibold"><meta.Icon size={12} className="shrink-0" /> {meta.name}</span>
             {f.note && <span className="opacity-90"> — {f.note}</span>}
           </div>
         );
@@ -276,7 +278,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       id: uid(),
       role: "ai",
       text:
-        "Namaste! 👋 I'm **Ask Truvi AI** — your Real Estate Decision Intelligence Assistant.\nAsk about projects, builders, locations, verification data and property decisions — every answer is **source-backed** by Truvi's verified data ecosystem.\nHindi ya Hinglish mein bhi pooch sakte hain!",
+        "Hello, I'm **Ask Truvi AI** — your Real Estate Decision Intelligence Assistant.\nAsk about projects, builders, locations, verification data and property decisions — every answer is **source-backed** by Truvi's verified data ecosystem.",
       ts: Date.now(),
       followUps: ["How does Truvi verify projects?", "₹70 lakh budget, 3BHK — which projects match?"],
     },
@@ -522,7 +524,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
                   onClick={() => quickAction(a.q, a.autosend)}
                   className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-left text-[11px] text-foreground/90 transition hover:border-white/20 hover:bg-white/10"
                 >
-                  <span aria-hidden>{a.icon}</span>
+                  <a.Icon size={13} className="shrink-0 text-[var(--trust)]" />
                   {a.label}
                 </button>
               ))}

@@ -183,9 +183,9 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
         const now = Date.now();
         for (const l of leads.slice(0, 20)) {
           const days = (now - new Date(l.updatedAt).getTime()) / 86_400_000;
-          if (days < 1) nudges.push(`🟢 ${l.clientName} — activity today, strike while it's hot`);
-          else if (days >= 5 && !["COMPLETED", "LOST"].includes(l.stage)) nudges.push(`⚠️ ${l.clientName} inactive since ${Math.floor(days)} days`);
-          else if (l.stage === "SITE_VISIT") nudges.push(`📍 ${l.clientName} is at site-visit stage — follow up within 24h`);
+          if (days < 1) nudges.push(`${l.clientName} — active today, follow up while it's warm`);
+          else if (days >= 5 && !["COMPLETED", "LOST"].includes(l.stage)) nudges.push(`${l.clientName} — inactive for ${Math.floor(days)} days`);
+          else if (l.stage === "SITE_VISIT") nudges.push(`${l.clientName} at site-visit stage — follow up within 24h`);
           if (nudges.length >= 4) break;
         }
         if (nudges.length === 0) return null;

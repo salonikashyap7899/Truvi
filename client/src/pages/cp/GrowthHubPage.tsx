@@ -8,7 +8,10 @@ import UserMenu from "@/components/UserMenu";
 import { useAuthStore } from "@/store/authStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Award, Coins, Gift, Trophy, Star, Zap } from "lucide-react";
+import {
+  Award, Coins, Gift, Trophy, Star, Zap, Medal, Shield, Rocket, MapPin,
+  Handshake, Briefcase, Target, Package, type LucideIcon,
+} from "lucide-react";
 import type { Commission, Lead, User } from "@/types";
 
 /**
@@ -16,19 +19,19 @@ import type { Commission, Lead, User } from "@/types";
  * activity (leads, visits, bookings) so the numbers always mean something.
  */
 
-const TIERS = [
-  { name: "DIAMOND", emoji: "🥇", minXp: 5000, className: "border-violet-400/40 bg-violet-500/10" },
-  { name: "PLATINUM", emoji: "🥈", minXp: 2500, className: "border-sky-400/40 bg-sky-500/10" },
-  { name: "GOLD", emoji: "🥉", minXp: 1000, className: "border-amber-400/40 bg-amber-500/10" },
-  { name: "SILVER", emoji: "⭐", minXp: 300, className: "border-white/20 bg-white/5" },
-  { name: "BRONZE", emoji: "🔰", minXp: 0, className: "border-orange-800/40 bg-orange-900/10" },
-] as const;
+const TIERS: { name: string; Icon: LucideIcon; minXp: number; className: string }[] = [
+  { name: "DIAMOND", Icon: Trophy, minXp: 5000, className: "border-violet-400/40 bg-violet-500/10" },
+  { name: "PLATINUM", Icon: Medal, minXp: 2500, className: "border-sky-400/40 bg-sky-500/10" },
+  { name: "GOLD", Icon: Award, minXp: 1000, className: "border-amber-400/40 bg-amber-500/10" },
+  { name: "SILVER", Icon: Star, minXp: 300, className: "border-white/20 bg-white/5" },
+  { name: "BRONZE", Icon: Shield, minXp: 0, className: "border-orange-800/40 bg-orange-900/10" },
+];
 
-const REWARDS = [
-  { title: "₹500 Amazon Voucher", cost: 500, icon: "🎁" },
-  { title: "Featured profile for 7 days", cost: 800, icon: "🌟" },
-  { title: "5 free premium leads", cost: 1200, icon: "🎯" },
-  { title: "Truvi merch kit", cost: 2000, icon: "🧢" },
+const REWARDS: { title: string; cost: number; Icon: LucideIcon }[] = [
+  { title: "₹500 Amazon Voucher", cost: 500, Icon: Gift },
+  { title: "Featured profile for 7 days", cost: 800, Icon: Star },
+  { title: "5 free premium leads", cost: 1200, Icon: Target },
+  { title: "Truvi merch kit", cost: 2000, Icon: Package },
 ];
 
 export default function GrowthHubPage() {
@@ -59,13 +62,13 @@ export default function GrowthHubPage() {
   const nextTier = [...TIERS].reverse().find((t) => t.minXp > stats.xp);
   const progressToNext = nextTier ? Math.min(100, Math.round((stats.xp / nextTier.minXp) * 100)) : 100;
 
-  const badges = [
-    { name: "First Lead", earned: stats.totalLeads >= 1, icon: "🚀" },
-    { name: "Lead Machine", earned: stats.totalLeads >= 10, icon: "⚙️" },
-    { name: "Site Visit Star", earned: stats.visits >= 3, icon: "📍" },
-    { name: "First Closing", earned: stats.booked >= 1, icon: "🤝" },
-    { name: "Deal Maker", earned: stats.booked >= 5, icon: "💼" },
-    { name: "Top 5 Ranker", earned: leaderboard.slice(0, 5).some((u) => u._id === user?._id), icon: "🏆" },
+  const badges: { name: string; earned: boolean; Icon: LucideIcon }[] = [
+    { name: "First Lead", earned: stats.totalLeads >= 1, Icon: Rocket },
+    { name: "Lead Machine", earned: stats.totalLeads >= 10, Icon: Zap },
+    { name: "Site Visit Star", earned: stats.visits >= 3, Icon: MapPin },
+    { name: "First Closing", earned: stats.booked >= 1, Icon: Handshake },
+    { name: "Deal Maker", earned: stats.booked >= 5, Icon: Briefcase },
+    { name: "Top 5 Ranker", earned: leaderboard.slice(0, 5).some((u) => u._id === user?._id), Icon: Trophy },
   ];
 
   const myRank = leaderboard.findIndex((l) => l._id === user?._id) + 1;
@@ -88,13 +91,13 @@ export default function GrowthHubPage() {
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className={cn("glass", tier.className)}>
           <p className="text-xs text-muted-foreground">Your Tier</p>
-          <p className="mt-1 font-display text-3xl font-bold">{tier.emoji} {tier.name}</p>
+          <p className="mt-1 flex items-center gap-2 font-display text-3xl font-bold"><tier.Icon size={26} className="text-amber-300" /> {tier.name}</p>
           {nextTier && (
             <>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${progressToNext}%` }} />
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">{nextTier.minXp - stats.xp} XP to {nextTier.emoji} {nextTier.name}</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">{nextTier.minXp - stats.xp} XP to {nextTier.name}</p>
             </>
           )}
         </Card>
@@ -116,7 +119,7 @@ export default function GrowthHubPage() {
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
           {TIERS.map((t) => (
             <Card key={t.name} className={cn("glass text-center", t.name === tier.name ? t.className : "border-white/10 opacity-70")}>
-              <p className="text-2xl">{t.emoji}</p>
+              <t.Icon size={22} className="mx-auto text-amber-300" />
               <p className="mt-1 text-sm font-semibold">{t.name}</p>
               <p className="text-[10px] text-muted-foreground">{t.minXp.toLocaleString("en-IN")}+ XP</p>
               {t.name === tier.name && <Badge variant="success" className="mt-1.5">You</Badge>}
@@ -131,7 +134,7 @@ export default function GrowthHubPage() {
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {badges.map((b) => (
             <Card key={b.name} className={cn("glass text-center", b.earned ? "border-emerald-500/40" : "border-white/10 opacity-50")}>
-              <p className="text-2xl">{b.icon}</p>
+              <b.Icon size={22} className={cn("mx-auto", b.earned ? "text-emerald-400" : "text-muted-foreground")} />
               <p className="mt-1 text-xs font-medium">{b.name}</p>
               <p className={cn("text-[10px]", b.earned ? "text-emerald-400" : "text-muted-foreground")}>{b.earned ? "Earned" : "Locked"}</p>
             </Card>
@@ -146,7 +149,7 @@ export default function GrowthHubPage() {
           <div className="mt-3 space-y-2">
             {REWARDS.map((r) => (
               <Card key={r.title} className="flex items-center justify-between border-white/10 glass py-3">
-                <p className="text-sm">{r.icon} {r.title}</p>
+                <p className="flex items-center gap-2 text-sm"><r.Icon size={15} className="text-pink-300" /> {r.title}</p>
                 <Button
                   size="sm"
                   variant={stats.coins >= r.cost ? "primary" : "outline"}
@@ -166,8 +169,9 @@ export default function GrowthHubPage() {
           <div className="mt-3 space-y-2">
             {leaderboard.slice(0, 5).map((cp, i) => (
               <Card key={cp._id} className={cn("flex items-center justify-between border-white/10 glass py-3", cp._id === user?._id && "ring-1 ring-[var(--trust)]")}>
-                <p className="text-sm">
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`} {cp.name}{" "}
+                <p className="flex items-center gap-1.5 text-sm">
+                  {i === 0 ? <Trophy size={14} className="text-amber-300" /> : i === 1 ? <Medal size={14} className="text-slate-300" /> : i === 2 ? <Award size={14} className="text-orange-300" /> : <span className="w-5 text-muted-foreground">#{i + 1}</span>}
+                  {cp.name}{" "}
                   <Badge variant={(cp.cpTier || "silver").toLowerCase()}>{cp.cpTier}</Badge>
                 </p>
                 <p className="text-xs text-muted-foreground">{cp.cpProfile?.totalBookings || 0} bookings{i < 3 ? ` · ₹${[10, 5, 2.5][i]}k bonus` : ""}</p>
