@@ -41,6 +41,10 @@ import CPDashboardPage from "@/pages/cp/CPDashboardPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
 import LearningAcademyPage from "@/pages/cp/LearningAcademyPage";
 import TruviConnectPage from "@/pages/cp/TruviConnectPage";
+import SalesHubPage from "@/pages/cp/SalesHubPage";
+import AIHubPage from "@/pages/cp/AIHubPage";
+import BusinessHubPage from "@/pages/cp/BusinessHubPage";
+import GrowthHubPage from "@/pages/cp/GrowthHubPage";
 import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
@@ -155,6 +159,10 @@ export default function App() {
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
         <Route path="/cp/marketplace" element={<ProtectedRoute roles={["CP"]}><MarketplacePage /></ProtectedRoute>} />
         <Route path="/cp/academy" element={<ProtectedRoute roles={["CP"]}><LearningAcademyPage /></ProtectedRoute>} />
+        <Route path="/cp/sales" element={<ProtectedRoute roles={["CP"]}><SalesHubPage /></ProtectedRoute>} />
+        <Route path="/cp/ai" element={<ProtectedRoute roles={["CP"]}><AIHubPage /></ProtectedRoute>} />
+        <Route path="/cp/business" element={<ProtectedRoute roles={["CP"]}><BusinessHubPage /></ProtectedRoute>} />
+        <Route path="/cp/growth" element={<ProtectedRoute roles={["CP"]}><GrowthHubPage /></ProtectedRoute>} />
         <Route path="/cp/connect" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><TruviConnectPage /></ProtectedRoute>} />
 
         {/* Buyer */}

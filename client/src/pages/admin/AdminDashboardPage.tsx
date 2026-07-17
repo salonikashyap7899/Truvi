@@ -9,9 +9,29 @@ import { formatINR, nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Project } from "@/types";
 
+interface InvestorMetrics {
+  totalBuyers: number;
+  totalDevelopers: number;
+  totalCPs: number;
+  activeUsers: number;
+  newUsers30d: number;
+  mrrPaise: number;
+  arrPaise: number;
+  totalRevenuePaise: number;
+  ltvPaise: number;
+  cacPaise: number;
+  churnPercent: number;
+  conversionPercent: number;
+  payingUsers: number;
+  gmvPaise: number;
+}
+
+const paise = (p: number) => formatINR(Math.round(p / 100));
+
 export default function AdminDashboardPage() {
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, cpCommissions: 0 });
+  const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
@@ -28,6 +48,7 @@ export default function AdminDashboardPage() {
       platformFees: revenueRes.data.platformFeeRevenue,
       cpCommissions: revenueRes.data.leadServiceRevenue,
     });
+    api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
     setLoading(false);
   }
 
@@ -74,6 +95,28 @@ export default function AdminDashboardPage() {
           <CardValue>{formatINR(stats.cpCommissions)}</CardValue>
         </Card>
       </div>
+
+      {/* Investor metrics — the live valuation-driving numbers */}
+      {investor && (
+        <section className="mt-10">
+          <h2 className="text-lg font-medium">Investor metrics <span className="text-xs text-muted-foreground">— live SaaS + marketplace numbers</span></h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Card className="border-white/10 glass"><CardTitle>Total Buyers</CardTitle><CardValue className="text-lg">{investor.totalBuyers}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Total Developers</CardTitle><CardValue className="text-lg">{investor.totalDevelopers}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Total CPs</CardTitle><CardValue className="text-lg">{investor.totalCPs}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Active Users</CardTitle><CardValue className="text-lg">{investor.activeUsers}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Paying Users</CardTitle><CardValue className="text-lg">{investor.payingUsers}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>New Users (30d)</CardTitle><CardValue className="text-lg">{investor.newUsers30d}</CardValue></Card>
+            <Card className="border-emerald-500/30 glass"><CardTitle>MRR</CardTitle><CardValue className="text-lg text-emerald-400">{paise(investor.mrrPaise)}</CardValue></Card>
+            <Card className="border-emerald-500/30 glass"><CardTitle>ARR</CardTitle><CardValue className="text-lg text-emerald-400">{paise(investor.arrPaise)}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Total Revenue</CardTitle><CardValue className="text-lg">{paise(investor.totalRevenuePaise)}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>LTV / CAC</CardTitle><CardValue className="text-lg">{paise(investor.ltvPaise)} / {paise(investor.cacPaise)}</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Churn</CardTitle><CardValue className="text-lg">{investor.churnPercent}%</CardValue></Card>
+            <Card className="border-white/10 glass"><CardTitle>Conversion Rate</CardTitle><CardValue className="text-lg">{investor.conversionPercent}%</CardValue></Card>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">GMV (booking value routed through Truvi): {paise(investor.gmvPaise)}</p>
+        </section>
+      )}
 
       <section className="mt-10">
         <h2 className="text-lg font-medium">Pending project approvals ({pendingProjects.length})</h2>

@@ -16,6 +16,8 @@ import {
   projectAssets,
   legalDocuments,
   notifications,
+  payments,
+  subscriptions,
   Role,
   ApprovalStatus,
   VerificationDetails,
@@ -32,6 +34,57 @@ import { kycDir } from "./auth";
 
 const router = Router();
 router.use(authenticate);
+
+// GET /api/admin/investor-metrics — the live valuation-driving numbers
+// (users, MRR/ARR, LTV, CAC, churn, revenue, conversion) for the admin /
+// investor dashboard.
+router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [allUsers, allSubs, allPays, allCommissions, allLeads] = await Promise.all([
+    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt }).from(users),
+    db.select().from(subscriptions),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select().from(commissions),
+    db.select({ _id: leads._id, updatedAt: leads.updatedAt }).from(leads),
+  ]);
+
+  const byRole = (role: Role) => allUsers.filter((u) => u.role === role).length;
+  const activeSubs = allSubs.filter((s) => s.status === "ACTIVE");
+  const monthlyPaise = (s: (typeof allSubs)[number]) =>
+    s.interval === "yearly" ? Math.round((s.basePaise + s.gstPaise) / 12) : s.basePaise + s.gstPaise;
+
+  const mrrPaise = activeSubs.reduce((sum, s) => sum + monthlyPaise(s), 0);
+  const oneTimeRevenuePaise = allPays.reduce((sum, p) => sum + p.amountPaise + p.gstPaise, 0);
+  const platformFeePaise = Math.round(allCommissions.reduce((sum, c) => sum + c.platformFeeAmount, 0) * 100);
+
+  const payingUserIds = new Set([
+    ...allPays.map((p) => p.userId).filter(Boolean),
+    ...activeSubs.map((s) => s.userId).filter(Boolean),
+  ]);
+  const cancelled = allSubs.filter((s) => s.status === "CANCELLED").length;
+
+  res.json({
+    metrics: {
+      totalBuyers: byRole("BUYER"),
+      totalDevelopers: byRole("DEVELOPER"),
+      totalCPs: byRole("CP"),
+      activeUsers: new Set(allLeads.filter((l) => l.updatedAt >= thirtyDaysAgo).map((l) => l._id)).size + activeSubs.length,
+      newUsers30d: allUsers.filter((u) => u.createdAt >= thirtyDaysAgo).length,
+      mrrPaise,
+      arrPaise: mrrPaise * 12,
+      totalRevenuePaise: oneTimeRevenuePaise + platformFeePaise,
+      ltvPaise: payingUserIds.size ? Math.round((oneTimeRevenuePaise + platformFeePaise) / payingUserIds.size) : 0,
+      // No paid-acquisition spend is tracked yet, so CAC is organic (₹0).
+      cacPaise: 0,
+      churnPercent: allSubs.length ? Math.round((cancelled / allSubs.length) * 100) : 0,
+      conversionPercent: allUsers.length ? Math.round((payingUserIds.size / allUsers.length) * 100) : 0,
+      payingUsers: payingUserIds.size,
+      gmvPaise: Math.round(allCommissions.reduce((sum, c) => sum + c.bookingValue, 0) * 100),
+    },
+  });
+});
 
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
