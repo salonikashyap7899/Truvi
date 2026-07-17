@@ -96,11 +96,18 @@ export interface UserVerification {
   emailOtpExpiry?: string | null; // ISO date string
   aadhaarDocumentUrl?: string;
   aadhaarVerifiedAt?: string | null; // ISO date string
-  // CP identity docs (Aadhaar handled above). PAN number is stored masked.
-  panDocumentUrl?: string;
+  // CP identity docs. PAN number is stored masked. The document images are NOT
+  // public URLs — they live in a private (non-static) directory and are only
+  // streamed to admins through an authenticated route. We keep just the stored
+  // filename + mime per document so it can be located and its files deleted
+  // once verification is decided (data-retention minimisation).
   panNumberMasked?: string;
-  selfieUrl?: string;
   kycSubmittedAt?: string | null; // ISO date string
+  kycFiles?: {
+    aadhaar?: { file: string; mime: string };
+    pan?: { file: string; mime: string };
+    selfie?: { file: string; mime: string };
+  };
 }
 
 export const DEFAULT_ONBOARDING_CHECKS: OnboardingChecks = {
