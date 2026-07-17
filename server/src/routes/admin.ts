@@ -13,13 +13,18 @@ import {
   sharedDocuments,
   projectAssets,
   legalDocuments,
+  notifications,
   Role,
   ApprovalStatus,
   VerificationDetails,
+  OnboardingChecks,
+  DEFAULT_ONBOARDING_CHECKS,
+  isOnboardingComplete,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
+import { emitNotification } from "../sockets";
 
 const router = Router();
 router.use(authenticate);
@@ -207,5 +212,83 @@ router.patch("/settings", requireRole("ADMIN"), (req, res) => {
 export function getPlatformFeePercent(): number {
   return platformFeePercent;
 }
+
+// ── CP identity (KYC) review ────────────────────────────────────────────────
+
+// GET /api/admin/kyc/pending — submissions awaiting manual review.
+router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({
+      _id: users._id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      onboardingChecks: users.onboardingChecks,
+      verification: users.verification,
+    })
+    .from(users)
+    .where(inArray(users.role, ["CP", "AMBASSADOR"]));
+
+  const pending = rows
+    .filter((u) => u.onboardingChecks?.kycStatus === "PENDING")
+    .map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      panNumberMasked: u.verification?.panNumberMasked ?? null,
+      aadhaarDocumentUrl: u.verification?.aadhaarDocumentUrl ?? null,
+      panDocumentUrl: u.verification?.panDocumentUrl ?? null,
+      selfieUrl: u.verification?.selfieUrl ?? null,
+      submittedAt: u.verification?.kycSubmittedAt ?? null,
+    }));
+
+  res.json({ submissions: pending });
+});
+
+const kycDecisionSchema = z.object({ approve: z.boolean(), reason: z.string().max(300).optional() });
+
+// POST /api/admin/kyc/:userId/decision — approve or reject a submission.
+router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const { userId } = req.params;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  const parsed = kycDecisionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users._id, userId));
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const { approve, reason } = parsed.data;
+  const onboardingChecks: OnboardingChecks = {
+    ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+    aadhaarVerified: approve,
+    panVerified: approve,
+    kycStatus: approve ? "APPROVED" : "REJECTED",
+    kycRejectionReason: approve ? null : reason ?? "Documents could not be verified.",
+  };
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
+
+  await db
+    .update(users)
+    .set({ onboardingChecks, onboardingVerified })
+    .where(eq(users._id, user._id));
+
+  // Tell the CP the outcome in real time.
+  try {
+    const message = approve
+      ? "Your identity has been verified — full access is now unlocked."
+      : `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`;
+    const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
+    emitNotification(String(user._id), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  res.json({ ok: true, userId: user._id, kycStatus: onboardingChecks.kycStatus, onboardingVerified });
+});
 
 export default router;

@@ -104,6 +104,9 @@ export interface User {
     aadhaarVerified?: boolean;
     phoneVerified?: boolean;
     emailVerified?: boolean;
+    panVerified?: boolean;
+    kycStatus?: "PENDING" | "APPROVED" | "REJECTED";
+    kycRejectionReason?: string | null;
   };
   cpTier?: CPTier;
   cpProfile?: {

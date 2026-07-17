@@ -82,6 +82,11 @@ export interface OnboardingChecks {
   aadhaarVerified: boolean;
   phoneVerified: boolean;
   emailVerified: boolean;
+  panVerified?: boolean;
+  // Lifecycle of the CP identity submission: not started → PENDING (docs
+  // submitted, awaiting review) → APPROVED / REJECTED.
+  kycStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  kycRejectionReason?: string | null;
 }
 
 export interface UserVerification {
@@ -91,13 +96,31 @@ export interface UserVerification {
   emailOtpExpiry?: string | null; // ISO date string
   aadhaarDocumentUrl?: string;
   aadhaarVerifiedAt?: string | null; // ISO date string
+  // CP identity docs (Aadhaar handled above). PAN number is stored masked.
+  panDocumentUrl?: string;
+  panNumberMasked?: string;
+  selfieUrl?: string;
+  kycSubmittedAt?: string | null; // ISO date string
 }
 
 export const DEFAULT_ONBOARDING_CHECKS: OnboardingChecks = {
   aadhaarVerified: false,
   phoneVerified: false,
   emailVerified: false,
+  panVerified: false,
 };
+
+/**
+ * A CP/Ambassador is fully onboarded once email, phone, Aadhaar and PAN are all
+ * verified. `panVerified` is optional on legacy records — treat missing as not
+ * required only for accounts that predate PAN (handled by callers via seed).
+ */
+export function isOnboardingComplete(checks?: OnboardingChecks | null): boolean {
+  if (!checks) return false;
+  return Boolean(
+    checks.emailVerified && checks.phoneVerified && checks.aadhaarVerified && checks.panVerified,
+  );
+}
 
 export interface BuyerProfile {
   savedProjectIds: string[];
