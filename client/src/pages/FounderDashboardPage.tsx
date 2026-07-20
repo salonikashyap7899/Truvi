@@ -60,13 +60,13 @@ const scoreHealth = (s: number): Health => (s >= 70 ? "good" : s >= 40 ? "warn" 
 
 function Stat({ label, value, sub, health }: { label: string; value: string; sub?: string; health?: Health }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">{label}</p>
-        {health && <span className={`h-2 w-2 shrink-0 rounded-full ${dot[health]}`} />}
+    <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-h-[2.1rem] text-[11px] font-medium uppercase leading-[1.35] tracking-wide text-white/50">{label}</p>
+        {health && <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${dot[health]}`} />}
       </div>
-      <p className="mt-2 text-2xl font-semibold leading-tight text-white">{value}</p>
-      {sub && <p className="mt-1 text-xs text-white/40">{sub}</p>}
+      <p className="mt-auto pt-2 text-2xl font-semibold leading-none tracking-tight text-white tabular-nums">{value}</p>
+      {sub && <p className="mt-1.5 text-xs text-white/40">{sub}</p>}
     </div>
   );
 }
@@ -78,13 +78,13 @@ function Section({
   subtitle?: string; children: React.ReactNode;
 }) {
   return (
-    <details id={id} open={defaultOpen} className="group scroll-mt-24 rounded-3xl border border-white/10 bg-white/[0.03] backdrop-blur">
+    <details id={id} open={defaultOpen} className="group scroll-mt-24 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
       <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
-        {health && <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot[health]}`} />}
-        <span className="text-xs font-mono text-white/40">{n}</span>
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${health ? dot[health] : "bg-white/20"}`} />
+        <span className="w-8 shrink-0 font-mono text-xs text-white/35">{n}</span>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold text-white">{title}</h2>
-          {subtitle && <p className="truncate text-xs text-white/40">{subtitle}</p>}
+          <h2 className="truncate text-[15px] font-semibold text-white">{title}</h2>
+          {subtitle && <p className="mt-0.5 truncate text-xs text-white/40">{subtitle}</p>}
         </div>
         <a
           href={`#${id}`}
@@ -169,7 +169,8 @@ export default function FounderDashboardPage() {
   const chHealth = scoreHealth(ch.healthScore);
 
   return (
-    <main className="min-h-screen p-4 text-white md:p-8">
+    <main className="min-h-screen p-4 pb-28 text-white md:p-8 md:pb-28">
+     <div className="mx-auto w-full max-w-[1440px]">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
@@ -187,7 +188,7 @@ export default function FounderDashboardPage() {
       </div>
 
       {/* Executive strip */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+      <div className="mt-6 grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 xl:grid-cols-8">
         <Stat label="Total Revenue" value={formatCompactINR(ex.totalRevenue)} />
         <Stat label="Total GMV" value={formatCompactINR(ex.gmv)} />
         <Stat label="Developers" value={String(ex.totalDevelopers)} />
@@ -199,16 +200,18 @@ export default function FounderDashboardPage() {
       </div>
 
       {/* Quick nav */}
-      <div className="mt-4 flex flex-wrap gap-2 text-xs">
-        {[
-          ["health", "Health"], ["sales", "Sales"], ["projects", "Projects"], ["finance", "Finance"],
-          ["legal", "Legal"], ["crm", "CRM"], ["team", "Team"], ["marketing", "Marketing"],
-          ["ai-insights", "AI Insights"], ["land", "Land Bank"], ["investor", "Investor"],
-          ["command", "Command Center"], ["kpi", "KPIs"], ["copilot", "AI Copilot"],
-        ].map(([id, label]) => (
-          <a key={id} href={`#${id}`} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/60 hover:bg-white/10 hover:text-white">{label}</a>
-        ))}
-      </div>
+      <nav className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          {[
+            ["health", "Health"], ["sales", "Sales"], ["projects", "Projects"], ["finance", "Finance"],
+            ["legal", "Legal"], ["crm", "CRM"], ["team", "Team"], ["marketing", "Marketing"],
+            ["ai-insights", "AI Insights"], ["land", "Land Bank"], ["investor", "Investor"],
+            ["command", "Command Center"], ["kpi", "KPIs"], ["copilot", "AI Copilot"],
+          ].map(([id, label]) => (
+            <a key={id} href={`#${id}`} className="rounded-full px-3 py-1.5 font-medium text-white/55 transition hover:bg-white/10 hover:text-white">{label}</a>
+          ))}
+        </div>
+      </nav>
 
       <div className="mt-6 space-y-4">
         {/* 3.1 Company Health */}
@@ -486,8 +489,9 @@ export default function FounderDashboardPage() {
       </div>
 
       <p className="mt-8 text-center text-xs text-white/30">
-        Truvi CEO Operating System · Phase 1 · Founder-only sections gate to real data — no fabricated numbers anywhere.
+        Truvi CEO Operating System · Founder-only sections gate to real data — no fabricated numbers anywhere.
       </p>
+     </div>
     </main>
   );
 }
