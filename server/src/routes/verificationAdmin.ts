@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte, ne } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   verificationChecks,
@@ -10,6 +10,7 @@ import {
   auditLogs,
   DATA_CATEGORIES,
 } from "../db/verificationSchema";
+import { users } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { adminLimiter } from "../middleware/security";
@@ -161,10 +162,34 @@ router.put("/thresholds", async (req: AuthedRequest, res) => {
 });
 
 // ── Audit log viewer ────────────────────────────────────────────────────────
+// Joined with the acting user so the UI can show who did what. Optional
+// filters: ?action= (prefix match), ?userId=, ?from=/&to= (ISO dates).
 router.get("/audit-logs", async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 100, 500);
-  const rows = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(limit);
-  res.json({ logs: rows });
+  const limit = Math.min(Number(req.query.limit) || 200, 1000);
+  const conditions = [];
+  if (req.query.action) conditions.push(like(auditLogs.action, `${String(req.query.action)}%`));
+  if (req.query.userId && isValidId(String(req.query.userId))) conditions.push(eq(auditLogs.userId, String(req.query.userId)));
+  if (req.query.from) {
+    const from = new Date(String(req.query.from));
+    if (!isNaN(from.getTime())) conditions.push(gte(auditLogs.createdAt, from));
+  }
+  if (req.query.to) {
+    const to = new Date(String(req.query.to));
+    if (!isNaN(to.getTime())) conditions.push(lte(auditLogs.createdAt, to));
+  }
+
+  const rows = await getDb()
+    .select({
+      log: auditLogs,
+      actor: { _id: users._id, name: users.name, email: users.email, role: users.role },
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users._id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit);
+
+  res.json({ logs: rows.map(({ log, actor }) => ({ ...log, actor: actor?._id ? actor : null })) });
 });
 
 export default router;

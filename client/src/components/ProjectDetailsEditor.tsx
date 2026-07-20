@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { toast } from "sonner";
 import { Loader2, Save, Plus, Trash2, Building2 } from "lucide-react";
+import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
+
+// Lazy so Leaflet only downloads when a project editor is actually opened.
+const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
 
 /**
  * Developer-facing editor for the project's commercial details: name,
@@ -31,6 +35,11 @@ export default function ProjectDetailsEditor({
   const [contactPhone, setContactPhone] = useState(project.salesContact?.phone ?? "");
   const [contactEmail, setContactEmail] = useState(project.salesContact?.email ?? "");
   const [plans, setPlans] = useState<PaymentPlan[]>(project.paymentPlans ?? []);
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(
+    typeof project.lat === "number" && typeof project.lng === "number"
+      ? { lat: project.lat, lng: project.lng }
+      : null
+  );
 
   function patchPlan(i: number, key: keyof PaymentPlan, value: string) {
     setPlans((prev) => prev.map((p, idx) => (idx === i ? { ...p, [key]: value } : p)));
@@ -56,6 +65,8 @@ export default function ProjectDetailsEditor({
         paymentPlans: plans.filter((p) => p.name.trim()).length
           ? plans.filter((p) => p.name.trim())
           : null,
+        lat: pin?.lat ?? null,
+        lng: pin?.lng ?? null,
       });
       onUpdated(res.data.project);
       toast.success("Project details saved");
@@ -153,6 +164,15 @@ export default function ProjectDetailsEditor({
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-300">Map location (shown on the Truvi project map)</p>
+          <div className="mt-2">
+            <Suspense fallback={<div className="tv-skeleton h-[280px] rounded-xl" />}>
+              <MapPinPicker value={pin} onChange={setPin} />
+            </Suspense>
           </div>
         </div>
 

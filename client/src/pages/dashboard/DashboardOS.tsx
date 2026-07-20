@@ -199,7 +199,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "overview" && <OverviewPage d={d} go={go} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
           {current === "projects" && <ProjectsPage d={d} navigate={navigate} />}
-          {current === "crm" && <CrmPage d={d} />}
+          {current === "crm" && <CrmPage d={d} navigate={navigate} />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
           {current === "verification" && <VerificationPage d={d} navigate={navigate} />}
           {current === "kpi" && <KpiPage d={d} fin={fin} />}
@@ -403,10 +403,18 @@ function ProjectsPage({ d, navigate }: { d: Overview; navigate: ReturnType<typeo
   );
 }
 
-function CrmPage({ d }: { d: Overview }) {
+function CrmPage({ d, navigate }: { d: Overview; navigate: ReturnType<typeof useNavigate> }) {
   return (
     <section className="page">
-      <div className="page-header"><div><div className="page-title">Customers &amp; CRM</div><div className="page-sub">Buyers, follow-ups &amp; enquiries</div></div></div>
+      <div className="page-header">
+        <div><div className="page-title">Customers &amp; CRM</div><div className="page-sub">Buyers, follow-ups &amp; enquiries</div></div>
+        <div className="header-actions">
+          <button className="btn" onClick={() => navigate("/crm/pipeline")}><Ic n="grid" /> Pipeline</button>
+          <button className="btn" onClick={() => navigate("/bookings")}><Ic n="target" /> Bookings</button>
+          <button className="btn" onClick={() => navigate("/vault")}><Ic n="book" /> Vault</button>
+          <button className="btn btn-primary" onClick={() => navigate("/admin/audit-logs")}><Ic n="shield" /> Audit Logs</button>
+        </div>
+      </div>
       <div className="kpi-grid">
         <Kpi icon="users" tone="blue" label="New Customers (30d)" value={String(d.crm.newCustomers)} />
         <Kpi icon="team" tone="green" label="Active Customers" value={String(d.crm.activeCustomers)} />

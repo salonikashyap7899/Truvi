@@ -159,6 +159,9 @@ const updateProjectSchema = z.object({
   description: z.string().min(10).optional(),
   commissionPercent: z.number().min(0).max(20).optional(),
   possessionDate: z.string().datetime().or(z.literal("")).nullable().optional(),
+  // GIS pin (both or neither; null clears the pin).
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
   salesContact: z
     .object({
       name: z.string().max(120).optional(),
@@ -190,6 +193,8 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
+  if (d.lat !== undefined) update.lat = d.lat;
+  if (d.lng !== undefined) update.lng = d.lng;
 
   const [updated] = await db
     .update(projects)

@@ -55,6 +55,13 @@ import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
 import InventoryPage from "@/pages/InventoryPage";
 import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
+import PipelinePage from "@/pages/crm/PipelinePage";
+import BookingsPage from "@/pages/crm/BookingsPage";
+import AdminAuditLogsPage from "@/pages/admin/AdminAuditLogsPage";
+import VaultPage from "@/pages/VaultPage";
+
+// Lazy — Leaflet only loads when someone opens the map.
+const ProjectsMapPage = lazy(() => import("@/pages/ProjectsMapPage"));
 
 // Lazy-loaded so the 3D viewer never weighs down the main bundle.
 const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
@@ -152,6 +159,7 @@ export default function App() {
 
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/map" element={<Suspense fallback={null}><ProjectsMapPage /></Suspense>} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
         <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
 
@@ -169,6 +177,7 @@ export default function App() {
         <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
         <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
         <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
+        <Route path="/admin/audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
@@ -193,6 +202,9 @@ export default function App() {
         <Route path="/cp/business" element={<ProtectedRoute roles={["CP"]}><BusinessHubPage /></ProtectedRoute>} />
         <Route path="/cp/growth" element={<ProtectedRoute roles={["CP"]}><GrowthHubPage /></ProtectedRoute>} />
         <Route path="/cp/connect" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><TruviConnectPage /></ProtectedRoute>} />
+        <Route path="/crm/pipeline" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><PipelinePage /></ProtectedRoute>} />
+        <Route path="/bookings" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><BookingsPage /></ProtectedRoute>} />
+        <Route path="/vault" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><VaultPage /></ProtectedRoute>} />
 
         {/* Buyer */}
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />

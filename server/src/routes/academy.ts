@@ -6,6 +6,7 @@ import { academyContent, courseProgress } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { uploadMedia, fileUrl } from "../services/uploadService";
+import { logAudit } from "../services/audit";
 
 const router = Router();
 router.use(authenticate);
@@ -147,6 +148,7 @@ router.post(
         createdById: req.user!.userId,
       })
       .returning();
+    await logAudit({ userId: req.user!.userId, action: "academy.content.create", resourceType: "academy_content", resourceId: String(content._id), metadata: { courseId, type, title } });
     res.status(201).json({ content });
   }
 );
@@ -188,13 +190,14 @@ router.post("/translate", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   }
 });
 
-router.delete("/content/:id", requireRole("ADMIN"), async (req, res) => {
+router.delete("/content/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const [deleted] = await db
     .delete(academyContent)
     .where(eq(academyContent._id, String(req.params.id)))
     .returning();
   if (!deleted) return res.status(404).json({ error: "Content not found" });
+  await logAudit({ userId: req.user!.userId, action: "academy.content.delete", resourceType: "academy_content", resourceId: String(deleted._id), metadata: { title: deleted.title } });
   res.json({ ok: true });
 });
 

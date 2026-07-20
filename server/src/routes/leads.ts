@@ -7,6 +7,7 @@ import { isValidId } from "../lib/ids";
 import { createLeadSchema, updateLeadStageSchema } from "../lib/validations/leads";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitLeadUpdate } from "../sockets";
+import { logAudit } from "../services/audit";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 
 const router = Router();
@@ -160,6 +161,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     /* non-fatal */
   }
 
+  await logAudit({ userId: user.userId, action: "lead.stage.update", resourceType: "lead", resourceId: String(lead._id), metadata: { from: lead.stage, to: newStage, client: lead.clientName } });
   emitLeadUpdate(updated);
   res.json({ lead: updated });
 });

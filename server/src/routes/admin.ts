@@ -36,6 +36,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
+import { logAudit } from "../services/audit";
 import { kycDir } from "./auth";
 
 const router = Router();
@@ -361,6 +362,7 @@ router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
     .where(eq(users._id, userId))
     .returning();
   const { password: _pw, ...safeUser } = updated;
+  await logAudit({ userId: req.user!.userId, action: parsed.data.disabled ? "user.disable" : "user.enable", resourceType: "user", resourceId: userId, metadata: { name: target.name, role: target.role } });
   res.json({ user: safeUser });
 });
 
@@ -499,6 +501,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     .returning();
   if (!project) return res.status(404).json({ error: "Project not found" });
 
+  await logAudit({ userId: req.user!.userId, action: "project.update", resourceType: "project", resourceId: projectId, metadata: { fields: Object.keys(update), approvalStatus: data.approvalStatus, isVerified: data.isVerified } });
   res.json({ project });
 });
 
@@ -546,6 +549,7 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
     return res.status(500).json({ error: "Could not delete project — please retry." });
   }
 
+  await logAudit({ userId: req.user!.userId, action: "project.delete", resourceType: "project", resourceId: projectId, metadata: { name: existing.name, city: existing.city } });
   res.json({ ok: true, deleted: existing.name });
 });
 
@@ -555,12 +559,14 @@ router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), (_req, res) => 
   res.json({ platformFeePercent });
 });
 
-router.patch("/settings", requireRole("ADMIN"), (req, res) => {
+router.patch("/settings", requireRole("ADMIN"), (req: AuthedRequest, res) => {
   const value = req.body?.platformFeePercent;
   if (typeof value !== "number" || value < 0) {
     return res.status(400).json({ error: "platformFeePercent must be a positive number" });
   }
+  const previous = platformFeePercent;
   platformFeePercent = value;
+  void logAudit({ userId: req.user!.userId, action: "settings.platform_fee.update", resourceType: "settings", metadata: { from: previous, to: value } });
   res.json({ platformFeePercent });
 });
 
@@ -680,6 +686,7 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
     /* non-fatal */
   }
 
+  await logAudit({ userId: req.user!.userId, action: approve ? "kyc.approve" : "kyc.reject", resourceType: "user", resourceId: String(user._id), metadata: { reason: approve ? undefined : reason } });
   res.json({ ok: true, userId: user._id, kycStatus: onboardingChecks.kycStatus, onboardingVerified });
 });
 
