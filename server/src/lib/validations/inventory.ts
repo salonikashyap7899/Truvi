@@ -28,6 +28,7 @@ export const createUnitSchema = z.object({
   unitNumber: z.string().min(1),
   type: z.string().min(1),
   areaSqft: z.number().positive(),
+  plotSize: z.string().max(60).optional(),
   price: z.number().positive(),
 });
 export type CreateUnitInput = z.infer<typeof createUnitSchema>;

@@ -11,6 +11,7 @@ interface ManagedUnit {
   unitNumber: string;
   type: string;
   areaSqft: number;
+  plotSize?: string | null;
   price: number;
   status: "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
 }
@@ -31,6 +32,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
   const [unitNumber, setUnitNumber] = useState("");
   const [type, setType] = useState("");
   const [areaSqft, setAreaSqft] = useState("");
+  const [plotSize, setPlotSize] = useState("");
   const [price, setPrice] = useState("");
 
   async function load() {
@@ -64,12 +66,14 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
         unitNumber: unitNumber.trim(),
         type: type.trim(),
         areaSqft: areaNum,
+        plotSize: plotSize.trim() || undefined,
         price: priceNum,
       });
       setUnits((prev) => [...prev, res.data.unit].sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)));
       setUnitNumber("");
       setType("");
       setAreaSqft("");
+      setPlotSize("");
       setPrice("");
       toast.success("Plot added");
     } catch (err: any) {
@@ -120,7 +124,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
       {/* Add plot */}
       <form onSubmit={addUnit} className="mt-4 rounded-lg border border-white/10 glass p-4">
         <p className="mb-3 text-sm font-medium text-white">Add a plot / unit</p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <Label className="text-foreground/90">Plot / Unit no.</Label>
             <Input value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="A-101" className={inputCls} />
@@ -132,6 +136,10 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
           <div>
             <Label className="text-foreground/90">Area (sq.ft)</Label>
             <Input type="number" min="1" value={areaSqft} onChange={(e) => setAreaSqft(e.target.value)} placeholder="1800" className={inputCls} />
+          </div>
+          <div>
+            <Label className="text-foreground/90">Plot size</Label>
+            <Input value={plotSize} onChange={(e) => setPlotSize(e.target.value)} placeholder="30×40 ft / 200 sq.yd" className={inputCls} />
           </div>
           <div>
             <Label className="text-foreground/90">Price (₹)</Label>
@@ -152,6 +160,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
               <th className="px-4 py-3 font-medium">Plot</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Area</th>
+              <th className="px-4 py-3 font-medium">Plot size</th>
               <th className="px-4 py-3 font-medium">Price</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -159,15 +168,16 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">Loading…</td></tr>
             ) : units.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No plots added yet.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">No plots added yet.</td></tr>
             ) : (
               units.map((u) => (
                 <tr key={u._id} className="border-b border-white/5 last:border-0">
                   <td className="px-4 py-3 font-medium text-white">{u.unitNumber}</td>
                   <td className="px-4 py-3 text-foreground/90">{u.type}</td>
                   <td className="px-4 py-3 text-foreground/90">{u.areaSqft.toLocaleString("en-IN")} sq.ft</td>
+                  <td className="px-4 py-3 text-foreground/90">{u.plotSize || "—"}</td>
                   <td className="px-4 py-3 text-foreground/90">{formatINR(u.price)}</td>
                   <td className={`px-4 py-3 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
                   <td className="px-4 py-3">

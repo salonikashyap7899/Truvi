@@ -339,6 +339,9 @@ export const units = pgTable(
     unitNumber: text("unit_number").notNull(),
     type: text("type").notNull(),
     areaSqft: doublePrecision("area_sqft").notNull(),
+    // Optional human-readable plot size / dimensions, e.g. "30x40 ft" or
+    // "200 sq.yd" — shown alongside the built-up area on listings.
+    plotSize: text("plot_size"),
     price: doublePrecision("price").notNull(),
     status: text("status").$type<UnitStatus>().notNull().default("AVAILABLE"),
     lockedByCPId: uuid("locked_by_cp_id").references(() => users._id),

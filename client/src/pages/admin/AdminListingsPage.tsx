@@ -5,7 +5,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
-import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle, Trash2, Pencil } from "lucide-react";
 import AdminLegalReview from "@/components/AdminLegalReview";
 import type { Project } from "@/types";
 
@@ -365,6 +365,16 @@ export default function AdminListingsPage() {
                     className={p.isVerified ? "border-green-700 text-green-400 hover:bg-green-900/20" : "bg-green-700 hover:bg-green-600 text-white"}
                   >
                     {p.isVerified ? "Remove Verified" : "Mark Verified ✓"}
+                  </Button>
+
+                  {/* Edit core project details (name, location, RERA, plots…) */}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-blue-700 text-blue-300 hover:bg-blue-900/20"
+                    onClick={() => navigate(`/admin/listings/${p._id}`)}
+                  >
+                    <Pencil size={13} className="mr-1" /> Edit
                   </Button>
 
                   {/* Manage presentation content & plots */}
