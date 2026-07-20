@@ -18,6 +18,9 @@ import {
   notifications,
   payments,
   subscriptions,
+  leadPurchases,
+  leadFollowUps,
+  LeadStage,
   Role,
   ApprovalStatus,
   VerificationDetails,
@@ -82,6 +85,192 @@ router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
       conversionPercent: allUsers.length ? Math.round((payingUserIds.size / allUsers.length) * 100) : 0,
       payingUsers: payingUserIds.size,
       gmvPaise: Math.round(allCommissions.reduce((sum, c) => sum + c.bookingValue, 0) * 100),
+    },
+  });
+});
+
+// GET /api/admin/founder-overview — the Founder Dashboard ("CEO Operating
+// System") aggregate. Every number here is derived from ACTUAL platform data
+// (users, projects, leads, site visits, commissions, payments, subscriptions,
+// lead purchases). Sections that have no data source yet (finance ledger,
+// legal/ROC, team/HR, marketing, land bank, investor/cap-table) are NOT
+// invented here — they are returned as `tracked: false` so the client renders
+// an honest "awaiting data source" state instead of fake numbers.
+router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    allUsers, allProjects, allUnits, allLeads, allSiteVisits,
+    allCommissions, allPurchases, paidPayments, allSubs, allEnquiries,
+    pendingLegal, openFollowUps,
+  ] = await Promise.all([
+    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingVerified: users.onboardingVerified }).from(users),
+    db.select().from(projects),
+    db.select({ _id: units._id, status: units.status, price: units.price }).from(units),
+    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt }).from(leads),
+    db.select({ _id: siteVisits._id, status: siteVisits.status, scheduledAt: siteVisits.scheduledAt }).from(siteVisits),
+    db.select().from(commissions),
+    db.select().from(leadPurchases),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select().from(subscriptions),
+    db.select({ _id: enquiries._id, createdAt: enquiries.createdAt }).from(enquiries),
+    db.select({ _id: legalDocuments._id }).from(legalDocuments).where(eq(legalDocuments.verified, false)),
+    db.select({ _id: leadFollowUps._id, dueAt: leadFollowUps.dueAt, status: leadFollowUps.status }).from(leadFollowUps),
+  ]);
+
+  const byRole = (r: Role) => allUsers.filter((u) => u.role === r).length;
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  // ---- Revenue (rupees) from real, dated sources -------------------------
+  // Commission platform fee (fee is booked when the commission row is created),
+  // lead-marketplace purchases, and one-off / subscription payments.
+  const feeInRange = (from: Date) =>
+    allCommissions.filter((c) => c.createdAt >= from).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+  const purchasesInRange = (from: Date) =>
+    allPurchases.filter((p) => p.createdAt >= from).reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+  const paymentsInRange = (from: Date) =>
+    paidPayments.filter((p) => p.createdAt >= from).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+  const revenueSince = (from: Date) => rupees(feeInRange(from) + purchasesInRange(from) + paymentsInRange(from));
+
+  const platformFeeAll = allCommissions.reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+  const leadServiceAll = allPurchases.reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+  const paymentsAll = paidPayments.reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+  const totalRevenue = rupees(platformFeeAll + leadServiceAll + paymentsAll);
+  const gmv = rupees(allCommissions.reduce((s, c) => s + Number(c.bookingValue || 0), 0));
+
+  // ---- Sales pipeline (real lead stages) ---------------------------------
+  const stageCount = (st: LeadStage) => allLeads.filter((l) => l.stage === st).length;
+  const leadsToday = allLeads.filter((l) => l.createdAt >= startOfToday).length;
+  const qualifiedLeads = allLeads.filter((l) => !["GENERATED", "LOST"].includes(l.stage)).length;
+  const bookings = stageCount("BOOKING");
+  const registrations = stageCount("REGISTRATION") + stageCount("COMPLETED");
+  const siteVisitCount = allSiteVisits.length;
+  const closedWon = bookings + registrations;
+  const conversionRate = allLeads.length ? Math.round((closedWon / allLeads.length) * 100) : 0;
+
+  const funnel = [
+    { stage: "Generated", count: stageCount("GENERATED") + stageCount("ASSIGNED") },
+    { stage: "Contacted", count: stageCount("CONTACTED") },
+    { stage: "Interested", count: stageCount("INTERESTED") },
+    { stage: "Site Visit", count: stageCount("SITE_VISIT") },
+    { stage: "Negotiation", count: stageCount("NEGOTIATION") },
+    { stage: "Booking", count: bookings },
+    { stage: "Registration", count: registrations },
+  ];
+
+  // Revenue by project = booking value routed through that project's leads.
+  const projectName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const leadProject = new Map(allLeads.map((l) => [String(l._id), String(l.projectId)]));
+  const revByProject = new Map<string, number>();
+  for (const c of allCommissions) {
+    const pid = leadProject.get(String(c.leadId));
+    if (!pid) continue;
+    revByProject.set(pid, (revByProject.get(pid) || 0) + Number(c.bookingValue || 0));
+  }
+  const revenueByProject = [...revByProject.entries()]
+    .map(([pid, value]) => ({ project: projectName.get(pid) || "Unknown", value: rupees(value) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  // ---- Projects ----------------------------------------------------------
+  const approvedProjects = allProjects.filter((p) => p.approvalStatus === "APPROVED");
+  const verifiedProjects = allProjects.filter((p) => p.isVerified);
+  const pendingProjects = allProjects.filter((p) => p.approvalStatus === "PENDING");
+  const projectRows = allProjects
+    .map((p) => ({
+      id: String(p._id),
+      name: p.name,
+      city: p.city,
+      approvalStatus: p.approvalStatus,
+      verified: Boolean(p.isVerified),
+      listingTier: p.listingTier,
+    }))
+    .slice(0, 12);
+
+  // ---- Verification queue ------------------------------------------------
+  const pendingKyc = allUsers.filter((u) => u.role === "CP" && !u.onboardingVerified).length;
+
+  // ---- CRM (real) --------------------------------------------------------
+  const newCustomers30d = allUsers.filter((u) => u.role === "BUYER" && u.createdAt >= thirtyDaysAgo).length;
+  const activeCustomers = byRole("BUYER");
+  const followUpsDue = openFollowUps.filter((f) => f.status === "PENDING" && f.dueAt <= now).length;
+
+  // ---- Subscriptions / MRR ----------------------------------------------
+  const activeSubs = allSubs.filter((s) => s.status === "ACTIVE");
+  const mrr = rupees(activeSubs.reduce((s, x) => s + (x.interval === "yearly" ? (x.basePaise + x.gstPaise) / 12 : x.basePaise + x.gstPaise) / 100, 0));
+
+  // ---- Company Health Score (0-100) from real signals only --------------
+  const verifiedRatio = approvedProjects.length ? verifiedProjects.length / approvedProjects.length : 0;
+  const pipelineActivity = allLeads.length ? allLeads.filter((l) => l.updatedAt >= thirtyDaysAgo).length / allLeads.length : 0;
+  const verifBacklog = approvedProjects.length ? 1 - Math.min(pendingProjects.length / approvedProjects.length, 1) : 1;
+  const healthScore = Math.round(
+    verifiedRatio * 30 +
+    Math.min(conversionRate / 100, 1) * 25 +
+    pipelineActivity * 20 +
+    (totalRevenue > 0 ? 15 : 0) +
+    verifBacklog * 10
+  );
+
+  const pendingActions = pendingProjects.length + pendingLegal.length + pendingKyc + allEnquiries.length;
+
+  res.json({
+    generatedAt: now.toISOString(),
+    executive: {
+      totalRevenue, gmv,
+      totalDevelopers: byRole("DEVELOPER"),
+      totalCPs: byRole("CP"),
+      totalBuyers: byRole("BUYER"),
+      activeListings: approvedProjects.length,
+      todaysBookings: allLeads.filter((l) => l.stage === "BOOKING" && l.updatedAt >= startOfToday).length,
+      pendingActions,
+    },
+    companyHealth: {
+      revenueToday: revenueSince(startOfToday),
+      revenueMTD: revenueSince(startOfMonth),
+      revenueYTD: revenueSince(startOfYear),
+      activeProjects: approvedProjects.length,
+      healthScore,
+      mrr,
+    },
+    sales: {
+      leadsToday, qualifiedLeads,
+      siteVisits: siteVisitCount,
+      bookings, agreements: bookings, registrations,
+      conversionRate, funnel, revenueByProject,
+    },
+    projects: {
+      total: allProjects.length,
+      approved: approvedProjects.length,
+      verified: verifiedProjects.length,
+      pending: pendingProjects.length,
+      rows: projectRows,
+    },
+    crm: {
+      newCustomers: newCustomers30d,
+      activeCustomers,
+      followUpsDue,
+      enquiries: allEnquiries.length,
+    },
+    verification: {
+      pendingProjects: pendingProjects.length,
+      pendingLegal: pendingLegal.length,
+      pendingKyc,
+    },
+    kpi: {
+      totalRevenue, gmv, mrr, conversionRate, healthScore,
+      totalUnits: allUnits.length,
+      soldUnits: allUnits.filter((u) => u.status === "SOLD").length,
+    },
+    // Sections with no data source yet — the client shows an honest
+    // "connect a data source" state; NEVER fabricated numbers (rule #6).
+    untracked: {
+      finance: false, legal: false, team: false,
+      marketing: false, landBank: false, investor: false,
     },
   });
 });
