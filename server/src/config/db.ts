@@ -76,6 +76,8 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "academy_content_course_idx" ON "academy_content" ("course_id", "sort_order")`,
+    // English transcript for Hindi voice-note lessons.
+    `ALTER TABLE "academy_content" ADD COLUMN IF NOT EXISTS "transcript_en" text`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

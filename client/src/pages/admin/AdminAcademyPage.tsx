@@ -4,24 +4,31 @@ import { api } from "@/lib/api";
 import { Card, Badge, Input, Textarea, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, PlayCircle, FileText, Trash2, Upload, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Mic, FileText, Trash2, Upload, Link as LinkIcon, Languages, PlayCircle } from "lucide-react";
 import { COURSE_OPTIONS } from "@/pages/cp/LearningAcademyPage";
 
 interface AcademyContent {
-  _id: string; courseId: string; title: string; type: "VIDEO" | "PDF";
-  url: string; description?: string | null; duration?: string | null;
+  _id: string; courseId: string; title: string; type: "VIDEO" | "PDF" | "AUDIO";
+  url: string; description?: string | null; duration?: string | null; transcriptEn?: string | null;
 }
 
 const EMPTY_FORM = {
   courseId: COURSE_OPTIONS[0]?.id ?? "",
   title: "",
-  type: "VIDEO" as "VIDEO" | "PDF",
+  type: "AUDIO" as "AUDIO" | "PDF",
   duration: "",
   description: "",
+  transcriptEn: "",
   url: "",
 };
 
 const courseTitle = (id: string) => COURSE_OPTIONS.find((c) => c.id === id)?.title ?? id;
+
+const TYPE_ICON = {
+  AUDIO: <Mic size={18} className="text-emerald-300 shrink-0" />,
+  PDF: <FileText size={18} className="text-rose-300 shrink-0" />,
+  VIDEO: <PlayCircle size={18} className="text-sky-300 shrink-0" />, // legacy rows only
+};
 
 export default function AdminAcademyPage() {
   const [items, setItems] = useState<AcademyContent[]>([]);
@@ -30,6 +37,7 @@ export default function AdminAcademyPage() {
   const [source, setSource] = useState<"upload" | "url">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -61,11 +69,12 @@ export default function AdminAcademyPage() {
       fd.append("type", form.type);
       if (form.duration.trim()) fd.append("duration", form.duration.trim());
       if (form.description.trim()) fd.append("description", form.description.trim());
+      if (form.type === "AUDIO" && form.transcriptEn.trim()) fd.append("transcriptEn", form.transcriptEn.trim());
       if (source === "upload" && file) fd.append("file", file);
       if (source === "url") fd.append("url", form.url.trim());
 
       await api.post("/academy/content", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success("Content added to the Learning Academy");
+      toast.success("Content added to the Learning Hub");
       setForm({ ...EMPTY_FORM, courseId: form.courseId });
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -74,6 +83,22 @@ export default function AdminAcademyPage() {
       toast.error(err?.response?.data?.error || "Failed to add content");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** Send the pasted Hindi/Hinglish transcript to the AI and replace it with English. */
+  async function translateTranscript() {
+    const text = form.transcriptEn.trim();
+    if (!text) return toast.error("Paste the Hindi transcript first, then translate.");
+    setTranslating(true);
+    try {
+      const res = await api.post("/academy/translate", { text });
+      setForm((f) => ({ ...f, transcriptEn: res.data.english }));
+      toast.success("Translated to English");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Translation failed");
+    } finally {
+      setTranslating(false);
     }
   }
 
@@ -101,15 +126,15 @@ export default function AdminAcademyPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <PlayCircle size={22} className="text-sky-300" /> Learning Academy Content
+            <Mic size={22} className="text-emerald-300" /> Learning Hub Content
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Upload training videos & PDFs that CPs see inside the Learning Hub.
+            Upload voice notes (Hindi) with English transcripts, plus PDFs, for CPs and developers.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
         {/* Upload form */}
         <Card className="p-5 h-fit">
           <h2 className="text-sm font-semibold text-white mb-4">Add content</h2>
@@ -131,8 +156,16 @@ export default function AdminAcademyPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Type</Label>
-                <select className={selectCls} value={form.type} onChange={set("type")}>
-                  <option value="VIDEO" className="bg-neutral-900">Video</option>
+                <select
+                  className={selectCls}
+                  value={form.type}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, type: e.target.value as "AUDIO" | "PDF" }));
+                    setFile(null);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                >
+                  <option value="AUDIO" className="bg-neutral-900">Voice note (audio)</option>
                   <option value="PDF" className="bg-neutral-900">PDF</option>
                 </select>
               </div>
@@ -147,19 +180,42 @@ export default function AdminAcademyPage() {
               <Textarea rows={2} value={form.description} onChange={set("description")} placeholder="Short summary…" />
             </div>
 
+            {form.type === "AUDIO" && (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="mb-0">English transcript</Label>
+                  <button
+                    type="button"
+                    onClick={translateTranscript}
+                    disabled={translating}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/60 bg-emerald-950/40 px-2.5 py-1 text-[11px] text-emerald-300 transition-colors hover:bg-emerald-900/40 disabled:opacity-50"
+                  >
+                    <Languages size={12} /> {translating ? "Translating…" : "Translate Hindi → English (AI)"}
+                  </button>
+                </div>
+                <Textarea
+                  rows={4}
+                  className="mt-1.5"
+                  value={form.transcriptEn}
+                  onChange={set("transcriptEn")}
+                  placeholder="Paste the Hindi transcript of the voice note here, then click Translate — CPs will read the English version while listening."
+                />
+              </div>
+            )}
+
             {/* Source toggle */}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setSource("upload")}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${source === "upload" ? "border-sky-600 bg-sky-950/40 text-sky-300" : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${source === "upload" ? "border-emerald-600 bg-emerald-950/40 text-emerald-300" : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"}`}
               >
                 <Upload size={13} /> Upload file
               </button>
               <button
                 type="button"
                 onClick={() => setSource("url")}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${source === "url" ? "border-sky-600 bg-sky-950/40 text-sky-300" : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${source === "url" ? "border-emerald-600 bg-emerald-950/40 text-emerald-300" : "border-white/10 bg-white/5 text-muted-foreground hover:text-white"}`}
               >
                 <LinkIcon size={13} /> Paste link
               </button>
@@ -167,18 +223,18 @@ export default function AdminAcademyPage() {
 
             {source === "upload" ? (
               <div>
-                <Label>File (MP4/WEBM/MOV or PDF, max 200MB)</Label>
+                <Label>{form.type === "AUDIO" ? "Audio file (MP3/M4A/WAV/OGG, max 200MB)" : "PDF file (max 200MB)"}</Label>
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="video/mp4,video/webm,video/ogg,video/quicktime,application/pdf"
+                  accept={form.type === "AUDIO" ? "audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav,audio/webm,audio/ogg" : "application/pdf"}
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                   className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-sm file:text-white hover:file:bg-white/15"
                 />
               </div>
             ) : (
               <div>
-                <Label>Video / PDF URL</Label>
+                <Label>{form.type === "AUDIO" ? "Audio URL" : "PDF URL"}</Label>
                 <Input value={form.url} onChange={set("url")} placeholder="https://…" />
               </div>
             )}
@@ -196,19 +252,22 @@ export default function AdminAcademyPage() {
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : items.length === 0 ? (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-              No content yet. Add your first video or PDF using the form.
+              No content yet. Add your first voice note or PDF using the form.
             </Card>
           ) : (
             <div className="space-y-2">
               {items.map((item) => (
                 <Card key={item._id} className="flex items-center gap-3 p-4">
-                  {item.type === "VIDEO"
-                    ? <PlayCircle size={18} className="text-sky-300 shrink-0" />
-                    : <FileText size={18} className="text-rose-300 shrink-0" />}
+                  {TYPE_ICON[item.type] ?? TYPE_ICON.PDF}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-sm font-medium text-white">{item.title}</p>
-                      <Badge variant={item.type === "VIDEO" ? "default" : "warning"}>{item.type}</Badge>
+                      <Badge variant={item.type === "AUDIO" ? "success" : item.type === "PDF" ? "warning" : "default"}>
+                        {item.type === "AUDIO" ? "VOICE" : item.type}
+                      </Badge>
+                      {item.type === "AUDIO" && item.transcriptEn && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/60"><Languages size={10} /> EN transcript</span>
+                      )}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {courseTitle(item.courseId)}{item.duration ? ` · ${item.duration}` : ""}

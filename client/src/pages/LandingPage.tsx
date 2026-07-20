@@ -665,6 +665,60 @@ function Footer() {
   );
 }
 
+/* ---------------- Live platform stats (real DB counts) ---------------- */
+interface PublicStats { verifiedProjects: number; liveProjects: number; developers: number; channelPartners: number; cities: number }
+
+function CountUpNum({ target }: { target: number }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setN(target); return; }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 1100);
+      setN(Math.round(target * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return <>{n.toLocaleString("en-IN")}</>;
+}
+
+function LiveStatsBand() {
+  const [stats, setStats] = useState<PublicStats | null>(null);
+  useEffect(() => { api.get("/public/stats").then((r) => setStats(r.data)).catch(() => {}); }, []);
+  if (!stats) return null;
+
+  const tiles = [
+    { label: "Verified Projects", value: stats.verifiedProjects, suffix: "+" },
+    { label: "Live Listings", value: stats.liveProjects, suffix: "+" },
+    { label: "Developers", value: stats.developers, suffix: "+" },
+    { label: "Channel Partners", value: stats.channelPartners, suffix: "+" },
+    { label: "Cities", value: stats.cities, suffix: "" },
+  ].filter((t) => t.value > 0);
+
+  if (tiles.length === 0) return null;
+
+  return (
+    <Section className="py-14">
+      <Reveal>
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-4 rounded-3xl glass p-6 sm:grid-cols-3 md:grid-cols-5 md:p-8">
+          {tiles.map((t, i) => (
+            <div key={t.label} className="tv-fade-up text-center" style={{ animationDelay: `${i * 70}ms` }}>
+              <div className="font-display text-2xl font-semibold text-gradient-trust sm:text-3xl">
+                <CountUpNum target={t.value} />{t.suffix}
+              </div>
+              <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-center text-[11px] text-muted-foreground/70">Live figures, computed from the Truvi platform.</p>
+      </Reveal>
+    </Section>
+  );
+}
+
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
@@ -736,6 +790,9 @@ export default function LandingPage() {
           </div>
         </Reveal>
       </Section>
+
+      {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
+      <LiveStatsBand />
 
       {/* ---------- 2 · THE PROBLEM ---------- */}
       <Section id="the-problem">

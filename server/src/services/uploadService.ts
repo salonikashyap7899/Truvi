@@ -35,6 +35,16 @@ export const upload = multer({
 
 const ALLOWED_MEDIA_MIME = new Set([
   "application/pdf",
+  // Voice notes (Hindi audio lessons)
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/aac",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  // Legacy video rows still play; keep accepting so old links can be re-hosted.
   "video/mp4",
   "video/webm",
   "video/ogg",
@@ -42,16 +52,16 @@ const ALLOWED_MEDIA_MIME = new Set([
 ]);
 
 /**
- * Larger uploader used for Learning Academy content (training videos + PDFs).
- * Kept separate from the general 10MB `upload` so raising the video size limit
+ * Larger uploader used for Learning Academy content (voice notes + PDFs).
+ * Kept separate from the general 10MB `upload` so raising the media size limit
  * here never loosens limits on brochures/invoices elsewhere.
  */
 export const uploadMedia = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB (training videos)
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MEDIA_MIME.has(file.mimetype)) {
-      return cb(new Error("Unsupported file type. Allowed: PDF, MP4, WEBM, OGG, MOV."));
+      return cb(new Error("Unsupported file type. Allowed: PDF or audio (MP3, M4A, AAC, WAV, OGG, WEBM)."));
     }
     cb(null, true);
   },

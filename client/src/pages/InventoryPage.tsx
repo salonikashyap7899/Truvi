@@ -12,6 +12,7 @@ import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import VisitorGateModal from "@/components/VisitorGateModal";
 import ListingIntelligence from "@/components/ListingIntelligence";
+import ShareProjectButton from "@/components/ShareProjectButton";
 import { SiteNav } from "@/components/SiteNav";
 import type { Project } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -272,6 +273,7 @@ function ListingCard({
             </span>
             <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
           </Link>
+          <ShareProjectButton project={project} />
         </div>
       </div>
     </motion.div>
