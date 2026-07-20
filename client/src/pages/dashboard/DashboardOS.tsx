@@ -251,6 +251,16 @@ function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => voi
         <Kpi icon="bell" tone={ex.pendingActions ? "red" : "green"} label="Pending Actions" value={String(ex.pendingActions)} foot="Approvals · KYC · legal · enquiries" />
       </div>
 
+      <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Today at a glance</div>
+      <div className="kpi-grid">
+        <Kpi icon="spark" tone="blue" label="Leads Today" value={String(d.sales.leadsToday)} foot={`${d.sales.qualifiedLeads} qualified`} />
+        <Kpi icon="target" tone="green" label="Bookings Today" value={String(ex.todaysBookings)} foot={`${d.sales.siteVisits} site visits`} />
+        <Kpi icon="wallet" tone="blue" label="Revenue Today" value={formatINR(d.companyHealth.revenueToday)} />
+        <Kpi icon="users" tone={d.verification.pendingKyc ? "amber" : "green"} label="Pending CP KYC" value={String(d.verification.pendingKyc)} onClick={() => go("verification")} />
+        <Kpi icon="shield" tone={d.verification.pendingProjects ? "amber" : "green"} label="Site Verification Pending" value={String(d.verification.pendingProjects)} onClick={() => go("verification")} />
+        <Kpi icon="bell" tone={d.crm.enquiries ? "amber" : "green"} label="Open Enquiries" value={String(d.crm.enquiries)} onClick={() => go("crm")} />
+      </div>
+
       <div className="grid-2">
         <Panel title="Revenue" sub="Today · Month-to-date · Year-to-date">
           <div className="kpi-grid" style={{ marginBottom: 0 }}>
@@ -535,7 +545,16 @@ function InsightsPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
 
 /* -------------------------------------------------------------- copilot */
 function Copilot({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) {
-  const suggestions = ["Is month profit kitna hua?", "Lucknow project ki sales batao.", "Cash flow risk hai?", "Kaunsa project slow chal raha hai?", "Agle 90 din ki prediction dikhao."];
+  const suggestions = [
+    "Show today's revenue",
+    "Top performing project batao",
+    "Pending approvals kitne hain?",
+    "Is month ka profit kitna hua?",
+    "Cash flow risk hai kya?",
+    "Kaunsa project slow chal raha hai?",
+    "Agle 90 din ki revenue prediction dikhao",
+    "Top CP kaun hai?",
+  ];
   const [msgs, setMsgs] = useState<{ role: "user" | "bot"; text: string }[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
