@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, Input, Label, Textarea } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 /** Everything a developer uploads for a complete listing. Step 1 collects the
  *  core details; the rest is added on the project workspace right after. */
@@ -21,8 +22,11 @@ const UPLOAD_CHECKLIST = [
   "Legal documents (RERA, approvals, NOCs) — public after admin verification",
 ];
 
+interface DeveloperOption { _id: string; name: string; email: string }
+
 export default function NewProjectPage() {
   const navigate = useNavigate();
+  const isAdmin = useAuthStore((s) => s.user?.role === "ADMIN");
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -34,8 +38,19 @@ export default function NewProjectPage() {
     salesPhone: "",
     salesEmail: "",
     commissionPercent: 3,
+    developerId: "",
   });
+  const [developers, setDevelopers] = useState<DeveloperOption[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Admins can assign the new listing to an existing developer.
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .get("/admin/users", { params: { role: "DEVELOPER" } })
+      .then((res) => setDevelopers(res.data.users))
+      .catch(() => {});
+  }, [isAdmin]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,12 +68,14 @@ export default function NewProjectPage() {
             ? { name: form.salesName, phone: form.salesPhone, email: form.salesEmail }
             : undefined,
         commissionPercent: Number(form.commissionPercent),
+        developerId: isAdmin && form.developerId ? form.developerId : undefined,
       });
       toast.success("Project created — now add plans, photos, inventory and documents.");
       // Straight into the full project workspace so every remaining detail
       // (floor plans, photos, inventory, amenities, payment plans, progress,
-      // availability, legal docs) can be uploaded before admin review.
-      navigate(`/developer/projects/${data.project._id}`);
+      // availability, legal docs) can be uploaded before admin review. Admins
+      // land on the admin-branded workspace; developers on their own.
+      navigate(isAdmin ? `/admin/listings/${data.project._id}` : `/developer/projects/${data.project._id}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to create project");
     } finally {
@@ -128,6 +145,23 @@ export default function NewProjectPage() {
               <Label className="text-foreground/90">Commission %</Label>
               <Input type="number" step="0.1" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: Number(e.target.value) })} className="border-white/15 bg-card text-white" />
             </div>
+
+            {isAdmin && (
+              <div className="border-t border-white/10 pt-4">
+                <Label className="text-foreground/90">Assign to developer (optional)</Label>
+                <select
+                  value={form.developerId}
+                  onChange={(e) => setForm({ ...form, developerId: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-white/15 bg-card px-3 py-2 text-sm text-white"
+                >
+                  <option value="">— Create under my admin account —</option>
+                  {developers.map((dev) => (
+                    <option key={dev._id} value={dev._id}>{dev.name} · {dev.email}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">Leave blank to own the listing yourself. The project starts as pending approval either way.</p>
+              </div>
+            )}
 
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? "Creating…" : "Create project & continue"}

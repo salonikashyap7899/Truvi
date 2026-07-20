@@ -17,6 +17,9 @@ export const createProjectSchema = z.object({
   commissionPercent: z.number().min(0).max(20).default(3),
   brochureUrl: z.string().url().optional().or(z.literal("")),
   priceListUrl: z.string().url().optional().or(z.literal("")),
+  // Admin-only: assign the new project to an existing developer. Ignored for
+  // developer requests (they always create under their own account).
+  developerId: z.string().optional(),
 });
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 
