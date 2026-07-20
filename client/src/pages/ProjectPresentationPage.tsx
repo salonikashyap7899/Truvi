@@ -10,6 +10,7 @@ import { LayoutGrid, CalendarClock } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
+import ShareProjectButton from "@/components/ShareProjectButton";
 import type { Project, ProjectAsset } from "@/types";
 
 function fmtDate(v?: string | null): string | null {
@@ -306,12 +307,18 @@ export default function ProjectPresentationPage() {
           </span>
         </p>
         <p className="max-w-3xl text-sm text-foreground/90">{project.description}</p>
-        <Link
-          to={`/inventory/${project._id}/3d`}
-          className="mt-1 inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-200 transition-all hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_24px_rgba(139,92,246,0.2)]"
-        >
-          <Box size={15} /> View in 3D — explore the property interactively
-        </Link>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <Link
+            to={`/inventory/${project._id}/3d`}
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-200 transition-all hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_24px_rgba(139,92,246,0.2)]"
+          >
+            <Box size={15} /> View in 3D — explore the property interactively
+          </Link>
+          <ShareProjectButton
+            project={project}
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-200 transition-all hover:border-emerald-400/60 hover:bg-emerald-500/20 hover:shadow-[0_0_24px_rgba(16,185,129,0.2)]"
+          />
+        </div>
       </div>
 
       {/* Features & facilities */}

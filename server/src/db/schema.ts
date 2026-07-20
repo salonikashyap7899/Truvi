@@ -693,10 +693,14 @@ export const academyContent = pgTable(
     _id: uuid("id").defaultRandom().primaryKey(),
     courseId: text("course_id").notNull(),
     title: text("title").notNull(),
-    type: text("type").$type<"VIDEO" | "PDF">().notNull(),
+    // VIDEO is legacy-only: existing rows still render, but new uploads are
+    // restricted to voice notes (AUDIO) and PDFs.
+    type: text("type").$type<"VIDEO" | "PDF" | "AUDIO">().notNull(),
     url: text("url").notNull(),
     description: text("description"),
     duration: text("duration"),
+    // English transcript of a Hindi voice note so CPs/developers can read along.
+    transcriptEn: text("transcript_en"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdById: uuid("created_by_id").references(() => users._id),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),

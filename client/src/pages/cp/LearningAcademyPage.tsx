@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   BookOpen, CheckCircle, Circle, Award, ArrowLeft, Trophy,
   Home, Scale, Handshake, TrendingUp, Smartphone, Sprout,
-  PlayCircle, FileText, type LucideIcon,
+  PlayCircle, FileText, Mic, type LucideIcon,
 } from "lucide-react";
 
 interface Module { id: string; title: string; duration: string; }
@@ -18,8 +18,8 @@ interface Course {
 }
 
 interface AcademyContent {
-  _id: string; courseId: string; title: string; type: "VIDEO" | "PDF";
-  url: string; description?: string | null; duration?: string | null;
+  _id: string; courseId: string; title: string; type: "VIDEO" | "PDF" | "AUDIO";
+  url: string; description?: string | null; duration?: string | null; transcriptEn?: string | null;
 }
 
 function isPlayableVideo(url: string): boolean {
@@ -263,20 +263,34 @@ export default function LearningAcademyPage() {
             {(contentMap[activeCourse.id]?.length ?? 0) > 0 && (
               <div className="mt-6">
                 <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
-                  <PlayCircle size={16} className="text-sky-300" /> Videos & Resources
+                  <PlayCircle size={16} className="text-sky-300" /> Lessons & Resources
                 </h3>
                 <div className="space-y-3">
                   {contentMap[activeCourse.id].map((item) => (
                     <div key={item._id} className="rounded-xl border border-white/10 bg-white/5 p-4">
                       <div className="flex items-center gap-2">
-                        {item.type === "VIDEO"
-                          ? <PlayCircle size={16} className="text-sky-300 shrink-0" />
-                          : <FileText size={16} className="text-rose-300 shrink-0" />}
+                        {item.type === "AUDIO"
+                          ? <Mic size={16} className="text-emerald-300 shrink-0" />
+                          : item.type === "VIDEO"
+                            ? <PlayCircle size={16} className="text-sky-300 shrink-0" />
+                            : <FileText size={16} className="text-rose-300 shrink-0" />}
                         <p className="text-sm font-medium text-white">{item.title}</p>
                         {item.duration && <span className="text-xs text-muted-foreground">· {item.duration}</span>}
                       </div>
                       {item.description && <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>}
-                      {item.type === "VIDEO" && isPlayableVideo(item.url) ? (
+                      {item.type === "AUDIO" ? (
+                        <>
+                          <audio controls src={item.url} preload="none" className="mt-3 w-full" />
+                          {item.transcriptEn && (
+                            <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                              <summary className="cursor-pointer text-xs font-medium text-emerald-300">
+                                Read in English (transcript)
+                              </summary>
+                              <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-white/80">{item.transcriptEn}</p>
+                            </details>
+                          )}
+                        </>
+                      ) : item.type === "VIDEO" && isPlayableVideo(item.url) ? (
                         <video controls src={item.url} className="mt-3 w-full rounded-lg border border-white/10 bg-black" />
                       ) : (
                         <a
