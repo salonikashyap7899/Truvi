@@ -98,6 +98,12 @@ const COURSES: Course[] = [
 /** Lightweight course list (id + title) reused by the admin content manager. */
 export const COURSE_OPTIONS = COURSES.map((c) => ({ id: c.id, title: c.title }));
 
+/** Total runtime of a course, summed from its module durations ("12 min"). */
+function courseMinutes(course: Course): number {
+  return course.modules.reduce((sum, m) => sum + (parseInt(m.duration, 10) || 0), 0);
+}
+const CATEGORIES = ["All", ...Array.from(new Set(COURSES.map((c) => c.category)))];
+
 interface ProgressMap { [courseId: string]: { completedModules: string[]; completedAt?: string } }
 
 export default function LearningAcademyPage() {
@@ -106,6 +112,7 @@ export default function LearningAcademyPage() {
   const [contentMap, setContentMap] = useState<Record<string, AcademyContent[]>>({});
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [certCourse, setCertCourse] = useState<Course | null>(null);
+  const [catFilter, setCatFilter] = useState("All");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -300,37 +307,60 @@ export default function LearningAcademyPage() {
           </div>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {COURSES.map((course) => {
-            const prog = progressMap[course.id];
-            const completed = prog?.completedModules.length || 0;
-            const total = course.modules.length;
-            const pct = Math.round((completed / total) * 100);
-            const isDone = !!prog?.completedAt;
-
-            return (
+        <>
+          {/* Category filter (Netflix-style rails) */}
+          <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
+            {CATEGORIES.map((cat) => (
               <button
-                key={course.id}
-                onClick={() => setActiveCourse(course)}
-                className={`text-left rounded-2xl border p-5 transition-all hover:scale-[1.01] ${isDone ? "border-green-800 bg-[var(--growth)]/10" : "border-white/10 glass hover:border-white/15"}`}
+                key={cat}
+                onClick={() => setCatFilter(cat)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${catFilter === cat ? "bg-blue-600 text-white" : "glass border border-white/10 text-muted-foreground hover:text-white"}`}
               >
-                <div className="flex items-start justify-between">
-                  <course.Icon size={22} className="text-sky-300" />
-                  {isDone
-                    ? <span className="flex items-center gap-1 text-xs text-green-400"><Award size={12} /> Certified</span>
-                    : <span className="text-xs text-muted-foreground">{course.modules.length} modules</span>}
-                </div>
-                <h3 className="mt-3 font-semibold text-white text-sm">{course.title}</h3>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{course.description}</p>
-
-                <div className="mt-4 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${isDone ? "bg-green-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
-                </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">{pct}% complete</p>
+                {cat}
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {COURSES.filter((c) => catFilter === "All" || c.category === catFilter).map((course, idx) => {
+              const prog = progressMap[course.id];
+              const completed = prog?.completedModules.length || 0;
+              const total = course.modules.length;
+              const pct = Math.round((completed / total) * 100);
+              const isDone = !!prog?.completedAt;
+
+              return (
+                <button
+                  key={course.id}
+                  onClick={() => setActiveCourse(course)}
+                  style={{ animationDelay: `${idx * 45}ms` }}
+                  className={`tv-fade-up tv-lift text-left rounded-2xl border p-5 ${isDone ? "border-green-800 bg-[var(--growth)]/10" : "border-white/10 glass"}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500/15 text-sky-300"><course.Icon size={20} /></div>
+                    {isDone
+                      ? <span className="flex items-center gap-1 text-xs text-green-400"><Award size={12} /> Certified</span>
+                      : <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">{course.category}</span>}
+                  </div>
+                  <h3 className="mt-3 font-semibold text-white text-sm">{course.title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+
+                  {/* Meta: lessons · duration · certificate */}
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                    <span className="inline-flex items-center gap-1"><BookOpen size={12} /> {total} lesson{total === 1 ? "" : "s"}</span>
+                    <span className="inline-flex items-center gap-1"><PlayCircle size={12} /> {courseMinutes(course)} min</span>
+                    <span className="inline-flex items-center gap-1"><Award size={12} /> Certificate</span>
+                  </div>
+
+                  <div className="mt-3 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className={`h-full rounded-full transition-all duration-500 ${isDone ? "bg-green-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{completed}/{total} · {pct}% complete</p>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </main>
   );
