@@ -53,12 +53,19 @@ export const Ic = ({ n }: { n: string }) => P(ICONS[n] || ICONS.grid);
 
 /* --------------------------------------------------------------- helpers */
 type Tone = "blue" | "green" | "amber" | "red";
-export function Kpi({ icon, tone, label, value, foot, trend }: { icon: string; tone: Tone; label: string; value: string; foot?: string; trend?: { text: string; up?: boolean } }) {
+export function Kpi({ icon, tone, label, value, foot, trend, onClick }: { icon: string; tone: Tone; label: string; value: string; foot?: string; trend?: { text: string; up?: boolean }; onClick?: () => void }) {
   return (
-    <div className="card kpi-card">
+    <div
+      className={`card kpi-card${onClick ? " kpi-clickable" : ""}`}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+    >
       <div className="kpi-top">
         <div className={`kpi-icon ${tone}`}><Ic n={icon} /></div>
         {trend && <div className={`kpi-trend ${trend.up ? "up" : "flat"}`}>{trend.text}</div>}
+        {onClick && <div className="kpi-open"><Ic n="arrow" /></div>}
       </div>
       <div className="kpi-label">{label}</div>
       <div className="kpi-value">{value}</div>

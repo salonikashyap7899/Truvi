@@ -108,6 +108,12 @@
 .founder-os .card:hover{box-shadow:var(--shadow-md);}
 .founder-os .kpi-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(216px,1fr)); gap:14px; margin-bottom:22px;}
 .founder-os .kpi-card{padding:18px; position:relative; overflow:hidden;}
+.founder-os .kpi-clickable{cursor:pointer; transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;}
+.founder-os .kpi-clickable:hover{transform:translateY(-2px); box-shadow:var(--shadow-sm); border-color:var(--border-strong);}
+.founder-os .kpi-clickable:focus-visible{outline:2px solid var(--brand); outline-offset:2px;}
+.founder-os .kpi-open{width:22px; height:22px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:var(--ink-400); background:var(--surface-2, transparent); opacity:0; transition:opacity .12s ease;}
+.founder-os .kpi-open svg{width:14px; height:14px;}
+.founder-os .kpi-clickable:hover .kpi-open{opacity:1;}
 .founder-os .kpi-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .founder-os .kpi-icon{width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;}
 .founder-os .kpi-icon svg{width:17px; height:17px;}

@@ -230,6 +230,11 @@ router.post("/login", async (req, res) => {
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(401).json({ error: "Invalid email or password" });
 
+  // Deactivated accounts can't log in (kept in the DB so their history stays).
+  if (user.disabled) {
+    return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
+  }
+
   // OTP gate: an account can't log in until BOTH email and phone are verified.
   // Send fresh codes and tell the client to route to the verification screen.
   if (!user.emailVerified || !user.phoneVerified) {

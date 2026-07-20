@@ -96,6 +96,7 @@ export interface User {
   email: string;
   role: Role;
   approvalStatus: ApprovalStatus;
+  disabled?: boolean;
   phone?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
@@ -119,6 +120,7 @@ export interface User {
     companyName: string;
     reraNumber?: string;
   };
+  createdAt?: string;
 }
 
 export interface Project {

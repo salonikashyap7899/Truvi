@@ -277,12 +277,14 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
 
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
-  const { role, approvalStatus } = req.query;
+  const { role, approvalStatus, all } = req.query;
 
   const conditions = [];
   if (typeof role === "string" && role) {
     conditions.push(eq(users.role, role as Role));
-  } else {
+  } else if (all !== "true") {
+    // Default view stays scoped to the marketplace-facing roles; the user
+    // management screen passes ?all=true to include every account.
     conditions.push(inArray(users.role, ["DEVELOPER", "CP", "BUYER"]));
   }
 
@@ -294,10 +296,66 @@ router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const rows = await db
     .select()
     .from(users)
-    .where(and(...conditions))
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(users.createdAt));
   const safeUsers = rows.map(({ password, ...u }) => u);
   res.json({ users: safeUsers });
+});
+
+// PATCH /api/admin/users/:id — deactivate ("remove") or reactivate an account.
+// The row is kept so its history/financial records stay intact; a disabled
+// user simply can't log in and drops out of active counts. Admins can't
+// disable themselves or another admin.
+const userStatusSchema = z.object({ disabled: z.boolean() });
+router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = userStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (userId === req.user!.userId) return res.status(400).json({ error: "You can't change your own account status" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.role === "ADMIN") return res.status(403).json({ error: "Admin accounts can't be deactivated here" });
+
+  const [updated] = await db
+    .update(users)
+    .set({ disabled: parsed.data.disabled })
+    .where(eq(users._id, userId))
+    .returning();
+  const { password: _pw, ...safeUser } = updated;
+  res.json({ user: safeUser });
+});
+
+// POST /api/admin/users/:id/cancel-subscription — cancel a user's paid plan.
+// Marks their active/pending subscription rows CANCELLED and clears the
+// premium flags (CP premium + tier). Truthful state only — no fake numbers.
+router.post("/users/:id/cancel-subscription", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const cancelled = await db
+    .update(subscriptions)
+    .set({ status: "CANCELLED", updatedAt: new Date() })
+    .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.status, ["CREATED", "ACTIVE"])))
+    .returning({ _id: subscriptions._id });
+
+  // Reset any premium entitlement carried on the user record.
+  const cpProfile = { ...(target.cpProfile ?? {}), isPremium: false, premiumExpiresAt: null };
+  const [updated] = await db
+    .update(users)
+    .set({ cpProfile: cpProfile as typeof target.cpProfile, cpTier: "SILVER" })
+    .where(eq(users._id, userId))
+    .returning();
+  const { password: _pw, ...safeUser } = updated;
+
+  res.json({ cancelledCount: cancelled.length, user: safeUser });
 });
 
 // Admin account-approval has been removed — accounts self-approve on signup
