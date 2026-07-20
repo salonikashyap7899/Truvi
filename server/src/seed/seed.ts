@@ -20,6 +20,8 @@ import {
   courseProgress,
   leadPurchases,
   ambassadorTasks,
+  payments,
+  subscriptions,
   LeadStage,
   UnitStatus,
   CommissionMilestone,
@@ -72,6 +74,11 @@ async function seed() {
   await db.delete(buyerDocuments);
   await db.delete(courseProgress);
   await db.delete(leadPurchases);
+  // payments.user_id and subscriptions.user_id reference users; clear them
+  // before the users delete or Postgres throws the *_user_id_users_id_fk
+  // foreign-key violation.
+  await db.delete(payments);
+  await db.delete(subscriptions);
   await db.delete(users);
 
   console.log("Seeding Truvi database...");
