@@ -6,34 +6,44 @@
  * =================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@600;700;800&display=swap');
 
+/* Dark is the DEFAULT — it matches the Truvi website (near-black navy glass,
+   violet/purple/teal accents). `.founder-os.light` flips to a light variant. */
 .founder-os{
-  --bg:#F5F8FC; --surface:#FFFFFF; --surface-glass: rgba(255,255,255,0.66);
-  --border: rgba(15,23,42,0.08); --border-strong: rgba(15,23,42,0.14);
-  --ink-900:#0B1220; --ink-700:#2A3342; --ink-500:#5B6472; --ink-400:#8A93A3;
-  --blue-600:#2554F0; --blue-500:#3D6BFF; --blue-100:#E8EEFF;
-  --green-600:#0E9F5B; --green-500:#12B76A; --green-100:#E4F9EE;
-  --amber-500:#F5A524; --red-500:#F04438; --red-100:#FEE4E2;
-  --shadow-sm: 0 1px 2px rgba(16,24,40,.04); --shadow-md: 0 4px 16px rgba(16,24,40,.06); --shadow-lg: 0 12px 32px rgba(16,24,40,.10);
+  --bg:#070B15; --surface:#0E1526; --surface-glass: rgba(255,255,255,0.045);
+  --border: rgba(255,255,255,0.09); --border-strong: rgba(255,255,255,0.16);
+  --ink-900:#F3F6FC; --ink-700:#C6CFDE; --ink-500:#8A94A8; --ink-400:#6B7488;
+  --blue-600:#7C5CFF; --blue-500:#A855F7; --blue-100: rgba(124,92,255,0.16);
+  --green-600:#12B981; --green-500:#14C79A; --green-100: rgba(20,199,154,0.15);
+  --amber-500:#F5B33F; --red-500:#F4574A; --red-100: rgba(244,87,74,0.16);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 6px 24px rgba(0,0,0,.4); --shadow-lg:0 18px 44px rgba(0,0,0,.55);
   --radius:16px; --radius-sm:10px; --sidebar-w:264px; --topbar-h:68px;
   --font-ui:'Inter',system-ui,sans-serif; --font-head:'Inter Tight','Inter',system-ui,sans-serif;
+  --brand-grad: linear-gradient(135deg, #7C5CFF, #A855F7);
 
   font-family:var(--font-ui); background:var(--bg); color:var(--ink-900);
   min-height:100vh; position:relative; overflow-x:hidden;
 }
-.founder-os.dark{
-  --bg:#0A0E17; --surface:#101625; --surface-glass: rgba(16,22,37,0.68);
-  --border: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.14);
-  --ink-900:#F2F5FA; --ink-700:#C9D1DE; --ink-500:#8D97A8; --ink-400:#6B7488;
-  --blue-100: rgba(61,107,255,0.16); --green-100: rgba(18,183,106,0.14); --red-100: rgba(240,68,56,0.14);
-  --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 4px 20px rgba(0,0,0,.35); --shadow-lg:0 16px 40px rgba(0,0,0,.5);
+.founder-os.light{
+  --bg:#F5F7FC; --surface:#FFFFFF; --surface-glass: rgba(255,255,255,0.7);
+  --border: rgba(15,23,42,0.08); --border-strong: rgba(15,23,42,0.14);
+  --ink-900:#0B1220; --ink-700:#2A3342; --ink-500:#5B6472; --ink-400:#8A93A3;
+  --blue-100: rgba(124,92,255,0.12); --green-100: rgba(18,185,129,0.12); --red-100:#FEE4E2;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.04); --shadow-md:0 4px 16px rgba(16,24,40,.06); --shadow-lg:0 12px 32px rgba(16,24,40,.10);
 }
 .founder-os *{box-sizing:border-box;}
 .founder-os::before{
   content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
   background:
-    radial-gradient(900px 500px at 90% -10%, rgba(37,84,240,.08), transparent 60%),
-    radial-gradient(700px 500px at -10% 20%, rgba(18,183,106,.07), transparent 55%);
+    radial-gradient(1100px 560px at 88% -12%, rgba(124,92,255,.16), transparent 60%),
+    radial-gradient(820px 460px at -8% 18%, rgba(168,85,247,.12), transparent 58%),
+    radial-gradient(720px 520px at 50% 120%, rgba(20,199,154,.08), transparent 60%);
 }
+/* Standardise every inline icon size (the ring/health SVGs opt out via their
+   own explicit width/height attributes + .ring selector). */
+.founder-os .nav-item svg, .founder-os .logout-btn svg, .founder-os .btn svg,
+.founder-os .icon-btn svg, .founder-os .kpi-icon svg, .founder-os .feed-dot svg,
+.founder-os .qa-icon svg, .founder-os .copilot-head svg, .founder-os .copilot-input button svg,
+.founder-os .menu-toggle svg, .founder-os .search-wrap svg{ width:17px; height:17px; }
 
 /* ---- Sidebar ---- */
 .founder-os .sidebar{
@@ -42,7 +52,7 @@
   display:flex; flex-direction:column; z-index:60; transition:transform .3s ease;
 }
 .founder-os .brand{display:flex; align-items:center; gap:10px; padding:20px 20px 16px 22px; border-bottom:1px solid var(--border);}
-.founder-os .brand-mark{width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--blue-600),var(--green-500)); display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--font-head); font-weight:800; font-size:15px; box-shadow:0 4px 12px rgba(37,84,240,.35); flex-shrink:0;}
+.founder-os .brand-mark{width:34px; height:34px; border-radius:10px; background:var(--brand-grad); display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--font-head); font-weight:800; font-size:15px; box-shadow:0 4px 14px rgba(124,92,255,.4); flex-shrink:0;}
 .founder-os .brand-text{font-family:var(--font-head); font-weight:800; font-size:17px; letter-spacing:-.02em;}
 .founder-os .brand-sub{font-size:11px; color:var(--ink-400); font-weight:600; letter-spacing:.04em; text-transform:uppercase;}
 .founder-os .nav-scroll{flex:1; overflow-y:auto; padding:14px 12px 20px;}
@@ -72,13 +82,13 @@
 .founder-os .divider-v{width:1px; height:24px; background:var(--border); margin:0 4px;}
 .founder-os .profile-btn{display:flex; align-items:center; gap:9px; padding:5px 10px 5px 5px; border-radius:12px; border:1px solid transparent; background:none; cursor:pointer;}
 .founder-os .profile-btn:hover{background:var(--bg); border-color:var(--border);}
-.founder-os .avatar{width:32px; height:32px; border-radius:9px; flex-shrink:0; background:linear-gradient(135deg,#3D6BFF,#12B76A); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;}
+.founder-os .avatar{width:32px; height:32px; border-radius:9px; flex-shrink:0; background:var(--brand-grad); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;}
 .founder-os .profile-name{font-size:12.5px; font-weight:700; line-height:1.2; color:var(--ink-900);}
 .founder-os .profile-role{font-size:10.5px; color:var(--ink-400); font-weight:600;}
 .founder-os .theme-toggle{display:flex; align-items:center; padding:4px; border-radius:20px; border:1px solid var(--border-strong); background:var(--bg); width:60px; height:32px; position:relative; flex-shrink:0; cursor:pointer;}
-.founder-os .theme-toggle .knob{position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,var(--blue-600),var(--green-500)); display:flex; align-items:center; justify-content:center; color:#fff; transition:transform .25s cubic-bezier(.22,1,.36,1);}
+.founder-os .theme-toggle .knob{position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:var(--brand-grad); display:flex; align-items:center; justify-content:center; color:#fff; transition:transform .25s cubic-bezier(.22,1,.36,1);}
 .founder-os .theme-toggle .knob svg{width:13px; height:13px;}
-.founder-os.dark .theme-toggle .knob{transform:translateX(28px);}
+.founder-os.light .theme-toggle .knob{transform:translateX(28px);}
 
 /* ---- Content ---- */
 .founder-os .content{padding:22px 26px 90px;}
@@ -91,7 +101,7 @@
 .founder-os .btn{display:inline-flex; align-items:center; gap:7px; padding:9px 15px; border-radius:10px; font-size:12.5px; font-weight:700; border:1px solid var(--border-strong); background:var(--surface); color:var(--ink-700); cursor:pointer; transition:transform .12s ease, box-shadow .12s ease;}
 .founder-os .btn svg{width:14px; height:14px;}
 .founder-os .btn:hover{transform:translateY(-1px); box-shadow:var(--shadow-sm);}
-.founder-os .btn-primary{background:linear-gradient(135deg,var(--blue-600),#3D6BFF); color:#fff; border-color:transparent; box-shadow:0 4px 14px rgba(37,84,240,.3);}
+.founder-os .btn-primary{background:var(--brand-grad); color:#fff; border-color:transparent; box-shadow:0 6px 18px rgba(124,92,255,.35);}
 
 /* ---- Cards / KPI / panels ---- */
 .founder-os .card{background:var(--surface-glass); backdrop-filter:blur(10px); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-sm); transition:box-shadow .2s ease;}
@@ -128,14 +138,14 @@
 .founder-os tr:last-child td{border-bottom:none;}
 .founder-os tbody tr:hover{background:var(--bg);}
 .founder-os .name-cell{display:flex; align-items:center; gap:9px; font-weight:700; color:var(--ink-900);}
-.founder-os .mini-avatar{width:26px; height:26px; border-radius:7px; background:linear-gradient(135deg,var(--blue-500),var(--green-500)); color:#fff; font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.founder-os .mini-avatar{width:26px; height:26px; border-radius:7px; background:var(--brand-grad); color:#fff; font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
 .founder-os .badge{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; display:inline-block;}
 .founder-os .badge.green{background:var(--green-100); color:var(--green-600);}
 .founder-os .badge.amber{background:rgba(245,165,36,.14); color:var(--amber-500);}
 .founder-os .badge.red{background:var(--red-100); color:var(--red-500);}
 .founder-os .badge.blue{background:var(--blue-100); color:var(--blue-600);}
 .founder-os .progress-bar{width:100%; height:6px; border-radius:20px; background:var(--border); overflow:hidden;}
-.founder-os .progress-fill{height:100%; border-radius:20px; background:linear-gradient(90deg,var(--blue-600),var(--green-500));}
+.founder-os .progress-fill{height:100%; border-radius:20px; background:linear-gradient(90deg,var(--blue-600),var(--blue-500));}
 
 /* ---- Funnel / lists / ring / feed / quick actions ---- */
 .founder-os .funnel-row{display:flex; align-items:center; gap:12px; margin-bottom:12px;}
@@ -171,10 +181,10 @@
 .founder-os .placeholder p{font-size:12.5px; color:var(--ink-500); max-width:460px; margin:0 auto; line-height:1.6;}
 
 /* ---- Copilot FAB + panel ---- */
-.founder-os .copilot-fab{position:fixed; bottom:26px; right:26px; z-index:70; width:56px; height:56px; border-radius:50%; border:none; background:linear-gradient(135deg,var(--blue-600),var(--green-500)); color:#fff; box-shadow:0 10px 28px rgba(37,84,240,.4); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+.founder-os .copilot-fab{position:fixed; bottom:26px; right:26px; z-index:70; width:56px; height:56px; border-radius:50%; border:none; background:var(--brand-grad); color:#fff; box-shadow:0 10px 30px rgba(124,92,255,.45); display:flex; align-items:center; justify-content:center; cursor:pointer;}
 .founder-os .copilot-fab svg{width:24px; height:24px;}
 .founder-os .copilot-panel{position:fixed; bottom:96px; right:26px; z-index:70; width:380px; max-width:90vw; height:520px; max-height:74vh; background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow-lg); display:flex; flex-direction:column; overflow:hidden;}
-.founder-os .copilot-head{padding:14px 16px; background:linear-gradient(135deg,var(--blue-600),var(--green-500)); color:#fff; display:flex; align-items:center; gap:10px;}
+.founder-os .copilot-head{padding:14px 16px; background:var(--brand-grad); color:#fff; display:flex; align-items:center; gap:10px;}
 .founder-os .copilot-head b{font-size:13.5px;}
 .founder-os .copilot-head span{font-size:10.5px; opacity:.85; display:block;}
 .founder-os .copilot-close{margin-left:auto; background:rgba(255,255,255,.18); border:none; color:#fff; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer;}
