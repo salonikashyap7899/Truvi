@@ -64,6 +64,7 @@ import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import AdminVerificationPage from "@/pages/admin/AdminVerificationPage";
 import AdminKycPage from "@/pages/admin/AdminKycPage";
 import AdminFinancePage from "@/pages/admin/AdminFinancePage";
+import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import PaymentFailedPage from "@/pages/PaymentFailedPage";
@@ -167,6 +168,7 @@ export default function App() {
         <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
         <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
         <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
+        <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />

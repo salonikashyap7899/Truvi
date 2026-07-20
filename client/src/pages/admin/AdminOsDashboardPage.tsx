@@ -38,6 +38,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Finance", icon: "chart", path: "/admin/finance" },
   { label: "Payments", icon: "target", path: "/admin/payments" },
   { label: "Ambassador Tasks", icon: "trophy", path: "/admin/ambassador-tasks" },
+  { label: "Learning Hub", icon: "book", path: "/admin/academy" },
   { label: "Settings", icon: "grid", path: "/admin/settings" },
 ];
 

@@ -60,6 +60,20 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "crm_tasks_cp_status_idx" ON "crm_tasks" ("cp_id", "status")`,
+    // Admin-managed Learning Academy content (videos + PDFs) shown to CPs.
+    `CREATE TABLE IF NOT EXISTS "academy_content" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "course_id" text NOT NULL,
+       "title" text NOT NULL,
+       "type" text NOT NULL,
+       "url" text NOT NULL,
+       "description" text,
+       "duration" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "academy_content_course_idx" ON "academy_content" ("course_id", "sort_order")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

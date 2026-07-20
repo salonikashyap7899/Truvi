@@ -48,6 +48,7 @@ const ICONS: Record<string, string> = {
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z",
   bolt: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
   arrow: "M5 12h14M13 6l6 6-6 6",
+  book: "M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15z",
 };
 export const Ic = ({ n }: { n: string }) => P(ICONS[n] || ICONS.grid);
 
