@@ -20,6 +20,9 @@ import {
   subscriptions,
   leadPurchases,
   leadFollowUps,
+  leadActivities,
+  crmTasks,
+  financeEntries,
   LeadStage,
   Role,
   ApprovalStatus,
@@ -511,21 +514,37 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
   const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
   if (!existing) return res.status(404).json({ error: "Project not found" });
 
-  // Delete dependent rows first (Postgres enforces the foreign keys).
-  const projectLeads = await db.select({ _id: leads._id }).from(leads).where(eq(leads.projectId, projectId));
-  const leadIds = projectLeads.map((l) => l._id);
-  if (leadIds.length) {
-    await db.delete(commissions).where(inArray(commissions.leadId, leadIds));
-    await db.delete(siteVisits).where(inArray(siteVisits.leadId, leadIds));
+  // Delete every dependent row before the project itself. Postgres enforces the
+  // foreign keys, so a single missed child table (e.g. a lead's CRM
+  // activities/follow-ups/tasks) makes the whole delete fail with a FK
+  // violation — which is exactly the error this endpoint used to raise. The
+  // work runs inside ONE transaction so a partial delete can never leave
+  // orphaned units/leads behind (those orphans inflated the dashboard counts).
+  try {
+    await db.transaction(async (tx) => {
+      const projectLeads = await tx.select({ _id: leads._id }).from(leads).where(eq(leads.projectId, projectId));
+      const leadIds = projectLeads.map((l) => l._id);
+      if (leadIds.length) {
+        await tx.delete(commissions).where(inArray(commissions.leadId, leadIds));
+        await tx.delete(siteVisits).where(inArray(siteVisits.leadId, leadIds));
+        await tx.delete(leadActivities).where(inArray(leadActivities.leadId, leadIds));
+        await tx.delete(leadFollowUps).where(inArray(leadFollowUps.leadId, leadIds));
+        await tx.delete(crmTasks).where(inArray(crmTasks.leadId, leadIds));
+      }
+      await tx.delete(siteVisits).where(eq(siteVisits.projectId, projectId));
+      await tx.delete(leads).where(eq(leads.projectId, projectId));
+      await tx.delete(units).where(eq(units.projectId, projectId));
+      await tx.delete(projectAssets).where(eq(projectAssets.projectId, projectId));
+      await tx.delete(sharedDocuments).where(eq(sharedDocuments.projectId, projectId));
+      await tx.delete(enquiries).where(eq(enquiries.projectId, projectId));
+      await tx.delete(legalDocuments).where(eq(legalDocuments.projectId, projectId));
+      await tx.delete(financeEntries).where(eq(financeEntries.projectId, projectId));
+      await tx.delete(projects).where(eq(projects._id, projectId));
+    });
+  } catch (err) {
+    console.error("Failed to delete project", projectId, err);
+    return res.status(500).json({ error: "Could not delete project — please retry." });
   }
-  await db.delete(siteVisits).where(eq(siteVisits.projectId, projectId));
-  await db.delete(leads).where(eq(leads.projectId, projectId));
-  await db.delete(units).where(eq(units.projectId, projectId));
-  await db.delete(projectAssets).where(eq(projectAssets.projectId, projectId));
-  await db.delete(sharedDocuments).where(eq(sharedDocuments.projectId, projectId));
-  await db.delete(enquiries).where(eq(enquiries.projectId, projectId));
-  await db.delete(legalDocuments).where(eq(legalDocuments.projectId, projectId));
-  await db.delete(projects).where(eq(projects._id, projectId));
 
   res.json({ ok: true, deleted: existing.name });
 });

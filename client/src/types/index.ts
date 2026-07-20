@@ -184,6 +184,7 @@ export interface Unit {
   unitNumber: string;
   type: string;
   areaSqft: number;
+  plotSize?: string | null;
   price: number;
   status: UnitStatus;
   lockedByCPId?: string | null;

@@ -37,7 +37,7 @@ export default function ProjectDetailPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [showAddUnit, setShowAddUnit] = useState(false);
-  const [unitForm, setUnitForm] = useState({ unitNumber: "", type: "", areaSqft: "", price: "" });
+  const [unitForm, setUnitForm] = useState({ unitNumber: "", type: "", areaSqft: "", plotSize: "", price: "" });
   const [uploading, setUploading] = useState(false);
 
   async function load() {
@@ -72,10 +72,11 @@ export default function ProjectDetailPage() {
         unitNumber: unitForm.unitNumber,
         type: unitForm.type,
         areaSqft: Number(unitForm.areaSqft),
+        plotSize: unitForm.plotSize.trim() || undefined,
         price: Number(unitForm.price),
       });
       toast.success("Unit added");
-      setUnitForm({ unitNumber: "", type: "", areaSqft: "", price: "" });
+      setUnitForm({ unitNumber: "", type: "", areaSqft: "", plotSize: "", price: "" });
       setShowAddUnit(false);
       load();
     } catch (err: any) {
@@ -186,7 +187,7 @@ export default function ProjectDetailPage() {
         {!showAddUnit ? (
           <Button size="sm" className="mt-2" onClick={() => setShowAddUnit(true)}>+ Add unit</Button>
         ) : (
-          <form onSubmit={addUnit} className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-white/10 glass p-4 sm:grid-cols-5">
+          <form onSubmit={addUnit} className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-white/10 glass p-4 sm:grid-cols-6">
             <div>
               <Label className="text-foreground/90">Unit #</Label>
               <Input required value={unitForm.unitNumber} onChange={(e) => setUnitForm({ ...unitForm, unitNumber: e.target.value })} className="border-white/15 bg-card text-white" />
@@ -198,6 +199,10 @@ export default function ProjectDetailPage() {
             <div>
               <Label className="text-foreground/90">Area (sqft)</Label>
               <Input required type="number" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-white/15 bg-card text-white" />
+            </div>
+            <div>
+              <Label className="text-foreground/90">Plot size</Label>
+              <Input placeholder="30×40 ft / 200 sq.yd" value={unitForm.plotSize} onChange={(e) => setUnitForm({ ...unitForm, plotSize: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
               <Label className="text-foreground/90">Price (₹)</Label>
@@ -220,6 +225,7 @@ export default function ProjectDetailPage() {
                 <th className="p-3 text-left">Unit</th>
                 <th className="p-3 text-left">Type</th>
                 <th className="p-3 text-left">Area (sqft)</th>
+                <th className="p-3 text-left">Plot size</th>
                 <th className="p-3 text-left">Price</th>
                 <th className="p-3 text-left">Status</th>
                 <th className="p-3 text-right">Availability</th>
@@ -231,6 +237,7 @@ export default function ProjectDetailPage() {
                   <td className="p-3">{u.unitNumber}</td>
                   <td className="p-3">{u.type}</td>
                   <td className="p-3">{u.areaSqft}</td>
+                  <td className="p-3">{u.plotSize || "—"}</td>
                   <td className="p-3">{formatINR(u.price)}</td>
                   <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
                   <td className="p-3">
@@ -258,7 +265,7 @@ export default function ProjectDetailPage() {
                   </td>
                 </tr>
               ))}
-              {units.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
+              {units.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
             </tbody>
           </table>
         </div>

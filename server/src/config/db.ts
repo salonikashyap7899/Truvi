@@ -24,6 +24,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
+    // Optional plot size / dimensions per unit (e.g. "30x40 ft", "200 sq.yd").
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
     // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
     `CREATE TABLE IF NOT EXISTS "lead_activities" (

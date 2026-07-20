@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
 import PresentationManager from "@/components/PresentationManager";
 import UnitsManager from "@/components/UnitsManager";
+import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
 import type { Project } from "@/types";
 
 export default function AdminProjectManagePage() {
@@ -55,9 +56,12 @@ export default function AdminProjectManagePage() {
       </div>
 
       <p className="mt-4 rounded-lg border border-white/10 glass px-4 py-3 text-sm text-muted-foreground">
-        As an admin you can add and manage everything buyers see here: plots &amp; pricing, project images, videos, plans,
-        3D renders, documents, and the features/amenities list.
+        As an admin you can edit and manage everything buyers see here: project details, plots &amp; pricing, project images,
+        videos, plans, 3D renders, documents, and the features/amenities list.
       </p>
+
+      {/* Editable core details: name, location, RERA, possession, contact, plans */}
+      <ProjectDetailsEditor project={project} onUpdated={setProject} />
 
       {/* Plots / units */}
       <UnitsManager projectId={project._id} />
