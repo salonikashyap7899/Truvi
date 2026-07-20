@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import {
+  TrendingUp, HandCoins, Building2, Repeat, Wallet, Users, Megaphone,
+  Landmark, Undo2, Circle, Download, Search,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import { formatINR } from "@/lib/utils";
+import { StatCard } from "@/components/ui/stat";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 
@@ -13,6 +18,20 @@ const CATEGORIES = [
   "SALES", "COMMISSION_PAYOUT", "DEVELOPER_PAYMENT", "SUBSCRIPTION",
   "OPERATING_EXPENSE", "SALARY", "MARKETING", "TAX", "REFUND", "OTHER",
 ] as const;
+
+const CATEGORY_ICON: Record<string, ReactNode> = {
+  SALES: <TrendingUp size={13} />,
+  COMMISSION_PAYOUT: <HandCoins size={13} />,
+  DEVELOPER_PAYMENT: <Building2 size={13} />,
+  SUBSCRIPTION: <Repeat size={13} />,
+  OPERATING_EXPENSE: <Wallet size={13} />,
+  SALARY: <Users size={13} />,
+  MARKETING: <Megaphone size={13} />,
+  TAX: <Landmark size={13} />,
+  REFUND: <Undo2 size={13} />,
+  OTHER: <Circle size={13} />,
+};
+const catLabel = (c: string) => c.replace(/_/g, " ");
 
 interface Entry {
   _id: string; direction: Dir; category: string; description: string; party: string | null;
@@ -63,6 +82,10 @@ export default function AdminFinancePage() {
   const bankBalance = accounts.reduce((s, a) => s + a.balancePaise, 0);
   const receivables = entries.filter((e) => e.direction === "INFLOW" && !e.settled).reduce((s, e) => s + e.amountPaise, 0);
   const payables = entries.filter((e) => e.direction === "OUTFLOW" && !e.settled).reduce((s, e) => s + e.amountPaise, 0);
+  const totalIncome = entries.filter((e) => e.direction === "INFLOW" && e.settled).reduce((s, e) => s + e.amountPaise, 0);
+  const totalExpense = entries.filter((e) => e.direction === "OUTFLOW" && e.settled).reduce((s, e) => s + e.amountPaise, 0);
+  const netCashFlow = totalIncome - totalExpense;
+  const gstCollected = entries.filter((e) => e.direction === "INFLOW").reduce((s, e) => s + e.gstPaise, 0);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading finance workspace…</div>;
 
@@ -80,19 +103,15 @@ export default function AdminFinancePage() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-wide text-white/45">Bank Balance</p>
-          <p className="mt-1 text-xl font-semibold">{formatINR(bankBalance / 100)}</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-wide text-white/45">Receivables</p>
-          <p className="mt-1 text-xl font-semibold text-emerald-300">{formatINR(receivables / 100)}</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-[11px] uppercase tracking-wide text-white/45">Payables</p>
-          <p className="mt-1 text-xl font-semibold text-amber-300">{formatINR(payables / 100)}</p>
-        </div>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total Income" value={totalIncome / 100} format={(n) => formatINR(n)} icon={<TrendingUp size={16} />} tone="emerald" foot="Settled inflow" delay={0} />
+        <StatCard label="Total Expense" value={totalExpense / 100} format={(n) => formatINR(n)} icon={<Wallet size={16} />} tone="amber" foot="Settled outflow" delay={60} />
+        <StatCard label="Net Cash Flow" value={netCashFlow / 100} format={(n) => formatINR(n)} icon={<HandCoins size={16} />} tone={netCashFlow >= 0 ? "violet" : "rose"} foot="Income − expense" delay={120} />
+        <StatCard label="Bank Balance" value={bankBalance / 100} format={(n) => formatINR(n)} icon={<Landmark size={16} />} tone="sky" foot={`${accounts.length} account(s)`} delay={180} />
+        <StatCard label="Receivables" value={receivables / 100} format={(n) => formatINR(n)} icon={<Undo2 size={16} />} tone="emerald" foot="Unsettled inflow" delay={240} />
+        <StatCard label="Payables" value={payables / 100} format={(n) => formatINR(n)} icon={<HandCoins size={16} />} tone="amber" foot="Unsettled outflow" delay={300} />
+        <StatCard label="GST Collected" value={gstCollected / 100} format={(n) => formatINR(n)} icon={<Landmark size={16} />} tone="violet" foot="On inflow" delay={360} />
+        <StatCard label="Active Loans" value={loans.filter((l) => l.status === "ACTIVE").length} icon={<Building2 size={16} />} tone="slate" foot="See loans tab" delay={420} />
       </div>
 
       <div className="mt-6 flex gap-2">
@@ -115,6 +134,43 @@ export default function AdminFinancePage() {
 function EntriesTab({ entries, onChange }: { entries: Entry[]; onChange: () => void }) {
   const [f, setF] = useState({ direction: "INFLOW" as Dir, category: "SALES", description: "", party: "", amount: "", gst: "", tds: "", dueDate: "", settled: true });
   const [saving, setSaving] = useState(false);
+  const [dirFilter, setDirFilter] = useState<"ALL" | Dir>("ALL");
+  const [catFilter, setCatFilter] = useState<"ALL" | string>("ALL");
+  const [range, setRange] = useState<"ALL" | "TODAY" | "MONTH" | "YEAR">("ALL");
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const now = new Date();
+    return entries.filter((e) => {
+      if (dirFilter !== "ALL" && e.direction !== dirFilter) return false;
+      if (catFilter !== "ALL" && e.category !== catFilter) return false;
+      if (range !== "ALL") {
+        const d = new Date(e.createdAt);
+        if (range === "TODAY" && d.toDateString() !== now.toDateString()) return false;
+        if (range === "MONTH" && (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear())) return false;
+        if (range === "YEAR" && d.getFullYear() !== now.getFullYear()) return false;
+      }
+      if (q && !(`${e.description} ${e.party ?? ""} ${catLabel(e.category)}`.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [entries, dirFilter, catFilter, range, query]);
+
+  function exportCsv() {
+    const header = ["Date", "Direction", "Category", "Description", "Party", "Amount", "GST", "TDS", "Status"];
+    const lines = filtered.map((e) => [
+      new Date(e.createdAt).toLocaleString("en-IN"), e.direction, catLabel(e.category), e.description,
+      e.party ?? "", String(e.amountPaise / 100), String(e.gstPaise / 100), String(e.tdsPaise / 100),
+      e.settled ? "Settled" : "Pending",
+    ]);
+    const csv = [header, ...lines].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `truvi-ledger-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -171,6 +227,35 @@ function EntriesTab({ entries, onChange }: { entries: Entry[]; onChange: () => v
         </div>
       </form>
 
+      {/* Toolbar: filters, date range, search, export */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 rounded-full border border-white/10 bg-white/5 p-0.5">
+          {(["ALL", "INFLOW", "OUTFLOW"] as const).map((d) => (
+            <button key={d} onClick={() => setDirFilter(d)} className={`rounded-full px-3 py-1 text-[11px] font-medium capitalize transition ${dirFilter === d ? "bg-violet-500 text-white" : "text-white/60 hover:text-white"}`}>
+              {d === "ALL" ? "All" : d === "INFLOW" ? "In" : "Out"}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 rounded-full border border-white/10 bg-white/5 p-0.5">
+          {(["ALL", "TODAY", "MONTH", "YEAR"] as const).map((r) => (
+            <button key={r} onClick={() => setRange(r)} className={`rounded-full px-3 py-1 text-[11px] font-medium capitalize transition ${range === r ? "bg-violet-500 text-white" : "text-white/60 hover:text-white"}`}>
+              {r.toLowerCase()}
+            </button>
+          ))}
+        </div>
+        <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/70 outline-none">
+          <option value="ALL">All categories</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{catLabel(c)}</option>)}
+        </select>
+        <div className="relative">
+          <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search entry…" className="w-48 rounded-full border border-white/10 bg-white/5 py-1.5 pl-8 pr-3 text-[11px] text-white outline-none focus:border-violet-400/50" />
+        </div>
+        <button onClick={exportCsv} className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/80 transition hover:bg-white/10">
+          <Download size={13} /> Download Ledger
+        </button>
+      </div>
+
       <div className="overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[720px] text-left text-xs">
           <thead className="bg-white/5 text-white/50">
@@ -182,11 +267,11 @@ function EntriesTab({ entries, onChange }: { entries: Entry[]; onChange: () => v
             </tr>
           </thead>
           <tbody>
-            {entries.length === 0 && <tr><td colSpan={9} className="p-6 text-center text-white/40">No entries yet. Add your first above.</td></tr>}
-            {entries.map((en) => (
-              <tr key={en._id} className="border-t border-white/5">
+            {filtered.length === 0 && <tr><td colSpan={9} className="p-6 text-center text-white/40">{entries.length === 0 ? "No entries yet. Add your first above." : "No entries match these filters."}</td></tr>}
+            {filtered.map((en) => (
+              <tr key={en._id} className="border-t border-white/5 transition hover:bg-white/[0.03]">
                 <td className="p-3"><span className={en.direction === "INFLOW" ? "text-emerald-300" : "text-amber-300"}>{en.direction === "INFLOW" ? "▲ In" : "▼ Out"}</span></td>
-                <td className="p-3 text-white/60">{en.category.replace(/_/g, " ")}</td>
+                <td className="p-3 text-white/60"><span className="inline-flex items-center gap-1.5">{CATEGORY_ICON[en.category] ?? CATEGORY_ICON.OTHER}{catLabel(en.category)}</span></td>
                 <td className="p-3 text-white/85">{en.description}</td>
                 <td className="p-3 text-white/60">{en.party || "—"}</td>
                 <td className="p-3 text-right text-white/90">{formatINR(en.amountPaise / 100)}</td>

@@ -23,7 +23,12 @@ router.get("/posts", async (req: AuthedRequest, res) => {
 
 const createPostSchema = z.object({
   content: z.string().min(5).max(1000),
-  category: z.enum(["ANNOUNCEMENT", "DISCUSSION", "TIP", "MARKET_UPDATE"]).default("DISCUSSION"),
+  category: z
+    .enum([
+      "ANNOUNCEMENT", "DISCUSSION", "TIP", "MARKET_UPDATE",
+      "PROJECT_LAUNCH", "HOT_DEAL", "BUYER_REQUIREMENT", "SUCCESS_STORY", "ASK_COMMUNITY",
+    ])
+    .default("DISCUSSION"),
 });
 
 router.post("/posts", async (req: AuthedRequest, res) => {

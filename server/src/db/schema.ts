@@ -49,7 +49,16 @@ export type CommissionStatus = "PENDING" | "MILESTONE_DUE" | "INVOICED" | "PAID"
 export type SiteVisitStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type LeadType = "BASIC" | "QUALIFIED" | "SITE_VISIT";
 export type PaymentStatus = "SIMULATED" | "CREATED" | "PAID" | "FAILED";
-export type PostCategory = "ANNOUNCEMENT" | "DISCUSSION" | "TIP" | "MARKET_UPDATE";
+export type PostCategory =
+  | "ANNOUNCEMENT"
+  | "DISCUSSION"
+  | "TIP"
+  | "MARKET_UPDATE"
+  | "PROJECT_LAUNCH"
+  | "HOT_DEAL"
+  | "BUYER_REQUIREMENT"
+  | "SUCCESS_STORY"
+  | "ASK_COMMUNITY";
 export type EnquiryPurpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
 export type BuyerDocType = "ID_PROOF" | "ADDRESS_PROOF" | "INCOME_PROOF";
 export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED";
