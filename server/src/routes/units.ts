@@ -3,7 +3,7 @@ import { and, asc, eq, lt, or } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { units, projects, UnitStatus } from "../db/schema";
 import { isValidId } from "../lib/ids";
-import { createUnitSchema, updatePriceSchema } from "../lib/validations/inventory";
+import { createUnitSchema, updatePriceSchema, editUnitSchema } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
 import { emitUnitUpdate } from "../sockets";
@@ -175,6 +175,34 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     if (!project || String(project.developerId) !== req.user!.userId) {
       return res.status(403).json({ error: "Not your project" });
     }
+  }
+
+  // Full detail edit — the developer/admin changes a plot's number, type,
+  // area, plot size and/or price from the inventory table. Triggered when any
+  // non-price/status field is present so the price-only and status-only paths
+  // below stay untouched.
+  const detailKeys = ["unitNumber", "type", "areaSqft", "plotSize"] as const;
+  if (detailKeys.some((k) => req.body?.[k] !== undefined)) {
+    const parsed = editUnitSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+    const d = parsed.data;
+    const upd: Record<string, unknown> = {};
+    if (d.unitNumber !== undefined) upd.unitNumber = d.unitNumber;
+    if (d.type !== undefined) upd.type = d.type;
+    if (d.areaSqft !== undefined) upd.areaSqft = d.areaSqft;
+    if (d.plotSize !== undefined) upd.plotSize = d.plotSize || null;
+    if (d.price !== undefined) {
+      upd.price = d.price;
+      // Only append to price history when the price actually changes.
+      if (d.price !== unit.price) {
+        upd.priceHistory = [...(unit.priceHistory ?? []), { price: d.price, changedAt: new Date().toISOString() }];
+      }
+    }
+
+    const [updated] = await db.update(units).set(upd).where(eq(units._id, unit._id)).returning();
+    emitUnitUpdate(String(updated.projectId), updated);
+    return res.json({ unit: updated });
   }
 
   if (req.body?.price !== undefined) {

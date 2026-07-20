@@ -149,6 +149,7 @@ export interface Project {
   commissionPercent: number;
   unitCount?: number;
   leadCount?: number;
+  coverImageUrl?: string | null;
   isSaved?: boolean;
   isCompared?: boolean;
   trustScore?: number;

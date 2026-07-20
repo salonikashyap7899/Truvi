@@ -94,6 +94,41 @@ export default function ProjectDetailPage() {
     }
   }
 
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
+  const [unitEdit, setUnitEdit] = useState({ unitNumber: "", type: "", areaSqft: "", plotSize: "", price: "" });
+  const [savingUnit, setSavingUnit] = useState(false);
+
+  function startEditUnit(u: Unit) {
+    setEditingUnitId(u._id);
+    setUnitEdit({ unitNumber: u.unitNumber, type: u.type, areaSqft: String(u.areaSqft), plotSize: u.plotSize ?? "", price: String(u.price) });
+  }
+
+  async function saveUnitEdit(u: Unit) {
+    const areaNum = Number(unitEdit.areaSqft);
+    const priceNum = Number(unitEdit.price);
+    if (!unitEdit.unitNumber.trim() || !unitEdit.type.trim() || !(areaNum > 0) || !(priceNum > 0)) {
+      toast.error("Fill unit no., type, a positive area and price");
+      return;
+    }
+    setSavingUnit(true);
+    try {
+      const res = await api.patch(`/units/${u._id}`, {
+        unitNumber: unitEdit.unitNumber.trim(),
+        type: unitEdit.type.trim(),
+        areaSqft: areaNum,
+        plotSize: unitEdit.plotSize.trim() || null,
+        price: priceNum,
+      });
+      setUnits((prev) => prev.map((x) => (x._id === u._id ? res.data.unit : x)));
+      setEditingUnitId(null);
+      toast.success("Unit updated");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update unit");
+    } finally {
+      setSavingUnit(false);
+    }
+  }
+
   async function setUnitStatus(unit: Unit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
     try {
       const res = await api.patch(`/units/${unit._id}`, { status });
@@ -245,6 +280,26 @@ export default function ProjectDetailPage() {
             </thead>
             <tbody>
               {units.map((u) => (
+                editingUnitId === u._id ? (
+                  <tr key={u._id} className="border-t border-white/10 bg-white/[0.02]">
+                    <td className="p-2"><Input value={unitEdit.unitNumber} onChange={(e) => setUnitEdit({ ...unitEdit, unitNumber: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-2"><Input value={unitEdit.type} onChange={(e) => setUnitEdit({ ...unitEdit, type: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-2"><Input type="number" value={unitEdit.areaSqft} onChange={(e) => setUnitEdit({ ...unitEdit, areaSqft: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-2"><Input value={unitEdit.plotSize} onChange={(e) => setUnitEdit({ ...unitEdit, plotSize: e.target.value })} placeholder="30×40 ft" className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-2"><Input type="number" value={unitEdit.price} onChange={(e) => setUnitEdit({ ...unitEdit, price: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
+                    <td className="p-3">
+                      <div className="flex justify-end gap-1.5">
+                        <button onClick={() => saveUnitEdit(u)} disabled={savingUnit} className="rounded-full border border-emerald-700/60 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/20 disabled:opacity-50">
+                          {savingUnit ? "Saving…" : "Save"}
+                        </button>
+                        <button onClick={() => setEditingUnitId(null)} disabled={savingUnit} className="rounded-full border border-white/15 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-white">
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={u._id} className="border-t border-white/10">
                   <td className="p-3">{u.unitNumber}</td>
                   <td className="p-3">{u.type}</td>
@@ -257,6 +312,9 @@ export default function ProjectDetailPage() {
                       <span className="flex justify-end text-xs text-muted-foreground">CP locked</span>
                     ) : (
                       <div className="flex justify-end gap-1.5">
+                        <button onClick={() => startEditUnit(u)} className="rounded-full border border-white/15 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-white/5">
+                          Edit
+                        </button>
                         {u.status !== "AVAILABLE" && (
                           <button onClick={() => setUnitStatus(u, "AVAILABLE")} className="rounded-full border border-green-700/60 px-2.5 py-1 text-[11px] font-medium text-green-300 hover:bg-green-900/20">
                             Available
@@ -276,6 +334,7 @@ export default function ProjectDetailPage() {
                     )}
                   </td>
                 </tr>
+                )
               ))}
               {units.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">No units added yet.</td></tr>}
             </tbody>

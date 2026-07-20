@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, units, leads, users } from "../db/schema";
+import { projects, units, leads, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { createProjectSchema } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -57,6 +57,26 @@ router.get("/", async (req: AuthedRequest, res) => {
   const unitCountMap = new Map(unitCounts.map((item) => [String(item.projectId), item.count]));
   const leadCountMap = new Map(leadCounts.map((item) => [String(item.projectId), item.count]));
 
+  // Cover photo for the listing card = the project's first public gallery
+  // image (developers add these at registration or from the workspace).
+  const coverRows = projectIds.length
+    ? await db
+        .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl, createdAt: projectAssets.createdAt })
+        .from(projectAssets)
+        .where(
+          and(
+            inArray(projectAssets.projectId, projectIds),
+            eq(projectAssets.category, "GALLERY_IMAGE"),
+            eq(projectAssets.verified, true),
+          ),
+        )
+        .orderBy(asc(projectAssets.createdAt))
+    : [];
+  const coverMap = new Map<string, string>();
+  for (const c of coverRows) {
+    if (!coverMap.has(String(c.projectId))) coverMap.set(String(c.projectId), c.fileUrl);
+  }
+
   const developerIds = [...new Set(rows.map((project) => project.developerId))];
   const developers = developerIds.length
     ? await db
@@ -89,6 +109,7 @@ router.get("/", async (req: AuthedRequest, res) => {
       developerId: developer,
       unitCount: unitCountMap.get(String(project._id)) || 0,
       leadCount: leadCountMap.get(String(project._id)) || 0,
+      coverImageUrl: coverMap.get(String(project._id)) ?? null,
       isSaved,
       isCompared,
     };

@@ -41,6 +41,7 @@ export default function NewProjectPage() {
     developerId: "",
   });
   const [developers, setDevelopers] = useState<DeveloperOption[]>([]);
+  const [photos, setPhotos] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Admins can assign the new listing to an existing developer.
@@ -70,7 +71,26 @@ export default function NewProjectPage() {
         commissionPercent: Number(form.commissionPercent),
         developerId: isAdmin && form.developerId ? form.developerId : undefined,
       });
-      toast.success("Project created — now add plans, photos, inventory and documents.");
+      // Upload any project photos chosen here as public gallery images, so the
+      // listing card is image-forward from the moment it's created.
+      if (photos.length) {
+        let uploaded = 0;
+        for (const file of photos) {
+          try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("category", "GALLERY_IMAGE");
+            fd.append("title", file.name.replace(/\.[^.]+$/, "") || "Project photo");
+            await api.post(`/presentation/${data.project._id}/assets`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+            uploaded += 1;
+          } catch {
+            /* skip a failed photo, keep going */
+          }
+        }
+        toast.success(`Project created${uploaded ? ` with ${uploaded} photo${uploaded === 1 ? "" : "s"}` : ""} — now add plans, inventory and documents.`);
+      } else {
+        toast.success("Project created — now add plans, photos, inventory and documents.");
+      }
       // Straight into the full project workspace so every remaining detail
       // (floor plans, photos, inventory, amenities, payment plans, progress,
       // availability, legal docs) can be uploaded before admin review. Admins
@@ -144,6 +164,48 @@ export default function NewProjectPage() {
             <div>
               <Label className="text-foreground/90">Commission %</Label>
               <Input type="number" step="0.1" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: Number(e.target.value) })} className="border-white/15 bg-card text-white" />
+            </div>
+
+            {/* Project photos — shown on the listing card immediately */}
+            <div className="border-t border-white/10 pt-4">
+              <p className="text-sm font-semibold text-foreground/90">Project photos</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add exterior / interior photos. The first one becomes the listing cover. You can add more later.
+              </p>
+              <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-card px-4 py-2 text-sm hover:border-blue-600">
+                + Add photos
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    setPhotos((prev) => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {photos.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {photos.map((file, i) => (
+                    <div key={i} className="relative aspect-video overflow-hidden rounded-lg border border-white/10">
+                      <img src={URL.createObjectURL(file)} alt={file.name} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 text-xs text-white hover:bg-black/80"
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                      {i === 0 && (
+                        <span className="absolute bottom-1 left-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Cover</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {isAdmin && (
