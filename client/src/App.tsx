@@ -24,6 +24,7 @@ import UnauthorizedPage from "@/pages/UnauthorizedPage";
 import LegalPage from "@/pages/LegalPage";
 
 import AdminDashboardPage from "@/pages/admin/AdminDashboardPage";
+import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
 import AdminListingsPage from "@/pages/admin/AdminListingsPage";
 import AdminProjectManagePage from "@/pages/admin/AdminProjectManagePage";
 import AdminRevenuePage from "@/pages/admin/AdminRevenuePage";
@@ -72,7 +73,9 @@ import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/P
 // floating assistants there to avoid two overlapping buttons.
 function FloatingAssistants() {
   const { pathname } = useLocation();
-  if (pathname.startsWith("/founder")) return null;
+  // The Founder Dashboard ships its own Copilot; the Admin OS dashboard uses
+  // the same full-screen shell — suppress the global FABs on both.
+  if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
       <AskTruvi />
@@ -85,7 +88,7 @@ function Ambience() {
   const { pathname } = useLocation();
   // The landing page renders its own richer CityCanvas scene; the Founder
   // Dashboard uses its own light Founder-OS surface.
-  if (pathname === "/" || pathname.startsWith("/founder")) return null;
+  if (pathname === "/" || pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
       <Suspense fallback={null}>
@@ -152,7 +155,8 @@ export default function App() {
         <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
 
         {/* Admin */}
-        <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
+        <Route path="/admin/classic" element={<ProtectedRoute roles={["ADMIN"]}><AdminDashboardPage /></ProtectedRoute>} />
         <Route path="/admin/listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
         <Route path="/admin/listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
         <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
