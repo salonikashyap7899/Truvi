@@ -252,6 +252,10 @@ export const users = pgTable(
     // column is kept (defaulting to APPROVED) so existing rows and any code that
     // still reads it keep working.
     approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("APPROVED"),
+    // Admin can deactivate ("remove") an account: it stays in the DB (so its
+    // history/financial records are preserved) but can no longer log in and is
+    // hidden from active user counts. Reversible via reactivate.
+    disabled: boolean("disabled").notNull().default(false),
     phone: text("phone"),
     // Universal account verification: a new signup must confirm one-time codes
     // sent to both their email and phone before they can log in. Both default to

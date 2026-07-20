@@ -29,6 +29,7 @@ const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("
 
 /** Sidebar links map to the admin panel's real workspaces (existing features). */
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
+  { label: "Users", icon: "users", path: "/admin/users" },
   { label: "Listings", icon: "building", path: "/admin/listings" },
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },
   { label: "Verification", icon: "shield", path: "/admin/verification" },
@@ -142,10 +143,10 @@ export default function AdminOsDashboardPage() {
 
             {/* Platform stats */}
             <div className="kpi-grid">
-              <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} />
-              <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} />
-              <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} />
-              <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} />
+              <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
+              <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
+              <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
+              <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
             </div>
 
             {/* Investor / SaaS metrics — admin's existing live numbers */}
