@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Flame, CalendarCheck, TrendingUp, Boxes, Activity, Megaphone, BrainCircuit,
-  ShieldCheck, Zap, ArrowRight, Sparkles,
+  ShieldCheck, Zap, ArrowRight, Sparkles, Pencil,
 } from "lucide-react";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -242,22 +242,26 @@ export default function DeveloperDashboardPage() {
         <div className="mt-3 space-y-3">
           {projects.length === 0 && <p className="text-sm text-muted-foreground">No projects yet — create your first one.</p>}
           {projects.map((p) => (
-            <Link key={p._id} to={`/developer/projects/${p._id}`}>
-              <Card className="flex items-center justify-between border-white/10 glass text-white hover:border-blue-600">
-                <div>
-                  <p className="font-medium">
-                    {p.name}{" "}
-                    <Badge variant={p.approvalStatus === "APPROVED" ? "success" : p.approvalStatus === "PENDING" ? "warning" : "danger"}>
-                      {p.approvalStatus}
-                    </Badge>
-                    {p.isVerified && <Badge variant="info" className="ml-1">Verified</Badge>}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {p.city} · {(unitsByProject[p._id] ?? []).length} units · {p.leadCount ?? 0} leads · {(p.viewCount ?? 0).toLocaleString("en-IN")} views
-                  </p>
-                </div>
-              </Card>
-            </Link>
+            <Card key={p._id} className="flex items-center justify-between gap-3 border-white/10 glass text-white hover:border-blue-600">
+              <Link to={`/developer/projects/${p._id}`} className="min-w-0 flex-1">
+                <p className="font-medium">
+                  {p.name}{" "}
+                  <Badge variant={p.approvalStatus === "APPROVED" ? "success" : p.approvalStatus === "PENDING" ? "warning" : "danger"}>
+                    {p.approvalStatus}
+                  </Badge>
+                  {p.isVerified && <Badge variant="info" className="ml-1">Verified</Badge>}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {p.city} · {(unitsByProject[p._id] ?? []).length} units · {p.leadCount ?? 0} leads · {(p.viewCount ?? 0).toLocaleString("en-IN")} views
+                </p>
+              </Link>
+              <Link
+                to={`/developer/projects/${p._id}#edit-project`}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-700/60 px-3 py-1.5 text-sm font-medium text-blue-300 hover:bg-blue-900/20"
+              >
+                <Pencil size={13} /> Edit
+              </Link>
+            </Card>
           ))}
         </div>
       </section>
