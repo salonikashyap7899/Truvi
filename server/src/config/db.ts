@@ -90,6 +90,69 @@ async function ensureSchema(db: Db): Promise<void> {
        "version" integer NOT NULL DEFAULT 1,
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    // Founder-only operating modules (Team, Marketing, Land Bank, Investor).
+    `CREATE TABLE IF NOT EXISTS "employees" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "title" text,
+       "department" text NOT NULL DEFAULT 'General',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "present_today" boolean NOT NULL DEFAULT true,
+       "performance_score" integer NOT NULL DEFAULT 0,
+       "tasks_pending" integer NOT NULL DEFAULT 0,
+       "monthly_ctc" double precision NOT NULL DEFAULT 0,
+       "joined_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "marketing_campaigns" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "channel" text NOT NULL DEFAULT 'Other',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spend" double precision NOT NULL DEFAULT 0,
+       "leads" integer NOT NULL DEFAULT 0,
+       "conversions" integer NOT NULL DEFAULT 0,
+       "revenue" double precision NOT NULL DEFAULT 0,
+       "started_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "land_parcels" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "location" text NOT NULL,
+       "area" double precision NOT NULL DEFAULT 0,
+       "area_unit" text NOT NULL DEFAULT 'ACRE',
+       "status" text NOT NULL DEFAULT 'OPPORTUNITY',
+       "estimated_value" double precision NOT NULL DEFAULT 0,
+       "due_diligence_done" boolean NOT NULL DEFAULT false,
+       "priority" text NOT NULL DEFAULT 'MEDIUM',
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "cap_table_entries" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "holder_name" text NOT NULL,
+       "holder_type" text NOT NULL DEFAULT 'INVESTOR',
+       "equity_percent" double precision NOT NULL DEFAULT 0,
+       "invested_amount" double precision NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "fundraise_rounds" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "target_amount" double precision NOT NULL DEFAULT 0,
+       "committed_amount" double precision NOT NULL DEFAULT 0,
+       "valuation" double precision NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "close_date" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "investor_updates" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "body" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
