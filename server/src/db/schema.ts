@@ -669,6 +669,30 @@ export const courseProgress = pgTable(
 );
 
 /**
+ * Admin-managed learning content (videos + PDFs) shown inside the CP Learning
+ * Academy. Each row is attached to a course by its string `courseId` (matching
+ * the front-end COURSES list) and rendered under that course's detail view.
+ * Admins upload files (video/PDF) or paste an external video URL from the
+ * admin panel; CPs consume them read-only.
+ */
+export const academyContent = pgTable(
+  "academy_content",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    courseId: text("course_id").notNull(),
+    title: text("title").notNull(),
+    type: text("type").$type<"VIDEO" | "PDF">().notNull(),
+    url: text("url").notNull(),
+    description: text("description"),
+    duration: text("duration"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("academy_content_course_idx").on(t.courseId, t.sortOrder)]
+);
+
+/**
  * Ambassador site-verification tasks. Mirrors the SQL migration run in
  * Supabase (truvi_supabase_ambassador_update.sql). An ambassador accepts a
  * task, which locks it for 6 hours (YELLOW). If not completed in time it
@@ -728,6 +752,8 @@ export type ISharedDocument = typeof sharedDocuments.$inferSelect;
 export type IProjectAsset = typeof projectAssets.$inferSelect;
 export type ILegalDocument = typeof legalDocuments.$inferSelect;
 export type ICourseProgress = typeof courseProgress.$inferSelect;
+export type IAcademyContent = typeof academyContent.$inferSelect;
+export type NewAcademyContent = typeof academyContent.$inferInsert;
 export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
 export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;
 

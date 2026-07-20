@@ -7,13 +7,23 @@ import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import {
   BookOpen, CheckCircle, Circle, Award, ArrowLeft, Trophy,
-  Home, Scale, Handshake, TrendingUp, Smartphone, type LucideIcon,
+  Home, Scale, Handshake, TrendingUp, Smartphone, Sprout,
+  PlayCircle, FileText, type LucideIcon,
 } from "lucide-react";
 
 interface Module { id: string; title: string; duration: string; }
 interface Course {
   id: string; title: string; description: string; category: string;
   modules: Module[]; badgeColor: string; Icon: LucideIcon;
+}
+
+interface AcademyContent {
+  _id: string; courseId: string; title: string; type: "VIDEO" | "PDF";
+  url: string; description?: string | null; duration?: string | null;
+}
+
+function isPlayableVideo(url: string): boolean {
+  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url);
 }
 
 const COURSES: Course[] = [
@@ -72,25 +82,49 @@ const COURSES: Course[] = [
       { id: "m3", title: "Instagram Content Strategy", duration: "14 min" },
     ],
   },
+  {
+    id: "organic-leads-referrals", title: "Organic Leads & Referrals",
+    description: "Get free, high-intent leads and build a referral engine that keeps compounding.",
+    category: "Growth", badgeColor: "green", Icon: Sprout,
+    modules: [
+      { id: "m1", title: "How to Get Organic Leads", duration: "12 min" },
+      { id: "m2", title: "Turning Your Network into a Lead Source", duration: "10 min" },
+      { id: "m3", title: "How to Get Referrals from Happy Buyers", duration: "13 min" },
+      { id: "m4", title: "Building a Repeatable Referral System", duration: "11 min" },
+    ],
+  },
 ];
+
+/** Lightweight course list (id + title) reused by the admin content manager. */
+export const COURSE_OPTIONS = COURSES.map((c) => ({ id: c.id, title: c.title }));
 
 interface ProgressMap { [courseId: string]: { completedModules: string[]; completedAt?: string } }
 
 export default function LearningAcademyPage() {
   const user = useAuthStore((s) => s.user);
   const [progressMap, setProgressMap] = useState<ProgressMap>({});
+  const [contentMap, setContentMap] = useState<Record<string, AcademyContent[]>>({});
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [certCourse, setCertCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/academy/progress").then((res) => {
-      const map: ProgressMap = {};
-      for (const p of res.data.progress) {
-        map[p.courseId] = { completedModules: p.completedModules, completedAt: p.completedAt };
-      }
-      setProgressMap(map);
-    }).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      api.get("/academy/progress").then((res) => {
+        const map: ProgressMap = {};
+        for (const p of res.data.progress) {
+          map[p.courseId] = { completedModules: p.completedModules, completedAt: p.completedAt };
+        }
+        setProgressMap(map);
+      }),
+      api.get("/academy/content").then((res) => {
+        const map: Record<string, AcademyContent[]> = {};
+        for (const c of res.data.content as AcademyContent[]) {
+          (map[c.courseId] ||= []).push(c);
+        }
+        setContentMap(map);
+      }),
+    ]).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function toggleModule(course: Course, moduleId: string) {
@@ -219,7 +253,42 @@ export default function LearningAcademyPage() {
               })}
             </div>
 
-            <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden">
+            {(contentMap[activeCourse.id]?.length ?? 0) > 0 && (
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
+                  <PlayCircle size={16} className="text-sky-300" /> Videos & Resources
+                </h3>
+                <div className="space-y-3">
+                  {contentMap[activeCourse.id].map((item) => (
+                    <div key={item._id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                      <div className="flex items-center gap-2">
+                        {item.type === "VIDEO"
+                          ? <PlayCircle size={16} className="text-sky-300 shrink-0" />
+                          : <FileText size={16} className="text-rose-300 shrink-0" />}
+                        <p className="text-sm font-medium text-white">{item.title}</p>
+                        {item.duration && <span className="text-xs text-muted-foreground">· {item.duration}</span>}
+                      </div>
+                      {item.description && <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>}
+                      {item.type === "VIDEO" && isPlayableVideo(item.url) ? (
+                        <video controls src={item.url} className="mt-3 w-full rounded-lg border border-white/10 bg-black" />
+                      ) : (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-sky-300 hover:bg-white/10 transition-colors"
+                        >
+                          {item.type === "VIDEO" ? <PlayCircle size={13} /> : <FileText size={13} />}
+                          {item.type === "VIDEO" ? "Watch video" : "Open PDF"} ↗
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 h-2 rounded-full bg-white/10 overflow-hidden">
               <div
                 className="h-full rounded-full bg-blue-500 transition-all duration-500"
                 style={{ width: `${Math.round(((progressMap[activeCourse.id]?.completedModules.length || 0) / activeCourse.modules.length) * 100)}%` }}

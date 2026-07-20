@@ -33,6 +33,30 @@ export const upload = multer({
   },
 });
 
+const ALLOWED_MEDIA_MIME = new Set([
+  "application/pdf",
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+]);
+
+/**
+ * Larger uploader used for Learning Academy content (training videos + PDFs).
+ * Kept separate from the general 10MB `upload` so raising the video size limit
+ * here never loosens limits on brochures/invoices elsewhere.
+ */
+export const uploadMedia = multer({
+  storage,
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB (training videos)
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_MEDIA_MIME.has(file.mimetype)) {
+      return cb(new Error("Unsupported file type. Allowed: PDF, MP4, WEBM, OGG, MOV."));
+    }
+    cb(null, true);
+  },
+});
+
 /**
  * Storage abstraction: returns the public-facing URL for an uploaded file.
  * Swap this implementation to return an S3 URL later without touching
