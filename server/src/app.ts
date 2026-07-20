@@ -34,6 +34,7 @@ import presentationRoutes from "./routes/presentation";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
+import financeRoutes from "./routes/finance";
 import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
 import verificationAdminRoutes from "./routes/verificationAdmin";
@@ -99,6 +100,7 @@ export function createApp() {
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
   app.use("/api/legal", legalRoutes);
   app.use("/api/payments", paymentRoutes);
+  app.use("/api/finance", financeRoutes);
   app.use("/api", verificationRoutes); // /api/verify/:id, /api/verification/:id, /api/property/:id
   app.use("/api/ingest", ingestRoutes);
   app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs
