@@ -178,12 +178,28 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   res.json({ project: updated });
 });
 
-router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
+router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
 
   const db = getDb();
-  const { possessionDate, ...rest } = parsed.data;
+  const { possessionDate, developerId: assignedDeveloperId, ...rest } = parsed.data;
+
+  // Developers always create under their own account. Admins may optionally
+  // assign the project to an existing developer; otherwise it is created under
+  // the admin's own account.
+  let developerId = req.user!.userId;
+  if (req.user!.role === "ADMIN" && assignedDeveloperId) {
+    if (!isValidId(assignedDeveloperId)) {
+      return res.status(400).json({ error: "Invalid developer selected" });
+    }
+    const [developer] = await db.select().from(users).where(eq(users._id, assignedDeveloperId));
+    if (!developer || developer.role !== "DEVELOPER") {
+      return res.status(400).json({ error: "Selected developer not found" });
+    }
+    developerId = assignedDeveloperId;
+  }
+
   const [project] = await db
     .insert(projects)
     .values({
@@ -191,7 +207,7 @@ router.post("/", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
       possessionDate: possessionDate ? new Date(possessionDate) : undefined,
       brochureUrl: parsed.data.brochureUrl || undefined,
       priceListUrl: parsed.data.priceListUrl || undefined,
-      developerId: req.user!.userId,
+      developerId,
       approvalStatus: "PENDING",
     })
     .returning();

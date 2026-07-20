@@ -5,6 +5,8 @@ import { useAuthStore } from "@/store/authStore";
 import { formatINR, nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import { Ic, Kpi, Panel } from "@/pages/dashboard/DashboardOS";
+import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import type { Project } from "@/types";
 import "@/styles/founder-os.css";
 
@@ -40,7 +42,6 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
 
 export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
@@ -123,12 +124,9 @@ export default function AdminOsDashboardPage() {
           <div className="top-actions">
             <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
-            <button className="icon-btn" title="Notifications"><Ic n="bell" /></button>
+            <NotificationBell />
             <div className="divider-v" />
-            <button className="profile-btn">
-              <div className="avatar">{initials(user?.name || "Admin")}</div>
-              <div><div className="profile-name">{user?.name || "Admin"}</div><div className="profile-role">Admin</div></div>
-            </button>
+            <UserMenu />
           </div>
         </header>
 
@@ -136,7 +134,10 @@ export default function AdminOsDashboardPage() {
           <section className="page">
             <div className="page-header">
               <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
-              <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button></div>
+              <div className="header-actions">
+                <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
+                <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
+              </div>
             </div>
 
             {/* Platform stats */}
@@ -179,6 +180,7 @@ export default function AdminOsDashboardPage() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{p.name}</div>
                         <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>{p.city} · by {nameOf(p.developerId)}</div>
                       </div>
+                      <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
                       <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
                       <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
                     </div>

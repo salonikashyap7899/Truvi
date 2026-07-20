@@ -211,10 +211,15 @@ export default function AdminListingsPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <h1 className="text-2xl font-semibold">Listings Management</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Approve new developer submissions, then manage Featured, Verified, Prime Listing status and verification details.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Listings Management</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Approve new developer submissions, then manage Featured, Verified, Prime Listing status and verification details.
+          </p>
+        </div>
+        <Button onClick={() => navigate("/developer/projects/new")}>+ Add new project</Button>
+      </div>
 
       {/* Pending developer submissions — approve to publish into public inventory */}
       {pending.length > 0 && (
