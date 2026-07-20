@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, units, users } from "../db/schema";
+import { projects, units, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 
@@ -24,6 +24,26 @@ router.get("/", async (_req, res) => {
     projectIds.length > 0
       ? await db.select().from(units).where(inArray(units.projectId, projectIds))
       : [];
+
+  // First public gallery photo per project → the listing card's cover image.
+  const coverRows =
+    projectIds.length > 0
+      ? await db
+          .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl, createdAt: projectAssets.createdAt })
+          .from(projectAssets)
+          .where(
+            and(
+              inArray(projectAssets.projectId, projectIds),
+              eq(projectAssets.category, "GALLERY_IMAGE"),
+              eq(projectAssets.verified, true),
+            ),
+          )
+          .orderBy(asc(projectAssets.createdAt))
+      : [];
+  const coverMap = new Map<string, string>();
+  for (const c of coverRows) {
+    if (!coverMap.has(String(c.projectId))) coverMap.set(String(c.projectId), c.fileUrl);
+  }
 
   const statsById = new Map<string, { unitCount: number; minPrice: number | null; maxPrice: number | null; minRate: number | null }>();
   for (const unit of unitRows) {
@@ -50,6 +70,7 @@ router.get("/", async (_req, res) => {
       minPrice: stats?.minPrice ?? null,
       maxPrice: stats?.maxPrice ?? null,
       minRate: stats?.minRate ? Math.round(stats.minRate) : null,
+      coverImageUrl: coverMap.get(String(project._id)) ?? null,
     };
   });
 

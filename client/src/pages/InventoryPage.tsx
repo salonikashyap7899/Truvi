@@ -150,6 +150,18 @@ function ListingCard({
       style={{ background: frame }}
     >
       <div className="flex h-full flex-col gap-4 rounded-[23px] bg-[#0a0d14]/92 p-6">
+        {/* Cover photo — image-forward listing (developer-uploaded gallery image) */}
+        {project.coverImageUrl && (
+          <div className="-mx-6 -mt-6 mb-1 h-48 overflow-hidden rounded-t-[23px]">
+            <img
+              src={project.coverImageUrl}
+              alt={project.name}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          </div>
+        )}
+
         {/* Prime ribbon */}
         {isPrime && (
           <div className="absolute -top-3 left-6 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">

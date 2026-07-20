@@ -34,3 +34,12 @@ export const createUnitSchema = z.object({
 export type CreateUnitInput = z.infer<typeof createUnitSchema>;
 
 export const updatePriceSchema = z.object({ price: z.number().positive() });
+
+/** Editing an existing plot/unit's details (any subset of fields). */
+export const editUnitSchema = z.object({
+  unitNumber: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
+  areaSqft: z.number().positive().optional(),
+  plotSize: z.string().max(60).nullable().optional(),
+  price: z.number().positive().optional(),
+});

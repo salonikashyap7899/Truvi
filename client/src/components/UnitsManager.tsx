@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, LayoutGrid } from "lucide-react";
+import { Loader2, Plus, Trash2, LayoutGrid, Pencil, Check, X } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 
 interface ManagedUnit {
@@ -96,6 +96,46 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
     }
   }
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [edit, setEdit] = useState({ unitNumber: "", type: "", areaSqft: "", plotSize: "", price: "" });
+
+  function startEdit(u: ManagedUnit) {
+    setEditingId(u._id);
+    setEdit({
+      unitNumber: u.unitNumber,
+      type: u.type,
+      areaSqft: String(u.areaSqft),
+      plotSize: u.plotSize ?? "",
+      price: String(u.price),
+    });
+  }
+
+  async function saveEdit(u: ManagedUnit) {
+    const areaNum = Number(edit.areaSqft);
+    const priceNum = Number(edit.price);
+    if (!edit.unitNumber.trim() || !edit.type.trim() || !(areaNum > 0) || !(priceNum > 0)) {
+      toast.error("Fill plot number, type, a positive area and price");
+      return;
+    }
+    setBusyId(u._id);
+    try {
+      const res = await api.patch(`/units/${u._id}`, {
+        unitNumber: edit.unitNumber.trim(),
+        type: edit.type.trim(),
+        areaSqft: areaNum,
+        plotSize: edit.plotSize.trim() || null,
+        price: priceNum,
+      });
+      setUnits((prev) => prev.map((x) => (x._id === u._id ? res.data.unit : x)));
+      setEditingId(null);
+      toast.success("Plot updated");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Update failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function deleteUnit(unit: ManagedUnit) {
     if (!confirm(`Delete plot ${unit.unitNumber}?`)) return;
     setBusyId(unit._id);
@@ -173,6 +213,26 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
               <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">No plots added yet.</td></tr>
             ) : (
               units.map((u) => (
+                editingId === u._id ? (
+                  <tr key={u._id} className="border-b border-white/5 bg-white/[0.02] last:border-0">
+                    <td className="px-4 py-2"><Input value={edit.unitNumber} onChange={(e) => setEdit({ ...edit, unitNumber: e.target.value })} className={`h-8 ${inputCls}`} /></td>
+                    <td className="px-4 py-2"><Input value={edit.type} onChange={(e) => setEdit({ ...edit, type: e.target.value })} className={`h-8 ${inputCls}`} /></td>
+                    <td className="px-4 py-2"><Input type="number" min="1" value={edit.areaSqft} onChange={(e) => setEdit({ ...edit, areaSqft: e.target.value })} className={`h-8 ${inputCls}`} /></td>
+                    <td className="px-4 py-2"><Input value={edit.plotSize} onChange={(e) => setEdit({ ...edit, plotSize: e.target.value })} placeholder="30×40 ft" className={`h-8 ${inputCls}`} /></td>
+                    <td className="px-4 py-2"><Input type="number" min="1" value={edit.price} onChange={(e) => setEdit({ ...edit, price: e.target.value })} className={`h-8 ${inputCls}`} /></td>
+                    <td className={`px-4 py-2 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => saveEdit(u)} disabled={busyId === u._id} title="Save" className="text-emerald-400/80 hover:text-emerald-400">
+                          {busyId === u._id ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                        </button>
+                        <button onClick={() => setEditingId(null)} disabled={busyId === u._id} title="Cancel" className="text-muted-foreground hover:text-white">
+                          <X size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={u._id} className="border-b border-white/5 last:border-0">
                   <td className="px-4 py-3 font-medium text-white">{u.unitNumber}</td>
                   <td className="px-4 py-3 text-foreground/90">{u.type}</td>
@@ -182,6 +242,14 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                   <td className={`px-4 py-3 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => startEdit(u)}
+                        disabled={busyId === u._id}
+                        title="Edit plot"
+                        className="text-sky-300/80 hover:text-sky-300"
+                      >
+                        <Pencil size={14} />
+                      </button>
                       {u.status !== "AVAILABLE" && (
                         <Button size="sm" variant="secondary" disabled={busyId === u._id} onClick={() => setStatus(u, "AVAILABLE")}>
                           Available
@@ -208,6 +276,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                     </div>
                   </td>
                 </tr>
+                )
               ))
             )}
           </tbody>
