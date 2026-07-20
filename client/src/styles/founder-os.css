@@ -233,3 +233,19 @@
 .founder-os .workspace-link svg:last-child{width:14px; height:14px; color:var(--ink-500);}
 @media (max-width:900px){ .founder-os .workspace-links{grid-template-columns:repeat(2,1fr);} }
 @media (max-width:640px){ .founder-os .workspace-links{grid-template-columns:1fr;} }
+
+/* Founder-module inline data-entry forms (Team / Marketing / Land / Investor) */
+.founder-os .fm-form{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:4px;}
+.founder-os .fm-field{display:flex; flex-direction:column; gap:4px;}
+.founder-os .fm-field.full{grid-column:1 / -1;}
+.founder-os .fm-field label{font-size:11px; font-weight:700; color:var(--ink-500);}
+.founder-os .fm-field input, .founder-os .fm-field select, .founder-os .fm-field textarea{
+  border:1px solid var(--border-strong); border-radius:9px; padding:8px 10px; font-size:12.5px;
+  background:var(--bg); color:var(--ink-900); outline:none; font-family:inherit; width:100%;
+}
+.founder-os .fm-field input:focus, .founder-os .fm-field select:focus, .founder-os .fm-field textarea:focus{border-color:var(--brand-500,#7C5CFF);}
+.founder-os .fm-actions{grid-column:1 / -1; display:flex; gap:8px; justify-content:flex-end;}
+.founder-os .icon-del{border:1px solid var(--border-strong); background:var(--surface); color:var(--red-500); border-radius:8px; padding:5px 7px; cursor:pointer; display:inline-flex; line-height:0;}
+.founder-os .icon-del:hover{background:var(--red-100);}
+.founder-os .icon-del svg{width:14px; height:14px;}
+@media (max-width:640px){ .founder-os .fm-form{grid-template-columns:1fr;} }

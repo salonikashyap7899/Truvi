@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/authStore";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
+import { TeamPage, MarketingPage, LandBankPage, InvestorPage } from "@/pages/dashboard/FounderModules";
 import "@/styles/founder-os.css";
 
 /* ------------------------------------------------------------------ types */
@@ -203,10 +204,10 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "verification" && <VerificationPage d={d} navigate={navigate} />}
           {current === "kpi" && <KpiPage d={d} fin={fin} />}
           {current === "insights" && <InsightsPage d={d} fin={fin} />}
-          {current === "team" && <Placeholder title="Team Dashboard" what="Employees, attendance, productivity, hiring and performance ranking need an HR module." connect="Add an employees/attendance schema or connect an HRMS." />}
-          {current === "marketing" && <Placeholder title="Marketing Dashboard" what="Website traffic, social growth, ad spend, cost-per-lead and campaign ROI need analytics + ad-platform integrations." connect="Connect GA4 and Meta/Google Ads, or add a campaigns table." />}
-          {current === "land" && <Placeholder title="Land Bank" what="Total land, verified land, acquisition pipeline, valuation and due-diligence need a land-parcel register." connect="Add a land-parcels table (area, ownership, DD status, valuation)." />}
-          {current === "investor" && <Placeholder title="Investor Dashboard" what="Valuation, fundraising, cap table and ESOP pool are founder-confidential and need a cap-table source." connect="Add a cap-table/fundraise schema. Valuation-driving KPIs are already live under KPIs." />}
+          {current === "team" && <TeamPage />}
+          {current === "marketing" && <MarketingPage />}
+          {current === "land" && <LandBankPage />}
+          {current === "investor" && <InvestorPage />}
         </div>
       </div>
 
@@ -527,20 +528,6 @@ function InsightsPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
         <Kpi icon="chart" tone="blue" label="Revenue run-rate (mo.)" value={formatCompactINR(runRate)} foot="Linear projection, not ML" />
         <Kpi icon="spark" tone="green" label="MRR" value={formatINR(d.companyHealth.mrr)} />
         <Kpi icon="trophy" tone="blue" label="Health Score" value={`${d.companyHealth.healthScore}/100`} />
-      </div>
-    </section>
-  );
-}
-
-function Placeholder({ title, what, connect }: { title: string; what: string; connect: string }) {
-  return (
-    <section className="page">
-      <div className="page-header"><div><div className="page-title">{title}</div><div className="page-sub">Founder-only</div></div></div>
-      <div className="card placeholder">
-        <h3>Not yet tracked</h3>
-        <p>{what}</p>
-        <p style={{ marginTop: 10 }}><b style={{ color: "var(--ink-700)" }}>To activate:</b> {connect}</p>
-        <p style={{ marginTop: 10, fontSize: 11.5 }}>Per Truvi&apos;s data-integrity rule, no fabricated numbers are shown until a real source is connected.</p>
       </div>
     </section>
   );

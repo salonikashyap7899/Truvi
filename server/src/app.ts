@@ -28,6 +28,7 @@ import loanCheckRoutes from "./routes/loanChecks";
 import aiChatRoutes from "./routes/aiChat";
 import connectRoutes from "./routes/connect";
 import academyRoutes from "./routes/academy";
+import founderModuleRoutes from "./routes/founderModules";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
@@ -94,6 +95,7 @@ export function createApp() {
   app.use("/api/ai/chat", aiChatRoutes);
   app.use("/api/connect", connectRoutes);
   app.use("/api/academy", academyRoutes);
+  app.use("/api/founder", founderModuleRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/presentation", presentationRoutes);

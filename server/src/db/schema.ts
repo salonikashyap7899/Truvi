@@ -726,6 +726,82 @@ export const ambassadorTasks = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Founder-only operating modules — Team (HR), Marketing, Land Bank & Investor.
+// These back the previously-placeholder sections of the Founder "CEO OS"
+// dashboard. Every figure the dashboard shows is derived from rows the founder
+// actually enters here (no fabricated numbers), consistent with the platform's
+// data-integrity rule. All monetary amounts are stored in whole rupees.
+// ---------------------------------------------------------------------------
+
+export const employees = pgTable("employees", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  title: text("title"),
+  department: text("department").notNull().default("General"),
+  status: text("status").$type<"ACTIVE" | "ON_LEAVE" | "INACTIVE">().notNull().default("ACTIVE"),
+  presentToday: boolean("present_today").notNull().default(true),
+  performanceScore: integer("performance_score").notNull().default(0),
+  tasksPending: integer("tasks_pending").notNull().default(0),
+  monthlyCtc: doublePrecision("monthly_ctc").notNull().default(0),
+  joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  channel: text("channel").notNull().default("Other"),
+  status: text("status").$type<"ACTIVE" | "PAUSED" | "COMPLETED">().notNull().default("ACTIVE"),
+  spend: doublePrecision("spend").notNull().default(0),
+  leads: integer("leads").notNull().default(0),
+  conversions: integer("conversions").notNull().default(0),
+  revenue: doublePrecision("revenue").notNull().default(0),
+  startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const landParcels = pgTable("land_parcels", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  location: text("location").notNull(),
+  area: doublePrecision("area").notNull().default(0),
+  areaUnit: text("area_unit").$type<"ACRE" | "BIGHA" | "SQFT" | "HECTARE">().notNull().default("ACRE"),
+  status: text("status").$type<"OPPORTUNITY" | "PIPELINE" | "DUE_DILIGENCE" | "VERIFIED" | "ACQUIRED">().notNull().default("OPPORTUNITY"),
+  estimatedValue: doublePrecision("estimated_value").notNull().default(0),
+  dueDiligenceDone: boolean("due_diligence_done").notNull().default(false),
+  priority: text("priority").$type<"HIGH" | "MEDIUM" | "LOW">().notNull().default("MEDIUM"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const capTableEntries = pgTable("cap_table_entries", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  holderName: text("holder_name").notNull(),
+  holderType: text("holder_type").$type<"FOUNDER" | "INVESTOR" | "ANGEL" | "ESOP" | "OTHER">().notNull().default("INVESTOR"),
+  equityPercent: doublePrecision("equity_percent").notNull().default(0),
+  investedAmount: doublePrecision("invested_amount").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const fundraiseRounds = pgTable("fundraise_rounds", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  targetAmount: doublePrecision("target_amount").notNull().default(0),
+  committedAmount: doublePrecision("committed_amount").notNull().default(0),
+  valuation: doublePrecision("valuation").notNull().default(0),
+  status: text("status").$type<"OPEN" | "CLOSED">().notNull().default("OPEN"),
+  closeDate: timestamp("close_date", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+export const investorUpdates = pgTable("investor_updates", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  body: text("body"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Inferred row types (replacements for the old IUser/IProject/... interfaces)
 // ---------------------------------------------------------------------------
 
@@ -756,6 +832,12 @@ export type IAcademyContent = typeof academyContent.$inferSelect;
 export type NewAcademyContent = typeof academyContent.$inferInsert;
 export type IAmbassadorTask = typeof ambassadorTasks.$inferSelect;
 export type NewAmbassadorTask = typeof ambassadorTasks.$inferInsert;
+export type IEmployee = typeof employees.$inferSelect;
+export type IMarketingCampaign = typeof marketingCampaigns.$inferSelect;
+export type ILandParcel = typeof landParcels.$inferSelect;
+export type ICapTableEntry = typeof capTableEntries.$inferSelect;
+export type IFundraiseRound = typeof fundraiseRounds.$inferSelect;
+export type IInvestorUpdate = typeof investorUpdates.$inferSelect;
 
 /**
  * Payments — one row per Razorpay checkout attempt. Structured so it can move
