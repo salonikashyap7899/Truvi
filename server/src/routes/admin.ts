@@ -298,7 +298,39 @@ router.get("/users", requireRole("ADMIN"), async (req, res) => {
     .from(users)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(users.createdAt));
-  const safeUsers = rows.map(({ password, ...u }) => u);
+
+  // Attach a TRUTHFUL subscription summary per user so the admin UI only offers
+  // "Cancel subscription" to users who actually have one. Two real signals:
+  //   1) a `subscriptions` row that reached ACTIVE (a paid Razorpay plan), and
+  //   2) live CP Premium (cpProfile.isPremium, not past its expiry).
+  const now = Date.now();
+  const activeSubs = await db
+    .select({ userId: subscriptions.userId, planLabel: subscriptions.planLabel, createdAt: subscriptions.createdAt })
+    .from(subscriptions)
+    .where(eq(subscriptions.status, "ACTIVE"))
+    .orderBy(desc(subscriptions.createdAt));
+  const subsByUser = new Map<string, { count: number; label: string }>();
+  for (const s of activeSubs) {
+    if (!s.userId) continue;
+    const prev = subsByUser.get(s.userId);
+    subsByUser.set(s.userId, { count: (prev?.count ?? 0) + 1, label: prev?.label ?? s.planLabel });
+  }
+
+  const safeUsers = rows.map(({ password, ...u }) => {
+    const paid = subsByUser.get(u._id);
+    const premiumExpiry = u.cpProfile?.premiumExpiresAt ? Date.parse(u.cpProfile.premiumExpiresAt) : null;
+    const premiumActive = Boolean(u.cpProfile?.isPremium) && (premiumExpiry === null || Number.isNaN(premiumExpiry) || premiumExpiry > now);
+    const active = Boolean(paid) || premiumActive;
+    return {
+      ...u,
+      subscription: {
+        active,
+        count: paid?.count ?? 0,
+        label: paid?.label ?? (premiumActive ? "CP Premium" : null),
+        premiumExpiresAt: premiumActive ? u.cpProfile?.premiumExpiresAt ?? null : null,
+      },
+    };
+  });
   res.json({ users: safeUsers });
 });
 

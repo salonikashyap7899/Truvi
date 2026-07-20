@@ -37,7 +37,8 @@ export default function AdminUsersPage() {
     setBusyId(u._id);
     try {
       const res = await api.patch(`/admin/users/${u._id}`, { disabled });
-      setUsers((prev) => prev.map((x) => (x._id === u._id ? res.data.user : x)));
+      // Status change doesn't affect the subscription — keep the computed summary.
+      setUsers((prev) => prev.map((x) => (x._id === u._id ? { ...res.data.user, subscription: x.subscription } : x)));
       toast.success(disabled ? "User deactivated" : "User restored");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Action failed");
@@ -51,8 +52,9 @@ export default function AdminUsersPage() {
     setBusyId(u._id);
     try {
       const res = await api.post(`/admin/users/${u._id}/cancel-subscription`);
-      setUsers((prev) => prev.map((x) => (x._id === u._id ? res.data.user : x)));
-      toast.success(res.data.cancelledCount > 0 ? `Cancelled ${res.data.cancelledCount} subscription(s)` : "Premium cleared (no active subscription found)");
+      // Subscription is now gone — reflect that in the row immediately.
+      setUsers((prev) => prev.map((x) => (x._id === u._id ? { ...res.data.user, subscription: { active: false, count: 0, label: null } } : x)));
+      toast.success(res.data.cancelledCount > 0 ? `Cancelled ${res.data.cancelledCount} subscription(s)` : "Premium cleared");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Action failed");
     } finally {
@@ -72,7 +74,7 @@ export default function AdminUsersPage() {
   const counts = useMemo(() => ({
     total: users.length,
     active: users.filter((u) => !u.disabled).length,
-    premium: users.filter((u) => u.cpProfile?.isPremium).length,
+    subscribers: users.filter((u) => u.subscription?.active).length,
   }), [users]);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading users…</div>;
@@ -87,7 +89,7 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-semibold">User Management</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {counts.total} accounts · {counts.active} active · {counts.premium} premium. Remove (deactivate) accounts or cancel their subscriptions.
+            {counts.total} accounts · {counts.active} active · {counts.subscribers} with an active subscription. Remove (deactivate) accounts, and cancel a subscription only where one exists.
           </p>
         </div>
       </div>
@@ -124,7 +126,8 @@ export default function AdminUsersPage() {
         {filtered.map((u) => {
           const isSelf = u._id === me?._id;
           const isAdmin = u.role === "ADMIN";
-          const premium = Boolean(u.cpProfile?.isPremium);
+          const sub = u.subscription;
+          const hasSubscription = Boolean(sub?.active);
           return (
             <Card key={u._id} className={`flex flex-col gap-3 border-white/10 text-white sm:flex-row sm:items-center sm:justify-between ${u.disabled ? "opacity-60" : ""}`}>
               <div className="flex min-w-0 items-center gap-3">
@@ -138,9 +141,9 @@ export default function AdminUsersPage() {
                     {u.role === "CP" && u.cpTier && (
                       <Badge className="border-white/15 bg-white/5 text-[11px] text-foreground/80">{u.cpTier}</Badge>
                     )}
-                    {premium && (
+                    {hasSubscription && (
                       <Badge className="border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300">
-                        <Crown size={11} className="mr-1 inline" /> Premium
+                        <Crown size={11} className="mr-1 inline" /> {sub?.label || "Subscribed"}
                       </Badge>
                     )}
                     {u.disabled && <Badge className="border-red-500/30 bg-red-500/10 text-[11px] text-red-300">Deactivated</Badge>}
@@ -158,14 +161,16 @@ export default function AdminUsersPage() {
                   </span>
                 ) : (
                   <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busyId === u._id}
-                      onClick={() => cancelSubscription(u)}
-                    >
-                      Cancel subscription
-                    </Button>
+                    {hasSubscription && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyId === u._id}
+                        onClick={() => cancelSubscription(u)}
+                      >
+                        Cancel subscription
+                      </Button>
+                    )}
                     {u.disabled ? (
                       <Button size="sm" disabled={busyId === u._id} onClick={() => setDisabled(u, false)}>
                         Restore

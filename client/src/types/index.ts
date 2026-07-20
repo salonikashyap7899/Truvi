@@ -121,6 +121,13 @@ export interface User {
     reraNumber?: string;
   };
   createdAt?: string;
+  /** Truthful subscription summary computed by the admin users endpoint. */
+  subscription?: {
+    active: boolean;
+    count: number;
+    label: string | null;
+    premiumExpiresAt?: string | null;
+  };
 }
 
 export interface Project {
