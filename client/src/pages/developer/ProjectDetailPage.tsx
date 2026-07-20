@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Badge, Input, Label } from "@/components/ui/primitives";
@@ -54,6 +54,16 @@ export default function ProjectDetailPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // When arriving from the "Edit" button (…/projects/:id#edit-project), scroll
+  // the details editor into view once, after the project has loaded.
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (project && !scrolledRef.current && window.location.hash === "#edit-project") {
+      scrolledRef.current = true;
+      setTimeout(() => document.getElementById("edit-project")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+    }
+  }, [project]);
 
   // Real-time: a CP locking a unit anywhere reflects here instantly.
   useSocketEvent<{ projectId: string; unit: Unit }>("unit:update", (payload) => {
@@ -162,7 +172,9 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Editable commercial details: name/location/RERA/possession/contact/payment plans */}
-      <ProjectDetailsEditor project={project} onUpdated={setProject} />
+      <div id="edit-project">
+        <ProjectDetailsEditor project={project} onUpdated={setProject} />
+      </div>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium">Brochure / price list</h2>
