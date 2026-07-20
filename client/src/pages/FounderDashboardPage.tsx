@@ -90,7 +90,7 @@ export default function FounderDashboardPage() {
   const [fin, setFin] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<Page>("overview");
-  const [dark, setDark] = useState(false);
+  const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
 
@@ -134,7 +134,7 @@ export default function FounderDashboardPage() {
   ];
 
   return (
-    <div className={`founder-os ${dark ? "dark" : ""}`}>
+    <div className={`founder-os ${light ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
@@ -171,7 +171,7 @@ export default function FounderDashboardPage() {
           <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
           <div className="search-wrap"><Ic n="search" /><input placeholder="Search projects, CPs, leads…" /></div>
           <div className="top-actions">
-            <button className="theme-toggle" onClick={() => setDark((v) => !v)} aria-label="Toggle theme">
+            <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme">
               <span className="knob"><Ic n="sun" /></span>
             </button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
@@ -216,7 +216,7 @@ function HealthRing({ score }: { score: number }) {
       <svg width="96" height="96" viewBox="0 0 96 96">
         <circle className="ring-track" cx="48" cy="48" r="40" />
         <circle className="ring-fill" cx="48" cy="48" r="40" stroke="url(#osGrad)" strokeDasharray={C} strokeDashoffset={off} />
-        <defs><linearGradient id="osGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#2554F0" /><stop offset="100%" stopColor="#12B76A" /></linearGradient></defs>
+        <defs><linearGradient id="osGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#7C5CFF" /><stop offset="100%" stopColor="#A855F7" /></linearGradient></defs>
       </svg>
       <div className="ring-num"><b>{score}</b><span>{label}</span></div>
     </div>
@@ -294,7 +294,7 @@ function Meter({ label, val }: { label: string; val: number }) {
 }
 function Funnel({ funnel }: { funnel: { stage: string; count: number }[] }) {
   const max = Math.max(1, ...funnel.map((f) => f.count));
-  const grads = ["#2554F0", "#3D6BFF", "#12B76A", "#0E9F5B", "#F5A524", "#FF7A45", "#F04438"];
+  const grads = ["#7C5CFF", "#8B5CF6", "#A855F7", "#C026D3", "#14C79A", "#F5B33F", "#F4574A"];
   return (
     <div>
       {funnel.map((f, i) => (
