@@ -68,10 +68,24 @@ import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import PaymentFailedPage from "@/pages/PaymentFailedPage";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
+// The Founder Dashboard ships its own AI Copilot FAB, so suppress the global
+// floating assistants there to avoid two overlapping buttons.
+function FloatingAssistants() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/founder")) return null;
+  return (
+    <>
+      <AskTruvi />
+      <AISalesCopilot />
+    </>
+  );
+}
+
 function Ambience() {
   const { pathname } = useLocation();
-  // The landing page renders its own richer CityCanvas scene
-  if (pathname === "/") return null;
+  // The landing page renders its own richer CityCanvas scene; the Founder
+  // Dashboard uses its own light Founder-OS surface.
+  if (pathname === "/" || pathname.startsWith("/founder")) return null;
   return (
     <>
       <Suspense fallback={null}>
@@ -104,8 +118,7 @@ export default function App() {
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
-      <AskTruvi />
-      <AISalesCopilot />
+      <FloatingAssistants />
       <PageTransition>
       <Routes>
         {/* Public marketing pages */}
