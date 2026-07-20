@@ -6,6 +6,7 @@ import { getDb } from "../config/db";
 import { commissions, leads, projects, users, notifications, CommissionMilestone } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { logAudit } from "../services/audit";
 import { calculateCommission, buildMilestones, assertReleasedNeverExceedsTotal } from "../services/commissionCalculator";
 import { DEFAULT_PLATFORM_FEE_PERCENT, TDS_PERCENT } from "../config/constants";
 import { emitCommissionUpdate, emitNotification } from "../sockets";
@@ -212,6 +213,7 @@ router.patch("/:id/milestones", requireRole("ADMIN"), async (req, res) => {
   emitCommissionUpdate(String(commission.cpId), updated);
   emitNotification(String(commission.cpId), notification);
 
+  await logAudit({ userId: (req as AuthedRequest).user?.userId, action: "commission.milestone.release", resourceType: "commission", resourceId: String(commission._id), metadata: { milestone: target.label, amount: target.amount } });
   res.json({ commission: updated });
 });
 

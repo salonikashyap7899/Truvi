@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Boxes, KanbanSquare, BrainCircuit, Megaphone } from "lucide-react";
+import { LayoutDashboard, Boxes, CalendarCheck2, FolderLock, KanbanSquare, BrainCircuit, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,6 +12,9 @@ const HUBS = [
   { to: "/developer/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/developer/inventory", label: "Inventory", icon: Boxes },
   { to: "/developer/crm", label: "Sales CRM", icon: KanbanSquare, badge: "CRM" },
+  { to: "/crm/pipeline", label: "Pipeline", icon: KanbanSquare },
+  { to: "/bookings", label: "Bookings", icon: CalendarCheck2 },
+  { to: "/vault", label: "Vault", icon: FolderLock },
   { to: "/developer/analytics", label: "AI Analytics", icon: BrainCircuit, badge: "AI" },
   { to: "/developer/campaigns", label: "Marketing", icon: Megaphone, badge: "Pro" },
 ];

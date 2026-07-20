@@ -21,6 +21,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "disabled" boolean NOT NULL DEFAULT false`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    // GIS map coordinates (pin picker on the project form).
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,

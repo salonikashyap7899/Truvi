@@ -9,6 +9,7 @@ import {
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
 import { emitToRole } from "../sockets";
+import { logAudit } from "../services/audit";
 
 const router = Router();
 router.use(authenticate, requireRole("ADMIN"));
@@ -72,6 +73,7 @@ router.post("/", async (req: AuthedRequest, res) => {
     projectId: d.projectId ?? null,
     createdById: req.user!.userId,
   }).returning();
+  await logAudit({ userId: req.user!.userId, action: "finance.entry.create", resourceType: "finance_entry", resourceId: String(row._id), metadata: { direction: d.direction, category: d.category, amountPaise: d.amountPaise } });
   pushLive();
   res.status(201).json({ entry: row });
 });
@@ -98,10 +100,11 @@ router.patch("/:id", async (req, res) => {
 });
 
 // DELETE /api/finance/:id
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const db = getDb();
   await db.delete(financeEntries).where(eq(financeEntries._id, req.params.id));
+  await logAudit({ userId: req.user!.userId, action: "finance.entry.delete", resourceType: "finance_entry", resourceId: req.params.id });
   pushLive();
   res.json({ ok: true });
 });

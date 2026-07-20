@@ -137,6 +137,8 @@ export interface Project {
   description: string;
   city: string;
   location: string;
+  lat?: number | null;
+  lng?: number | null;
   threeDModelUrl?: string | null;
   masterPlanUrl?: string | null;
   viewCount?: number;

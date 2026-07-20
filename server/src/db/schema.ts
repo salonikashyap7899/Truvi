@@ -296,6 +296,10 @@ export const projects = pgTable(
     description: text("description").notNull(),
     city: text("city").notNull(),
     location: text("location").notNull(),
+    // Map coordinates for the GIS project map. Set via the pin picker on the
+    // project form; null until placed (such projects don't appear on the map).
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
     brochureUrl: text("brochure_url"),
     priceListUrl: text("price_list_url"),
     reraNumber: text("rera_number"),
