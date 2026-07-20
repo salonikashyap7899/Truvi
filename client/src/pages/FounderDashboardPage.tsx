@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import { formatCompactINR, formatINR } from "@/lib/utils";
+import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 
 /* ------------------------------------------------------------------ types */
@@ -32,6 +33,20 @@ interface Overview {
   crm: { newCustomers: number; activeCustomers: number; followUpsDue: number; enquiries: number };
   verification: { pendingProjects: number; pendingLegal: number; pendingKyc: number };
   kpi: { totalRevenue: number; gmv: number; mrr: number; conversionRate: number; healthScore: number; totalUnits: number; soldUnits: number };
+}
+
+interface FinanceSummary {
+  hasData: boolean;
+  cashInflow: number; cashOutflow: number; netCashFlow: number;
+  mtdInflow: number; mtdOutflow: number;
+  receivables: number; payables: number;
+  gstCollected: number; gstPaid: number; gstNet: number; tdsWithheld: number;
+  bankBalance: number; grossProfit: number; netProfit: number;
+  burnRate: number; runwayMonths: number | null;
+  totalLoanOutstanding: number; monthlyEmi: number; activeLoanCount: number;
+  upcomingPayments: { kind: string; label: string; party: string | null; amount: number; dueDate: string }[];
+  accounts: { id: string; name: string; balance: number }[];
+  entryCount: number;
 }
 
 /* -------------------------------------------------------------- ui helpers */
@@ -120,19 +135,29 @@ function Bar({ label, value, max, tint = "bg-violet-400" }: { label: string; val
 /* ------------------------------------------------------------------- page */
 export default function FounderDashboardPage() {
   const [d, setD] = useState<Overview | null>(null);
+  const [fin, setFin] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     try {
-      const res = await api.get("/admin/founder-overview");
-      setD(res.data);
+      const [ov, fs] = await Promise.all([
+        api.get("/admin/founder-overview"),
+        api.get("/finance/summary"),
+      ]);
+      setD(ov.data);
+      setFin(fs.data);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load founder dashboard");
     } finally {
       setLoading(false);
     }
   }
+  async function reloadFinance() {
+    try { setFin((await api.get("/finance/summary")).data); } catch { /* keep last */ }
+  }
   useEffect(() => { load(); }, []);
+  // Real-time: any finance write (from any admin) refreshes the money numbers.
+  useSocketEvent("finance:update", reloadFinance);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading founder command center…</div>;
   if (!d) return <div className="min-h-screen p-10 text-white">Could not load the dashboard. Please retry.</div>;
@@ -197,10 +222,21 @@ export default function FounderDashboardPage() {
             <Stat label="Active Projects" value={String(ch.activeProjects)} />
             <Stat label="Health Score" value={`${ch.healthScore}/100`} health={chHealth} />
           </div>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs text-white/45">
-            <span className="font-medium text-white/60">Gross / Net profit, Cash in Bank, Burn Rate &amp; Runway</span> require the
-            finance ledger (see Finance section) — they are intentionally not shown until real accounting data is connected.
-          </div>
+          {fin?.hasData ? (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <Stat label="Cash in Bank" value={formatINR(fin.bankBalance)} />
+              <Stat label="Gross Profit" value={formatINR(fin.grossProfit)} health={fin.grossProfit >= 0 ? "good" : "crit"} />
+              <Stat label="Net Profit" value={formatINR(fin.netProfit)} health={fin.netProfit >= 0 ? "good" : "crit"} />
+              <Stat label="Burn Rate / mo" value={formatINR(fin.burnRate)} />
+              <Stat label="Runway" value={fin.runwayMonths === null ? "∞" : `${fin.runwayMonths} mo`}
+                health={fin.runwayMonths === null ? "good" : fin.runwayMonths >= 12 ? "good" : fin.runwayMonths >= 6 ? "warn" : "crit"} />
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs text-white/45">
+              <span className="font-medium text-white/60">Gross / Net profit, Cash in Bank, Burn Rate &amp; Runway</span> populate from the
+              live finance ledger. <Link to="/admin/finance" className="text-violet-300 underline">Add finance entries</Link> to activate them.
+            </div>
+          )}
         </Section>
 
         {/* 3.2 Sales */}
@@ -281,11 +317,60 @@ export default function FounderDashboardPage() {
         </Section>
 
         {/* 3.4 Finance */}
-        <Section id="finance" n="3.4" title="Finance Dashboard">
-          <Untracked
-            what="Cash flow, receivables, payables, GST, TDS filing status, bank balance, upcoming payments and EMI/loan status all require a finance/accounting ledger."
-            connect="Integrate an accounting source (e.g. Tally/Zoho Books/bank feed) or add finance-entry tables, then this section renders live cash-flow, GST and payables."
-          />
+        <Section id="finance" n="3.4" title="Finance Dashboard"
+          health={!fin?.hasData ? undefined : fin.payables > fin.bankBalance ? "warn" : "good"}
+          subtitle={fin?.hasData ? `${formatCompactINR(fin.netCashFlow)} net cash flow` : "Add entries to activate"}>
+          {!fin?.hasData ? (
+            <div className="space-y-3">
+              <Untracked
+                what="Cash flow, receivables, payables, GST, TDS, bank balance, upcoming payments and EMI/loan status are now driven by the live finance ledger — it just has no entries yet."
+                connect="Open the Finance workspace and add your first bank account, entry or loan — every number here updates in real time."
+              />
+              <Link to="/admin/finance" className="inline-block rounded-full bg-violet-500 px-5 py-2 text-sm font-medium text-white hover:bg-violet-400">Open Finance workspace →</Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <Stat label="Cash Inflow" value={formatINR(fin.cashInflow)} health="good" />
+                <Stat label="Cash Outflow" value={formatINR(fin.cashOutflow)} />
+                <Stat label="Net Cash Flow" value={formatINR(fin.netCashFlow)} health={fin.netCashFlow >= 0 ? "good" : "crit"} />
+                <Stat label="Bank Balance" value={formatINR(fin.bankBalance)} />
+                <Stat label="Receivables" value={formatINR(fin.receivables)} health={fin.receivables > 0 ? "warn" : "good"} />
+                <Stat label="Payables" value={formatINR(fin.payables)} health={fin.payables > 0 ? "warn" : "good"} />
+                <Stat label="GST (net payable)" value={formatINR(fin.gstNet)} />
+                <Stat label="TDS Withheld" value={formatINR(fin.tdsWithheld)} />
+                <Stat label="Loan Outstanding" value={formatINR(fin.totalLoanOutstanding)} sub={`${fin.activeLoanCount} active`} />
+                <Stat label="Monthly EMI" value={formatINR(fin.monthlyEmi)} />
+                <Stat label="Burn Rate / mo" value={formatINR(fin.burnRate)} />
+                <Stat label="Runway" value={fin.runwayMonths === null ? "∞" : `${fin.runwayMonths} mo`}
+                  health={fin.runwayMonths === null ? "good" : fin.runwayMonths >= 12 ? "good" : fin.runwayMonths >= 6 ? "warn" : "crit"} />
+              </div>
+              <div className="mt-5">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Upcoming payments</p>
+                  <Link to="/admin/finance" className="text-xs text-violet-300 hover:underline">Manage →</Link>
+                </div>
+                {fin.upcomingPayments.length === 0 ? (
+                  <p className="text-xs text-white/40">No scheduled payables or EMIs.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {fin.upcomingPayments.map((u, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs">
+                        <div className="min-w-0">
+                          <span className="mr-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/60">{u.kind}</span>
+                          <span className="text-white/80">{u.label}</span>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className="font-medium text-white/90">{formatINR(u.amount)}</span>
+                          <span className="ml-2 text-white/40">{new Date(u.dueDate).toLocaleDateString("en-IN")}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </Section>
 
         {/* 3.5 Legal & Compliance */}

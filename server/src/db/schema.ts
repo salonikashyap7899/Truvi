@@ -817,6 +817,71 @@ export const subscriptions = pgTable(
 );
 export type ISubscription = typeof subscriptions.$inferSelect;
 
+/* ======================================================================
+ * FINANCE LEDGER (Phase 2) — real, dynamic accounting data that powers the
+ * Founder Dashboard Finance & Company-Health sections. All money in paise.
+ * ==================================================================== */
+export type FinanceDirection = "INFLOW" | "OUTFLOW";
+export type FinanceCategory =
+  | "SALES" | "COMMISSION_PAYOUT" | "DEVELOPER_PAYMENT" | "SUBSCRIPTION"
+  | "OPERATING_EXPENSE" | "SALARY" | "MARKETING" | "TAX" | "REFUND" | "OTHER";
+
+// One row per money movement (actual or expected). `settled=false` means it is
+// still a receivable (INFLOW) or a payable (OUTFLOW); `dueDate` drives the
+// upcoming-payments list. GST and TDS are captured per entry for GST/TDS views.
+export const financeEntries = pgTable(
+  "finance_entries",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    direction: text("direction").$type<FinanceDirection>().notNull(),
+    category: text("category").$type<FinanceCategory>().notNull().default("OTHER"),
+    description: text("description").notNull(),
+    party: text("party"),
+    amountPaise: integer("amount_paise").notNull(),
+    gstPaise: integer("gst_paise").notNull().default(0),
+    tdsPaise: integer("tds_paise").notNull().default(0),
+    settled: boolean("settled").notNull().default(true),
+    dueDate: timestamp("due_date", { withTimezone: true, mode: "date" }),
+    settledAt: timestamp("settled_at", { withTimezone: true, mode: "date" }),
+    accountId: uuid("account_id"),
+    projectId: uuid("project_id").references(() => projects._id),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("finance_entries_dir_settled_idx").on(t.direction, t.settled),
+    index("finance_entries_created_idx").on(t.createdAt),
+  ]
+);
+export type IFinanceEntry = typeof financeEntries.$inferSelect;
+
+// Bank / cash accounts — their summed balance is the Founder "Cash in Bank".
+export const bankAccounts = pgTable("bank_accounts", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  balancePaise: integer("balance_paise").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type IBankAccount = typeof bankAccounts.$inferSelect;
+
+// Loans / EMIs — feeds the Finance "EMI / Loan Status" and burn calculations.
+export type LoanStatus = "ACTIVE" | "CLOSED";
+export const loans = pgTable("loans", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  lender: text("lender").notNull(),
+  principalPaise: integer("principal_paise").notNull(),
+  outstandingPaise: integer("outstanding_paise").notNull(),
+  emiPaise: integer("emi_paise").notNull().default(0),
+  nextDueDate: timestamp("next_due_date", { withTimezone: true, mode: "date" }),
+  status: text("status").$type<LoanStatus>().notNull().default("ACTIVE"),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type ILoan = typeof loans.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;
