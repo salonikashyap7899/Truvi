@@ -8,9 +8,10 @@
  * (Referrer-restricted keys can't be used with the server-side Geocoding web
  * service, which is exactly why geocoding runs here in the browser.)
  *
- * Requires, in Google Cloud Console: billing enabled on the project, and both
- * the "Maps JavaScript API" and "Geocoding API" enabled. Leave the key blank to
- * disable auto-locate (developers can still drop the map pin manually).
+ * Requires, in Google Cloud Console: billing enabled on the project, and the
+ * "Maps JavaScript API", "Geocoding API" and "Places API" enabled. Leave the
+ * key blank to disable auto-locate (developers can still drop the map pin
+ * manually).
  */
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
@@ -26,8 +27,13 @@ declare global {
   }
 }
 
-/** Load the Maps JS API once (idempotent); resolves when `google.maps` is ready. */
-function loadMaps(): Promise<void> {
+/**
+ * Load the Maps JS API once (idempotent); resolves when `google.maps` is ready.
+ * Loads the `places` library too so the search box, autocomplete and nearby-
+ * landmark features work off the same single script load. Exported so the
+ * places helpers can await the same shared promise.
+ */
+export function loadGoogleMaps(): Promise<void> {
   if (typeof window === "undefined") return Promise.reject(new Error("No window"));
   if (window.google?.maps) return Promise.resolve();
   if (window.__truviGmapsPromise) return window.__truviGmapsPromise;
@@ -35,7 +41,7 @@ function loadMaps(): Promise<void> {
 
   window.__truviGmapsPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&libraries=geocoding&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&libraries=places&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
@@ -45,18 +51,50 @@ function loadMaps(): Promise<void> {
   return window.__truviGmapsPromise;
 }
 
+/** Error carrying Google's geocoder status (e.g. ZERO_RESULTS, REQUEST_DENIED). */
+export class GeocodeError extends Error {
+  status: string;
+  constructor(status: string) {
+    super(status);
+    this.name = "GeocodeError";
+    this.status = status;
+  }
+}
+
+/**
+ * Whether a geocoder status points at a Google Cloud misconfiguration (API not
+ * enabled, key restricted, billing/quota) rather than a genuine no-match. Used
+ * to show the developer an actionable message instead of "no results".
+ */
+export function isGeocodeConfigError(status?: string): boolean {
+  return (
+    status === "REQUEST_DENIED" ||
+    status === "OVER_QUERY_LIMIT" ||
+    status === "INVALID_REQUEST" ||
+    status === "ERROR"
+  );
+}
+
 export interface GeocodeResult {
   lat: number;
   lng: number;
   formattedAddress: string;
 }
 
-/** Resolve an address string to coordinates using the browser Geocoder. */
+/**
+ * Resolve an address string to coordinates. Uses the callback form so we can
+ * read Google's real status and surface config problems (REQUEST_DENIED etc.)
+ * instead of a generic failure.
+ */
 export async function geocodeAddress(query: string): Promise<GeocodeResult> {
-  await loadMaps();
+  await loadGoogleMaps();
   const geocoder = new window.google.maps.Geocoder();
-  const { results } = await geocoder.geocode({ address: query, region: "in" });
-  if (!results || results.length === 0) throw new Error("No location found");
+  const { results, status } = await new Promise<{ results: any[]; status: string }>((resolve) => {
+    geocoder.geocode({ address: query, region: "in" }, (r: any, s: any) =>
+      resolve({ results: r ?? [], status: s }),
+    );
+  });
+  if (status !== "OK" || results.length === 0) throw new GeocodeError(status || "UNKNOWN_ERROR");
   const best = results[0];
   return {
     lat: +best.geometry.location.lat().toFixed(6),
@@ -67,9 +105,13 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult> {
 
 /** Resolve coordinates back to a human address (used to label a dropped pin). */
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  await loadMaps();
+  await loadGoogleMaps();
   const geocoder = new window.google.maps.Geocoder();
-  const { results } = await geocoder.geocode({ location: { lat, lng } });
-  if (!results || results.length === 0) throw new Error("No address found");
+  const { results, status } = await new Promise<{ results: any[]; status: string }>((resolve) => {
+    geocoder.geocode({ location: { lat, lng } }, (r: any, s: any) =>
+      resolve({ results: r ?? [], status: s }),
+    );
+  });
+  if (status !== "OK" || results.length === 0) throw new GeocodeError(status || "UNKNOWN_ERROR");
   return results[0].formatted_address as string;
 }

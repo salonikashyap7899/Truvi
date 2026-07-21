@@ -4,15 +4,25 @@ import "leaflet/dist/leaflet.css";
 import { toast } from "sonner";
 import { addTruviBaseLayers } from "@/lib/leafletTiles";
 import { isGeocodingConfigured, reverseGeocode } from "@/lib/geocoding";
+import {
+  getPlacePredictions,
+  resolvePlace,
+  nearbyLandmarks,
+  type PlacePrediction,
+  type Landmark,
+  type LandmarkCategory,
+} from "@/lib/places";
 
 /**
- * Leaflet pin picker — click, drag, or use device GPS to set a project's
- * coordinates. Satellite + labels view (free Esri tiles, no API key). When
- * Google geocoding is configured, the dropped pin is reverse-geocoded so the
- * developer sees the actual address it resolved to.
+ * Leaflet pin picker with advanced location tooling:
+ *  - click, drag or GPS to set the pin (satellite Esri tiles, no API key)
+ *  - an address search box with Google Places autocomplete
+ *  - a reverse-geocoded address readout of the current pin
+ *  - optional nearby-landmark markers (schools / transit / hospitals)
  *
- * Controlled component: `value` is the current pin, `onChange` fires on every
- * placement (click, drag, or GPS).
+ * The Google-powered extras only appear when a Maps key is configured; without
+ * one this stays a plain click-to-drop map. Controlled component: `value` is
+ * the current pin, `onChange` fires on every placement.
  */
 
 /** Lucknow — sensible initial view for a UP-focused platform. */
@@ -26,6 +36,17 @@ const PIN_ICON = L.divIcon({
   iconAnchor: [9, 9],
 });
 
+const LANDMARK_COLORS: Record<LandmarkCategory, string> = {
+  school: "#38bdf8",
+  transit: "#f59e0b",
+  hospital: "#f43f5e",
+};
+const LANDMARK_LABELS: Record<LandmarkCategory, string> = {
+  school: "Schools",
+  transit: "Transit",
+  hospital: "Hospitals",
+};
+
 export default function MapPinPicker({
   value,
   onChange,
@@ -38,9 +59,20 @@ export default function MapPinPicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const landmarkLayerRef = useRef<L.LayerGroup | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const debounceRef = useRef<number | undefined>(undefined);
+
   const [address, setAddress] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
+  const [landmarksOn, setLandmarksOn] = useState(false);
+  const [loadingLandmarks, setLoadingLandmarks] = useState(false);
+
+  const geoReady = isGeocodingConfigured();
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -58,6 +90,7 @@ export default function MapPinPicker({
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
+      landmarkLayerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -85,9 +118,8 @@ export default function MapPinPicker({
   }, [value]);
 
   // Reverse-geocode the current pin to show the real address it resolved to.
-  // Guarded against out-of-order responses when the pin moves quickly.
   useEffect(() => {
-    if (!value || !isGeocodingConfigured()) {
+    if (!value || !geoReady) {
       setAddress(null);
       return;
     }
@@ -96,7 +128,73 @@ export default function MapPinPicker({
       .then((a) => { if (!cancelled) setAddress(a); })
       .catch(() => { if (!cancelled) setAddress(null); });
     return () => { cancelled = true; };
-  }, [value]);
+  }, [value, geoReady]);
+
+  // Address autocomplete (debounced).
+  useEffect(() => {
+    if (!geoReady || query.trim().length < 3) {
+      setPredictions([]);
+      return;
+    }
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      getPlacePredictions(query)
+        .then((p) => { setPredictions(p); setShowPredictions(true); })
+        .catch(() => setPredictions([]));
+    }, 250);
+    return () => window.clearTimeout(debounceRef.current);
+  }, [query, geoReady]);
+
+  async function pickPrediction(p: PlacePrediction) {
+    setShowPredictions(false);
+    setQuery(`${p.primary}${p.secondary ? ", " + p.secondary : ""}`);
+    try {
+      const place = await resolvePlace(p.placeId);
+      onChangeRef.current({ lat: place.lat, lng: place.lng });
+      mapRef.current?.setView([place.lat, place.lng], 16);
+    } catch {
+      toast.error("Couldn't open that place — try another, or click the map.");
+    }
+  }
+
+  // Fetch nearby landmarks when enabled (or when the pin moves while enabled).
+  useEffect(() => {
+    if (!landmarksOn || !value) {
+      setLandmarks([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingLandmarks(true);
+    nearbyLandmarks(value.lat, value.lng)
+      .then((l) => { if (!cancelled) setLandmarks(l); })
+      .catch(() => { if (!cancelled) setLandmarks([]); })
+      .finally(() => { if (!cancelled) setLoadingLandmarks(false); });
+    return () => { cancelled = true; };
+  }, [landmarksOn, value]);
+
+  // Render landmark markers on the map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    landmarkLayerRef.current?.remove();
+    landmarkLayerRef.current = null;
+    if (!landmarks.length) return;
+    const group = L.layerGroup(
+      landmarks.map((lm) =>
+        L.circleMarker([lm.lat, lm.lng], {
+          radius: 6,
+          color: "#ffffff",
+          weight: 1.5,
+          fillColor: LANDMARK_COLORS[lm.category],
+          fillOpacity: 0.9,
+        }).bindTooltip(lm.name, { direction: "top" }),
+      ),
+    ).addTo(map);
+    landmarkLayerRef.current = group;
+    return () => {
+      group.remove();
+    };
+  }, [landmarks]);
 
   function useMyLocation() {
     if (!navigator.geolocation) {
@@ -122,9 +220,49 @@ export default function MapPinPicker({
     );
   }
 
+  function toggleLandmarks() {
+    if (!value) {
+      toast.error("Drop the pin first — then I'll show nearby schools, transit and hospitals.");
+      return;
+    }
+    setLandmarksOn((v) => !v);
+  }
+
   return (
     <div>
+      {/* 🔎 Address search with autocomplete */}
+      {geoReady && (
+        <div className="relative mb-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => predictions.length > 0 && setShowPredictions(true)}
+            onBlur={() => window.setTimeout(() => setShowPredictions(false), 150)}
+            placeholder="🔎 Search an address or place…"
+            className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
+          />
+          {showPredictions && predictions.length > 0 && (
+            <ul className="absolute z-[1000] mt-1 max-h-60 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b0b12] shadow-xl">
+              {predictions.map((p) => (
+                <li key={p.placeId}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickPrediction(p)}
+                    className="block w-full px-3 py-2 text-left text-sm text-white/90 transition hover:bg-white/10"
+                  >
+                    <span className="font-medium">{p.primary}</span>
+                    {p.secondary && <span className="text-muted-foreground"> · {p.secondary}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div ref={containerRef} style={{ height }} className="w-full overflow-hidden rounded-xl border border-white/10" />
+
       <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
         <span className="min-w-0 truncate">
           {value
@@ -133,10 +271,44 @@ export default function MapPinPicker({
               : `Pin: ${value.lat}, ${value.lng}`
             : "Click the map to drop the project pin — then drag it to fine-tune."}
         </span>
-        <button type="button" onClick={useMyLocation} className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/70 transition hover:bg-white/10">
-          Use my location
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {geoReady && (
+            <button
+              type="button"
+              onClick={toggleLandmarks}
+              className={`rounded-full border px-2.5 py-1 text-[10px] transition ${
+                landmarksOn ? "border-violet-500 bg-violet-600/30 text-white" : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+              }`}
+            >
+              {loadingLandmarks ? "Loading…" : landmarksOn ? "Hide landmarks" : "🏙 Nearby landmarks"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={useMyLocation}
+            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-white/70 transition hover:bg-white/10"
+          >
+            Use my location
+          </button>
+        </div>
       </div>
+
+      {/* 🏙 Nearby-landmark legend + counts */}
+      {landmarksOn && landmarks.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-3 rounded-lg border border-white/10 bg-white/5 p-2 text-[10px]">
+          {(Object.keys(LANDMARK_LABELS) as LandmarkCategory[]).map((cat) => (
+            <span key={cat} className="inline-flex items-center gap-1 text-white/80">
+              <span className="inline-block size-2 rounded-full" style={{ background: LANDMARK_COLORS[cat] }} />
+              {LANDMARK_LABELS[cat]} ({landmarks.filter((l) => l.category === cat).length})
+            </span>
+          ))}
+        </div>
+      )}
+      {landmarksOn && !loadingLandmarks && landmarks.length === 0 && value && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          No nearby schools, transit or hospitals found — or the Google Places API isn't enabled on your project.
+        </p>
+      )}
     </div>
   );
 }

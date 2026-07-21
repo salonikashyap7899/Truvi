@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Loader2, Save, Plus, Trash2, Building2, MapPin } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
-import { geocodeAddress, isGeocodingConfigured } from "@/lib/geocoding";
+import { geocodeAddress, isGeocodingConfigured, GeocodeError, isGeocodeConfigError } from "@/lib/geocoding";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
@@ -62,23 +62,30 @@ export default function ProjectDetailsEditor({
     ].filter((q, i, arr) => q.length > 3 && arr.indexOf(q) === i);
 
     setLocating(true);
-    try {
-      let located: Awaited<ReturnType<typeof geocodeAddress>> | null = null;
-      for (const q of queries) {
-        try {
-          located = await geocodeAddress(q);
-          break;
-        } catch {
-          /* try the next, broader query */
-        }
+    let located: Awaited<ReturnType<typeof geocodeAddress>> | null = null;
+    let lastStatus: string | undefined;
+    for (const q of queries) {
+      try {
+        located = await geocodeAddress(q);
+        break;
+      } catch (err) {
+        if (err instanceof GeocodeError) lastStatus = err.status;
+        /* try the next, broader query */
       }
-      if (!located) throw new Error("No match");
+    }
+    setLocating(false);
+
+    if (located) {
       setPin({ lat: located.lat, lng: located.lng });
       toast.success(`Located: ${located.formattedAddress}`);
-    } catch {
+    } else if (isGeocodeConfigError(lastStatus)) {
+      // Not a "no match" — Google is refusing the request. Point the developer
+      // at the actual fix instead of telling them to drop the pin manually.
+      toast.error(
+        `Google Maps rejected geocoding (${lastStatus}). In Google Cloud, enable the "Geocoding API" and add your site to the API key's HTTP-referrer restrictions.`,
+      );
+    } else {
       toast.error("Could not locate this address — drop the pin on the map manually");
-    } finally {
-      setLocating(false);
     }
   }
 
