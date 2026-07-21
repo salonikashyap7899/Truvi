@@ -1,23 +1,48 @@
 /**
- * Client-side geocoding (address → coordinates) via OpenStreetMap's Nominatim.
+ * Client-side geocoding (address → coordinates) via the Google Maps JavaScript
+ * API.
  *
- * Free, no API key, and no billing — the same "no key, no billing" model the
- * project's Leaflet basemaps already use (see lib/leafletTiles.ts). This
- * replaces the old Google Maps Geocoding API, which refused to run unless the
- * Google Cloud project had billing enabled ("You must enable Billing on the
- * Google Cloud Project…") — the error developers hit on "Auto-locate".
+ * The key lives in VITE_GOOGLE_MAPS_API_KEY and ships in the browser bundle —
+ * that is the intended model for a Maps *JavaScript API* key, as long as the
+ * key is HTTP-referrer restricted to your domain(s) in Google Cloud Console.
+ * (Referrer-restricted keys can't be used with the server-side Geocoding web
+ * service, which is exactly why geocoding runs here in the browser.)
  *
- * Nominatim usage policy: at most ~1 request/second and an identifying HTTP
- * header. This only fires when a human clicks "Auto-locate" (nowhere near the
- * rate limit) and the browser sends a Referer automatically, so we stay well
- * within acceptable use. https://operations.osmfoundation.org/policies/nominatim/
+ * Requires, in Google Cloud Console: billing enabled on the project, and both
+ * the "Maps JavaScript API" and "Geocoding API" enabled. Leave the key blank to
+ * disable auto-locate (developers can still drop the map pin manually).
  */
 
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
-/** Geocoding needs no configuration now (no API key / billing). */
 export function isGeocodingConfigured(): boolean {
-  return true;
+  return Boolean(API_KEY);
+}
+
+declare global {
+  interface Window {
+    google?: any;
+    __truviGmapsPromise?: Promise<void>;
+  }
+}
+
+/** Load the Maps JS API once (idempotent); resolves when `google.maps` is ready. */
+function loadMaps(): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("No window"));
+  if (window.google?.maps) return Promise.resolve();
+  if (window.__truviGmapsPromise) return window.__truviGmapsPromise;
+  if (!API_KEY) return Promise.reject(new Error("Google Maps key not configured"));
+
+  window.__truviGmapsPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&libraries=geocoding&loading=async`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Google Maps"));
+    document.head.appendChild(script);
+  });
+  return window.__truviGmapsPromise;
 }
 
 export interface GeocodeResult {
@@ -26,25 +51,16 @@ export interface GeocodeResult {
   formattedAddress: string;
 }
 
-/** Resolve an address string to coordinates using OpenStreetMap Nominatim. */
+/** Resolve an address string to coordinates using the browser Geocoder. */
 export async function geocodeAddress(query: string): Promise<GeocodeResult> {
-  const url = new URL(NOMINATIM_URL);
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("q", query);
-  url.searchParams.set("countrycodes", "in"); // bias results to India
-  url.searchParams.set("limit", "1");
-  url.searchParams.set("addressdetails", "0");
-
-  const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
-
-  const results = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
-  if (!Array.isArray(results) || results.length === 0) throw new Error("No location found");
-
+  await loadMaps();
+  const geocoder = new window.google.maps.Geocoder();
+  const { results } = await geocoder.geocode({ address: query, region: "in" });
+  if (!results || results.length === 0) throw new Error("No location found");
   const best = results[0];
   return {
-    lat: +Number(best.lat).toFixed(6),
-    lng: +Number(best.lon).toFixed(6),
-    formattedAddress: best.display_name,
+    lat: +best.geometry.location.lat().toFixed(6),
+    lng: +best.geometry.location.lng().toFixed(6),
+    formattedAddress: best.formatted_address,
   };
 }

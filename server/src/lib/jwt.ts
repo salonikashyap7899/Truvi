@@ -22,6 +22,21 @@ export function verifyAccessToken(token: string): TokenPayload {
   return jwt.verify(token, ACCESS_SECRET) as TokenPayload;
 }
 
+/**
+ * True only when `token` is a well-formed, correctly-signed access token that
+ * has merely expired — i.e. a genuine session of ours that lapsed. A missing,
+ * malformed or forged token returns false. Lets a route tell "your session
+ * expired, refresh and retry" apart from "you were never authorized".
+ */
+export function isExpiredAccessToken(token: string): boolean {
+  try {
+    jwt.verify(token, ACCESS_SECRET);
+    return false;
+  } catch (err) {
+    return err instanceof jwt.TokenExpiredError;
+  }
+}
+
 export function verifyRefreshToken(token: string): { userId: string } {
   return jwt.verify(token, REFRESH_SECRET) as { userId: string };
 }

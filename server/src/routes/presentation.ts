@@ -18,7 +18,7 @@ import {
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
-import { verifyAccessToken } from "../lib/jwt";
+import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
 
 const router = Router();
@@ -82,6 +82,17 @@ function optionalUser(req: AuthedRequest) {
   }
 }
 
+/**
+ * True when the request carried a bearer token that is validly signed but
+ * expired — the "your session lapsed, refresh and retry" case, as opposed to
+ * no token at all or a forged one (both of which stay anonymous → 404).
+ */
+function hasExpiredToken(req: AuthedRequest): boolean {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  return token ? isExpiredAccessToken(token) : false;
+}
+
 // ── GET /api/presentation/:id — full presentation profile (public) ─────────
 router.get("/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
@@ -102,6 +113,14 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     const user = optionalUser(req);
     const isOwner = user && String(project.developerId) === user.userId;
     if (!user || (user.role !== "ADMIN" && !isOwner)) {
+      // An admin/owner whose 15-min access token just expired would otherwise
+      // be silently downgraded to anonymous and hard-404'd out of their own
+      // draft — with no recovery, since the client only refreshes on 401. Ask
+      // them to refresh and retry instead. A forged/absent token still 404s, so
+      // this never reveals a pending project to someone who was never signed in.
+      if (!user && hasExpiredToken(req)) {
+        return res.status(401).json({ error: "Session expired — please retry" });
+      }
       return res.status(404).json({ error: "Project not found" });
     }
   }
