@@ -24,8 +24,58 @@ interface InvestorMetrics {
   mrrPaise: number; arrPaise: number; totalRevenuePaise: number; ltvPaise: number; cacPaise: number;
   churnPercent: number; conversionPercent: number; payingUsers: number; gmvPaise: number;
 }
+
+/** Subset of /admin/founder-overview used for the live "operations today" row. */
+interface OpsOverview {
+  companyHealth: { revenueToday: number };
+  sales: { leadsToday: number };
+  executive: { todaysBookings: number };
+  verification: { pendingProjects: number; pendingLegal: number; pendingKyc: number };
+}
+
+interface ActivityLog {
+  action: string;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  actor: { name: string; role: string } | null;
+}
+
 const paise = (p: number) => formatINR(Math.round(p / 100));
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+/** Human-readable one-liner for an audit-log entry, for the activity feed. */
+function activityText(a: ActivityLog): string {
+  const m = a.metadata || {};
+  switch (a.action) {
+    case "project.update":
+      if (m.approvalStatus === "APPROVED") return "approved a listing";
+      if (m.approvalStatus === "REJECTED") return "rejected a listing";
+      if (m.isVerified === true) return "marked a project verified";
+      return "updated a project";
+    case "project.delete": return `deleted project ${m.name ?? ""}`.trim();
+    case "kyc.approve": return "approved a CP's KYC";
+    case "kyc.reject": return "rejected a CP's KYC";
+    case "user.disable": return `deactivated ${m.name ?? "a user"}`;
+    case "user.enable": return `reactivated ${m.name ?? "a user"}`;
+    case "lead.stage.update": return `moved a lead to ${String(m.to ?? "").toLowerCase().replace(/_/g, " ")}`.trim();
+    case "commission.milestone.release": return "released a commission milestone";
+    case "finance.entry.create": return "added a finance entry";
+    case "finance.entry.delete": return "removed a finance entry";
+    case "settings.platform_fee.update": return "updated the platform fee";
+    case "academy.content.create": return "added learning content";
+    case "academy.content.delete": return "removed learning content";
+    case "ai.ask": return "used Ask Truvi AI";
+    default: return a.action.replace(/[._]/g, " ");
+  }
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 /** Sidebar links map to the admin panel's real workspaces (existing features). */
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
@@ -48,6 +98,8 @@ export default function AdminOsDashboardPage() {
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
+  const [overview, setOverview] = useState<OpsOverview | null>(null);
+  const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -68,6 +120,11 @@ export default function AdminOsDashboardPage() {
         leadRevenue: revenueRes.data.leadServiceRevenue,
       });
       api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
+      // Live operational counts + recent activity — both already computed
+      // server-side (founder-overview, audit-logs); non-blocking so the core
+      // dashboard still renders if either is unavailable.
+      api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
+      api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load admin dashboard");
     } finally { setLoading(false); }
@@ -150,6 +207,17 @@ export default function AdminOsDashboardPage() {
               <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
             </div>
 
+            {/* Operations today — live counts (from founder-overview) */}
+            {overview && (
+              <div className="kpi-grid">
+                <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
+                <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
+                <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
+                <Kpi icon="users" tone="blue" label="Pending CP KYC" value={String(overview.verification.pendingKyc)} foot="Review identities" onClick={() => navigate("/admin/kyc")} />
+                <Kpi icon="shield" tone="amber" label="Pending Verification" value={String(overview.verification.pendingProjects + overview.verification.pendingLegal)} foot="Projects + legal docs" onClick={() => navigate("/admin/verification")} />
+              </div>
+            )}
+
             {/* Investor / SaaS metrics — admin's existing live numbers */}
             {investor && (
               <Panel title="Platform metrics" sub="Live SaaS + marketplace numbers">
@@ -185,6 +253,25 @@ export default function AdminOsDashboardPage() {
                       <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
                       <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
                       <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
+                    </div>
+                  ))}
+            </Panel>
+
+            {/* Recent activity — live audit trail across the platform */}
+            <Panel title="Recent activity" sub="Latest actions across the platform">
+              {activity.length === 0
+                ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No recent activity yet.</p>
+                : activity.map((a, i) => (
+                    <div className="list-row" key={i}>
+                      <div className="mini-avatar">{a.actor?.name ? initials(a.actor.name) : "•"}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, color: "var(--ink-700)" }}>
+                          <b>{a.actor?.name ?? "Someone"}</b> {activityText(a)}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>
+                          {a.actor?.role ? `${a.actor.role} · ` : ""}{timeAgo(a.createdAt)}
+                        </div>
+                      </div>
                     </div>
                   ))}
             </Panel>
