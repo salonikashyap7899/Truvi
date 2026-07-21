@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Wallet, TrendingUp, Star, Users, Building2, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatINR, formatCompactINR } from "@/lib/utils";
@@ -15,6 +15,8 @@ interface RevenueData {
   featuredCount: number;
   totalRevenue: number;
   target: { platformFee: number; featuredListings: number; leadAsAService: number; premiumMembership: number; referralOther: number };
+  monthlyTrend: { month: string; revenue: number }[];
+  topDevelopers: { name: string; revenue: number }[];
 }
 
 const SOURCE_COLORS = ["#8B5CF6", "#F5B33F", "#38BDF8", "#14C79A", "#F472B6"];
@@ -152,6 +154,53 @@ export default function AdminRevenuePage() {
                   <p className="mt-1 text-[11px] text-muted-foreground">Target {data.target.referralOther}% — not yet active, placeholder line only.</p>
                 </div>
               </div>
+            </section>
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-5">
+            {/* Monthly revenue trend */}
+            <section className="tv-fade-up rounded-2xl border border-white/10 glass p-5 lg:col-span-3">
+              <h2 className="text-sm font-semibold">Monthly Revenue</h2>
+              <p className="text-xs text-muted-foreground">Platform fee + lead marketplace · last 6 months</p>
+              <div className="mt-3 h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.monthlyTrend} margin={{ top: 6, right: 8, bottom: 0, left: -12 }}>
+                    <defs>
+                      <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.5} />
+                        <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(v) => formatCompactINR(Number(v))} tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 11 }} axisLine={false} tickLine={false} width={56} />
+                    <Tooltip
+                      contentStyle={{ background: "#12101a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+                      formatter={(v) => [formatINR(Number(v)), "Revenue"]}
+                    />
+                    <Area type="monotone" dataKey="revenue" stroke="#8B5CF6" strokeWidth={2} fill="url(#revGradient)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            {/* Top paying developers */}
+            <section className="tv-fade-up rounded-2xl border border-white/10 glass p-5 lg:col-span-2">
+              <h2 className="text-sm font-semibold">Top Paying Developers</h2>
+              <p className="text-xs text-muted-foreground">By platform fee generated</p>
+              {data.topDevelopers.length === 0 ? (
+                <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">No developer revenue yet.</div>
+              ) : (
+                <div className="mt-4 space-y-2.5">
+                  {data.topDevelopers.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-3">
+                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold ${i === 0 ? "bg-amber-500/20 text-amber-300" : "bg-white/10 text-white/60"}`}>{i + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-white/90">{d.name}</span>
+                      <span className="shrink-0 text-sm font-medium tabular-nums">{formatINR(d.revenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         </>
