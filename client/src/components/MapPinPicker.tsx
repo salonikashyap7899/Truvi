@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { toast } from "sonner";
 import { addTruviBaseLayers } from "@/lib/leafletTiles";
-import { isGeocodingConfigured, reverseGeocode, geocodeAddress, GeocodeError, isGeocodeConfigError } from "@/lib/geocoding";
+import { isGeocodingConfigured, reverseGeocode, geocodeAddress, GeocodeError, geocodeErrorMessage } from "@/lib/geocoding";
 import {
   getPlacePredictions,
   resolvePlace,
@@ -160,11 +160,7 @@ export default function MapPinPicker({
       mapRef.current?.setView([r.lat, r.lng], 16);
     } catch (err) {
       const status = err instanceof GeocodeError ? err.status : undefined;
-      toast.error(
-        isGeocodeConfigError(status)
-          ? `Google rejected the search (${status}). Enable the Geocoding API and allow this site in the API key's restrictions.`
-          : "No match for that search — try a fuller address, or click the map to drop the pin.",
-      );
+      toast.error(geocodeErrorMessage(status));
     } finally {
       setSearching(false);
     }
