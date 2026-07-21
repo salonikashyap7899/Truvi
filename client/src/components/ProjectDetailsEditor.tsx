@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Loader2, Save, Plus, Trash2, Building2, MapPin } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
-import { geocodeAddress, isGeocodingConfigured } from "@/lib/googleMaps";
+import { geocodeAddress, isGeocodingConfigured } from "@/lib/geocoding";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
