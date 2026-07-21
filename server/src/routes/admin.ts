@@ -23,6 +23,8 @@ import {
   leadActivities,
   crmTasks,
   financeEntries,
+  platformSettings,
+  IPlatformSettings,
   LeadStage,
   Role,
   ApprovalStatus,
@@ -89,6 +91,49 @@ router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
       conversionPercent: allUsers.length ? Math.round((payingUserIds.size / allUsers.length) * 100) : 0,
       payingUsers: payingUserIds.size,
       gmvPaise: Math.round(allCommissions.reduce((sum, c) => sum + c.bookingValue, 0) * 100),
+    },
+  });
+});
+
+// GET /api/admin/kpi-trends — month-over-month growth % for the dashboard's
+// headline cards. "Growth this month" = value added since the 1st, relative to
+// the total that existed before this month — so it reads as "↑X% this month"
+// next to a running total. All from real dated records; no fabricated numbers.
+router.get("/kpi-trends", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [userRows, projectRows, commissionRows, purchaseRows] = await Promise.all([
+    db.select({ createdAt: users.createdAt }).from(users),
+    db.select({ createdAt: projects.createdAt }).from(projects),
+    db.select({ createdAt: commissions.createdAt, platformFeeAmount: commissions.platformFeeAmount }).from(commissions),
+    db.select({ createdAt: leadPurchases.createdAt, amountPaid: leadPurchases.amountPaid }).from(leadPurchases),
+  ]);
+
+  const growth = (thisMonth: number, before: number) =>
+    before > 0 ? Math.round((thisMonth / before) * 100) : thisMonth > 0 ? 100 : 0;
+
+  const countGrowth = (rows: { createdAt: Date }[]) => {
+    const thisMonth = rows.filter((r) => new Date(r.createdAt) >= startOfMonth).length;
+    return growth(thisMonth, rows.length - thisMonth);
+  };
+  const sumGrowth = (rows: { createdAt: Date }[], amount: (r: any) => number) => {
+    let thisMonth = 0, before = 0;
+    for (const r of rows) {
+      const v = amount(r);
+      if (new Date(r.createdAt) >= startOfMonth) thisMonth += v;
+      else before += v;
+    }
+    return growth(thisMonth, before);
+  };
+
+  res.json({
+    trends: {
+      users: countGrowth(userRows),
+      projects: countGrowth(projectRows),
+      platformFeeRevenue: sumGrowth(commissionRows, (r) => Number(r.platformFeeAmount || 0)),
+      leadRevenue: sumGrowth(purchaseRows, (r) => Number(r.amountPaid || 0)),
     },
   });
 });
@@ -553,25 +598,71 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
   res.json({ ok: true, deleted: existing.name });
 });
 
-let platformFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
+// Cached platform-fee for any synchronous caller; kept in sync on read/write.
+let cachedFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
 
-router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), (_req, res) => {
-  res.json({ platformFeePercent });
+/** Ensure the single platform-settings row exists and return it. */
+async function loadSettings(): Promise<IPlatformSettings> {
+  const db = getDb();
+  const [row] = await db.select().from(platformSettings).limit(1);
+  if (row) return row;
+  const [created] = await db.insert(platformSettings).values({}).returning();
+  return created;
+}
+
+function settingsResponse(s: IPlatformSettings) {
+  cachedFeePercent = s.platformFeePercent;
+  return {
+    platformFeePercent: s.platformFeePercent,
+    gstPercent: s.gstPercent,
+    defaultCommissionPercent: s.defaultCommissionPercent,
+    notifications: { email: s.notifyEmail, sms: s.notifySms, whatsapp: s.notifyWhatsapp },
+    // Read-only integration status derived from server env (never the secrets),
+    // so admins can see at a glance what's wired up.
+    integrations: {
+      razorpay: Boolean(process.env.RAZORPAY_KEY_ID),
+      email: Boolean(process.env.SMTP_HOST),
+      sms: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      ai: Boolean(process.env.ANTHROPIC_API_KEY),
+    },
+  };
+}
+
+router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (_req, res) => {
+  res.json(settingsResponse(await loadSettings()));
 });
 
-router.patch("/settings", requireRole("ADMIN"), (req: AuthedRequest, res) => {
-  const value = req.body?.platformFeePercent;
-  if (typeof value !== "number" || value < 0) {
-    return res.status(400).json({ error: "platformFeePercent must be a positive number" });
-  }
-  const previous = platformFeePercent;
-  platformFeePercent = value;
-  void logAudit({ userId: req.user!.userId, action: "settings.platform_fee.update", resourceType: "settings", metadata: { from: previous, to: value } });
-  res.json({ platformFeePercent });
+const settingsPatchSchema = z.object({
+  platformFeePercent: z.number().min(0).max(100).optional(),
+  gstPercent: z.number().min(0).max(100).optional(),
+  defaultCommissionPercent: z.number().min(0).max(100).optional(),
+  notifications: z
+    .object({ email: z.boolean().optional(), sms: z.boolean().optional(), whatsapp: z.boolean().optional() })
+    .optional(),
+});
+
+router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = settingsPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const d = parsed.data;
+
+  const current = await loadSettings();
+  const update: Partial<IPlatformSettings> = { updatedAt: new Date() };
+  if (d.platformFeePercent !== undefined) update.platformFeePercent = d.platformFeePercent;
+  if (d.gstPercent !== undefined) update.gstPercent = d.gstPercent;
+  if (d.defaultCommissionPercent !== undefined) update.defaultCommissionPercent = d.defaultCommissionPercent;
+  if (d.notifications?.email !== undefined) update.notifyEmail = d.notifications.email;
+  if (d.notifications?.sms !== undefined) update.notifySms = d.notifications.sms;
+  if (d.notifications?.whatsapp !== undefined) update.notifyWhatsapp = d.notifications.whatsapp;
+
+  const db = getDb();
+  const [saved] = await db.update(platformSettings).set(update).where(eq(platformSettings._id, current._id)).returning();
+  void logAudit({ userId: req.user!.userId, action: "settings.update", resourceType: "settings", metadata: { fields: Object.keys(d) } });
+  res.json(settingsResponse(saved));
 });
 
 export function getPlatformFeePercent(): number {
-  return platformFeePercent;
+  return cachedFeePercent;
 }
 
 // ── CP identity (KYC) review ────────────────────────────────────────────────
