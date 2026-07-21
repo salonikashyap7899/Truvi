@@ -40,6 +40,19 @@ interface ActivityLog {
   actor: { name: string; role: string } | null;
 }
 
+interface KpiTrends {
+  users: number;
+  projects: number;
+  platformFeeRevenue: number;
+  leadRevenue: number;
+}
+
+/** Growth badge for a KPI card ("↑ 27% this month"), or flat when no growth. */
+function trendBadge(pct?: number): { text: string; up?: boolean } | undefined {
+  if (pct === undefined) return undefined;
+  return pct > 0 ? { text: `↑ ${pct}% this month`, up: true } : { text: "flat this month", up: false };
+}
+
 const paise = (p: number) => formatINR(Math.round(p / 100));
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
@@ -100,6 +113,7 @@ export default function AdminOsDashboardPage() {
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
+  const [trends, setTrends] = useState<KpiTrends | null>(null);
   const [loading, setLoading] = useState(true);
   const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
@@ -125,6 +139,7 @@ export default function AdminOsDashboardPage() {
       // dashboard still renders if either is unavailable.
       api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
       api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
+      api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load admin dashboard");
     } finally { setLoading(false); }
@@ -201,10 +216,10 @@ export default function AdminOsDashboardPage() {
 
             {/* Platform stats */}
             <div className="kpi-grid">
-              <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
-              <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
-              <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
-              <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
+              <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
+              <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} trend={trendBadge(trends?.projects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
+              <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
+              <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
             </div>
 
             {/* Operations today — live counts (from founder-overview) */}

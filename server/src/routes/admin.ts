@@ -93,6 +93,49 @@ router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
   });
 });
 
+// GET /api/admin/kpi-trends — month-over-month growth % for the dashboard's
+// headline cards. "Growth this month" = value added since the 1st, relative to
+// the total that existed before this month — so it reads as "↑X% this month"
+// next to a running total. All from real dated records; no fabricated numbers.
+router.get("/kpi-trends", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [userRows, projectRows, commissionRows, purchaseRows] = await Promise.all([
+    db.select({ createdAt: users.createdAt }).from(users),
+    db.select({ createdAt: projects.createdAt }).from(projects),
+    db.select({ createdAt: commissions.createdAt, platformFeeAmount: commissions.platformFeeAmount }).from(commissions),
+    db.select({ createdAt: leadPurchases.createdAt, amountPaid: leadPurchases.amountPaid }).from(leadPurchases),
+  ]);
+
+  const growth = (thisMonth: number, before: number) =>
+    before > 0 ? Math.round((thisMonth / before) * 100) : thisMonth > 0 ? 100 : 0;
+
+  const countGrowth = (rows: { createdAt: Date }[]) => {
+    const thisMonth = rows.filter((r) => new Date(r.createdAt) >= startOfMonth).length;
+    return growth(thisMonth, rows.length - thisMonth);
+  };
+  const sumGrowth = (rows: { createdAt: Date }[], amount: (r: any) => number) => {
+    let thisMonth = 0, before = 0;
+    for (const r of rows) {
+      const v = amount(r);
+      if (new Date(r.createdAt) >= startOfMonth) thisMonth += v;
+      else before += v;
+    }
+    return growth(thisMonth, before);
+  };
+
+  res.json({
+    trends: {
+      users: countGrowth(userRows),
+      projects: countGrowth(projectRows),
+      platformFeeRevenue: sumGrowth(commissionRows, (r) => Number(r.platformFeeAmount || 0)),
+      leadRevenue: sumGrowth(purchaseRows, (r) => Number(r.amountPaid || 0)),
+    },
+  });
+});
+
 // GET /api/admin/founder-overview — the Founder Dashboard ("CEO Operating
 // System") aggregate. Every number here is derived from ACTUAL platform data
 // (users, projects, leads, site visits, commissions, payments, subscriptions,
