@@ -5,16 +5,15 @@ import "leaflet/dist/leaflet.css";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { SiteNav } from "@/components/SiteNav";
+import { addTruviBaseLayers } from "@/lib/leafletTiles";
 import { Map as MapIcon, IndianRupee, Eye, Boxes } from "lucide-react";
 import type { Project } from "@/types";
 
 /**
  * GIS Project Map — every approved project with a pin, colored as a heat
  * scale by the chosen metric (₹/sq ft, live units, or views). Data is the
- * same live /inventory feed as the listings page; free CARTO/OSM tiles.
+ * same live /inventory feed as the listings page; satellite + labels tiles.
  */
-const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const DEFAULT_CENTER: [number, number] = [26.8467, 80.9462];
 
 type Metric = "price" | "units" | "views";
@@ -62,7 +61,7 @@ export default function ProjectsMapPage() {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, { center: DEFAULT_CENTER, zoom: 11 });
-    L.tileLayer(DARK_TILES, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
+    addTruviBaseLayers(L, map);
     layerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     return () => {
