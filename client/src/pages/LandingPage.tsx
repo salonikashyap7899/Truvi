@@ -719,6 +719,72 @@ function LiveStatsBand() {
   );
 }
 
+/* ---------------- Live project showcase (real developer listings) ---------------- */
+interface ShowcaseProject {
+  _id: string; name: string; city: string; location: string; developer: string | null;
+  isVerified: boolean; listingTier: string; isPrimeListing: boolean; reraNumber: string | null;
+  coverImageUrl: string | null; minRate: number | null;
+}
+
+function LiveProjectsShowcase() {
+  const [items, setItems] = useState<ShowcaseProject[] | null>(null);
+  useEffect(() => { api.get("/public/projects", { params: { limit: 6 } }).then((r) => setItems(r.data.projects)).catch(() => setItems([])); }, []);
+  if (!items || items.length === 0) return null; // hidden until the first project is live
+
+  return (
+    <Section id="verified-projects">
+      <Reveal><Eyebrow>Live on Truvi</Eyebrow></Reveal>
+      <Reveal delay={0.1}>
+        <h2 className="max-w-3xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
+          Verified projects, <span className="text-gradient-trust">straight from developers.</span>
+        </h2>
+      </Reveal>
+      <Reveal delay={0.2}>
+        <p className="mt-4 max-w-2xl text-muted-foreground md:text-lg">
+          Every listing below was registered by a developer and appears here the moment it's approved —
+          real inventory, real photos, verified by Truvi.
+        </p>
+      </Reveal>
+
+      <div className="mt-12 grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((p, i) => (
+          <Reveal key={p._id} delay={i * 0.06}>
+            <Link to={`/inventory/${p._id}/presentation`} className="group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
+              <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
+                {p.coverImageUrl ? (
+                  <img src={p.coverImageUrl} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center p-6 text-center">
+                    <span className="font-display text-lg font-semibold text-white/80">{p.name}</span>
+                  </div>
+                )}
+                <div className="absolute left-3 top-3 flex gap-1.5">
+                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
+                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
+                </div>
+              </div>
+              <div className="p-4">
+                <h3 className="font-display text-base font-semibold text-white">{p.name}</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">{p.location}, {p.city}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">{p.developer ? `by ${p.developer}` : " "}</span>
+                  {p.minRate && <span className="text-sm font-semibold text-white">₹{p.minRate.toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/sq ft</span></span>}
+                </div>
+              </div>
+            </Link>
+          </Reveal>
+        ))}
+      </div>
+
+      <Reveal delay={0.2}>
+        <div className="mt-10">
+          <GlowButton to="/inventory">Explore all projects</GlowButton>
+        </div>
+      </Reveal>
+    </Section>
+  );
+}
+
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
@@ -793,6 +859,9 @@ export default function LandingPage() {
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
       <LiveStatsBand />
+
+      {/* ---------- 1c · LIVE PROJECT SHOWCASE (self-populating) ---------- */}
+      <LiveProjectsShowcase />
 
       {/* ---------- 2 · THE PROBLEM ---------- */}
       <Section id="the-problem">
