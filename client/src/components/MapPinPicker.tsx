@@ -3,7 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { toast } from "sonner";
 import { addTruviBaseLayers } from "@/lib/leafletTiles";
-import { isGeocodingConfigured, reverseGeocode } from "@/lib/geocoding";
+import { isGeocodingConfigured, reverseGeocode, geocodeAddress, GeocodeError, isGeocodeConfigError } from "@/lib/geocoding";
 import {
   getPlacePredictions,
   resolvePlace,
@@ -71,6 +71,7 @@ export default function MapPinPicker({
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [landmarksOn, setLandmarksOn] = useState(false);
   const [loadingLandmarks, setLoadingLandmarks] = useState(false);
+  const [searching, setSearching] = useState(false);
 
   const geoReady = isGeocodingConfigured();
 
@@ -144,6 +145,30 @@ export default function MapPinPicker({
     }, 250);
     return () => window.clearTimeout(debounceRef.current);
   }, [query, geoReady]);
+
+  /** Search the typed text directly via the Geocoding API (works even when the
+   *  Places autocomplete library/API isn't enabled). Triggered by the Search
+   *  button or the Enter key. */
+  async function runSearch() {
+    const q = query.trim();
+    if (q.length < 2) return;
+    setShowPredictions(false);
+    setSearching(true);
+    try {
+      const r = await geocodeAddress(q);
+      onChangeRef.current({ lat: r.lat, lng: r.lng });
+      mapRef.current?.setView([r.lat, r.lng], 16);
+    } catch (err) {
+      const status = err instanceof GeocodeError ? err.status : undefined;
+      toast.error(
+        isGeocodeConfigError(status)
+          ? `Google rejected the search (${status}). Enable the Geocoding API and allow this site in the API key's restrictions.`
+          : "No match for that search — try a fuller address, or click the map to drop the pin.",
+      );
+    } finally {
+      setSearching(false);
+    }
+  }
 
   async function pickPrediction(p: PlacePrediction) {
     setShowPredictions(false);
@@ -233,14 +258,30 @@ export default function MapPinPicker({
       {/* 🔎 Address search with autocomplete */}
       {geoReady && (
         <div className="relative mb-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => predictions.length > 0 && setShowPredictions(true)}
-            onBlur={() => window.setTimeout(() => setShowPredictions(false), 150)}
-            placeholder="🔎 Search an address or place…"
-            className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
-          />
+          <div className="flex gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  runSearch();
+                }
+              }}
+              onFocus={() => predictions.length > 0 && setShowPredictions(true)}
+              onBlur={() => window.setTimeout(() => setShowPredictions(false), 150)}
+              placeholder="🔎 Search an address or place, then press Search…"
+              className="min-w-0 flex-1 rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
+            />
+            <button
+              type="button"
+              onClick={runSearch}
+              disabled={searching || query.trim().length < 2}
+              className="shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500 disabled:opacity-60"
+            >
+              {searching ? "Searching…" : "Search"}
+            </button>
+          </div>
           {showPredictions && predictions.length > 0 && (
             <ul className="absolute z-[1000] mt-1 max-h-60 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b0b12] shadow-xl">
               {predictions.map((p) => (
