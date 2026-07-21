@@ -24,6 +24,30 @@ const UPLOAD_CHECKLIST = [
 
 interface DeveloperOption { _id: string; name: string; email: string }
 
+/** Friendly labels for the server's validation field names, so a rejected
+ *  create tells the developer exactly which field to fix. */
+const FIELD_LABELS: Record<string, string> = {
+  name: "Project name",
+  description: "Description",
+  city: "City",
+  location: "Location",
+  commissionPercent: "Commission %",
+  brochureUrl: "Brochure URL",
+  priceListUrl: "Price list URL",
+  salesContact: "Sales contact",
+};
+
+/** Turn a server "Validation failed" response into a specific, human message
+ *  (e.g. "Description: must be at least 10 characters") instead of a vague one. */
+function validationMessage(data: any): string | null {
+  const fieldErrors = data?.issues?.fieldErrors as Record<string, string[]> | undefined;
+  if (!fieldErrors) return null;
+  const first = Object.entries(fieldErrors).find(([, msgs]) => msgs?.length);
+  if (!first) return null;
+  const [field, msgs] = first;
+  return `${FIELD_LABELS[field] ?? field}: ${msgs[0]}`;
+}
+
 export default function NewProjectPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore((s) => s.user?.role === "ADMIN");
@@ -97,7 +121,8 @@ export default function NewProjectPage() {
       // land on the admin-branded workspace; developers on their own.
       navigate(isAdmin ? `/admin/listings/${data.project._id}` : `/developer/projects/${data.project._id}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to create project");
+      const data = err?.response?.data;
+      toast.error(validationMessage(data) || data?.error || "Failed to create project");
     } finally {
       setLoading(false);
     }
@@ -116,20 +141,23 @@ export default function NewProjectPage() {
           <form onSubmit={submit} className="space-y-4">
             <div>
               <Label className="text-foreground/90">Project name</Label>
-              <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border-white/15 bg-card text-white" />
+              <Input required minLength={2} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
               <Label className="text-foreground/90">Description</Label>
-              <Textarea required rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/15 bg-card text-white" />
+              <Textarea required minLength={10} rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/15 bg-card text-white" />
+              <p className="mt-1 text-xs text-muted-foreground">
+                At least 10 characters{form.description.trim().length > 0 ? ` (${form.description.trim().length} so far)` : ""}.
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label className="text-foreground/90">City</Label>
-                <Input required value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="border-white/15 bg-card text-white" />
+                <Input required minLength={2} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="border-white/15 bg-card text-white" />
               </div>
               <div>
                 <Label className="text-foreground/90">Location / Locality</Label>
-                <Input required value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="border-white/15 bg-card text-white" />
+                <Input required minLength={2} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="border-white/15 bg-card text-white" />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
