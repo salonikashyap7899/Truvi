@@ -64,3 +64,12 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult> {
     formattedAddress: best.formatted_address,
   };
 }
+
+/** Resolve coordinates back to a human address (used to label a dropped pin). */
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  await loadMaps();
+  const geocoder = new window.google.maps.Geocoder();
+  const { results } = await geocoder.geocode({ location: { lat, lng } });
+  if (!results || results.length === 0) throw new Error("No address found");
+  return results[0].formatted_address as string;
+}
