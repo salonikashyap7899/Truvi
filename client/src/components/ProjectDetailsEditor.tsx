@@ -3,9 +3,10 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { toast } from "sonner";
-import { Loader2, Save, Plus, Trash2, Building2 } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, Building2, MapPin } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
+import { geocodeAddress, isGeocodingConfigured } from "@/lib/googleMaps";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
@@ -40,6 +41,29 @@ export default function ProjectDetailsEditor({
       ? { lat: project.lat, lng: project.lng }
       : null
   );
+  const [locating, setLocating] = useState(false);
+
+  async function autoLocate() {
+    if (!isGeocodingConfigured()) {
+      toast.error("Map auto-locate isn't set up yet. Drop the pin on the map manually for now.");
+      return;
+    }
+    const q = [location.trim(), city.trim(), "India"].filter(Boolean).join(", ");
+    if (q.length < 5) {
+      toast.error("Enter the location/area and city first");
+      return;
+    }
+    setLocating(true);
+    try {
+      const r = await geocodeAddress(q);
+      setPin({ lat: r.lat, lng: r.lng });
+      toast.success(`Located: ${r.formattedAddress}`);
+    } catch {
+      toast.error("Could not locate this address — drop the pin on the map manually");
+    } finally {
+      setLocating(false);
+    }
+  }
 
   function patchPlan(i: number, key: keyof PaymentPlan, value: string) {
     setPlans((prev) => prev.map((p, idx) => (idx === i ? { ...p, [key]: value } : p)));
@@ -168,12 +192,21 @@ export default function ProjectDetailsEditor({
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-300">Map location (shown on the Truvi project map)</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-300">Map location (shown on the Truvi project map)</p>
+            <Button size="sm" variant="secondary" onClick={autoLocate} disabled={locating}>
+              {locating ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <MapPin size={13} className="mr-1.5" />}
+              Auto-locate from address
+            </Button>
+          </div>
           <div className="mt-2">
             <Suspense fallback={<div className="tv-skeleton h-[280px] rounded-xl" />}>
               <MapPinPicker value={pin} onChange={setPin} />
             </Suspense>
           </div>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Click <b>Auto-locate</b> to place the pin from the city/area above, or click the map to set it manually.
+          </p>
         </div>
 
         <Button size="sm" onClick={save} disabled={saving}>
