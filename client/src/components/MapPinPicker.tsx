@@ -72,6 +72,8 @@ export default function MapPinPicker({
   const [landmarksOn, setLandmarksOn] = useState(false);
   const [loadingLandmarks, setLoadingLandmarks] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [loadingPreds, setLoadingPreds] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   const geoReady = isGeocodingConfigured();
 
@@ -131,20 +133,49 @@ export default function MapPinPicker({
     return () => { cancelled = true; };
   }, [value, geoReady]);
 
-  // Address autocomplete (debounced).
+  // Address autocomplete — fires as you type (short debounce for an instant feel).
   useEffect(() => {
-    if (!geoReady || query.trim().length < 3) {
+    if (!geoReady || query.trim().length < 2) {
       setPredictions([]);
+      setLoadingPreds(false);
       return;
     }
     window.clearTimeout(debounceRef.current);
+    setLoadingPreds(true);
     debounceRef.current = window.setTimeout(() => {
       getPlacePredictions(query)
-        .then((p) => { setPredictions(p); setShowPredictions(true); })
-        .catch(() => setPredictions([]));
-    }, 250);
+        .then((p) => {
+          setPredictions(p);
+          setActiveIndex(-1);
+          setShowPredictions(true);
+        })
+        .catch(() => setPredictions([]))
+        .finally(() => setLoadingPreds(false));
+    }, 120);
     return () => window.clearTimeout(debounceRef.current);
   }, [query, geoReady]);
+
+  /** Keyboard navigation for the autocomplete box: ↑/↓ move, Enter selects the
+   *  highlighted suggestion (or runs a plain geocode search), Esc closes. */
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setShowPredictions(true);
+      setActiveIndex((i) => Math.min(predictions.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(-1, i - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (showPredictions && activeIndex >= 0 && predictions[activeIndex]) {
+        pickPrediction(predictions[activeIndex]);
+      } else {
+        runSearch();
+      }
+    } else if (e.key === "Escape") {
+      setShowPredictions(false);
+    }
+  }
 
   /** Search the typed text directly via the Geocoding API (works even when the
    *  Places autocomplete library/API isn't enabled). Triggered by the Search
@@ -255,20 +286,20 @@ export default function MapPinPicker({
       {geoReady && (
         <div className="relative mb-2">
           <div className="flex gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  runSearch();
-                }
-              }}
-              onFocus={() => predictions.length > 0 && setShowPredictions(true)}
-              onBlur={() => window.setTimeout(() => setShowPredictions(false), 150)}
-              placeholder="🔎 Search an address or place, then press Search…"
-              className="min-w-0 flex-1 rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
-            />
+            <div className="relative min-w-0 flex-1">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onSearchKeyDown}
+                onFocus={() => predictions.length > 0 && setShowPredictions(true)}
+                onBlur={() => window.setTimeout(() => setShowPredictions(false), 150)}
+                placeholder="🔎 Type a plot, project or area — pick a suggestion…"
+                className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 pr-8 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-violet-500"
+              />
+              {loadingPreds && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">…</span>
+              )}
+            </div>
             <button
               type="button"
               onClick={runSearch}
@@ -280,13 +311,16 @@ export default function MapPinPicker({
           </div>
           {showPredictions && predictions.length > 0 && (
             <ul className="absolute z-[1000] mt-1 max-h-60 w-full overflow-auto rounded-lg border border-white/15 bg-[#0b0b12] shadow-xl">
-              {predictions.map((p) => (
+              {predictions.map((p, i) => (
                 <li key={p.placeId}>
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => pickPrediction(p)}
-                    className="block w-full px-3 py-2 text-left text-sm text-white/90 transition hover:bg-white/10"
+                    className={`block w-full px-3 py-2 text-left text-sm text-white/90 transition ${
+                      i === activeIndex ? "bg-white/10" : "hover:bg-white/10"
+                    }`}
                   >
                     <span className="font-medium">{p.primary}</span>
                     {p.secondary && <span className="text-muted-foreground"> · {p.secondary}</span>}
