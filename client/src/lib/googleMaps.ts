@@ -50,8 +50,16 @@ export interface GeocodeResult {
 export async function geocodeAddress(query: string): Promise<GeocodeResult> {
   await loadMaps();
   const geocoder = new window.google.maps.Geocoder();
-  const { results } = await geocoder.geocode({ address: query, region: "in" });
-  if (!results || results.length === 0) throw new Error("No location found");
+  let results;
+  try {
+    ({ results } = await geocoder.geocode({ address: query, region: "in" }));
+  } catch (err: any) {
+    // Surface Google's actual status (REQUEST_DENIED / OVER_QUERY_LIMIT / …)
+    // so the UI can show a precise reason instead of a generic failure.
+    const code = err?.code || err?.status || err?.message || "GEOCODE_FAILED";
+    throw new Error(String(code));
+  }
+  if (!results || results.length === 0) throw new Error("ZERO_RESULTS");
   const best = results[0];
   return {
     lat: +best.geometry.location.lat().toFixed(6),

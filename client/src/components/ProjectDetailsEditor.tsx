@@ -58,8 +58,15 @@ export default function ProjectDetailsEditor({
       const r = await geocodeAddress(q);
       setPin({ lat: r.lat, lng: r.lng });
       toast.success(`Located: ${r.formattedAddress}`);
-    } catch {
-      toast.error("Could not locate this address — drop the pin on the map manually");
+    } catch (err: any) {
+      const reason = String(err?.message || "");
+      const hint =
+        reason === "ZERO_RESULTS" ? "No match for that address — add a landmark, or drop the pin manually."
+        : reason === "REQUEST_DENIED" ? "Google denied the request — check the API key's billing & restrictions."
+        : reason === "OVER_QUERY_LIMIT" ? "Google quota exceeded — check billing on the Maps key."
+        : reason ? `Auto-locate failed (${reason}) — drop the pin manually.`
+        : "Could not locate this address — drop the pin manually.";
+      toast.error(hint);
     } finally {
       setLocating(false);
     }
