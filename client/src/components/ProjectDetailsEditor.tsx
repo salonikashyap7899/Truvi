@@ -48,16 +48,33 @@ export default function ProjectDetailsEditor({
       toast.error("Map auto-locate isn't set up yet. Drop the pin on the map manually for now.");
       return;
     }
-    const q = [location.trim(), city.trim(), "India"].filter(Boolean).join(", ");
-    if (q.length < 5) {
+    if (location.trim().length + city.trim().length < 3) {
       toast.error("Enter the location/area and city first");
       return;
     }
+    // Try the most specific address first, then fall back to broader queries so
+    // a slightly-off or misspelled locality still lands on the right city
+    // instead of failing outright.
+    const queries = [
+      [location.trim(), city.trim(), "India"].filter(Boolean).join(", "),
+      [city.trim(), "India"].filter(Boolean).join(", "),
+      [location.trim(), "India"].filter(Boolean).join(", "),
+    ].filter((q, i, arr) => q.length > 3 && arr.indexOf(q) === i);
+
     setLocating(true);
     try {
-      const r = await geocodeAddress(q);
-      setPin({ lat: r.lat, lng: r.lng });
-      toast.success(`Located: ${r.formattedAddress}`);
+      let located: Awaited<ReturnType<typeof geocodeAddress>> | null = null;
+      for (const q of queries) {
+        try {
+          located = await geocodeAddress(q);
+          break;
+        } catch {
+          /* try the next, broader query */
+        }
+      }
+      if (!located) throw new Error("No match");
+      setPin({ lat: located.lat, lng: located.lng });
+      toast.success(`Located: ${located.formattedAddress}`);
     } catch {
       toast.error("Could not locate this address — drop the pin on the map manually");
     } finally {
