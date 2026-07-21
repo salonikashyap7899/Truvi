@@ -1014,6 +1014,20 @@ export const loans = pgTable("loans", {
 });
 export type ILoan = typeof loans.$inferSelect;
 
+// Platform-wide settings — a single row edited by admins in the Settings page.
+// Persistent replacement for the old in-memory platform-fee variable.
+export const platformSettings = pgTable("platform_settings", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  platformFeePercent: doublePrecision("platform_fee_percent").notNull().default(0.75),
+  gstPercent: doublePrecision("gst_percent").notNull().default(18),
+  defaultCommissionPercent: doublePrecision("default_commission_percent").notNull().default(3),
+  notifyEmail: boolean("notify_email").notNull().default(true),
+  notifySms: boolean("notify_sms").notNull().default(false),
+  notifyWhatsapp: boolean("notify_whatsapp").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type IPlatformSettings = typeof platformSettings.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;

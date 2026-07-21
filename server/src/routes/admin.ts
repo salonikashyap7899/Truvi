@@ -23,6 +23,8 @@ import {
   leadActivities,
   crmTasks,
   financeEntries,
+  platformSettings,
+  IPlatformSettings,
   LeadStage,
   Role,
   ApprovalStatus,
@@ -596,25 +598,71 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
   res.json({ ok: true, deleted: existing.name });
 });
 
-let platformFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
+// Cached platform-fee for any synchronous caller; kept in sync on read/write.
+let cachedFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
 
-router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), (_req, res) => {
-  res.json({ platformFeePercent });
+/** Ensure the single platform-settings row exists and return it. */
+async function loadSettings(): Promise<IPlatformSettings> {
+  const db = getDb();
+  const [row] = await db.select().from(platformSettings).limit(1);
+  if (row) return row;
+  const [created] = await db.insert(platformSettings).values({}).returning();
+  return created;
+}
+
+function settingsResponse(s: IPlatformSettings) {
+  cachedFeePercent = s.platformFeePercent;
+  return {
+    platformFeePercent: s.platformFeePercent,
+    gstPercent: s.gstPercent,
+    defaultCommissionPercent: s.defaultCommissionPercent,
+    notifications: { email: s.notifyEmail, sms: s.notifySms, whatsapp: s.notifyWhatsapp },
+    // Read-only integration status derived from server env (never the secrets),
+    // so admins can see at a glance what's wired up.
+    integrations: {
+      razorpay: Boolean(process.env.RAZORPAY_KEY_ID),
+      email: Boolean(process.env.SMTP_HOST),
+      sms: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      ai: Boolean(process.env.ANTHROPIC_API_KEY),
+    },
+  };
+}
+
+router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (_req, res) => {
+  res.json(settingsResponse(await loadSettings()));
 });
 
-router.patch("/settings", requireRole("ADMIN"), (req: AuthedRequest, res) => {
-  const value = req.body?.platformFeePercent;
-  if (typeof value !== "number" || value < 0) {
-    return res.status(400).json({ error: "platformFeePercent must be a positive number" });
-  }
-  const previous = platformFeePercent;
-  platformFeePercent = value;
-  void logAudit({ userId: req.user!.userId, action: "settings.platform_fee.update", resourceType: "settings", metadata: { from: previous, to: value } });
-  res.json({ platformFeePercent });
+const settingsPatchSchema = z.object({
+  platformFeePercent: z.number().min(0).max(100).optional(),
+  gstPercent: z.number().min(0).max(100).optional(),
+  defaultCommissionPercent: z.number().min(0).max(100).optional(),
+  notifications: z
+    .object({ email: z.boolean().optional(), sms: z.boolean().optional(), whatsapp: z.boolean().optional() })
+    .optional(),
+});
+
+router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = settingsPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const d = parsed.data;
+
+  const current = await loadSettings();
+  const update: Partial<IPlatformSettings> = { updatedAt: new Date() };
+  if (d.platformFeePercent !== undefined) update.platformFeePercent = d.platformFeePercent;
+  if (d.gstPercent !== undefined) update.gstPercent = d.gstPercent;
+  if (d.defaultCommissionPercent !== undefined) update.defaultCommissionPercent = d.defaultCommissionPercent;
+  if (d.notifications?.email !== undefined) update.notifyEmail = d.notifications.email;
+  if (d.notifications?.sms !== undefined) update.notifySms = d.notifications.sms;
+  if (d.notifications?.whatsapp !== undefined) update.notifyWhatsapp = d.notifications.whatsapp;
+
+  const db = getDb();
+  const [saved] = await db.update(platformSettings).set(update).where(eq(platformSettings._id, current._id)).returning();
+  void logAudit({ userId: req.user!.userId, action: "settings.update", resourceType: "settings", metadata: { fields: Object.keys(d) } });
+  res.json(settingsResponse(saved));
 });
 
 export function getPlatformFeePercent(): number {
-  return platformFeePercent;
+  return cachedFeePercent;
 }
 
 // ── CP identity (KYC) review ────────────────────────────────────────────────
