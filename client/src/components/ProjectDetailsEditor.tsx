@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Loader2, Save, Plus, Trash2, Building2, MapPin } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
-import { geocodeAddress, isGeocodingConfigured, GeocodeError, isGeocodeConfigError } from "@/lib/geocoding";
+import { geocodeAddress, isGeocodingConfigured, GeocodeError, geocodeErrorMessage } from "@/lib/geocoding";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
@@ -78,14 +78,10 @@ export default function ProjectDetailsEditor({
     if (located) {
       setPin({ lat: located.lat, lng: located.lng });
       toast.success(`Located: ${located.formattedAddress}`);
-    } else if (isGeocodeConfigError(lastStatus)) {
-      // Not a "no match" — Google is refusing the request. Point the developer
-      // at the actual fix instead of telling them to drop the pin manually.
-      toast.error(
-        `Google Maps rejected geocoding (${lastStatus}). In Google Cloud, enable the "Geocoding API" and add your site to the API key's HTTP-referrer restrictions.`,
-      );
     } else {
-      toast.error("Could not locate this address — drop the pin on the map manually");
+      // Show Google's real reason (timeout / denied / quota / no-match) so the
+      // developer knows whether it's a Cloud-config problem or a bad address.
+      toast.error(geocodeErrorMessage(lastStatus));
     }
   }
 

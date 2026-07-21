@@ -30,8 +30,9 @@ declare global {
 /**
  * Load the Maps JS API once (idempotent); resolves when `google.maps` is ready.
  * Loads the `places` library too so the search box, autocomplete and nearby-
- * landmark features work off the same single script load. Exported so the
- * places helpers can await the same shared promise.
+ * landmark features work off the same single script load. Rejects (and clears
+ * its cache so a retry is possible) if the script fails or never loads within
+ * the timeout — so callers never hang forever on a bad key / blocked network.
  */
 export function loadGoogleMaps(): Promise<void> {
   if (typeof window === "undefined") return Promise.reject(new Error("No window"));
@@ -39,16 +40,28 @@ export function loadGoogleMaps(): Promise<void> {
   if (window.__truviGmapsPromise) return window.__truviGmapsPromise;
   if (!API_KEY) return Promise.reject(new Error("Google Maps key not configured"));
 
-  window.__truviGmapsPromise = new Promise<void>((resolve, reject) => {
+  const promise = new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(API_KEY)}&libraries=places&loading=async`;
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load Google Maps"));
+    const timer = window.setTimeout(() => reject(new Error("Google Maps load timed out")), 12_000);
+    script.onload = () => {
+      window.clearTimeout(timer);
+      resolve();
+    };
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      reject(new Error("Failed to load Google Maps"));
+    };
     document.head.appendChild(script);
+  }).catch((err) => {
+    // Don't cache a permanently-rejected promise — let a later call retry.
+    window.__truviGmapsPromise = undefined;
+    throw err;
   });
-  return window.__truviGmapsPromise;
+  window.__truviGmapsPromise = promise;
+  return promise;
 }
 
 /** Error carrying Google's geocoder status (e.g. ZERO_RESULTS, REQUEST_DENIED). */
@@ -62,17 +75,42 @@ export class GeocodeError extends Error {
 }
 
 /**
- * Whether a geocoder status points at a Google Cloud misconfiguration (API not
- * enabled, key restricted, billing/quota) rather than a genuine no-match. Used
- * to show the developer an actionable message instead of "no results".
+ * A user-friendly, actionable message for a geocoder status. Keeps the wording
+ * consistent between auto-locate and the map search box.
  */
-export function isGeocodeConfigError(status?: string): boolean {
-  return (
-    status === "REQUEST_DENIED" ||
-    status === "OVER_QUERY_LIMIT" ||
-    status === "INVALID_REQUEST" ||
-    status === "ERROR"
-  );
+export function geocodeErrorMessage(status?: string): string {
+  switch (status) {
+    case "TIMEOUT":
+    case "LOAD_FAILED":
+      return "Google Maps didn't respond. Check that your API key is valid and the Maps JavaScript API + Geocoding API are enabled in Google Cloud.";
+    case "REQUEST_DENIED":
+      return "Google denied the request (REQUEST_DENIED). Enable the Geocoding API and add your site to the API key's HTTP-referrer restrictions.";
+    case "OVER_QUERY_LIMIT":
+      return "Google usage limit reached (OVER_QUERY_LIMIT). Check billing and quota on your Google Cloud project.";
+    case "ZERO_RESULTS":
+      return "No match for that address — try a fuller address, or click the map to drop the pin.";
+    default:
+      return "Could not locate this address — drop the pin on the map manually.";
+  }
+}
+
+/** Reject with a GeocodeError("TIMEOUT") if `p` doesn't settle within `ms`. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new GeocodeError("TIMEOUT")), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
+async function ensureMaps(): Promise<void> {
+  try {
+    await withTimeout(loadGoogleMaps(), 12_000);
+  } catch {
+    throw new GeocodeError("LOAD_FAILED");
+  }
 }
 
 export interface GeocodeResult {
@@ -83,17 +121,20 @@ export interface GeocodeResult {
 
 /**
  * Resolve an address string to coordinates. Uses the callback form so we can
- * read Google's real status and surface config problems (REQUEST_DENIED etc.)
- * instead of a generic failure.
+ * read Google's real status, and a timeout so a non-responding API (bad key /
+ * API not enabled) fails fast with a clear message instead of hanging.
  */
 export async function geocodeAddress(query: string): Promise<GeocodeResult> {
-  await loadGoogleMaps();
+  await ensureMaps();
   const geocoder = new window.google.maps.Geocoder();
-  const { results, status } = await new Promise<{ results: any[]; status: string }>((resolve) => {
-    geocoder.geocode({ address: query, region: "in" }, (r: any, s: any) =>
-      resolve({ results: r ?? [], status: s }),
-    );
-  });
+  const { results, status } = await withTimeout(
+    new Promise<{ results: any[]; status: string }>((resolve) => {
+      geocoder.geocode({ address: query, region: "in" }, (r: any, s: any) =>
+        resolve({ results: r ?? [], status: s }),
+      );
+    }),
+    9_000,
+  );
   if (status !== "OK" || results.length === 0) throw new GeocodeError(status || "UNKNOWN_ERROR");
   const best = results[0];
   return {
@@ -105,13 +146,16 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult> {
 
 /** Resolve coordinates back to a human address (used to label a dropped pin). */
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  await loadGoogleMaps();
+  await ensureMaps();
   const geocoder = new window.google.maps.Geocoder();
-  const { results, status } = await new Promise<{ results: any[]; status: string }>((resolve) => {
-    geocoder.geocode({ location: { lat, lng } }, (r: any, s: any) =>
-      resolve({ results: r ?? [], status: s }),
-    );
-  });
+  const { results, status } = await withTimeout(
+    new Promise<{ results: any[]; status: string }>((resolve) => {
+      geocoder.geocode({ location: { lat, lng } }, (r: any, s: any) =>
+        resolve({ results: r ?? [], status: s }),
+      );
+    }),
+    9_000,
+  );
   if (status !== "OK" || results.length === 0) throw new GeocodeError(status || "UNKNOWN_ERROR");
   return results[0].formatted_address as string;
 }
