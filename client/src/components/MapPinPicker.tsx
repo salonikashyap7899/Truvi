@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { addTruviBaseLayers } from "@/lib/leafletTiles";
 
 /**
  * Leaflet pin picker — click the map (or use device GPS) to set a project's
- * coordinates. Free CARTO/OSM tiles, no API key. Controlled component:
- * `value` is the current pin, `onChange` fires on every placement.
+ * coordinates. Satellite + labels view (free Esri tiles), no API key.
+ * Controlled component: `value` is the current pin, `onChange` fires on every
+ * placement.
  */
-const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 /** Lucknow — sensible initial view for a UP-focused platform. */
 const DEFAULT_CENTER: [number, number] = [26.8467, 80.9462];
@@ -32,10 +32,10 @@ export default function MapPinPicker({
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {
       center: value ? [value.lat, value.lng] : DEFAULT_CENTER,
-      zoom: value ? 14 : 11,
+      zoom: value ? 16 : 12,
       scrollWheelZoom: false,
     });
-    L.tileLayer(DARK_TILES, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
+    addTruviBaseLayers(L, map);
     map.on("click", (e: L.LeafletMouseEvent) => {
       onChangeRef.current({ lat: +e.latlng.lat.toFixed(6), lng: +e.latlng.lng.toFixed(6) });
     });
@@ -60,10 +60,10 @@ export default function MapPinPicker({
     if (!markerRef.current) {
       markerRef.current = L.circleMarker([value.lat, value.lng], {
         radius: 9,
-        color: "#A855F7",
-        weight: 2,
+        color: "#ffffff", // white ring for contrast on satellite imagery
+        weight: 3,
         fillColor: "#7C5CFF",
-        fillOpacity: 0.7,
+        fillOpacity: 0.95,
       }).addTo(map);
     } else {
       markerRef.current.setLatLng([value.lat, value.lng]);
