@@ -344,6 +344,15 @@ router.post("/refresh", async (req, res) => {
     const user = await findUserById(userId);
     if (!user) return res.status(401).json({ error: "User not found" });
 
+    // A deactivated account must not keep minting access tokens from a still-
+    // valid refresh cookie (which lives 30 days). Login already blocks disabled
+    // accounts; mirror that here so an admin deactivating a user actually ends
+    // their session at the next token refresh.
+    if (user.disabled) {
+      res.clearCookie("refreshToken");
+      return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
+    }
+
     const accessToken = signAccessToken({
       userId: String(user._id),
       role: user.role,
