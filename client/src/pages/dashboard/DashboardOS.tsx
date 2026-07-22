@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
+import { useTheme } from "@/lib/theme";
 import { toast } from "sonner";
 import { TeamPage, MarketingPage, LandBankPage, InvestorPage } from "@/pages/dashboard/FounderModules";
 import "@/styles/founder-os.css";
@@ -118,7 +119,10 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const [fin, setFin] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<Page>("overview");
-  const [light, setLight] = useState(false);
+  // Drive the founder-OS light class from the shared site-wide theme, so this
+  // dashboard flips together with the rest of the app (and the choice persists).
+  const { theme, toggle: toggleTheme } = useTheme();
+  const light = theme === "light";
   const [navOpen, setNavOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
 
@@ -186,7 +190,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
           <div className="search-wrap"><Ic n="search" /><input placeholder="Search projects, CPs, leads…" /></div>
           <div className="top-actions">
-            <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme">
+            <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle theme">
               <span className="knob"><Ic n="sun" /></span>
             </button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
