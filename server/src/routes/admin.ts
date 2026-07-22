@@ -159,7 +159,7 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     allCommissions, allPurchases, paidPayments, allSubs, allEnquiries,
     pendingLegal, openFollowUps,
   ] = await Promise.all([
-    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingVerified: users.onboardingVerified }).from(users),
+    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingVerified: users.onboardingVerified, onboardingChecks: users.onboardingChecks }).from(users),
     db.select().from(projects),
     db.select({ _id: units._id, status: units.status, price: units.price }).from(units),
     db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt }).from(leads),
