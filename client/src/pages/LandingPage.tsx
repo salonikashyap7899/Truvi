@@ -5,6 +5,7 @@ import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
 
 const CityCanvas = lazy(() =>
@@ -782,6 +783,8 @@ export default function LandingPage() {
   const mounted = useMounted();
   const showcase = useShowcase();
   const { hash } = useLocation();
+  // The "Enroll a Developer — earn 2%" banner is only relevant to developers.
+  const isDeveloper = useAuthStore((s) => s.user?.role) === "DEVELOPER";
 
   // Arriving from another page with a hash (e.g. /#ask-truvi) — scroll to it
   useEffect(() => {
@@ -821,17 +824,20 @@ export default function LandingPage() {
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
       <Section className="min-h-screen items-center !justify-start pt-32 md:pt-36 pb-16 text-center">
-        {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn */}
-        <Reveal>
-          <Link
-            to="/cp/onboard-developers"
-            className="group mx-auto mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
-          >
-            <span aria-hidden>☁️</span>
-            <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
-            <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
-          </Link>
-        </Reveal>
+        {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
+            Only shown to logged-in developers. */}
+        {isDeveloper && (
+          <Reveal>
+            <Link
+              to="/cp/onboard-developers"
+              className="group mx-auto mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
+            >
+              <span aria-hidden>☁️</span>
+              <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
+              <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+            </Link>
+          </Reveal>
+        )}
         <Reveal>
           <Eyebrow>Property Intelligence · Verified by Design</Eyebrow>
         </Reveal>

@@ -26,8 +26,8 @@ const referralSchema = z.object({
   notes: z.string().optional(),
 });
 
-// POST /api/onboarding/developers — a CP submits a developer to onboard.
-router.post("/developers", requireRole("CP"), async (req: AuthedRequest, res) => {
+// POST /api/onboarding/developers — a CP or developer submits a developer to onboard.
+router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = referralSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   const d = parsed.data;

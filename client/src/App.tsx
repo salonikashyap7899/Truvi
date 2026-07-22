@@ -202,7 +202,7 @@ export default function App() {
         <Route path="/cp/ai" element={<ProtectedRoute roles={["CP"]}><AIHubPage /></ProtectedRoute>} />
         <Route path="/cp/business" element={<ProtectedRoute roles={["CP"]}><BusinessHubPage /></ProtectedRoute>} />
         <Route path="/cp/growth" element={<ProtectedRoute roles={["CP"]}><GrowthHubPage /></ProtectedRoute>} />
-        <Route path="/cp/onboard-developers" element={<ProtectedRoute roles={["CP"]}><OnboardDevelopersPage /></ProtectedRoute>} />
+        <Route path="/cp/onboard-developers" element={<ProtectedRoute roles={["CP", "DEVELOPER"]}><OnboardDevelopersPage /></ProtectedRoute>} />
         <Route path="/cp/connect" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><TruviConnectPage /></ProtectedRoute>} />
         <Route path="/crm/pipeline" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><PipelinePage /></ProtectedRoute>} />
         <Route path="/bookings" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><BookingsPage /></ProtectedRoute>} />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import { CpHubNav } from "@/components/CpHubNav";
 import { Card, Input, Label, Textarea, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ const STATUS_VARIANT: Record<Referral["status"], "warning" | "info" | "success" 
 const EMPTY = { developerName: "", companyName: "", phone: "", email: "", city: "", landDetails: "", notes: "" };
 
 export default function OnboardDevelopersPage() {
+  const isCp = useAuthStore((s) => s.user?.role) === "CP";
   const [form, setForm] = useState({ ...EMPTY });
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -89,7 +91,7 @@ export default function OnboardDevelopersPage() {
         Enroll a developer or landowner who wants to list their land — earn <b className="text-emerald-300">2% on every transaction</b> by your referred developer, forever.
       </p>
 
-      <CpHubNav />
+      {isCp && <CpHubNav />}
 
       {/* Summary cards */}
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
