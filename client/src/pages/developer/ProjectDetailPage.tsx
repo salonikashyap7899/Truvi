@@ -203,7 +203,14 @@ export default function ProjectDetailPage() {
       </div>
 
       <div className="mt-6">
-        <NearbyAmenities projectId={project._id} />
+        <NearbyAmenities
+          projectId={project._id}
+          amenities={project.presentationInfo?.nearbyAmenities}
+          editable
+          onSaved={(nearbyAmenities) =>
+            setProject((p) => (p ? { ...p, presentationInfo: { ...(p.presentationInfo ?? {}), nearbyAmenities } } : p))
+          }
+        />
       </div>
 
       {/* Editable commercial details: name/location/RERA/possession/contact/payment plans */}

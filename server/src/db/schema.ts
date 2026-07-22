@@ -162,6 +162,15 @@ export interface VerificationDetails {
   notes?: string;
 }
 
+/** A single nearby point of interest shown on the listing (school, hospital,
+ *  transit, mall, restaurant) with a human-entered walking/driving distance. */
+export type NearbyAmenityCategory = "school" | "hospital" | "transit" | "mall" | "restaurant";
+export interface NearbyAmenity {
+  category: NearbyAmenityCategory;
+  name: string;
+  distance: string;
+}
+
 export interface PresentationInfo {
   amenities?: string[];
   securityFeatures?: string[];
@@ -172,6 +181,9 @@ export interface PresentationInfo {
   constructionProgressNote?: string;
   paymentPlans?: string[];
   offers?: string;
+  // Developer/admin-curated nearby places with real distances. When present
+  // these replace the placeholder list on the listing.
+  nearbyAmenities?: NearbyAmenity[];
 }
 
 export interface SalesContact {

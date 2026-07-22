@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
 import PresentationManager from "@/components/PresentationManager";
 import UnitsManager from "@/components/UnitsManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project } from "@/types";
 
 export default function AdminProjectManagePage() {
@@ -65,6 +66,18 @@ export default function AdminProjectManagePage() {
 
       {/* Plots / units */}
       <UnitsManager projectId={project._id} />
+
+      {/* Nearby amenities buyers see — curate real places & distances */}
+      <div className="mt-8">
+        <NearbyAmenities
+          projectId={project._id}
+          amenities={project.presentationInfo?.nearbyAmenities}
+          editable
+          onSaved={(nearbyAmenities) =>
+            setProject((p) => (p ? { ...p, presentationInfo: { ...(p.presentationInfo ?? {}), nearbyAmenities } } : p))
+          }
+        />
+      </div>
 
       {/* Images, videos, plans, documents + structured info */}
       <PresentationManager project={project} onProjectUpdated={setProject} />
