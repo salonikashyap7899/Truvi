@@ -33,6 +33,12 @@
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.62 0.19 255);
 
+  /* Translucent fill for form fields / subtle surfaces. */
+  --field: oklch(1 0 0 / 4%);
+
+  /* Edge vignette behind the auth card — dark by default. */
+  --auth-vignette: rgba(0, 0, 0, 0.6);
+
   /* Brand accents */
   --trust: oklch(0.65 0.19 250);
   --growth: oklch(0.72 0.17 165);
@@ -51,6 +57,38 @@
   --shadow-glow-trust: 0 0 60px -10px oklch(0.65 0.19 250 / 0.5);
   --shadow-glow-growth: 0 0 60px -10px oklch(0.72 0.17 165 / 0.5);
   --shadow-elegant: 0 30px 80px -20px oklch(0 0 0 / 0.6);
+}
+
+/* ---------- Light theme ----------
+   Applied when <html data-theme="light"> (see lib/theme.ts). Overrides just the
+   palette tokens; every component that styles itself through these variables
+   (bg-background, text-foreground, text-muted-foreground, bg-card, glass,
+   border-border, --trust …) flips automatically. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.22 0.02 255);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.95 0.006 240);
+  --muted-foreground: oklch(0.47 0.02 255);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.22 0.03 255 / 12%);
+  --input: oklch(0.22 0.03 255 / 16%);
+  --ring: oklch(0.55 0.19 255);
+
+  /* Accents nudged a touch darker for contrast on light surfaces. */
+  --trust: oklch(0.55 0.2 255);
+  --growth: oklch(0.6 0.16 165);
+  --tech: oklch(0.55 0.22 295);
+  --gold: oklch(0.72 0.14 85);
+  --glass: oklch(0.45 0.03 255 / 5%);
+  --field: oklch(0.25 0.03 255 / 5%);
+  --auth-vignette: oklch(0.55 0.05 255 / 12%);
+
+  --shadow-glow-trust: 0 0 60px -10px oklch(0.55 0.2 255 / 0.28);
+  --shadow-glow-growth: 0 0 60px -10px oklch(0.6 0.16 165 / 0.28);
+  --shadow-elegant: 0 30px 80px -20px oklch(0.45 0.08 255 / 0.18);
 }
 
 @layer base {
@@ -127,3 +165,20 @@
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 20%); }
+
+/* ---------- Light theme: fix the few dark-assuming hardcoded surfaces ----------
+   Unlayered so these win over the @layer utilities defaults. */
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(1200px 600px at 50% -10%, oklch(0.7 0.12 255 / 0.12), transparent 60%),
+    radial-gradient(800px 400px at 90% 30%, oklch(0.7 0.12 295 / 0.08), transparent 60%);
+}
+:root[data-theme="light"] .glass {
+  border-color: oklch(0.22 0.03 255 / 10%);
+}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: oklch(0.3 0.02 255 / 22%);
+}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.3 0.02 255 / 34%);
+}

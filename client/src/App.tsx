@@ -7,6 +7,8 @@ import WelcomeGate from "@/components/WelcomeGate";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
 import { CursorGlow } from "@/components/landing/CursorGlow";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useTheme } from "@/lib/theme";
 
 const AmbientBackground = lazy(() =>
   import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
@@ -94,6 +96,17 @@ function FloatingAssistants() {
   );
 }
 
+/**
+ * One site-wide light/dark switch, fixed at the bottom-left so it clears the
+ * top-right page headers and the bottom-right assistant FABs. Suppressed on the
+ * Founder and Admin-OS dashboards, which ship their own theme toggle.
+ */
+function GlobalThemeToggle() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
+  return <ThemeToggle className="fixed bottom-4 left-4 z-40 shadow-lg shadow-black/20" />;
+}
+
 function Ambience() {
   const { pathname } = useLocation();
   // The landing page renders its own richer CityCanvas scene; the Founder
@@ -126,12 +139,14 @@ function PageTransition({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const { theme } = useTheme();
   return (
     <BrowserRouter>
-      <Toaster richColors position="top-right" theme="dark" />
+      <Toaster richColors position="top-right" theme={theme} />
       <Ambience />
       <WelcomeGate />
       <FloatingAssistants />
+      <GlobalThemeToggle />
       <PageTransition>
       <Routes>
         {/* Public marketing pages */}

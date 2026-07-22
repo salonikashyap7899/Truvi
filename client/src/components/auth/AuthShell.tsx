@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 export function AuthAurora() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[#05070c]" />
+      <div className="absolute inset-0" style={{ background: "var(--background)" }} />
       <motion.div
         className="absolute -top-[18%] left-1/2 h-[55vh] w-[75vw] -translate-x-1/2 rounded-full blur-[120px]"
         style={{ background: "radial-gradient(circle, rgba(59,130,246,0.38), transparent 70%)" }}
@@ -37,7 +37,7 @@ export function AuthAurora() {
           WebkitMaskImage: "radial-gradient(ellipse at center, black 25%, transparent 72%)",
         }}
       />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.6) 100%)" }} />
+      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, transparent 42%, var(--auth-vignette) 100%)" }} />
     </div>
   );
 }
@@ -59,7 +59,7 @@ export function AuthCard({ children, className }: { children: React.ReactNode; c
         className="relative rounded-[28px] p-px"
         style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.30), rgba(59,130,246,0.38) 45%, rgba(255,255,255,0.04) 85%)" }}
       >
-        <div className={`relative max-h-[88dvh] overflow-y-auto rounded-[27px] bg-[#0a0d14]/85 p-7 backdrop-blur-2xl sm:p-8 ${className ?? ""}`}>
+        <div className={`relative max-h-[88dvh] overflow-y-auto rounded-[27px] bg-card/85 p-7 text-foreground backdrop-blur-2xl sm:p-8 ${className ?? ""}`}>
           {/* Top sheen */}
           <div aria-hidden className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
           {children}

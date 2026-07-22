@@ -50,7 +50,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
+    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden px-4 py-6">
       <AuthAurora />
 
       <motion.div
