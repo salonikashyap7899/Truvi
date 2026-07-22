@@ -199,16 +199,23 @@ export default function AdminUsersPage() {
                   </span>
                 ) : (
                   <>
-                    {u.approvalStatus !== "APPROVED" && (
-                      <Button size="sm" disabled={busyId === u._id} onClick={() => setApproval(u, "APPROVED")} className="bg-emerald-600 text-white hover:bg-emerald-500">
-                        Approve
-                      </Button>
-                    )}
-                    {u.approvalStatus !== "REJECTED" && (
-                      <Button size="sm" variant="outline" disabled={busyId === u._id} onClick={() => setApproval(u, "REJECTED")} className="border-rose-700 text-rose-300 hover:bg-rose-900/20">
-                        Reject
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      disabled={busyId === u._id || u.approvalStatus === "APPROVED"}
+                      onClick={() => setApproval(u, "APPROVED")}
+                      className={u.approvalStatus === "APPROVED" ? "bg-emerald-600/40 text-emerald-100" : "bg-emerald-600 text-white hover:bg-emerald-500"}
+                    >
+                      {u.approvalStatus === "APPROVED" ? "Approved" : "Approve"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busyId === u._id || u.approvalStatus === "REJECTED"}
+                      onClick={() => setApproval(u, "REJECTED")}
+                      className={u.approvalStatus === "REJECTED" ? "border-rose-500 bg-rose-900/40 text-rose-200" : "border-rose-700 text-rose-300 hover:bg-rose-900/20"}
+                    >
+                      {u.approvalStatus === "REJECTED" ? "Rejected" : "Reject"}
+                    </Button>
                     {hasSubscription && (
                       <Button
                         size="sm"
