@@ -29,6 +29,10 @@ export default function ProjectDetailsEditor({
   const [city, setCity] = useState(project.city);
   const [location, setLocation] = useState(project.location);
   const [reraNumber, setReraNumber] = useState(project.reraNumber ?? "");
+  const [reraStatus, setReraStatus] = useState(project.reraStatus ?? "NOT_REGISTERED");
+  const [reraValidityDate, setReraValidityDate] = useState(
+    project.reraValidityDate ? project.reraValidityDate.slice(0, 10) : ""
+  );
   const [possessionDate, setPossessionDate] = useState(
     project.possessionDate ? project.possessionDate.slice(0, 10) : ""
   );
@@ -101,6 +105,8 @@ export default function ProjectDetailsEditor({
         city: city.trim(),
         location: location.trim(),
         reraNumber: reraNumber.trim(),
+        reraStatus,
+        reraValidityDate: reraValidityDate ? new Date(reraValidityDate).toISOString() : null,
         possessionDate: possessionDate ? new Date(possessionDate).toISOString() : null,
         salesContact:
           contactName || contactPhone || contactEmail
@@ -149,6 +155,18 @@ export default function ProjectDetailsEditor({
           <div>
             <Label className="text-foreground/90">RERA number</Label>
             <Input value={reraNumber} onChange={(e) => setReraNumber(e.target.value)} placeholder="UPRERAPRJ…" className={inputCls} />
+          </div>
+          <div>
+            <Label className="text-foreground/90">RERA status</Label>
+            <select value={reraStatus} onChange={(e) => setReraStatus(e.target.value as typeof reraStatus)} className={`${inputCls} h-10 w-full rounded-md px-3 text-sm`}>
+              <option value="REGISTERED">Registered</option>
+              <option value="PENDING">Pending</option>
+              <option value="NOT_REGISTERED">Not Registered</option>
+            </select>
+          </div>
+          <div>
+            <Label className="text-foreground/90">RERA valid until</Label>
+            <Input type="date" value={reraValidityDate} onChange={(e) => setReraValidityDate(e.target.value)} className={inputCls} />
           </div>
           <div>
             <Label className="text-foreground/90">Possession date</Label>

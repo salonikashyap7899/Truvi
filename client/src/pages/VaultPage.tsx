@@ -6,8 +6,17 @@ import { useAuthStore } from "@/store/authStore";
 import { StatCard } from "@/components/ui/stat";
 import {
   ArrowLeft, FolderLock, Search, RefreshCw, FileText, Scale, Receipt,
-  FolderOpen, GraduationCap, ShieldCheck, Download,
+  FolderOpen, GraduationCap, ShieldCheck, Download, Upload,
 } from "lucide-react";
+
+const UPLOAD_CATEGORIES = [
+  { value: "BROCHURE", label: "Brochure" },
+  { value: "FLOOR_PLAN", label: "Floor plan" },
+  { value: "MASTER_PLAN", label: "Master plan" },
+  { value: "TECHNICAL_DOC", label: "Technical document" },
+  { value: "PROGRESS_UPDATE", label: "Progress update" },
+  { value: "APPROVAL_DOC", label: "Legal / Approval (shows after admin verify)" },
+];
 import UserMenu from "@/components/UserMenu";
 
 interface VaultDoc {
@@ -44,6 +53,50 @@ export default function VaultPage() {
   const [loading, setLoading] = useState(true);
   const [cat, setCat] = useState<VaultDoc["category"] | "ALL">("ALL");
   const [query, setQuery] = useState("");
+
+  // Upload (developers/admins can add project documents that appear in the vault).
+  const canUpload = user?.role === "DEVELOPER" || user?.role === "ADMIN";
+  const [showUpload, setShowUpload] = useState(false);
+  const [projects, setProjects] = useState<{ _id: string; name: string }[]>([]);
+  const [up, setUp] = useState({ projectId: "", category: "BROCHURE", title: "" });
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  function openUpload() {
+    setShowUpload(true);
+    if (projects.length === 0) {
+      api.get("/projects").then((r) => {
+        const list = (r.data.projects ?? []).map((p: { _id: string; name: string }) => ({ _id: p._id, name: p.name }));
+        setProjects(list);
+        setUp((u) => ({ ...u, projectId: list[0]?._id ?? "" }));
+      }).catch(() => {});
+    }
+  }
+
+  async function submitUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!up.projectId || !file || !up.title.trim()) {
+      toast.error("Pick a project, enter a title and choose a file");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("category", up.category);
+      fd.append("title", up.title.trim());
+      await api.post(`/presentation/${up.projectId}/assets`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success("Document uploaded to the vault");
+      setShowUpload(false);
+      setFile(null);
+      setUp((u) => ({ ...u, title: "" }));
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -92,12 +145,52 @@ export default function VaultPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canUpload && (
+            <button onClick={openUpload} className="inline-flex items-center gap-1.5 rounded-full bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500">
+              <Upload size={14} /> Upload Document
+            </button>
+          )}
           <button onClick={load} className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10" title="Refresh">
             <RefreshCw size={14} />
           </button>
           <UserMenu />
         </div>
       </div>
+
+      {showUpload && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={() => setShowUpload(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0d14] p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="flex items-center gap-2 text-lg font-semibold"><Upload size={17} className="text-violet-300" /> Upload document</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Add a document to one of your projects — it appears in the vault instantly.</p>
+            <form onSubmit={submitUpload} className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">Project</label>
+                <select value={up.projectId} onChange={(e) => setUp({ ...up, projectId: e.target.value })} className="mt-1 w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white">
+                  {projects.length === 0 ? <option value="">No projects found</option> : projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Category</label>
+                <select value={up.category} onChange={(e) => setUp({ ...up, category: e.target.value })} className="mt-1 w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white">
+                  {UPLOAD_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Title</label>
+                <input value={up.title} onChange={(e) => setUp({ ...up, title: e.target.value })} placeholder="e.g. Brochure v2" className="mt-1 w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white placeholder:text-muted-foreground" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">File</label>
+                <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1 w-full text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-white" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowUpload(false)} className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 hover:bg-white/5">Cancel</button>
+                <button type="submit" disabled={uploading} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500 disabled:opacity-60">{uploading ? "Uploading…" : "Upload"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Documents" value={docs.length} icon={<FolderLock size={16} />} tone="violet" delay={0} />
