@@ -26,8 +26,8 @@ const referralSchema = z.object({
   notes: z.string().optional(),
 });
 
-// POST /api/onboarding/developers — a CP submits a developer to onboard.
-router.post("/developers", requireRole("CP"), async (req: AuthedRequest, res) => {
+// POST /api/onboarding/developers — a CP or developer submits a developer to onboard.
+router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = referralSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   const d = parsed.data;
@@ -61,6 +61,48 @@ router.post("/developers", requireRole("CP"), async (req: AuthedRequest, res) =>
   }
 
   res.status(201).json({ referral });
+});
+
+/** Short, human-friendly, unique referral code (e.g. RAK4X9Q2). */
+function genReferralCode(name: string): string {
+  const prefix = (name.replace(/[^a-zA-Z]/g, "").slice(0, 3) || "TRV").toUpperCase();
+  return `${prefix}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+}
+
+// GET /api/onboarding/referral — a CP/Ambassador's referral code + referred
+// developers + earnings summary (get-or-create the code on first view).
+router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  let code = me?.referralCode ?? null;
+  if (!code) {
+    for (let i = 0; i < 6; i++) {
+      const candidate = genReferralCode(me?.name ?? "TRV");
+      const [clash] = await db.select({ _id: users._id }).from(users).where(eq(users.referralCode, candidate));
+      if (!clash) { code = candidate; break; }
+    }
+    if (code) await db.update(users).set({ referralCode: code }).where(eq(users._id, req.user!.userId));
+  }
+
+  const referred = await db
+    .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.referredBy, req.user!.userId))
+    .orderBy(desc(users.createdAt));
+
+  res.json({
+    referralCode: code,
+    // Transactions/earnings are 0 until a sale is attributed (payout wiring).
+    referredDevelopers: referred.map((r) => ({
+      ...r,
+      status: "ACTIVE" as const,
+      totalTransactions: 0,
+      totalSalesValue: 0,
+      incentiveEarned: 0,
+      lastTransactionAt: null,
+    })),
+    summary: { referredCount: referred.length, active: referred.length, totalTransactions: 0, totalEarnings: 0 },
+  });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all).

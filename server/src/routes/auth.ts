@@ -171,13 +171,27 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
   }
 
-  const { name, email, password, phone, role, companyName, reraNumber } = parsed.data;
+  const { name, email, password, phone, role, companyName, reraNumber, referralCode } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
   const db = getDb();
   const [existing] = await db.select({ _id: users._id }).from(users).where(eq(users.email, normalizedEmail));
   if (existing) {
     return res.status(409).json({ error: "An account with this email already exists" });
+  }
+
+  // Resolve an optional referral code to the referring CP/Ambassador. Invalid
+  // codes are ignored silently so signup never fails on a bad code.
+  let referredBy: string | null = null;
+  const code = referralCode?.trim().toUpperCase();
+  if (code) {
+    const [referrer] = await db
+      .select({ _id: users._id, role: users.role })
+      .from(users)
+      .where(eq(users.referralCode, code));
+    if (referrer && (referrer.role === "CP" || referrer.role === "AMBASSADOR")) {
+      referredBy = String(referrer._id);
+    }
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
@@ -197,6 +211,7 @@ router.post("/signup", async (req, res) => {
       approvalStatus: "APPROVED",
       emailVerified: false,
       phoneVerified: false,
+      ...(referredBy ? { referredBy } : {}),
       ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
       ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
       ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
