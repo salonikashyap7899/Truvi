@@ -310,6 +310,16 @@ const infoSchema = z.object({
   constructionProgressNote: z.string().optional(),
   paymentPlans: z.array(z.string()).optional(),
   offers: z.string().optional(),
+  nearbyAmenities: z
+    .array(
+      z.object({
+        category: z.enum(["school", "hospital", "transit", "mall", "restaurant"]),
+        name: z.string().trim().min(1, "Name required").max(120),
+        distance: z.string().trim().max(40).default(""),
+      }),
+    )
+    .max(60)
+    .optional(),
 });
 
 router.put(

@@ -11,6 +11,7 @@ import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetC
 import { formatINR } from "@/lib/utils";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
 import ShareProjectButton from "@/components/ShareProjectButton";
+import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project, ProjectAsset } from "@/types";
 
 function fmtDate(v?: string | null): string | null {
@@ -341,6 +342,13 @@ export default function ProjectPresentationPage() {
               <p className="mt-2 text-sm text-foreground/90">{info.constructionProgressNote}</p>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Nearby amenities — only when the developer/admin has curated real ones */}
+      {info?.nearbyAmenities && info.nearbyAmenities.length > 0 && (
+        <section className="mt-8">
+          <NearbyAmenities projectId={project._id} amenities={info.nearbyAmenities} />
         </section>
       )}
 

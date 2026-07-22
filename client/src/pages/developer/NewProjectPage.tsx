@@ -95,23 +95,24 @@ export default function NewProjectPage() {
         commissionPercent: Number(form.commissionPercent),
         developerId: isAdmin && form.developerId ? form.developerId : undefined,
       });
-      // Upload any project photos chosen here as public gallery images, so the
-      // listing card is image-forward from the moment it's created.
+      // Upload any project photos/videos chosen here as public gallery assets,
+      // so the listing card is media-forward from the moment it's created.
       if (photos.length) {
         let uploaded = 0;
         for (const file of photos) {
           try {
+            const isVideo = file.type.startsWith("video/");
             const fd = new FormData();
             fd.append("file", file);
-            fd.append("category", "GALLERY_IMAGE");
-            fd.append("title", file.name.replace(/\.[^.]+$/, "") || "Project photo");
+            fd.append("category", isVideo ? "GALLERY_VIDEO" : "GALLERY_IMAGE");
+            fd.append("title", file.name.replace(/\.[^.]+$/, "") || (isVideo ? "Project video" : "Project photo"));
             await api.post(`/presentation/${data.project._id}/assets`, fd, { headers: { "Content-Type": "multipart/form-data" } });
             uploaded += 1;
           } catch {
-            /* skip a failed photo, keep going */
+            /* skip a failed file, keep going */
           }
         }
-        toast.success(`Project created${uploaded ? ` with ${uploaded} photo${uploaded === 1 ? "" : "s"}` : ""} — now add plans, inventory and documents.`);
+        toast.success(`Project created${uploaded ? ` with ${uploaded} file${uploaded === 1 ? "" : "s"}` : ""} — now add plans, inventory and documents.`);
       } else {
         toast.success("Project created — now add plans, photos, inventory and documents.");
       }
@@ -194,44 +195,57 @@ export default function NewProjectPage() {
               <Input type="number" step="0.1" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: Number(e.target.value) })} className="border-white/15 bg-card text-white" />
             </div>
 
-            {/* Project photos — shown on the listing card immediately */}
+            {/* Project photos & videos — shown on the listing card immediately */}
             <div className="border-t border-white/10 pt-4">
-              <p className="text-sm font-semibold text-foreground/90">Project photos</p>
+              <p className="text-sm font-semibold text-foreground/90">Project photos &amp; videos</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add exterior / interior photos. The first one becomes the listing cover. You can add more later.
+                Add exterior / interior photos and walkthrough videos. The first photo becomes the listing cover. You can add more later. Max 50&nbsp;MB each.
               </p>
               <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-card px-4 py-2 text-sm hover:border-blue-600">
-                + Add photos
+                + Add photos &amp; videos
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,video/*"
                   multiple
                   className="hidden"
                   onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    setPhotos((prev) => [...prev, ...files]);
+                    const picked = Array.from(e.target.files ?? []);
+                    const tooBig = picked.filter((f) => f.size > 50 * 1024 * 1024);
+                    const ok = picked.filter((f) => f.size <= 50 * 1024 * 1024);
+                    if (tooBig.length) toast.error(`${tooBig.length} file${tooBig.length === 1 ? "" : "s"} skipped — over 50 MB`);
+                    if (ok.length) setPhotos((prev) => [...prev, ...ok]);
                     e.target.value = "";
                   }}
                 />
               </label>
               {photos.length > 0 && (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {photos.map((file, i) => (
-                    <div key={i} className="relative aspect-video overflow-hidden rounded-lg border border-white/10">
-                      <img src={URL.createObjectURL(file)} alt={file.name} className="h-full w-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 text-xs text-white hover:bg-black/80"
-                        title="Remove"
-                      >
-                        ✕
-                      </button>
-                      {i === 0 && (
-                        <span className="absolute bottom-1 left-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Cover</span>
-                      )}
-                    </div>
-                  ))}
+                  {photos.map((file, i) => {
+                    const isVideo = file.type.startsWith("video/");
+                    return (
+                      <div key={i} className="relative aspect-video overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                        {isVideo ? (
+                          <video src={URL.createObjectURL(file)} className="h-full w-full object-cover" muted playsInline />
+                        ) : (
+                          <img src={URL.createObjectURL(file)} alt={file.name} className="h-full w-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="absolute right-1 top-1 rounded-full bg-black/60 px-1.5 text-xs text-white hover:bg-black/80"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                        {isVideo && (
+                          <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Video</span>
+                        )}
+                        {i === 0 && !isVideo && (
+                          <span className="absolute bottom-1 left-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">Cover</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -42,6 +42,13 @@ export type ListingTier = "STANDARD" | "FEATURED";
 
 export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
 
+export type NearbyAmenityCategory = "school" | "hospital" | "transit" | "mall" | "restaurant";
+export interface NearbyAmenity {
+  category: NearbyAmenityCategory;
+  name: string;
+  distance: string;
+}
+
 export interface PresentationInfo {
   amenities?: string[];
   securityFeatures?: string[];
@@ -52,6 +59,7 @@ export interface PresentationInfo {
   constructionProgressNote?: string;
   paymentPlans?: string[];
   offers?: string;
+  nearbyAmenities?: NearbyAmenity[];
 }
 
 export interface ProjectAsset {
