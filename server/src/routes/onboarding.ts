@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { developerReferrals, users, notifications } from "../db/schema";
+import { developerReferrals, users, notifications, projects, leads, commissions } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitNotification } from "../sockets";
+
+/** The referral incentive a CP/Ambassador earns on a referred developer's sales. */
+const REFERRAL_INCENTIVE_PERCENT = 2;
 
 /**
  * Developer onboarding referrals. A Channel Partner refers a developer /
@@ -90,19 +93,75 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
     .where(eq(users.referredBy, req.user!.userId))
     .orderBy(desc(users.createdAt));
 
-  res.json({
-    referralCode: code,
-    // Transactions/earnings are 0 until a sale is attributed (payout wiring).
-    referredDevelopers: referred.map((r) => ({
+  // ---- Live sales/earnings per referred developer -------------------------
+  // A "transaction" is a booking commission on a lead for one of the
+  // developer's projects: commission → lead → project → developer. The referrer
+  // earns REFERRAL_INCENTIVE_PERCENT of each such booking value.
+  const devIds = referred.map((r) => String(r._id));
+  const stats = new Map<string, { count: number; sales: number; last: Date | null; activated: boolean }>();
+
+  if (devIds.length) {
+    const devProjects = await db
+      .select({ _id: projects._id, developerId: projects.developerId })
+      .from(projects)
+      .where(inArray(projects.developerId, devIds));
+    const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
+    // A developer counts as "active" once they have at least one live project.
+    for (const p of devProjects) {
+      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, activated: false };
+      cur.activated = true;
+      stats.set(String(p.developerId), cur);
+    }
+
+    const projectIds = devProjects.map((p) => String(p._id));
+    if (projectIds.length) {
+      const projLeads = await db
+        .select({ _id: leads._id, projectId: leads.projectId })
+        .from(leads)
+        .where(inArray(leads.projectId, projectIds));
+      const leadToProject = new Map(projLeads.map((l) => [String(l._id), String(l.projectId)]));
+      const leadIds = projLeads.map((l) => String(l._id));
+
+      if (leadIds.length) {
+        const txns = await db
+          .select({ leadId: commissions.leadId, bookingValue: commissions.bookingValue, createdAt: commissions.createdAt })
+          .from(commissions)
+          .where(inArray(commissions.leadId, leadIds));
+        for (const t of txns) {
+          const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
+          if (!devId) continue;
+          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, activated: true };
+          cur.count += 1;
+          cur.sales += Number(t.bookingValue || 0);
+          const at = new Date(t.createdAt);
+          if (!cur.last || at > cur.last) cur.last = at;
+          stats.set(devId, cur);
+        }
+      }
+    }
+  }
+
+  const rate = REFERRAL_INCENTIVE_PERCENT / 100;
+  const referredDevelopers = referred.map((r) => {
+    const s = stats.get(String(r._id));
+    return {
       ...r,
-      status: "ACTIVE" as const,
-      totalTransactions: 0,
-      totalSalesValue: 0,
-      incentiveEarned: 0,
-      lastTransactionAt: null,
-    })),
-    summary: { referredCount: referred.length, active: referred.length, totalTransactions: 0, totalEarnings: 0 },
+      status: (s?.activated ? "ACTIVE" : "PENDING") as "ACTIVE" | "PENDING",
+      totalTransactions: s?.count ?? 0,
+      totalSalesValue: Math.round(s?.sales ?? 0),
+      incentiveEarned: Math.round((s?.sales ?? 0) * rate),
+      lastTransactionAt: s?.last ? s.last.toISOString() : null,
+    };
   });
+
+  const summary = {
+    referredCount: referredDevelopers.length,
+    active: referredDevelopers.filter((r) => r.status === "ACTIVE").length,
+    totalTransactions: referredDevelopers.reduce((a, r) => a + r.totalTransactions, 0),
+    totalEarnings: referredDevelopers.reduce((a, r) => a + r.incentiveEarned, 0),
+  };
+
+  res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, referredDevelopers, summary });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all).
