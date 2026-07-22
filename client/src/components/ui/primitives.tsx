@@ -27,7 +27,7 @@ const badgeVariants: Record<string, string> = {
   warning: "bg-amber-500/15 text-amber-300",
   danger: "bg-red-500/15 text-red-300",
   info: "bg-[var(--trust)]/15 text-sky-300",
-  featured: "bg-gradient-to-r from-amber-400 to-orange-500 text-white",
+  featured: "bg-gradient-to-r from-amber-400 to-orange-500 text-on-accent",
   gold: "bg-[var(--gold)]/20 text-amber-200",
   silver: "bg-white/15 text-neutral-200",
   platinum: "bg-sky-500/15 text-sky-300",
