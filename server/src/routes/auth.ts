@@ -250,6 +250,15 @@ router.post("/login", async (req, res) => {
     return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
   }
 
+  // Admin moderation gate: only APPROVED accounts can log in.
+  if (user.approvalStatus !== "APPROVED") {
+    return res.status(403).json({
+      error: user.approvalStatus === "REJECTED"
+        ? "This account has been rejected. Contact Truvi support."
+        : "This account is pending admin approval.",
+    });
+  }
+
   // OTP gate: an account can't log in until BOTH email and phone are verified.
   // Send fresh codes and tell the client to route to the verification screen.
   if (!user.emailVerified || !user.phoneVerified) {
@@ -366,6 +375,11 @@ router.post("/refresh", async (req, res) => {
     if (user.disabled) {
       res.clearCookie("refreshToken");
       return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
+    }
+    // A rejected/pending account can't keep a live session either.
+    if (user.approvalStatus !== "APPROVED") {
+      res.clearCookie("refreshToken");
+      return res.status(403).json({ error: "This account is not approved. Contact Truvi support." });
     }
 
     const accessToken = signAccessToken({

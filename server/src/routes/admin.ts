@@ -387,7 +387,12 @@ router.get("/users", requireRole("ADMIN"), async (req, res) => {
 // The row is kept so its history/financial records stay intact; a disabled
 // user simply can't log in and drops out of active counts. Admins can't
 // disable themselves or another admin.
-const userStatusSchema = z.object({ disabled: z.boolean() });
+const userStatusSchema = z
+  .object({
+    disabled: z.boolean().optional(),
+    approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]).optional(),
+  })
+  .refine((d) => d.disabled !== undefined || d.approvalStatus !== undefined, { message: "Nothing to update" });
 router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = userStatusSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
@@ -399,15 +404,20 @@ router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users._id, userId));
   if (!target) return res.status(404).json({ error: "User not found" });
-  if (target.role === "ADMIN") return res.status(403).json({ error: "Admin accounts can't be deactivated here" });
+  if (target.role === "ADMIN") return res.status(403).json({ error: "Admin accounts can't be changed here" });
 
-  const [updated] = await db
-    .update(users)
-    .set({ disabled: parsed.data.disabled })
-    .where(eq(users._id, userId))
-    .returning();
+  const update: { disabled?: boolean; approvalStatus?: ApprovalStatus } = {};
+  if (parsed.data.disabled !== undefined) update.disabled = parsed.data.disabled;
+  if (parsed.data.approvalStatus !== undefined) update.approvalStatus = parsed.data.approvalStatus as ApprovalStatus;
+
+  const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
   const { password: _pw, ...safeUser } = updated;
-  await logAudit({ userId: req.user!.userId, action: parsed.data.disabled ? "user.disable" : "user.enable", resourceType: "user", resourceId: userId, metadata: { name: target.name, role: target.role } });
+  const action = parsed.data.approvalStatus
+    ? `user.${parsed.data.approvalStatus.toLowerCase()}`
+    : parsed.data.disabled
+      ? "user.disable"
+      : "user.enable";
+  await logAudit({ userId: req.user!.userId, action, resourceType: "user", resourceId: userId, metadata: { name: target.name, role: target.role } });
   res.json({ user: safeUser });
 });
 
