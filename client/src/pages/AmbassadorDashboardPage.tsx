@@ -73,9 +73,7 @@ export default function AmbassadorDashboardPage() {
     }
   }
 
-  if (!user) {
-    return <div className="min-h-screen p-10 text-white">Loading ambassador workspace…</div>;
-  }
+  if (!user) return null;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">

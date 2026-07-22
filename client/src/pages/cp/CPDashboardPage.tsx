@@ -30,7 +30,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
   const [leaderboard, setLeaderboard] = useState<User[]>([]);
   const [leadFormOpenFor, setLeadFormOpenFor] = useState<string | null>(null);
   const [leadForm, setLeadForm] = useState({ clientName: "", clientPhone: "" });
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -108,7 +108,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
   }
 
   if (needsKyc) return <CpKycOnboarding />;
-  if (loading || !user) return <div className="min-h-screen p-10 text-white">Loading…</div>;
+  if (!user) return null;
   if (error) return <div className="min-h-screen p-10 text-white"><p className="text-red-400">{error}</p></div>;
 
   const earned = commissions.reduce((s, c) => s + c.cpCommissionAmount, 0);

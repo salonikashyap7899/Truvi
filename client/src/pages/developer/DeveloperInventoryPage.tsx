@@ -19,7 +19,7 @@ const STATUS_VARIANT: Record<UnitStatus, "success" | "warning" | "info" | "dange
 };
 
 export default function DeveloperInventoryPage() {
-  const { projects, units, unitsByProject, loading } = useDeveloperData();
+  const { projects, units, unitsByProject } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [projectFilter, setProjectFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<UnitStatus | "ALL">("ALL");
@@ -33,8 +33,6 @@ export default function DeveloperInventoryPage() {
   }, [units, unitsByProject, projectFilter, statusFilter]);
 
   const projectName = (id: string) => projects.find((p) => p._id === id)?.name ?? "—";
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading inventory…</div>;
 
   const health = inventoryHealth(units);
   const heat = inventoryHeatMap(units);

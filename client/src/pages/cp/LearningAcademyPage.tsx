@@ -113,7 +113,7 @@ export default function LearningAcademyPage() {
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [certCourse, setCertCourse] = useState<Course | null>(null);
   const [catFilter, setCatFilter] = useState("All");
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -169,8 +169,6 @@ export default function LearningAcademyPage() {
   }
 
   const totalCompleted = Object.values(progressMap).filter((p) => p.completedAt).length;
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">

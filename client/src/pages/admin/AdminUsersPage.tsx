@@ -177,8 +177,6 @@ export default function AdminUsersPage() {
     return m;
   }, [users]);
 
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading users…</div>;
-
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
       <Link to="/admin/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-white">

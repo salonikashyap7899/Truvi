@@ -18,7 +18,7 @@ import type { Lead, LeadStage } from "@/types";
 const ALL_STAGES: LeadStage[] = [...PIPELINE_STAGES.map((s) => s.stage), "LOST"];
 
 export default function DeveloperSalesPage() {
-  const { projects, units, leads, avgPriceByProject, loading, reload } = useDeveloperData();
+  const { projects, units, leads, avgPriceByProject, reload } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -41,8 +41,6 @@ export default function DeveloperSalesPage() {
       setSaving(null);
     }
   }
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading your sales pipeline…</div>;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
