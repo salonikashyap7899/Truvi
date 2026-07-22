@@ -75,7 +75,7 @@ router.get("/developers", async (req: AuthedRequest, res) => {
 });
 
 // PATCH /api/onboarding/developers/:id — admin updates a referral's status.
-const statusSchema = z.object({ status: z.enum(["PENDING", "CONTACTED", "ONBOARDED", "REJECTED"]) });
+const statusSchema = z.object({ status: z.enum(["PENDING", "VERIFIED", "ACTIVE", "REJECTED"]) });
 router.patch("/developers/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Referral not found" });
   const parsed = statusSchema.safeParse(req.body);
