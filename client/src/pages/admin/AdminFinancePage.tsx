@@ -63,7 +63,7 @@ export default function AdminFinancePage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loans, setLoans] = useState<Loan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   async function loadAll() {
     try {
@@ -86,8 +86,6 @@ export default function AdminFinancePage() {
   const totalExpense = entries.filter((e) => e.direction === "OUTFLOW" && e.settled).reduce((s, e) => s + e.amountPaise, 0);
   const netCashFlow = totalIncome - totalExpense;
   const gstCollected = entries.filter((e) => e.direction === "INFLOW").reduce((s, e) => s + e.gstPaise, 0);
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading finance workspace…</div>;
 
   return (
     <main className="min-h-screen p-4 text-white md:p-8">

@@ -31,11 +31,9 @@ const isThisMonth = (d: string | Date) => {
 };
 
 export default function DeveloperDashboardPage() {
-  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject, loading } = useDeveloperData();
+  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [upsell, setUpsell] = useState<{ plan: DevUpsellPlan; feature?: string } | null>(null);
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading your business dashboard…</div>;
 
   const aiUnlocked = !!entitlement?.ai;
   const tierLabel = entitlement ? DEV_TIER_LABELS[entitlement.tier] : "Free";

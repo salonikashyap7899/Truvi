@@ -19,7 +19,7 @@ import { formatINR, formatCompactINR, cn } from "@/lib/utils";
 import type { Project } from "@/types";
 
 export default function DeveloperAnalyticsPage() {
-  const { projects, units, unitsByProject, leads, loading } = useDeveloperData();
+  const { projects, units, unitsByProject, leads } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [selectedProject, setSelectedProject] = useState<string>("");
   // Public market listings (all approved projects) — real competitor comparables.
@@ -48,8 +48,6 @@ export default function DeveloperAnalyticsPage() {
   const competitor = activeProject
     ? competitorAnalysis(activeProject, unitsByProject[activeProject._id] ?? [], peers)
     : null;
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading AI analytics…</div>;
 
   const TrendIcon = fc.trend === "up" ? TrendingUp : fc.trend === "down" ? TrendingDown : Minus;
 
