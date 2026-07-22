@@ -123,12 +123,16 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const [copilotOpen, setCopilotOpen] = useState(false);
 
   async function load() {
+    // founder-overview drives the whole dashboard (nav + pages), so it's the
+    // only blocking call. Finance is secondary — loaded independently so a
+    // finance hiccup never blanks the command center.
     try {
-      const [ov, fs] = await Promise.all([api.get("/admin/founder-overview"), api.get("/finance/summary")]);
-      setD(ov.data); setFin(fs.data);
+      const ov = await api.get("/admin/founder-overview");
+      setD(ov.data);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load dashboard");
     } finally { setLoading(false); }
+    api.get("/finance/summary").then((fs) => setFin(fs.data)).catch(() => {});
   }
   async function reloadFinance() { try { setFin((await api.get("/finance/summary")).data); } catch { /* keep */ } }
   useEffect(() => { load(); }, []);
