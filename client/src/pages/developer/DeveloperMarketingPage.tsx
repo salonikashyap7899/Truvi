@@ -11,7 +11,11 @@ import UserMenu from "@/components/UserMenu";
 import { useDeveloperData } from "@/lib/useDeveloperData";
 import { useDeveloperEntitlement } from "@/lib/devEntitlements";
 import { campaignRoi, avgUnitPrice } from "@/lib/devIntel";
-import { formatCompactINR } from "@/lib/utils";
+import { formatCompactINR, formatINR } from "@/lib/utils";
+
+// Budget range a developer can model the projection against.
+const MIN_SPEND = 10000;
+const MAX_SPEND = 10000000;
 
 // A stable split of a campaign's leads across the managed channels.
 const CHANNELS = [
@@ -31,15 +35,23 @@ const INCLUDED = [
 ];
 
 export default function DeveloperMarketingPage() {
-  const { units, leads, loading } = useDeveloperData();
+  const { units, leads } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [upsellOpen, setUpsellOpen] = useState(false);
+  // Editable campaign budget the projection is modelled against. When a
+  // campaign is live the cost is fixed at the ₹1L product price.
+  const [spend, setSpend] = useState(100000);
 
   const active = !!entitlement?.campaign;
   const avgDeal = avgUnitPrice(units);
-  const roi = useMemo(() => campaignRoi(leads, avgDeal, active), [leads, avgDeal, active]);
-
-  if (loading) return <div className="min-h-screen p-10 text-white">Loading marketing…</div>;
+  // No loading gate — the projection renders instantly from current funnel
+  // ratios (with sensible defaults when leads haven't loaded yet) and simply
+  // refines itself the moment real data arrives.
+  const clampedSpend = Math.min(MAX_SPEND, Math.max(MIN_SPEND, spend || MIN_SPEND));
+  const roi = useMemo(
+    () => campaignRoi(leads, avgDeal, active, active ? 100000 : clampedSpend),
+    [leads, avgDeal, active, clampedSpend],
+  );
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
@@ -62,11 +74,32 @@ export default function DeveloperMarketingPage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-orange-900/40"><Rocket size={16} className="text-white" /></span>
             <div>
               <h2 className="text-lg font-semibold">{active ? "Your Campaign Performance" : "What a campaign returns"}</h2>
-              <p className="text-xs text-muted-foreground">{active ? "Live funnel driven by your managed campaign." : "Projected for a ₹1,00,000 campaign at your current conversion rates."}</p>
+              <p className="text-xs text-muted-foreground">{active ? "Live funnel driven by your managed campaign." : `Projected for a ${formatINR(spend)} campaign at your current conversion rates.`}</p>
             </div>
           </div>
-          <Badge variant="featured">{roi.roi}X ROI</Badge>
+          <Badge variant="featured">{active ? "" : "Approx "}{roi.roi}X ROI</Badge>
         </div>
+
+        {!active && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <label htmlFor="campaign-budget" className="text-xs text-muted-foreground">Campaign budget</label>
+            <div className="flex items-center rounded-lg border border-white/15 bg-white/[0.03] px-2.5 focus-within:border-orange-500/60">
+              <span className="text-sm text-muted-foreground">₹</span>
+              <input
+                id="campaign-budget"
+                type="number"
+                min={MIN_SPEND}
+                max={MAX_SPEND}
+                step={10000}
+                value={spend}
+                onChange={(e) => setSpend(Math.max(0, Math.round(Number(e.target.value) || 0)))}
+                onBlur={() => setSpend(clampedSpend)}
+                className="w-28 bg-transparent px-1.5 py-1.5 text-sm text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">edit to re-project the funnel &amp; ROI instantly</span>
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-6">
           <Stat label="Campaign Cost" value={formatCompactINR(roi.cost)} />
