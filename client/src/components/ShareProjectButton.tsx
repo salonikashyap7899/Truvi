@@ -44,12 +44,29 @@ export function shareProjectOnWhatsApp(project: Project) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/** Fetch the cover photo as a shareable File, or null if unavailable/unsupported. */
+async function coverImageFile(project: Project): Promise<File | null> {
+  if (!project.coverImageUrl || typeof navigator === "undefined" || typeof navigator.canShare !== "function") return null;
+  try {
+    const res = await fetch(project.coverImageUrl);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const ext = (blob.type.split("/")[1] || "jpg").split("+")[0];
+    const file = new File([blob], `${project.name.replace(/[^\w]+/g, "-").slice(0, 40) || "property"}.${ext}`, { type: blob.type });
+    return navigator.canShare({ files: [file] }) ? file : null;
+  } catch {
+    return null; // CORS / fetch / conversion failed → share text-only
+  }
+}
+
 /** Open the native share sheet for a listing (with graceful fallbacks). */
 export async function shareProject(project: Project) {
   const url = shareUrl(project);
+  const text = shareSummary(project);
   if (typeof navigator !== "undefined" && navigator.share) {
+    const file = await coverImageFile(project);
     try {
-      await navigator.share({ title: project.name, text: shareSummary(project), url });
+      await navigator.share(file ? { title: project.name, text, url, files: [file] } : { title: project.name, text, url });
       return;
     } catch (err) {
       // User dismissed the sheet — do nothing. Only fall back on real errors.
