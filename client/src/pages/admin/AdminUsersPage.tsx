@@ -29,6 +29,8 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "ALL">("ALL");
+  // Two boxes: users awaiting a decision (PENDING/REJECTED) vs already approved.
+  const [statusView, setStatusView] = useState<"REVIEW" | "APPROVED">("REVIEW");
   const [pending, setPending] = useState<Pending | null>(null);
   const [confirming, setConfirming] = useState(false);
 
@@ -146,18 +148,28 @@ export default function AdminUsersPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return users.filter((u) => {
+      const approved = u.approvalStatus === "APPROVED";
+      if (statusView === "APPROVED" ? !approved : approved) return false;
       if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
       if (!q) return true;
       return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone || "").includes(q);
     });
-  }, [users, query, roleFilter]);
+  }, [users, query, roleFilter, statusView]);
 
   const counts = useMemo(() => ({
     total: users.length,
     active: users.filter((u) => !u.disabled).length,
     subscribers: users.filter((u) => u.subscription?.active).length,
     pending: users.filter((u) => u.approvalStatus === "PENDING").length,
+    review: users.filter((u) => u.approvalStatus !== "APPROVED").length,
+    approved: users.filter((u) => u.approvalStatus === "APPROVED").length,
   }), [users]);
+
+  // Land on whichever box has something to look at: Needs Review if anyone is
+  // waiting, otherwise the Approved list (so the page is never blank on load).
+  useEffect(() => {
+    if (!loading) setStatusView(counts.review > 0 ? "REVIEW" : "APPROVED");
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const roleCounts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -196,8 +208,36 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
+      {/* Approval boxes: Needs Review vs Approved */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {([
+          { key: "REVIEW" as const, label: "Needs Review", count: counts.review, tone: "amber" },
+          { key: "APPROVED" as const, label: "Approved", count: counts.approved, tone: "emerald" },
+        ]).map((tab) => {
+          const active = statusView === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setStatusView(tab.key)}
+              className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                active
+                  ? tab.tone === "amber"
+                    ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
+                    : "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]"
+              }`}
+            >
+              {tab.label}
+              <span className={`rounded-full px-2 py-0.5 text-xs ${active ? "bg-white/15 text-white" : "bg-white/10 text-foreground/70"}`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Controls */}
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -224,7 +264,13 @@ export default function AdminUsersPage() {
 
       {/* Users list */}
       <div className="mt-4 space-y-2.5">
-        {filtered.length === 0 && <p className="text-sm text-muted-foreground">No users match your filters.</p>}
+        {filtered.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {statusView === "REVIEW"
+              ? "No users awaiting review — everyone is approved. Switch to the Approved box to see them."
+              : "No approved users match your filters."}
+          </p>
+        )}
         {filtered.map((u) => {
           const isSelf = u._id === me?._id;
           const isAdmin = u.role === "ADMIN";
@@ -269,23 +315,28 @@ export default function AdminUsersPage() {
                   </span>
                 ) : (
                   <>
-                    <Button
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => askApprove(u)}
-                      className={isApproved ? "bg-emerald-600 text-white hover:bg-emerald-500" : "border border-emerald-600/60 bg-transparent text-emerald-300 hover:bg-emerald-600/15"}
-                    >
-                      {isApproved && <CheckCircle2 size={13} className="mr-1" />}
-                      {isApproved ? "Approved" : "Approve"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => askReject(u)}
-                      className={isRejected ? "bg-rose-700 text-white hover:bg-rose-600" : "border border-rose-700/60 bg-transparent text-rose-300 hover:bg-rose-900/25"}
-                    >
-                      {isRejected ? "Rejected" : "Reject"}
-                    </Button>
+                    {isApproved ? (
+                      // Already approved — the only status action is to move them
+                      // back to Needs Review (unapprove/reject).
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => askReject(u)}
+                        className="border border-rose-700/60 bg-transparent text-rose-300 hover:bg-rose-900/25"
+                      >
+                        Reject
+                      </Button>
+                    ) : (
+                      // Awaiting a decision — approve moves them into the Approved box.
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => askApprove(u)}
+                        className="bg-emerald-600 text-white hover:bg-emerald-500"
+                      >
+                        <CheckCircle2 size={13} className="mr-1" /> Approve
+                      </Button>
+                    )}
                     {hasSubscription && (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => askCancelSub(u)}>
                         Cancel subscription
