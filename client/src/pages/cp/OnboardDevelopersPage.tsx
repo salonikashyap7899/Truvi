@@ -12,7 +12,7 @@ interface ReferredDev {
   _id: string;
   name: string;
   email: string | null;
-  status: "ACTIVE";
+  status: "ACTIVE" | "PENDING";
   totalTransactions: number;
   totalSalesValue: number;
   incentiveEarned: number;
@@ -173,7 +173,7 @@ export default function OnboardDevelopersPage() {
                       <p className="font-medium">{r.name}</p>
                       <p className="text-[11px] text-muted-foreground">{r.email ?? `Joined ${formatDate(r.createdAt)}`}</p>
                     </td>
-                    <td className="py-2.5 px-3"><Badge variant="success">{r.status}</Badge></td>
+                    <td className="py-2.5 px-3"><Badge variant={r.status === "ACTIVE" ? "success" : "warning"}>{r.status}</Badge></td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{r.totalTransactions}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums text-emerald-300">{formatINR(r.incentiveEarned)}</td>
