@@ -47,6 +47,21 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function setApproval(u: User, approvalStatus: "APPROVED" | "REJECTED") {
+    const verb = approvalStatus === "APPROVED" ? "Approve" : "Reject";
+    if (!window.confirm(`${verb} ${u.name}? ${approvalStatus === "REJECTED" ? "They won't be able to log in until approved." : "They'll be able to log in."}`)) return;
+    setBusyId(u._id);
+    try {
+      const res = await api.patch(`/admin/users/${u._id}`, { approvalStatus });
+      setUsers((prev) => prev.map((x) => (x._id === u._id ? { ...res.data.user, subscription: x.subscription } : x)));
+      toast.success(approvalStatus === "APPROVED" ? "User approved" : "User rejected");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Action failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function cancelSubscription(u: User) {
     if (!window.confirm(`Cancel ${u.name}'s subscription? Their active/pending plans will be cancelled and premium removed.`)) return;
     setBusyId(u._id);
@@ -75,7 +90,14 @@ export default function AdminUsersPage() {
     total: users.length,
     active: users.filter((u) => !u.disabled).length,
     subscribers: users.filter((u) => u.subscription?.active).length,
+    pending: users.filter((u) => u.approvalStatus === "PENDING").length,
   }), [users]);
+
+  const roleCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const u of users) m[u.role] = (m[u.role] ?? 0) + 1;
+    return m;
+  }, [users]);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading users…</div>;
 
@@ -92,6 +114,20 @@ export default function AdminUsersPage() {
             {counts.total} accounts · {counts.active} active · {counts.subscribers} with an active subscription. Remove (deactivate) accounts, and cancel a subscription only where one exists.
           </p>
         </div>
+      </div>
+
+      {/* Role counts */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {(["DEVELOPER", "CP", "AMBASSADOR", "BUYER", "VERIFIER", "ADMIN"] as Role[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRoleFilter(r)}
+            className={`rounded-xl border px-3 py-2.5 text-left transition ${roleFilter === r ? "border-blue-500/50 bg-blue-500/10" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"}`}
+          >
+            <p className="text-xs text-muted-foreground">{roleLabel(r)}</p>
+            <p className="font-display text-xl font-semibold">{roleCounts[r] ?? 0}</p>
+          </button>
+        ))}
       </div>
 
       {/* Controls */}
@@ -147,6 +183,8 @@ export default function AdminUsersPage() {
                       </Badge>
                     )}
                     {u.disabled && <Badge className="border-red-500/30 bg-red-500/10 text-[11px] text-red-300">Deactivated</Badge>}
+                    {u.approvalStatus === "REJECTED" && <Badge className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300">Rejected</Badge>}
+                    {u.approvalStatus === "PENDING" && <Badge className="border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300">Pending</Badge>}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
                     {u.email}{u.phone ? ` · ${u.phone}` : ""}{u.createdAt ? ` · joined ${formatDate(u.createdAt)}` : ""}
@@ -161,6 +199,16 @@ export default function AdminUsersPage() {
                   </span>
                 ) : (
                   <>
+                    {u.approvalStatus !== "APPROVED" && (
+                      <Button size="sm" disabled={busyId === u._id} onClick={() => setApproval(u, "APPROVED")} className="bg-emerald-600 text-white hover:bg-emerald-500">
+                        Approve
+                      </Button>
+                    )}
+                    {u.approvalStatus !== "REJECTED" && (
+                      <Button size="sm" variant="outline" disabled={busyId === u._id} onClick={() => setApproval(u, "REJECTED")} className="border-rose-700 text-rose-300 hover:bg-rose-900/20">
+                        Reject
+                      </Button>
+                    )}
                     {hasSubscription && (
                       <Button
                         size="sm"
