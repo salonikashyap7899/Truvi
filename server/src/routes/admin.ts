@@ -15,6 +15,7 @@ import {
   sharedDocuments,
   projectAssets,
   legalDocuments,
+  buyerDocuments,
   notifications,
   payments,
   subscriptions,
@@ -789,6 +790,151 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
 
   await logAudit({ userId: req.user!.userId, action: approve ? "kyc.approve" : "kyc.reject", resourceType: "user", resourceId: String(user._id), metadata: { reason: approve ? undefined : reason } });
   res.json({ ok: true, userId: user._id, kycStatus: onboardingChecks.kycStatus, onboardingVerified });
+});
+
+// ---------------------------------------------------------------------------
+// Documents console — every uploaded document across the platform in one list
+// so an admin can review and approve/reject each. Aggregates four sources:
+//   BUYER  → buyerDocuments  (buyer KYC: ID / address / income proof)
+//   LEGAL  → legalDocuments  (RERA cert, approvals, NOCs, title docs)
+//   ASSET  → projectAssets   (developer Vault uploads)
+//   SHARED → sharedDocuments (brochures, floor plans, price lists)
+// Each row carries a normalised status so the UI is uniform regardless of the
+// underlying table's own state model.
+// ---------------------------------------------------------------------------
+
+type DocStatus = "APPROVED" | "PENDING" | "REJECTED";
+type DocSource = "BUYER" | "LEGAL" | "ASSET" | "SHARED";
+interface AdminDocument {
+  _id: string;
+  source: DocSource;
+  category: string;
+  fileName: string;
+  fileUrl: string;
+  status: DocStatus;
+  approvable: boolean;
+  uploader: { name: string; role: string } | null;
+  project: { name: string } | null;
+  createdAt: Date | null;
+}
+
+// GET /api/admin/documents — unified list of every document, newest first.
+router.get("/documents", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+
+  const [buyerRows, legalRows, assetRows, sharedRows] = await Promise.all([
+    db
+      .select({ doc: buyerDocuments, uploader: { name: users.name, role: users.role } })
+      .from(buyerDocuments)
+      .leftJoin(users, eq(buyerDocuments.buyerId, users._id)),
+    db
+      .select({ doc: legalDocuments, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(legalDocuments)
+      .leftJoin(projects, eq(legalDocuments.projectId, projects._id))
+      .leftJoin(users, eq(legalDocuments.uploadedById, users._id)),
+    db
+      .select({ doc: projectAssets, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(projectAssets)
+      .leftJoin(projects, eq(projectAssets.projectId, projects._id))
+      .leftJoin(users, eq(projectAssets.uploadedBy, users._id)),
+    db
+      .select({ doc: sharedDocuments, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(sharedDocuments)
+      .leftJoin(projects, eq(sharedDocuments.projectId, projects._id))
+      .leftJoin(users, eq(sharedDocuments.uploadedById, users._id)),
+  ]);
+
+  const docs: AdminDocument[] = [];
+
+  for (const r of buyerRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "BUYER",
+      category: r.doc.docType.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.status === "VERIFIED" ? "APPROVED" : r.doc.status === "REJECTED" ? "REJECTED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of legalRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "LEGAL",
+      category: r.doc.docType,
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of assetRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "ASSET",
+      category: r.doc.category.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of sharedRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "SHARED",
+      category: r.doc.fileType.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: "APPROVED",
+      approvable: false, // brochures/price lists have no gated state
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+
+  docs.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  res.json({ documents: docs });
+});
+
+// PATCH /api/admin/documents/:source/:id — approve or reject one document.
+const docDecisionSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
+router.patch("/documents/:source/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const source = req.params.source as DocSource;
+  const id = req.params.id;
+  if (!isValidId(id)) return res.status(404).json({ error: "Document not found" });
+  const parsed = docDecisionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const approve = parsed.data.status === "APPROVED";
+
+  const db = getDb();
+  let ok = false;
+  if (source === "BUYER") {
+    const [row] = await db.update(buyerDocuments).set({ status: approve ? "VERIFIED" : "REJECTED" }).where(eq(buyerDocuments._id, id)).returning({ _id: buyerDocuments._id });
+    ok = Boolean(row);
+  } else if (source === "LEGAL") {
+    const [row] = await db.update(legalDocuments).set({ verified: approve, verifiedById: req.user!.userId, verifiedAt: new Date() }).where(eq(legalDocuments._id, id)).returning({ _id: legalDocuments._id });
+    ok = Boolean(row);
+  } else if (source === "ASSET") {
+    const [row] = await db.update(projectAssets).set({ verified: approve }).where(eq(projectAssets._id, id)).returning({ _id: projectAssets._id });
+    ok = Boolean(row);
+  } else {
+    return res.status(400).json({ error: "This document type has no approval state" });
+  }
+
+  if (!ok) return res.status(404).json({ error: "Document not found" });
+  await logAudit({ userId: req.user!.userId, action: approve ? "document.approve" : "document.reject", resourceType: "document", resourceId: id, metadata: { source } });
+  res.json({ ok: true, status: parsed.data.status });
 });
 
 export default router;

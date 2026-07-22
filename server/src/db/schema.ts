@@ -61,7 +61,7 @@ export type PostCategory =
   | "ASK_COMMUNITY";
 export type EnquiryPurpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
 export type BuyerDocType = "ID_PROOF" | "ADDRESS_PROOF" | "INCOME_PROOF";
-export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED";
+export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED";
 export type SharedDocFileType = "BROCHURE" | "FLOOR_PLAN" | "PRICE_LIST" | "LEGAL" | "OTHER";
 export type LegalDocType = "RERA" | "APPROVAL" | "NOC" | "TITLE" | "OTHER";
 
