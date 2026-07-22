@@ -93,7 +93,7 @@ export default function SignupPage() {
     "h-11 border-white/12 bg-white/[0.04] text-white placeholder:text-white/30 transition-all focus:border-[var(--trust)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--trust)]/20";
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
+    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden px-4 py-6">
       <AuthAurora />
 
       <motion.div
