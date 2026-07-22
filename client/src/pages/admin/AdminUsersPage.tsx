@@ -7,10 +7,20 @@ import { useAuthStore } from "@/store/authStore";
 import { roleLabel } from "@/lib/rolePaths";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, ShieldAlert, Crown } from "lucide-react";
+import { ArrowLeft, Search, ShieldAlert, Crown, X, CheckCircle2, Loader2 } from "lucide-react";
 import type { User, Role } from "@/types";
 
 const ROLE_FILTERS: (Role | "ALL")[] = ["ALL", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "ADMIN"];
+
+// A pending confirmation — drives the in-app dialog so we never fall back to
+// the browser's native "site says…" popup for a destructive/status action.
+type Pending = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  tone: "success" | "danger" | "default";
+  run: () => Promise<void>;
+};
 
 export default function AdminUsersPage() {
   const me = useAuthStore((s) => s.user);
@@ -19,6 +29,8 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "ALL">("ALL");
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function load() {
     try {
@@ -32,8 +44,7 @@ export default function AdminUsersPage() {
   }
   useEffect(() => { load(); }, []);
 
-  async function setDisabled(u: User, disabled: boolean) {
-    if (!window.confirm(`${disabled ? "Remove (deactivate)" : "Restore"} ${u.name}? ${disabled ? "They will no longer be able to log in." : "They will be able to log in again."}`)) return;
+  async function doSetDisabled(u: User, disabled: boolean) {
     setBusyId(u._id);
     try {
       const res = await api.patch(`/admin/users/${u._id}`, { disabled });
@@ -47,9 +58,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function setApproval(u: User, approvalStatus: "APPROVED" | "REJECTED") {
-    const verb = approvalStatus === "APPROVED" ? "Approve" : "Reject";
-    if (!window.confirm(`${verb} ${u.name}? ${approvalStatus === "REJECTED" ? "They won't be able to log in until approved." : "They'll be able to log in."}`)) return;
+  async function doSetApproval(u: User, approvalStatus: "APPROVED" | "REJECTED") {
     setBusyId(u._id);
     try {
       const res = await api.patch(`/admin/users/${u._id}`, { approvalStatus });
@@ -62,8 +71,7 @@ export default function AdminUsersPage() {
     }
   }
 
-  async function cancelSubscription(u: User) {
-    if (!window.confirm(`Cancel ${u.name}'s subscription? Their active/pending plans will be cancelled and premium removed.`)) return;
+  async function doCancelSubscription(u: User) {
     setBusyId(u._id);
     try {
       const res = await api.post(`/admin/users/${u._id}/cancel-subscription`);
@@ -74,6 +82,64 @@ export default function AdminUsersPage() {
       toast.error(err?.response?.data?.error || "Action failed");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  // Each action opens the in-app dialog describing that specific action.
+  function askApprove(u: User) {
+    setPending({
+      title: `Approve ${u.name}?`,
+      message: "They'll be able to log in and use the platform.",
+      confirmLabel: "Approve",
+      tone: "success",
+      run: () => doSetApproval(u, "APPROVED"),
+    });
+  }
+  function askReject(u: User) {
+    setPending({
+      title: `Reject ${u.name}?`,
+      message: "They won't be able to log in until you approve them again.",
+      confirmLabel: "Reject",
+      tone: "danger",
+      run: () => doSetApproval(u, "REJECTED"),
+    });
+  }
+  function askRemove(u: User) {
+    setPending({
+      title: `Remove ${u.name}?`,
+      message: "This deactivates the account — they will no longer be able to log in.",
+      confirmLabel: "Remove",
+      tone: "danger",
+      run: () => doSetDisabled(u, true),
+    });
+  }
+  function askRestore(u: User) {
+    setPending({
+      title: `Restore ${u.name}?`,
+      message: "They will be able to log in again.",
+      confirmLabel: "Restore",
+      tone: "default",
+      run: () => doSetDisabled(u, false),
+    });
+  }
+  function askCancelSub(u: User) {
+    setPending({
+      title: `Cancel ${u.name}'s subscription?`,
+      message: "Their active/pending plans will be cancelled and premium removed.",
+      confirmLabel: "Cancel subscription",
+      tone: "danger",
+      run: () => doCancelSubscription(u),
+    });
+  }
+
+  async function runPending() {
+    if (!pending) return;
+    setConfirming(true);
+    try {
+      await pending.run();
+    } finally {
+      setConfirming(false);
+      setPending(null);
     }
   }
 
@@ -164,6 +230,9 @@ export default function AdminUsersPage() {
           const isAdmin = u.role === "ADMIN";
           const sub = u.subscription;
           const hasSubscription = Boolean(sub?.active);
+          const isApproved = u.approvalStatus === "APPROVED";
+          const isRejected = u.approvalStatus === "REJECTED";
+          const busy = busyId === u._id;
           return (
             <Card key={u._id} className={`flex flex-col gap-3 border-white/10 text-white sm:flex-row sm:items-center sm:justify-between ${u.disabled ? "opacity-60" : ""}`}>
               <div className="flex min-w-0 items-center gap-3">
@@ -183,7 +252,8 @@ export default function AdminUsersPage() {
                       </Badge>
                     )}
                     {u.disabled && <Badge className="border-red-500/30 bg-red-500/10 text-[11px] text-red-300">Deactivated</Badge>}
-                    {u.approvalStatus === "REJECTED" && <Badge className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300">Rejected</Badge>}
+                    {isApproved && <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-300">Approved</Badge>}
+                    {isRejected && <Badge className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300">Rejected</Badge>}
                     {u.approvalStatus === "PENDING" && <Badge className="border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300">Pending</Badge>}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
@@ -201,37 +271,32 @@ export default function AdminUsersPage() {
                   <>
                     <Button
                       size="sm"
-                      disabled={busyId === u._id || u.approvalStatus === "APPROVED"}
-                      onClick={() => setApproval(u, "APPROVED")}
-                      className={u.approvalStatus === "APPROVED" ? "bg-emerald-600/40 text-emerald-100" : "bg-emerald-600 text-white hover:bg-emerald-500"}
+                      disabled={busy}
+                      onClick={() => askApprove(u)}
+                      className={isApproved ? "bg-emerald-600 text-white hover:bg-emerald-500" : "border border-emerald-600/60 bg-transparent text-emerald-300 hover:bg-emerald-600/15"}
                     >
-                      {u.approvalStatus === "APPROVED" ? "Approved" : "Approve"}
+                      {isApproved && <CheckCircle2 size={13} className="mr-1" />}
+                      {isApproved ? "Approved" : "Approve"}
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
-                      disabled={busyId === u._id || u.approvalStatus === "REJECTED"}
-                      onClick={() => setApproval(u, "REJECTED")}
-                      className={u.approvalStatus === "REJECTED" ? "border-rose-500 bg-rose-900/40 text-rose-200" : "border-rose-700 text-rose-300 hover:bg-rose-900/20"}
+                      disabled={busy}
+                      onClick={() => askReject(u)}
+                      className={isRejected ? "bg-rose-700 text-white hover:bg-rose-600" : "border border-rose-700/60 bg-transparent text-rose-300 hover:bg-rose-900/25"}
                     >
-                      {u.approvalStatus === "REJECTED" ? "Rejected" : "Reject"}
+                      {isRejected ? "Rejected" : "Reject"}
                     </Button>
                     {hasSubscription && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === u._id}
-                        onClick={() => cancelSubscription(u)}
-                      >
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => askCancelSub(u)}>
                         Cancel subscription
                       </Button>
                     )}
                     {u.disabled ? (
-                      <Button size="sm" disabled={busyId === u._id} onClick={() => setDisabled(u, false)}>
+                      <Button size="sm" disabled={busy} onClick={() => askRestore(u)}>
                         Restore
                       </Button>
                     ) : (
-                      <Button size="sm" variant="destructive" disabled={busyId === u._id} onClick={() => setDisabled(u, true)}>
+                      <Button size="sm" variant="destructive" disabled={busy} onClick={() => askRemove(u)}>
                         Remove
                       </Button>
                     )}
@@ -242,6 +307,50 @@ export default function AdminUsersPage() {
           );
         })}
       </div>
+
+      {/* In-app confirmation dialog — replaces the browser's native confirm() */}
+      {pending && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget && !confirming) setPending(null); }}
+        >
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/15 bg-[#0d1117] shadow-2xl">
+            <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
+              <h2 className="pr-4 text-base font-semibold text-white">{pending.title}</h2>
+              <button
+                onClick={() => !confirming && setPending(null)}
+                aria-label="Close"
+                className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-muted-foreground">{pending.message}</p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+              <Button size="sm" variant="outline" disabled={confirming} onClick={() => setPending(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={confirming}
+                onClick={runPending}
+                className={
+                  pending.tone === "danger"
+                    ? "bg-rose-700 text-white hover:bg-rose-600"
+                    : pending.tone === "success"
+                      ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                      : ""
+                }
+              >
+                {confirming && <Loader2 size={13} className="mr-1.5 animate-spin" />}
+                {pending.confirmLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
