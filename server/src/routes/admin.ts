@@ -53,7 +53,7 @@ router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [allUsers, allSubs, allPays, allCommissions, allLeads] = await Promise.all([
-    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt }).from(users),
+    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingChecks: users.onboardingChecks }).from(users),
     db.select().from(subscriptions),
     db.select().from(payments).where(eq(payments.status, "PAID")),
     db.select().from(commissions),
@@ -243,7 +243,13 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     .slice(0, 12);
 
   // ---- Verification queue ------------------------------------------------
-  const pendingKyc = allUsers.filter((u) => u.role === "CP" && !u.onboardingVerified).length;
+  // Count only submissions actually awaiting manual review (docs submitted →
+  // kycStatus PENDING), matching exactly what GET /admin/kyc/pending returns.
+  // A CP who registered but never submitted KYC must NOT inflate this box,
+  // otherwise the dashboard shows a count while the review page is empty.
+  const pendingKyc = allUsers.filter(
+    (u) => (u.role === "CP" || u.role === "AMBASSADOR") && u.onboardingChecks?.kycStatus === "PENDING",
+  ).length;
 
   // ---- CRM (real) --------------------------------------------------------
   const newCustomers30d = allUsers.filter((u) => u.role === "BUYER" && u.createdAt >= thirtyDaysAgo).length;
