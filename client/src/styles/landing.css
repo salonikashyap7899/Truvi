@@ -182,3 +182,111 @@
 :root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.3 0.02 255 / 34%);
 }
+
+/* ============================================================
+   Light theme — remap the app's many hardcoded dark-assuming
+   utilities (text-white, border-white/*, bg-white/*, near-black
+   bg-[#hex]) to palette-driven equivalents. Centralised here so
+   light mode reads correctly without editing hundreds of files.
+   White text that sits on a coloured surface uses `.text-on-accent`
+   (below), which is intentionally NOT remapped.
+   ============================================================ */
+
+/* Pure white → foreground (headings, page text). */
+:root[data-theme="light"] [class~="text-white"] {
+  color: var(--foreground);
+}
+
+/* Dimmed white text → dimmed foreground, opacity preserved. */
+:root[data-theme="light"] [class~="text-white/20"] { color: color-mix(in srgb, var(--foreground) 20%, transparent); }
+:root[data-theme="light"] [class~="text-white/25"] { color: color-mix(in srgb, var(--foreground) 25%, transparent); }
+:root[data-theme="light"] [class~="text-white/30"] { color: color-mix(in srgb, var(--foreground) 30%, transparent); }
+:root[data-theme="light"] [class~="text-white/35"] { color: color-mix(in srgb, var(--foreground) 35%, transparent); }
+:root[data-theme="light"] [class~="text-white/40"] { color: color-mix(in srgb, var(--foreground) 40%, transparent); }
+:root[data-theme="light"] [class~="text-white/45"] { color: color-mix(in srgb, var(--foreground) 45%, transparent); }
+:root[data-theme="light"] [class~="text-white/50"] { color: color-mix(in srgb, var(--foreground) 50%, transparent); }
+:root[data-theme="light"] [class~="text-white/55"] { color: color-mix(in srgb, var(--foreground) 55%, transparent); }
+:root[data-theme="light"] [class~="text-white/60"] { color: color-mix(in srgb, var(--foreground) 60%, transparent); }
+:root[data-theme="light"] [class~="text-white/65"] { color: color-mix(in srgb, var(--foreground) 65%, transparent); }
+:root[data-theme="light"] [class~="text-white/70"] { color: color-mix(in srgb, var(--foreground) 70%, transparent); }
+:root[data-theme="light"] [class~="text-white/75"] { color: color-mix(in srgb, var(--foreground) 75%, transparent); }
+:root[data-theme="light"] [class~="text-white/80"] { color: color-mix(in srgb, var(--foreground) 80%, transparent); }
+:root[data-theme="light"] [class~="text-white/85"] { color: color-mix(in srgb, var(--foreground) 85%, transparent); }
+:root[data-theme="light"] [class~="text-white/90"] { color: color-mix(in srgb, var(--foreground) 90%, transparent); }
+
+/* White hairline borders → the themed border colour. */
+:root[data-theme="light"] [class*="border-white/"] {
+  border-color: var(--border);
+}
+
+/* Subtle white translucent surfaces → subtle dark translucent surfaces. */
+:root[data-theme="light"] [class~="bg-white/[0.02]"],
+:root[data-theme="light"] [class~="bg-white/[0.03]"],
+:root[data-theme="light"] [class~="bg-white/[0.04]"],
+:root[data-theme="light"] [class~="bg-white/5"] {
+  background-color: oklch(0.28 0.03 255 / 3.5%);
+}
+:root[data-theme="light"] [class~="bg-white/[0.05]"],
+:root[data-theme="light"] [class~="bg-white/[0.06]"],
+:root[data-theme="light"] [class~="bg-white/[0.08]"],
+:root[data-theme="light"] [class~="bg-white/10"] {
+  background-color: oklch(0.28 0.03 255 / 6%);
+}
+:root[data-theme="light"] [class~="bg-white/15"],
+:root[data-theme="light"] [class~="bg-white/20"] {
+  background-color: oklch(0.28 0.03 255 / 10%);
+}
+
+/* Preserve hover feedback on the common white hover surfaces. */
+:root[data-theme="light"] [class~="hover:bg-white/5"]:hover,
+:root[data-theme="light"] [class~="hover:bg-white/10"]:hover {
+  background-color: oklch(0.28 0.03 255 / 8%);
+}
+
+/* Near-black panel backgrounds → the themed card surface. */
+:root[data-theme="light"] [class*="bg-[#0d1117]"],
+:root[data-theme="light"] [class*="bg-[#0a0d14]"],
+:root[data-theme="light"] [class*="bg-[#0a0f18]"],
+:root[data-theme="light"] [class*="bg-[#06090f]"],
+:root[data-theme="light"] [class*="bg-[#11161f]"],
+:root[data-theme="light"] [class*="bg-[#0b0d14]"],
+:root[data-theme="light"] [class*="bg-[#0b0b12]"],
+:root[data-theme="light"] [class*="bg-[#0a0e17]"],
+:root[data-theme="light"] [class*="bg-[#050608]"] {
+  background-color: var(--card);
+}
+
+/* Keep white text readable where it sits on a saturated colour, a gradient or a
+   dark overlay — these outrank the text-white → foreground remap above, so
+   coloured buttons, pills and image captions stay white-on-colour in light mode. */
+:root[data-theme="light"] [class~="text-white"][class*="bg-blue-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-sky-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-indigo-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-violet-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-purple-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-fuchsia-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-pink-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-rose-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-red-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-orange-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-amber-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-yellow-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-lime-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-green-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-emerald-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-teal-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-cyan-"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-black"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-gradient"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-[var(--trust)]"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-[var(--growth)]"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-[var(--tech)]"],
+:root[data-theme="light"] [class~="text-white"][class*="bg-[var(--gold)]"] {
+  color: #fff;
+}
+
+/* White text that lives on a coloured button/badge/chip — stays white in
+   both themes. Unlayered so the light remaps above never touch it. */
+.text-on-accent {
+  color: #fff;
+}
