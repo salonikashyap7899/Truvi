@@ -27,6 +27,7 @@ import investmentRoutes from "./routes/investments";
 import loanCheckRoutes from "./routes/loanChecks";
 import aiChatRoutes from "./routes/aiChat";
 import connectRoutes from "./routes/connect";
+import onboardingRoutes from "./routes/onboarding";
 import academyRoutes from "./routes/academy";
 import publicRoutes from "./routes/public";
 import vaultRoutes from "./routes/vault";
@@ -96,6 +97,7 @@ export function createApp() {
   app.use("/api/loan-checks", loanCheckRoutes);
   app.use("/api/ai/chat", aiChatRoutes);
   app.use("/api/connect", connectRoutes);
+  app.use("/api/onboarding", onboardingRoutes);
   app.use("/api/academy", academyRoutes);
   app.use("/api/public", publicRoutes);
   app.use("/api/vault", vaultRoutes);

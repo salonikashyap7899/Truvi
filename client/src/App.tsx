@@ -50,6 +50,7 @@ import SalesHubPage from "@/pages/cp/SalesHubPage";
 import AIHubPage from "@/pages/cp/AIHubPage";
 import BusinessHubPage from "@/pages/cp/BusinessHubPage";
 import GrowthHubPage from "@/pages/cp/GrowthHubPage";
+import OnboardDevelopersPage from "@/pages/cp/OnboardDevelopersPage";
 import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
 import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
 import ComparePage from "@/pages/buyer/ComparePage";
@@ -201,6 +202,7 @@ export default function App() {
         <Route path="/cp/ai" element={<ProtectedRoute roles={["CP"]}><AIHubPage /></ProtectedRoute>} />
         <Route path="/cp/business" element={<ProtectedRoute roles={["CP"]}><BusinessHubPage /></ProtectedRoute>} />
         <Route path="/cp/growth" element={<ProtectedRoute roles={["CP"]}><GrowthHubPage /></ProtectedRoute>} />
+        <Route path="/cp/onboard-developers" element={<ProtectedRoute roles={["CP"]}><OnboardDevelopersPage /></ProtectedRoute>} />
         <Route path="/cp/connect" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><TruviConnectPage /></ProtectedRoute>} />
         <Route path="/crm/pipeline" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><PipelinePage /></ProtectedRoute>} />
         <Route path="/bookings" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><BookingsPage /></ProtectedRoute>} />
