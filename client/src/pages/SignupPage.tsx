@@ -28,6 +28,7 @@ const signupSchema = z
     phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
     role: z.enum(["DEVELOPER", "CP", "BUYER"]),
     companyName: z.string().optional(),
+    referralCode: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.role === "DEVELOPER" && (!data.companyName || data.companyName.trim().length < 2)) {
@@ -71,7 +72,7 @@ export default function SignupPage() {
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { role: initialRole },
+    defaultValues: { role: initialRole, referralCode: searchParams.get("ref") ?? "" },
   });
 
   const role = watch("role");
@@ -182,6 +183,11 @@ export default function SignupPage() {
                     {errors.companyName && <p className="mt-1 text-xs text-red-400">{errors.companyName.message}</p>}
                   </div>
                 )}
+                <div>
+                  <Label>Referral code <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${inputCls} uppercase placeholder:normal-case`} />
+                  <p className="mt-1 text-xs text-muted-foreground">Got a code from a Channel Partner or Ambassador? Enter it to link your account.</p>
+                </div>
                 {serverError && (
                   <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>
                 )}

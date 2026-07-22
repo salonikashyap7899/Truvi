@@ -275,6 +275,10 @@ export const users = pgTable(
     onboardingVerified: boolean("onboarding_verified").notNull().default(false),
     onboardingChecks: jsonb("onboarding_checks").$type<OnboardingChecks>(),
     verification: jsonb("verification").$type<UserVerification>(),
+    // Referral program: a CP/Ambassador's own shareable code, and the referrer
+    // a developer signed up under (set from a valid referral code at signup).
+    referralCode: text("referral_code").unique(),
+    referredBy: uuid("referred_by"),
     cpTier: text("cp_tier").$type<CPTier>().default("SILVER"),
     cpProfile: jsonb("cp_profile").$type<CpProfile>().default(DEFAULT_CP_PROFILE),
     developerProfile: jsonb("developer_profile").$type<DeveloperProfile>(),

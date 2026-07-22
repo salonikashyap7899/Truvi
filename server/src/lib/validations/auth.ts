@@ -38,6 +38,9 @@ export const signupSchema = z
     role: z.enum(["DEVELOPER", "CP", "BUYER", "AMBASSADOR"], { error: "Select a role" }),
     companyName: z.string().optional(),
     reraNumber: z.string().optional(),
+    // Optional referral code — links the new account to the referring
+    // CP/Ambassador when valid (ignored silently if blank or unrecognised).
+    referralCode: z.string().trim().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.role === "DEVELOPER" && (!data.companyName || data.companyName.trim().length < 2)) {

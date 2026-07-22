@@ -783,8 +783,10 @@ export default function LandingPage() {
   const mounted = useMounted();
   const showcase = useShowcase();
   const { hash } = useLocation();
-  // The "Enroll a Developer — earn 2%" banner is only relevant to developers.
-  const isDeveloper = useAuthStore((s) => s.user?.role) === "DEVELOPER";
+  // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
+  // except Admin/Founder (who have full oversight and don't refer).
+  const bannerUser = useAuthStore((s) => s.user);
+  const showEnrollBanner = !!bannerUser && bannerUser.role !== "ADMIN";
 
   // Arriving from another page with a hash (e.g. /#ask-truvi) — scroll to it
   useEffect(() => {
@@ -825,8 +827,8 @@ export default function LandingPage() {
           centering would push its top underneath the fixed navbar. */}
       <Section className="min-h-screen items-center !justify-start pt-32 md:pt-36 pb-16 text-center">
         {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
-            Only shown to logged-in developers. */}
-        {isDeveloper && (
+            Shown to every signed-in user except Admin/Founder. */}
+        {showEnrollBanner && (
           <Reveal>
             <Link
               to="/cp/onboard-developers"
