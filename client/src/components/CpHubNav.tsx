@@ -17,7 +17,7 @@ const HUBS: { to: string; label: string; icon: typeof LayoutDashboard; pro?: boo
   { to: "/cp/academy", label: "Learning Hub", icon: GraduationCap },
   { to: "/cp/connect", label: "Community Hub", icon: Users },
   { to: "/cp/growth", label: "Growth Hub", icon: Trophy },
-  { to: "/cp/onboard-developers", label: "Onboard Developers", icon: Building2, tooltip: "Onboard developers and get more 10% incentive." },
+  { to: "/cp/onboard-developers", label: "Developer Enrollment", icon: Building2, tooltip: "Enroll a Developer — Earn 2% on Every Transaction by Your Referred Developer." },
 ];
 
 export function CpHubNav() {

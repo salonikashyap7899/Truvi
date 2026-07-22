@@ -1028,10 +1028,10 @@ export const platformSettings = pgTable("platform_settings", {
 });
 export type IPlatformSettings = typeof platformSettings.$inferSelect;
 
-// Developer onboarding referrals — a CP brings a developer/landowner to list on
-// Truvi. The referring CP earns a +10% commission incentive on sales from that
+// Developer enrollment — a CP enrolls a developer/landowner to list on Truvi.
+// The referring CP earns a 2% incentive on every transaction from that
 // developer's inventory (whether the CP sells it or anyone else does).
-export type DeveloperReferralStatus = "PENDING" | "CONTACTED" | "ONBOARDED" | "REJECTED";
+export type DeveloperReferralStatus = "PENDING" | "VERIFIED" | "ACTIVE" | "REJECTED";
 export const developerReferrals = pgTable("developer_referrals", {
   _id: uuid("id").defaultRandom().primaryKey(),
   cpId: uuid("cp_id").notNull().references(() => users._id),
@@ -1043,7 +1043,7 @@ export const developerReferrals = pgTable("developer_referrals", {
   landDetails: text("land_details"),
   notes: text("notes"),
   status: text("status").$type<DeveloperReferralStatus>().notNull().default("PENDING"),
-  incentivePercent: doublePrecision("incentive_percent").notNull().default(10),
+  incentivePercent: doublePrecision("incentive_percent").notNull().default(2),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });

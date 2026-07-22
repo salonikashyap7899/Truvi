@@ -153,15 +153,6 @@ const ROTATING_QUESTIONS = [
 const BEFORE_TRUVI = ["Broker opinion", "Multiple portals", "Manual documents", "Guesswork", "Days of research"];
 const WITH_TRUVI = ["One property profile", "Truvi Intelligence Engine™ analysis", "Risk Signals™", "Data-backed decision", "Minutes"];
 
-const DEVELOPER_INTEL = [
-  { title: "Demand Heatmaps", desc: "Where buyers are actually searching, enquiring and converting — mapped by micro-market." },
-  { title: "Pricing Intelligence", desc: "Live rate benchmarks against comparable projects, corridors and circle rates." },
-  { title: "Competitor Tracking", desc: "Launches, price moves and absorption of every competing project around yours." },
-  { title: "Inventory Signals", desc: "Which configurations move, which stall — across your portfolio and the market's." },
-  { title: "Lead Intelligence", desc: "Enquiries scored and tagged by intent, purpose and readiness — not just volume." },
-  { title: "Location Opportunity", desc: "Land and corridor opportunities ranked by infrastructure and growth signals." },
-];
-
 const FLYWHEEL = ["More Properties", "More Signals", "Better Intelligence", "Better Decisions", "More Users"];
 
 const METHODOLOGY = [
@@ -830,6 +821,17 @@ export default function LandingPage() {
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
       <Section className="min-h-screen items-center !justify-start pt-32 md:pt-36 pb-16 text-center">
+        {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn */}
+        <Reveal>
+          <Link
+            to="/cp/onboard-developers"
+            className="group mx-auto mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
+          >
+            <span aria-hidden>☁️</span>
+            <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
+            <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+        </Reveal>
         <Reveal>
           <Eyebrow>Property Intelligence · Verified by Design</Eyebrow>
         </Reveal>
@@ -1073,43 +1075,6 @@ export default function LandingPage() {
       </Section>
 
       {/* ---------- 9 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
-      <Section id="developer-intelligence">
-        <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>
-        <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
-            The market, as your{" "}
-            <span className="text-gradient-trust">launch dashboard.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
-            The same engine that scores properties for buyers gives developers the demand, pricing and
-            competitive intelligence behind every launch decision.
-          </p>
-        </Reveal>
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {DEVELOPER_INTEL.map((d, i) => (
-            <Reveal key={d.title} delay={i * 0.06}>
-              <div className="h-full rounded-2xl glass p-6">
-                <h3 className="font-display text-lg font-medium text-[var(--trust)]">{d.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{d.desc}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-        <Reveal delay={0.4}>
-          <div className="mt-10 flex flex-wrap items-center gap-4">
-            <GlowButton to="/signup?role=DEVELOPER">List Your Project on Truvi</GlowButton>
-            <Link
-              to="/login"
-              className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground/90 transition hover:bg-white/5"
-            >
-              Sign in as Developer
-            </Link>
-          </div>
-        </Reveal>
-      </Section>
-
       {/* ---------- 11 · DATA MOAT ---------- */}
       <Section id="data-moat" className="items-center text-center">
         <Reveal><Eyebrow>The Data Moat</Eyebrow></Reveal>
