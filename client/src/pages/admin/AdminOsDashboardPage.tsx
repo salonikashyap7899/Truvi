@@ -114,35 +114,25 @@ export default function AdminOsDashboardPage() {
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [trends, setTrends] = useState<KpiTrends | null>(null);
-  const [loading, setLoading] = useState(true);
   const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
 
-  async function load() {
-    try {
-      const [projectsRes, revenueRes, allUsersRes, allProjectsRes] = await Promise.all([
-        api.get("/admin/projects", { params: { approvalStatus: "PENDING" } }),
-        api.get("/revenue"),
-        api.get("/admin/users"),
-        api.get("/admin/projects"),
-      ]);
-      setPendingProjects(projectsRes.data.projects);
-      setStats({
-        totalUsers: allUsersRes.data.users.length,
-        totalProjects: allProjectsRes.data.projects.length,
-        platformFees: revenueRes.data.platformFeeRevenue,
-        leadRevenue: revenueRes.data.leadServiceRevenue,
-      });
-      api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
-      // Live operational counts + recent activity — both already computed
-      // server-side (founder-overview, audit-logs); non-blocking so the core
-      // dashboard still renders if either is unavailable.
-      api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
-      api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
-      api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to load admin dashboard");
-    } finally { setLoading(false); }
+  // Each section loads independently and resiliently — the dashboard renders
+  // instantly (no blocking spinner) and one slow/failed endpoint never blanks
+  // the rest or throws a scary "failed to load" for the whole page.
+  function load() {
+    api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
+      .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
+    api.get("/admin/users")
+      .then((res) => setStats((s) => ({ ...s, totalUsers: res.data.users.length }))).catch(() => {});
+    api.get("/admin/projects")
+      .then((res) => setStats((s) => ({ ...s, totalProjects: res.data.projects.length }))).catch(() => {});
+    api.get("/revenue")
+      .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
+    api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
+    api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
+    api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
+    api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
   }
   useEffect(() => { load(); }, []);
 
@@ -158,8 +148,6 @@ export default function AdminOsDashboardPage() {
 
   function doLogout() { clearAuth(); navigate("/login"); }
   function goto(path: string) { setNavOpen(false); navigate(path); }
-
-  if (loading) return <div className="founder-os" style={{ padding: 40 }}><p style={{ color: "var(--ink-500)" }}>Loading admin command center…</p></div>;
 
   return (
     <div className={`founder-os ${light ? "light" : ""}`}>

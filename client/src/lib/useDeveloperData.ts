@@ -34,9 +34,11 @@ export function useDeveloperData(): DeveloperData {
   const load = useCallback(async () => {
     setError(null);
     try {
+      // Each source is caught independently — one failing endpoint never blanks
+      // the whole dashboard (projects still show if leads fail, and vice-versa).
       const [projectsRes, leadsRes, visitsRes] = await Promise.all([
-        api.get("/projects"),
-        api.get("/leads"),
+        api.get("/projects").catch(() => ({ data: { projects: [] } })),
+        api.get("/leads").catch(() => ({ data: { leads: [] } })),
         api.get("/site-visits").catch(() => ({ data: { siteVisits: [] } })),
       ]);
       const projectList: Project[] = projectsRes.data.projects ?? [];
