@@ -10,53 +10,28 @@ interface OwnerHistoryCardProps {
   owners: OwnerEntry[];
 }
 
-/** Deterministic mock owner history derived from project ID. */
-export function mockOwnerHistoryFromId(id: string): OwnerEntry[] {
-  if (!id) {
-    return [{ ownerLabel: "Original Owner", startYear: 2018, endYear: null }];
-  }
-
-  const a = parseInt(id.slice(-8, -6) || "3c", 16);
-  const b = parseInt(id.slice(-6, -4) || "7a", 16);
-
-  // 1–3 previous owners + current
-  const prevCount = (a % 3) + 1;
-  const currentHeld = (b % 4) + 2; // current owner held 2–5 years
-  const currentYear = new Date().getFullYear();
-  const currentStart = currentYear - currentHeld;
-
-  const entries: OwnerEntry[] = [];
-  let cursor = currentStart;
-
-  for (let i = prevCount; i >= 1; i--) {
-    const held = (((a * i + b) % 5) + 2); // 2–6 years each
-    const start = cursor - held;
-    entries.push({
-      ownerLabel: `Owner ${i}`,
-      startYear: start,
-      endYear: cursor,
-    });
-    cursor = start;
-  }
-
-  entries.reverse();
-
-  // Clamp so nothing goes below 1995
-  entries.forEach((e) => {
-    if (e.startYear < 1995) e.startYear = 1995;
-    if (e.endYear !== null && e.endYear <= e.startYear) e.endYear = e.startYear + 2;
-  });
-
-  entries.push({
-    ownerLabel: "Current Owner",
-    startYear: currentStart,
-    endYear: null,
-  });
-
-  return entries;
-}
-
 export default function OwnerHistoryCard({ owners }: OwnerHistoryCardProps) {
+  // No verified ownership records yet → honest empty state instead of a
+  // fabricated timeline.
+  if (!owners.length) {
+    return (
+      <div className="rounded-2xl border border-white/10 glass p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History size={16} className="text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground/90">Owner History</span>
+          </div>
+          <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+            Not available
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Ownership history will appear once verified registry records are available for this property.
+        </p>
+      </div>
+    );
+  }
+
   const totalOwners = owners.length;
   const current = owners[owners.length - 1];
   const heldYears = current ? new Date().getFullYear() - current.startYear : 0;
