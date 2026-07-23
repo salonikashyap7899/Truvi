@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { dashboardPath } from "@/lib/rolePaths";
 import { OtpStep } from "@/components/auth/OtpStep";
-import { AuthAurora, AuthCard } from "@/components/auth/AuthShell";
+import { AuthCard } from "@/components/auth/AuthShell";
 
 /**
  * Standalone verify screen — kept as a fallback for email/SMS links and the
@@ -16,8 +16,7 @@ export default function VerifyEmailPage() {
   const phone = searchParams.get("phone") ?? "";
 
   return (
-    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden px-4 py-6">
-      <AuthAurora />
+    <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}

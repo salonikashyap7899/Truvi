@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
-import { AuthAurora, AuthCard } from "@/components/auth/AuthShell";
+import { AuthCard } from "@/components/auth/AuthShell";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -50,8 +50,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden px-4 py-6">
-      <AuthAurora />
+    <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -69,14 +68,7 @@ export default function LoginPage() {
               />
             ) : (
             <>
-            <Link to="/" className="flex flex-col items-center text-center">
-              <span className="grid size-12 place-items-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-[0_0_44px_rgba(59,130,246,0.5)] ring-1 ring-white/20">
-                <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
-              </span>
-              <span className="mt-3 font-display text-[12px] font-semibold tracking-[0.35em] text-white/90">TRUVI</span>
-            </Link>
-
-            <h1 className="mt-5 text-center font-display text-[26px] font-semibold leading-tight tracking-tight">
+            <h1 className="text-center font-display text-[26px] font-semibold leading-tight tracking-tight">
               <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Welcome back</span>
             </h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">
