@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, Badge } from "@/components/ui/primitives";
+import { Card, Badge, Input, Label, Textarea } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { CpHubNav } from "@/components/CpHubNav";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -7,12 +7,10 @@ import UserMenu from "@/components/UserMenu";
 import { api } from "@/lib/api";
 import { formatINR, cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useAuthStore } from "@/store/authStore";
-import { Filter, Flame, ShieldCheck, Snowflake, Star } from "lucide-react";
+import { Filter, Flame, ShieldCheck, Snowflake, Star, Plus, X, Loader2 } from "lucide-react";
 import type { Project, Unit } from "@/types";
 
 const LEAD_PRICES = { BASIC: 300, QUALIFIED: 1000, SITE_VISIT: 3000 } as const;
-const CP_PREMIUM_MONTHLY_PRICE = 1999;
 
 type LeadType = keyof typeof LEAD_PRICES;
 
@@ -36,12 +34,17 @@ const BUDGET_BANDS = [
   { label: "₹3Cr+", min: 30_000_000, max: Infinity },
 ];
 
+const EMPTY_LEAD = { clientName: "", clientPhone: "", clientEmail: "", source: "", projectId: "", budget: "", location: "", notes: "" };
+
 export default function MarketplacePage() {
-  const user = useAuthStore((s) => s.user);
   const [loading, setLoading] = useState<string | null>(null);
-  const [premium, setPremium] = useState(user?.cpProfile?.isPremium || false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [unitsByProject, setUnitsByProject] = useState<Record<string, Unit[]>>({});
+
+  // Add-lead form
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({ ...EMPTY_LEAD });
+  const [submittingLead, setSubmittingLead] = useState(false);
 
   // Filters (Amazon-style)
   const [city, setCity] = useState("ALL");
@@ -142,22 +145,39 @@ export default function MarketplacePage() {
     }
   }
 
-  async function togglePremium() {
-    setLoading("premium");
+  async function submitLead(e: React.FormEvent) {
+    e.preventDefault();
+    const f = leadForm;
+    if (f.clientName.trim().length < 2 || !/^[6-9]\d{9}$/.test(f.clientPhone.trim()) || !f.source.trim() || !f.projectId) {
+      toast.error("Enter a name, valid 10-digit mobile, lead source and the interested project.");
+      return;
+    }
+    // Budget & location aren't columns on the lead — fold them into the notes so
+    // nothing the CP entered is lost, then the lead lands in the system for admin.
+    const extra = [
+      f.budget.trim() && `Budget: ${f.budget.trim()}`,
+      f.location.trim() && `Location: ${f.location.trim()}`,
+      f.notes.trim(),
+    ].filter(Boolean).join("\n");
+
+    setSubmittingLead(true);
     try {
-      if (premium) {
-        await api.delete("/premium/subscribe");
-        setPremium(false);
-        toast.success("Premium cancelled");
-      } else {
-        await api.post("/premium/subscribe");
-        setPremium(true);
-        toast.success("Welcome to Premium!");
-      }
-    } catch {
-      toast.error("Action failed");
+      await api.post("/leads", {
+        projectId: f.projectId,
+        clientName: f.clientName.trim(),
+        clientPhone: f.clientPhone.trim(),
+        clientEmail: f.clientEmail.trim() || undefined,
+        source: f.source.trim(),
+        notes: extra || undefined,
+        confirmDuplicate: true,
+      });
+      toast.success("Lead added — it's now in the system for the admin/CRM.");
+      setLeadForm({ ...EMPTY_LEAD });
+      setShowAddLead(false);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't add the lead — try again.");
     } finally {
-      setLoading(null);
+      setSubmittingLead(false);
     }
   }
 
@@ -177,10 +197,11 @@ export default function MarketplacePage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Lead Marketplace</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Shop verified buyer leads — filter by budget, city and quality.</p>
+          <h1 className="text-2xl font-semibold">Lead Management</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Add, track and manage your buyer leads — filter by budget, city and quality.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button size="sm" onClick={() => setShowAddLead(true)} className="gap-1.5"><Plus size={15} /> Add Lead</Button>
           <NotificationBell />
           <UserMenu />
         </div>
@@ -237,20 +258,73 @@ export default function MarketplacePage() {
         </div>
       </section>
 
-      <section className="mt-10">
-        <h2 className="text-lg font-medium">CP Premium Membership</h2>
-        <Card className="mt-3 max-w-md border-white/10 glass text-white">
-          <p className="text-2xl font-semibold">{formatINR(CP_PREMIUM_MONTHLY_PRICE)}<span className="text-sm text-muted-foreground">/month</span></p>
-          <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
-            <li>· Priority badge on the leaderboard</li>
-            <li>· Priority placement in lead-assignment queue</li>
-            <li>· Premium tag on your profile</li>
-          </ul>
-          <Button className="mt-4 w-full" variant={premium ? "outline" : "primary"} disabled={loading === "premium"} onClick={togglePremium}>
-            {loading === "premium" ? "…" : premium ? "Cancel Premium" : "Subscribe to Premium"}
-          </Button>
-        </Card>
-      </section>
+      {/* Add Lead modal */}
+      {showAddLead && (
+        <div className="fixed inset-0 z-[120] grid place-items-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddLead(false)} />
+          <form
+            onSubmit={submitLead}
+            className="relative z-10 w-full max-w-lg rounded-2xl border border-white/10 bg-[#0d1117] p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">New Lead</h2>
+              <button type="button" onClick={() => setShowAddLead(false)} className="rounded-full p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white"><X size={16} /></button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">The lead is saved to the system and visible to the admin/CRM.</p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Lead name *</Label>
+                <Input value={leadForm.clientName} onChange={(e) => setLeadForm({ ...leadForm, clientName: e.target.value })} placeholder="e.g. Priya Sharma" className="border-white/15 bg-card text-white" />
+              </div>
+              <div>
+                <Label>Mobile number *</Label>
+                <Input value={leadForm.clientPhone} onChange={(e) => setLeadForm({ ...leadForm, clientPhone: e.target.value })} placeholder="10-digit mobile" className="border-white/15 bg-card text-white" />
+              </div>
+              <div>
+                <Label>Email</Label>
+                <Input type="email" value={leadForm.clientEmail} onChange={(e) => setLeadForm({ ...leadForm, clientEmail: e.target.value })} placeholder="you@example.com" className="border-white/15 bg-card text-white" />
+              </div>
+              <div>
+                <Label>Lead source *</Label>
+                <Input value={leadForm.source} onChange={(e) => setLeadForm({ ...leadForm, source: e.target.value })} placeholder="e.g. Referral, Walk-in, Facebook" className="border-white/15 bg-card text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Interested inventory / project *</Label>
+                <select
+                  value={leadForm.projectId}
+                  onChange={(e) => setLeadForm({ ...leadForm, projectId: e.target.value })}
+                  className="mt-1 h-10 w-full rounded-lg border border-white/15 bg-card px-3 text-sm text-white outline-none focus:border-[var(--trust)]"
+                >
+                  <option value="" className="bg-[#0d1117]">— Select a project —</option>
+                  {projects.map((p) => (
+                    <option key={p._id} value={p._id} className="bg-[#0d1117]">{p.name} · {p.city}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Budget</Label>
+                <Input value={leadForm.budget} onChange={(e) => setLeadForm({ ...leadForm, budget: e.target.value })} placeholder="e.g. ₹80L – ₹1Cr" className="border-white/15 bg-card text-white" />
+              </div>
+              <div>
+                <Label>Location</Label>
+                <Input value={leadForm.location} onChange={(e) => setLeadForm({ ...leadForm, location: e.target.value })} placeholder="Preferred area" className="border-white/15 bg-card text-white" />
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Remarks / notes</Label>
+                <Textarea rows={2} value={leadForm.notes} onChange={(e) => setLeadForm({ ...leadForm, notes: e.target.value })} placeholder="Anything the sales team should know…" className="border-white/15 bg-card text-white" />
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setShowAddLead(false)}>Cancel</Button>
+              <Button type="submit" disabled={submittingLead} className="gap-1.5">
+                {submittingLead ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add Lead
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </main>
   );
 }

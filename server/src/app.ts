@@ -35,6 +35,7 @@ import founderModuleRoutes from "./routes/founderModules";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
+import commentRoutes from "./routes/comments";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
@@ -105,6 +106,7 @@ export function createApp() {
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/presentation", presentationRoutes);
+  app.use("/api/comments", commentRoutes);
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
   app.use("/api/legal", legalRoutes);
   app.use("/api/payments", paymentRoutes);

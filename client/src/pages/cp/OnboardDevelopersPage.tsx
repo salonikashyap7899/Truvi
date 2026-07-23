@@ -13,6 +13,7 @@ interface ReferredDev {
   name: string;
   email: string | null;
   status: "ACTIVE" | "PENDING";
+  propertiesListed: number;
   totalTransactions: number;
   totalSalesValue: number;
   incentiveEarned: number;
@@ -160,6 +161,7 @@ export default function OnboardDevelopersPage() {
                 <tr className="border-b border-white/10 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Developer</th>
                   <th className="py-2 px-3 font-medium">Status</th>
+                  <th className="py-2 px-3 text-right font-medium">Properties</th>
                   <th className="py-2 px-3 text-right font-medium">Transactions</th>
                   <th className="py-2 px-3 text-right font-medium">Sales value</th>
                   <th className="py-2 px-3 text-right font-medium">2% earned</th>
@@ -174,6 +176,7 @@ export default function OnboardDevelopersPage() {
                       <p className="text-[11px] text-muted-foreground">{r.email ?? `Joined ${formatDate(r.createdAt)}`}</p>
                     </td>
                     <td className="py-2.5 px-3"><Badge variant={r.status === "ACTIVE" ? "success" : "warning"}>{r.status}</Badge></td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{r.propertiesListed}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{r.totalTransactions}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums text-emerald-300">{formatINR(r.incentiveEarned)}</td>

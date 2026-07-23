@@ -97,6 +97,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },
   { label: "Verification", icon: "shield", path: "/admin/verification" },
   { label: "CP KYC", icon: "users", path: "/admin/kyc" },
+  { label: "Referral Leads", icon: "users", path: "/admin/referral-leads" },
   { label: "Documents", icon: "verification", path: "/admin/documents" },
   { label: "Revenue", icon: "wallet", path: "/admin/revenue" },
   { label: "Finance", icon: "chart", path: "/admin/finance" },

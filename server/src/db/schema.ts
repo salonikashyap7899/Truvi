@@ -656,10 +656,33 @@ export const projectAssets = pgTable(
     // start unverified and only appear publicly after an admin verifies them.
     // Non-legal categories default to true.
     verified: boolean("verified").notNull().default(true),
+    // AI-scored visual quality (0–100) for gallery images — drives automatic
+    // "best cover" selection. Null until scored (or when AI is unavailable).
+    aiScore: doublePrecision("ai_score"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
+
+/**
+ * Threaded discussion on a project/inventory listing. Channel partners and team
+ * members discuss a property here. The commenter's name is never exposed — the
+ * UI shows a profile avatar + short user id only.
+ */
+export const projectComments = pgTable(
+  "project_comments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    // Null for a top-level comment; set to the parent comment for a reply.
+    parentId: uuid("parent_id"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("project_comments_project_created_idx").on(t.projectId, t.createdAt)]
+);
+export type IProjectComment = typeof projectComments.$inferSelect;
 
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];

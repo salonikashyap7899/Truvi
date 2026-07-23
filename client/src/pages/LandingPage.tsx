@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
+import { FloatingProperties } from "@/components/landing/FloatingProperties";
 import { SiteNav } from "@/components/SiteNav";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -796,8 +797,8 @@ export default function LandingPage() {
   // except Admin/Founder (who have full oversight and don't refer).
   const bannerUser = useAuthStore((s) => s.user);
   const showEnrollBanner = !!bannerUser && bannerUser.role !== "ADMIN";
-  // "For Developers" section: visible to guests, developers and ambassadors only.
-  const showDeveloperSection = !bannerUser || bannerUser.role === "DEVELOPER" || bannerUser.role === "AMBASSADOR";
+  // "For Developers" section: shown to everyone EXCEPT signed-in buyers and CPs.
+  const showDeveloperSection = !bannerUser || (bannerUser.role !== "BUYER" && bannerUser.role !== "CP");
 
   // Arriving from another page with a hash (e.g. /#ask-truvi) — scroll to it
   useEffect(() => {
@@ -832,6 +833,9 @@ export default function LandingPage() {
       <SiteNav />
 
       <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
+
+      {/* Live featured-property images drifting in the background */}
+      {mounted && <FloatingProperties />}
 
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
@@ -1094,7 +1098,7 @@ export default function LandingPage() {
       </Section>
 
       {/* ---------- 9 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
-      {/* ---------- For Developers — guests, developers & ambassadors only ---------- */}
+      {/* "For Developers" — hidden only for signed-in buyers & CPs. */}
       {showDeveloperSection && (
         <Section id="developer-intelligence">
           <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>

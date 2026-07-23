@@ -27,6 +27,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
+    // AI visual-quality score (0–100) for gallery images → automatic best-cover.
+    `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "ai_score" double precision`,
     // Optional plot size / dimensions per unit (e.g. "30x40 ft", "200 sq.yd").
     `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
     // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
@@ -81,6 +83,17 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "academy_content_course_idx" ON "academy_content" ("course_id", "sort_order")`,
     // English transcript for Hindi voice-note lessons.
     `ALTER TABLE "academy_content" ADD COLUMN IF NOT EXISTS "transcript_en" text`,
+    // Per-listing discussion (channel partners / team). Name stays private — the
+    // UI shows an avatar + short user id only.
+    `CREATE TABLE IF NOT EXISTS "project_comments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "parent_id" uuid REFERENCES "project_comments"("id"),
+       "body" text NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "project_comments_project_idx" ON "project_comments" ("project_id", "created_at")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

@@ -1,19 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import {
-  Search, Star, ShieldCheck, CheckCircle2, XCircle, Building2, MapPin,
-  Presentation, ArrowRight, X, Sparkles, BadgeCheck, Box, Eye,
-} from "lucide-react";
-import TrustScoreWidget from "@/components/TrustScoreWidget";
-import LegalRiskCard from "@/components/LegalRiskCard";
-import PriceFairnessMeter from "@/components/PriceFairnessMeter";
+import { Search, Star, ShieldCheck, MapPin, ArrowRight, Building2, Share2 } from "lucide-react";
 import VisitorGateModal from "@/components/VisitorGateModal";
-import ListingIntelligence from "@/components/ListingIntelligence";
-import ShareProjectButton from "@/components/ShareProjectButton";
+import { shareProject } from "@/components/ShareProjectButton";
 import { SiteNav } from "@/components/SiteNav";
+import { formatCompactINR } from "@/lib/utils";
 import type { Project } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -22,7 +16,6 @@ export default function InventoryPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
-  const [inspecting, setInspecting] = useState<Project | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -35,8 +28,6 @@ export default function InventoryPage() {
   }, []);
 
   // Purpose gate for unauthenticated visitors (after a short delay).
-  // Skipped while the site-wide WelcomeGate hasn't been answered yet,
-  // so two modals never stack on a first visit.
   useEffect(() => {
     if (!user && localStorage.getItem("truvi-welcome-seen")) {
       const t = setTimeout(() => setShowGate(true), 800);
@@ -63,8 +54,6 @@ export default function InventoryPage() {
     <>
       {showGate && !user && <VisitorGateModal onClose={() => setShowGate(false)} />}
 
-      <VerificationDrawer project={inspecting} onClose={() => setInspecting(null)} />
-
       <SiteNav />
 
       <main className="min-h-screen px-4 pb-28 pt-28 text-white sm:px-6 md:px-10">
@@ -78,8 +67,8 @@ export default function InventoryPage() {
             The Truvi <span className="text-gradient-trust">Inventory</span>
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground md:text-base">
-            A curated collection of verified listings — every property carries its evidence,
-            sources and intelligence profile.
+            A curated collection of verified listings — tap any property to see its full profile,
+            evidence and intelligence.
           </p>
 
           {/* Search */}
@@ -110,12 +99,7 @@ export default function InventoryPage() {
         ) : (
           <div className="mx-auto mt-12 grid max-w-7xl gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {sorted.map((project, idx) => (
-              <ListingCard
-                key={project._id}
-                project={project}
-                isPrime={project.isPrimeListing || idx === 0}
-                onInspect={() => setInspecting(project)}
-              />
+              <ListingCard key={project._id} project={project} isPrime={project.isPrimeListing || idx === 0} />
             ))}
           </div>
         )}
@@ -124,17 +108,19 @@ export default function InventoryPage() {
   );
 }
 
-/* ── Listing card ─────────────────────────────────────────────────────────── */
+/* ── Media-first listing card ─────────────────────────────────────────────────
+   Image-forward: a large AI/developer-selected cover, a small price badge and
+   just the name + location. Everything else (description, amenities, floor plans,
+   videos, gallery, developer, payment plans, intelligence) lives on the details
+   page, opened by tapping the card. */
 
-function ListingCard({
-  project,
-  isPrime,
-  onInspect,
-}: {
-  project: Project;
-  isPrime: boolean;
-  onInspect: () => void;
-}) {
+function priceBadge(project: Project): string {
+  if (project.minPrice) return formatCompactINR(project.minPrice);
+  if (project.minRate) return `₹${project.minRate.toLocaleString("en-IN")}/sq ft`;
+  return "Price on request";
+}
+
+function ListingCard({ project, isPrime }: { project: Project; isPrime: boolean }) {
   const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
 
   const frame = isPrime
@@ -150,272 +136,71 @@ function ListingCard({
       className="group relative rounded-[24px] p-px transition-transform duration-300 hover:-translate-y-1"
       style={{ background: frame }}
     >
-      <div className="flex h-full flex-col gap-4 rounded-[23px] bg-[#0a0d14]/92 p-6">
-        {/* Cover photo — image-forward listing (developer-uploaded gallery image) */}
-        {project.coverImageUrl && (
-          <div className="-mx-6 -mt-6 mb-1 h-48 overflow-hidden rounded-t-[23px]">
+      <Link
+        to={`/inventory/${project._id}/presentation`}
+        className="block overflow-hidden rounded-[23px] bg-[#0a0d14]"
+      >
+        <div className="relative aspect-[4/5] w-full overflow-hidden">
+          {/* Featured image (falls back to a branded gradient when none) */}
+          {project.coverImageUrl ? (
             <img
               src={project.coverImageUrl}
               alt={project.name}
               loading="lazy"
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
-          </div>
-        )}
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#0f1830] via-[#0a0d14] to-[#131a2e]">
+              <Building2 size={40} className="text-white/15" />
+            </div>
+          )}
 
-        {/* Prime ribbon */}
-        {isPrime && (
-          <div className="absolute -top-3 left-6 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
-            <Star size={9} fill="currentColor" />
-            Prime Listing
-          </div>
-        )}
+          {/* Readability gradient */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/30" />
 
-        {/* Status chips */}
-        <div className="mt-1 flex flex-wrap items-center gap-2">
+          {/* Prime ribbon */}
+          {isPrime && (
+            <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
+              <Star size={9} fill="currentColor" /> Prime
+            </div>
+          )}
+
+          {/* Verified badge */}
           {project.isVerified && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-              <ShieldCheck size={11} />
-              Truvi Verified
+            <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-black/50 px-2.5 py-1 text-[11px] font-medium text-emerald-300 backdrop-blur">
+              <ShieldCheck size={11} /> Verified
             </span>
           )}
-          {project.listingTier === "FEATURED" && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/25 bg-sky-500/12 px-2.5 py-1 text-[11px] font-medium text-sky-300">
-              <Sparkles size={11} />
-              Featured
-            </span>
-          )}
-          {project.reraNumber && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-1 text-[11px] text-foreground/70">
-              RERA {project.reraNumber}
-            </span>
-          )}
-        </div>
 
-        {/* Identity */}
-        <div>
-          <h3 className="font-display text-xl font-semibold leading-tight text-white">{project.name}</h3>
-          <p className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <MapPin size={13} className="shrink-0" />
-            {project.location}, {project.city}
-          </p>
-          {devName && (
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Building2 size={12} className="shrink-0" />
-              by {devName}
-            </p>
-          )}
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Eye size={12} className="shrink-0" />
-            {(project.viewCount ?? 0).toLocaleString("en-IN")} view{(project.viewCount ?? 0) === 1 ? "" : "s"}
-          </p>
-        </div>
-
-        <p className="line-clamp-2 text-sm leading-relaxed text-foreground/80">{project.description}</p>
-
-        {/* Live pricing from actual units */}
-        {(project.minRate || project.unitCount) && (
-          <div className="flex items-end justify-between rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Starting at</p>
-              <p className="mt-0.5 font-display text-lg font-semibold text-white">
-                {project.minRate ? (
-                  <>₹{project.minRate.toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/sq ft</span></>
-                ) : (
-                  <span className="text-sm font-normal text-muted-foreground">Price on request</span>
-                )}
-              </p>
-            </div>
-            {typeof project.unitCount === "number" && project.unitCount > 0 && (
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-white">{project.unitCount}</span> unit{project.unitCount !== 1 ? "s" : ""} live
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Intelligence snapshot */}
-        <div className="space-y-2.5 border-t border-white/[0.07] pt-4">
-          <TrustScoreWidget score={project.trustScore} compact />
-          <LegalRiskCard level={project.legalRiskLevel} compact />
-          <PriceFairnessMeter projectId={project._id} compact />
-        </div>
-
-        {/* Actions */}
-        <div className="mt-auto space-y-2 pt-2">
+          {/* Share — floats over the image, doesn't open the card */}
           <button
-            onClick={onInspect}
-            className="group/btn flex w-full items-center justify-between rounded-full border border-[var(--trust)]/35 bg-[var(--trust)]/10 px-5 py-2.5 text-sm font-medium text-sky-200 transition-all hover:border-[var(--trust)]/70 hover:bg-[var(--trust)]/20 hover:shadow-[0_0_24px_rgba(59,130,246,0.2)]"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              shareProject(project);
+            }}
+            title="Share this property"
+            className="absolute bottom-3 right-3 z-10 grid size-10 place-items-center rounded-full border border-white/20 bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
           >
-            <span className="flex items-center gap-2">
-              <BadgeCheck size={15} />
-              Verification & Intelligence
-            </span>
-            <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
+            <Share2 size={16} />
           </button>
-          <Link
-            to={`/inventory/${project._id}/presentation`}
-            className="group/btn flex w-full items-center justify-between rounded-full border border-white/12 px-5 py-2.5 text-sm text-foreground/80 transition-all hover:border-white/30 hover:text-white"
-          >
-            <span className="flex items-center gap-2">
-              <Presentation size={15} />
-              Project Presentation
+
+          {/* Bottom overlay: price + identity + tap hint */}
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <span className="inline-flex items-center rounded-full bg-white/95 px-3 py-1 font-display text-sm font-bold text-[#0a0d14] shadow-lg">
+              {priceBadge(project)}
             </span>
-            <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
-          </Link>
-          <Link
-            to={`/inventory/${project._id}/3d`}
-            className="group/btn flex w-full items-center justify-between rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2.5 text-sm font-medium text-violet-200 transition-all hover:border-violet-400/60 hover:bg-violet-500/20 hover:shadow-[0_0_24px_rgba(139,92,246,0.2)]"
-          >
-            <span className="flex items-center gap-2">
-              <Box size={15} />
-              View in 3D
-            </span>
-            <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-0.5" />
-          </Link>
-          <ShareProjectButton project={project} />
+            <h3 className="mt-2 truncate font-display text-lg font-semibold text-white">{project.name}</h3>
+            <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-white/75">
+              <MapPin size={12} className="shrink-0" />
+              <span className="truncate">{project.location}, {project.city}{devName ? ` · ${devName}` : ""}</span>
+            </p>
+            <p className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-300/90">
+              Tap to view details <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+            </p>
+          </div>
         </div>
-      </div>
+      </Link>
     </motion.div>
-  );
-}
-
-/* ── Verification & Intelligence slide-over drawer ────────────────────────── */
-
-function VerificationRow({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <span className={`text-sm ${ok ? "text-foreground/90" : "text-muted-foreground"}`}>{label}</span>
-      {ok ? (
-        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/12 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300">
-          <CheckCircle2 size={11} /> Verified
-        </span>
-      ) : (
-        <span className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-0.5 text-[11px] text-muted-foreground">
-          <XCircle size={11} /> Pending
-        </span>
-      )}
-    </div>
-  );
-}
-
-function VerificationDrawer({ project, onClose }: { project: Project | null; onClose: () => void }) {
-  // Lock body scroll while open
-  useEffect(() => {
-    if (project) {
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = "";
-      };
-    }
-  }, [project]);
-
-  const vd = project?.verificationDetails;
-
-  return (
-    <AnimatePresence>
-      {project && (
-        <div className="fixed inset-0 z-[120]">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-
-          {/* Panel */}
-          <motion.aside
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0a0d14]/97 shadow-[-30px_0_80px_rgba(0,0,0,0.5)]"
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] px-6 py-5">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.25em] text-[var(--trust)]">
-                  Verification & Intelligence
-                </p>
-                <h2 className="mt-1 truncate font-display text-lg font-semibold text-white">{project.name}</h2>
-                <p className="truncate text-xs text-muted-foreground">
-                  {project.location}, {project.city}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                className="grid size-9 shrink-0 place-items-center rounded-full border border-white/12 text-muted-foreground transition hover:bg-white/10 hover:text-white"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              {/* Core verification */}
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Core Verification
-              </p>
-              <div className="mt-2 divide-y divide-white/[0.06] rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4">
-                {vd ? (
-                  <>
-                    <VerificationRow ok={!!vd.reraVerified} label="RERA Registered" />
-                    <VerificationRow ok={!!vd.titleClearance} label="Title Clearance" />
-                    <VerificationRow ok={!!vd.encumbranceFree} label="Encumbrance Free" />
-                    <VerificationRow ok={!!vd.constructionApproval} label="Construction Approval" />
-                    <VerificationRow ok={!!vd.portfolioVerified} label="Developer Portfolio Verified" />
-                  </>
-                ) : (
-                  // No admin verification recorded yet — every check reads Pending
-                  // (never auto-"verified" just because the listing is live).
-                  <>
-                    <VerificationRow ok={false} label="RERA Registered" />
-                    <VerificationRow ok={false} label="Title Clearance" />
-                    <VerificationRow ok={false} label="Encumbrance Free" />
-                    <VerificationRow ok={false} label="Construction Approval" />
-                    <VerificationRow ok={false} label="Developer Portfolio Verified" />
-                  </>
-                )}
-              </div>
-
-              {(vd?.verificationSource || vd?.lastVerifiedAt || vd?.notes) && (
-                <div className="mt-3 space-y-1 px-1">
-                  {vd.verificationSource && (
-                    <p className="text-xs text-muted-foreground">
-                      Source: <span className="text-foreground/80">{vd.verificationSource}</span>
-                    </p>
-                  )}
-                  {vd.lastVerifiedAt && (
-                    <p className="text-xs text-muted-foreground">
-                      Last verified: {new Date(vd.lastVerifiedAt).toLocaleDateString("en-IN")}
-                    </p>
-                  )}
-                  {vd.notes && <p className="text-xs text-foreground/70">{vd.notes}</p>}
-                </div>
-              )}
-
-              {/* Full intelligence profile */}
-              <div className="mt-7">
-                <ListingIntelligence projectId={project._id} />
-              </div>
-            </div>
-
-            {/* Footer CTA */}
-            <div className="border-t border-white/[0.08] px-6 py-4">
-              <Link
-                to={`/inventory/${project._id}/presentation`}
-                onClick={onClose}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.3)]"
-              >
-                <Presentation size={15} />
-                View Full Project Presentation
-              </Link>
-            </div>
-          </motion.aside>
-        </div>
-      )}
-    </AnimatePresence>
   );
 }

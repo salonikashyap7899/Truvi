@@ -61,7 +61,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   // image (developers add these at registration or from the workspace).
   const coverRows = projectIds.length
     ? await db
-        .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl, createdAt: projectAssets.createdAt })
+        .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl })
         .from(projectAssets)
         .where(
           and(
@@ -70,7 +70,8 @@ router.get("/", async (req: AuthedRequest, res) => {
             eq(projectAssets.verified, true),
           ),
         )
-        .orderBy(asc(projectAssets.createdAt))
+        // AI visual-quality score wins; unscored fall back to resolution, then newest.
+        .orderBy(sql`${projectAssets.aiScore} desc nulls last`, desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
     : [];
   const coverMap = new Map<string, string>();
   for (const c of coverRows) {
