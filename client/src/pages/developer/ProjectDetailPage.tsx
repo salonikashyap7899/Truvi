@@ -10,10 +10,10 @@ import TrustScoreWidget from "@/components/TrustScoreWidget";
 import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import NearbyAmenities from "@/components/NearbyAmenities";
-import FloodRiskCard, { mockFloodRiskFromId } from "@/components/FloodRiskCard";
-import CrimeIndexCard, { mockCrimeFromId } from "@/components/CrimeIndexCard";
+import FloodRiskCard from "@/components/FloodRiskCard";
+import CrimeIndexCard from "@/components/CrimeIndexCard";
 import FutureAppreciationCard from "@/components/FutureAppreciationCard";
-import OwnerHistoryCard, { mockOwnerHistoryFromId } from "@/components/OwnerHistoryCard";
+import OwnerHistoryCard from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
@@ -161,9 +161,9 @@ export default function ProjectDetailPage() {
 
   const trustScore = project.trustScore ?? null;
   const legalRisk = project.legalRiskLevel ?? null;
-  const floodRisk = project.floodRiskLevel ?? mockFloodRiskFromId(project._id);
-  const crimeIndex = project.crimeIndexLevel ?? mockCrimeFromId(project._id);
-  const ownerHistory = mockOwnerHistoryFromId(project._id);
+  const floodRisk = project.floodRiskLevel ?? null;
+  const crimeIndex = project.crimeIndexLevel ?? null;
+  const ownerHistory = project.ownerHistory ?? [];
   const reraInfo = {
     reraNumber: project.reraNumber ?? "",
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
@@ -192,7 +192,7 @@ export default function ProjectDetailPage() {
           <PriceFairnessMeter projectId={project._id} />
         </div>
         <div className="w-full sm:max-w-lg">
-          <FutureAppreciationCard projectId={project._id} />
+          <FutureAppreciationCard projectId={project._id} forecast={project.appreciationForecast} />
         </div>
         <div className="w-full sm:w-72">
           <OwnerHistoryCard owners={ownerHistory} />

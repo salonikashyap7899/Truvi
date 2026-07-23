@@ -26,6 +26,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
+    // Admin-curated, Truvi-verified ownership history + appreciation forecast.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "owner_history" jsonb`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "appreciation_forecast" jsonb`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
     // AI visual-quality score (0–100) for gallery images → automatic best-cover.
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "ai_score" double precision`,

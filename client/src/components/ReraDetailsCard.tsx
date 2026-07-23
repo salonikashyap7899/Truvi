@@ -40,41 +40,6 @@ const STATUS_CONFIG: Record<ReraStatus, StatusConfig> = {
   },
 };
 
-const STATES = ["MH", "DL", "KA", "TN", "GJ", "RJ", "TS", "UP"];
-
-/** Deterministic mock RERA info derived from project ID. */
-export function mockReraFromId(id: string): ReraInfo {
-  if (!id) {
-    return {
-      reraNumber: "MH/RERA/2021/0001",
-      reraStatus: "REGISTERED",
-      reraValidityDate: "2026-12-31",
-    };
-  }
-
-  const a = parseInt(id.slice(-10, -8) || "4d", 16);
-  const b = parseInt(id.slice(-8, -6) || "9a", 16);
-  const c = parseInt(id.slice(-4, -2) || "2f", 16);
-
-  const stateCode = STATES[a % STATES.length];
-  const year = 2019 + (b % 5);
-  const serial = String(1000 + (c % 8999)).padStart(4, "0");
-  const reraNumber = `${stateCode}/RERA/${year}/${serial}`;
-
-  const statusIdx = (a + b) % 10;
-  const reraStatus: ReraStatus =
-    statusIdx <= 6 ? "REGISTERED" : statusIdx <= 8 ? "PENDING" : "NOT_REGISTERED";
-
-  // Validity: 3–6 years after registration year for REGISTERED, null otherwise
-  let reraValidityDate: string | null = null;
-  if (reraStatus === "REGISTERED") {
-    const validYear = year + 3 + (c % 4);
-    reraValidityDate = `${validYear}-03-31`;
-  }
-
-  return { reraNumber, reraStatus, reraValidityDate };
-}
-
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });

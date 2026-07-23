@@ -1,124 +1,87 @@
+/**
+ * FutureAppreciationCard
+ *
+ * Shows a Truvi-published appreciation forecast when an admin has set one on
+ * the project. Until then it renders an honest "awaiting analysis" state
+ * rather than a fabricated projection.
+ */
 import { TrendingUp } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
+import type { AppreciationForecast } from "@/types";
 
 interface FutureAppreciationCardProps {
   projectId: string;
+  forecast?: AppreciationForecast | null;
 }
 
-interface AppreciationData {
-  /** Total projected appreciation over 5 years, e.g. 38 = 38% */
-  totalPct: number;
-  /** Annualised CAGR */
-  cagr: number;
-  /** Horizon label */
-  horizon: string;
-  /** Year-by-year data for sparkline */
-  points: { year: string; value: number }[];
-  /** Qualitative outlook */
-  outlook: "Strong" | "Moderate" | "Stable";
-  outlookColor: string;
-}
+const OUTLOOK_COLOR: Record<NonNullable<AppreciationForecast["outlook"]>, string> = {
+  Strong: "#22c55e",
+  Moderate: "#3b82f6",
+  Stable: "#9ca3af",
+};
 
-/** Derives consistent mock appreciation data from a project ID. */
-function mockAppreciation(id: string): AppreciationData {
-  const a = parseInt(id.slice(-6, -4) || "72", 16);
-  const b = parseInt(id.slice(-4, -2) || "3f", 16);
+export default function FutureAppreciationCard({ forecast }: FutureAppreciationCardProps) {
+  if (!forecast) {
+    return (
+      <div className="rounded-2xl border border-white/10 glass p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              Future Appreciation
+            </p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-muted-foreground">—</span>
+              <span className="text-sm text-muted-foreground">over 5 yrs</span>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+            <TrendingUp size={12} />
+            Awaiting analysis
+          </span>
+        </div>
+        <p className="mt-4 border-t border-white/10 pt-3 text-xs leading-relaxed text-muted-foreground">
+          A projected appreciation reading will appear once Truvi publishes an assessment for this property.
+        </p>
+      </div>
+    );
+  }
 
-  // totalPct: 18–52% over 5 years
-  const totalPct = 18 + (a % 35);
-  const cagr = parseFloat((((1 + totalPct / 100) ** (1 / 5) - 1) * 100).toFixed(1));
-
-  // Build year-by-year compounding with slight variation
-  const baseValue = 100;
-  const variance = (b % 5) - 2; // -2 to +2
-  const points = Array.from({ length: 6 }, (_, i) => {
-    const annualRate = cagr / 100 + (i % 2 === 0 ? variance * 0.003 : -variance * 0.002);
-    const value = parseFloat((baseValue * (1 + annualRate) ** i).toFixed(2));
-    return { year: i === 0 ? "Now" : `Y${i}`, value };
-  });
-
-  const outlook: "Strong" | "Moderate" | "Stable" =
-    cagr >= 8 ? "Strong" : cagr >= 5 ? "Moderate" : "Stable";
-  const outlookColor =
-    outlook === "Strong" ? "#22c55e" : outlook === "Moderate" ? "#3b82f6" : "#9ca3af";
-
-  return { totalPct, cagr, horizon: "5-year", points, outlook, outlookColor };
-}
-
-export default function FutureAppreciationCard({ projectId }: FutureAppreciationCardProps) {
-  const data = mockAppreciation(projectId);
+  const { fiveYearPct, outlook, note } = forecast;
+  const color = outlook ? OUTLOOK_COLOR[outlook] : "#3b82f6";
+  const cagr = (((1 + fiveYearPct / 100) ** (1 / 5) - 1) * 100).toFixed(1);
+  const sign = fiveYearPct >= 0 ? "+" : "";
 
   return (
     <div className="rounded-2xl border border-white/10 glass p-5">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Future Appreciation
           </p>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-3xl font-bold" style={{ color: data.outlookColor }}>
-              +{data.totalPct}%
+            <span className="text-3xl font-bold" style={{ color }}>
+              {sign}{fiveYearPct}%
             </span>
             <span className="text-sm text-muted-foreground">over 5 yrs</span>
           </div>
           <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
             <span>
-              CAGR{" "}
-              <span className="font-semibold text-foreground/90">{data.cagr}%</span>
+              CAGR <span className="font-semibold text-foreground/90">{cagr}%</span>
             </span>
-            <span className="text-foreground/80">·</span>
-            <span className="flex items-center gap-1">
-              <TrendingUp size={11} style={{ color: data.outlookColor }} />
-              <span style={{ color: data.outlookColor }}>{data.outlook} outlook</span>
-            </span>
+            {outlook && (
+              <>
+                <span className="text-foreground/80">·</span>
+                <span className="flex items-center gap-1">
+                  <TrendingUp size={11} style={{ color }} />
+                  <span style={{ color }}>{outlook} outlook</span>
+                </span>
+              </>
+            )}
           </div>
         </div>
-
-        {/* Sparkline */}
-        <div className="w-28 h-14 shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.points} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              <defs>
-                <linearGradient id={`grad-${projectId}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={data.outlookColor} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={data.outlookColor} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke={data.outlookColor}
-                strokeWidth={2}
-                fill={`url(#grad-${projectId})`}
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#1e2a3b",
-                  border: "1px solid #334155",
-                  borderRadius: 6,
-                  fontSize: 11,
-                }}
-                formatter={(v) => [`${((v as number) - 100).toFixed(1)}%`, "Gain"]}
-                labelStyle={{ color: "#94a3b8" }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
-      {/* Year labels */}
-      <div className="mt-2 flex justify-between text-[10px] text-muted-foreground px-0.5">
-        {data.points.map((p) => (
-          <span key={p.year}>{p.year}</span>
-        ))}
-      </div>
-
-      <p className="mt-3 text-xs text-muted-foreground border-t border-white/10 pt-3">
-        Projected using locality growth trends and historical data.{" "}
-        <span className="text-foreground/80">Placeholder — not financial advice.</span>
+      <p className="mt-3 border-t border-white/10 pt-3 text-xs leading-relaxed text-muted-foreground">
+        {note || "Truvi-published projection based on verified locality and market data."}
       </p>
     </div>
   );

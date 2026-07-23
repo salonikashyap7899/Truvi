@@ -28,79 +28,11 @@ const CATEGORY_META: Record<
 
 const CATEGORY_ORDER: AmenityCategory[] = ["school", "hospital", "transit", "mall", "restaurant"];
 
-// ─── Mock data pools ──────────────────────────────────────────────────────────
-
-const POOL: Record<AmenityCategory, string[]> = {
-  school: [
-    "Delhi Public School", "Kendriya Vidyalaya", "Ryan International School",
-    "Cambridge International", "The Orchid School", "Podar International",
-    "Euro School", "Vibgyor High",
-  ],
-  hospital: [
-    "Apollo Hospital", "Fortis Healthcare", "Manipal Hospital",
-    "Columbia Asia", "Narayana Health", "Wockhardt Hospital",
-    "Aster CMI", "Max Super Speciality",
-  ],
-  transit: [
-    "Metro Station", "Bus Rapid Transit Stop", "Railway Station",
-    "Auto Stand", "City Bus Terminus", "Mono Rail Station",
-    "Suburban Rail Stop", "Airport Shuttle Hub",
-  ],
-  mall: [
-    "Phoenix Marketcity", "Inorbit Mall", "Forum Mall",
-    "Orion Mall", "VR Mall", "Lulu Mall",
-    "Select Citywalk", "Nexus Mall",
-  ],
-  restaurant: [
-    "Barbeque Nation", "Social", "Farzi Cafe",
-    "The Third Wave Coffee", "Punjab Grill", "Mainland China",
-    "Cream Stone", "Theobroma",
-  ],
-};
-
-const DISTANCES = [
-  "0.3 km", "0.5 km", "0.7 km", "0.9 km",
-  "1.1 km", "1.4 km", "1.8 km", "2.2 km", "2.8 km", "3.5 km",
-];
-
-/** Derives a deterministic list of nearby amenities from a project ID. Used only
- *  as a placeholder until the developer/admin curates real ones. */
-export function mockAmenities(projectId: string): Amenity[] {
-  const seed = (offset: number) => {
-    const hex = projectId.slice(-(offset + 2), -offset || undefined) || "ab";
-    return parseInt(hex, 16);
-  };
-
-  const amenities: Amenity[] = [];
-  let counter = 0;
-
-  CATEGORY_ORDER.forEach((cat, ci) => {
-    const pool = POOL[cat];
-    const count = 2; // 2 amenities per category
-    for (let i = 0; i < count; i++) {
-      const nameIdx = (seed(ci * 3 + i + 1) + counter) % pool.length;
-      const distIdx = (seed(ci * 2 + i + 2) + counter * 3) % DISTANCES.length;
-      amenities.push({
-        category: cat,
-        name: pool[nameIdx],
-        distance: DISTANCES[distIdx],
-      });
-      counter++;
-    }
-  });
-
-  // Sort by distance within each category (ascending)
-  return amenities.sort((a, b) => {
-    if (a.category !== b.category) return 0;
-    return parseFloat(a.distance) - parseFloat(b.distance);
-  });
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 interface NearbyAmenitiesProps {
   /** Curated amenities saved on the project. When omitted (or empty) and not
-   *  editing, the component falls back to placeholder data. */
+   *  editing, the component shows an honest empty state. */
   amenities?: Amenity[];
   projectId: string;
   /** Developer/admin viewing their own workspace — shows the inline editor. */
@@ -118,7 +50,7 @@ function groupByCategory(data: Amenity[]): Record<AmenityCategory, Amenity[]> {
 
 export default function NearbyAmenities({ amenities, projectId, editable, onSaved }: NearbyAmenitiesProps) {
   const hasCurated = Boolean(amenities && amenities.length);
-  const display = hasCurated ? (amenities as Amenity[]) : mockAmenities(projectId);
+  const display = hasCurated ? (amenities as Amenity[]) : [];
   const grouped = groupByCategory(display);
 
   const [editing, setEditing] = useState(false);
@@ -190,7 +122,9 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
           </button>
         ) : (
           !hasCurated && (
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Placeholder distances</span>
+            <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+              Not available
+            </span>
           )
         )}
       </div>
@@ -239,6 +173,10 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
             <Plus size={13} /> Add amenity
           </button>
         </div>
+      ) : !hasCurated ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Nearby schools, hospitals, transit and shopping will appear once verified location data is added for this project.
+        </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {CATEGORY_ORDER.map((cat) => {

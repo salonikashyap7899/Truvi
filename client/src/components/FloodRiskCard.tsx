@@ -1,9 +1,9 @@
-import { Droplets, CloudRain, AlertTriangle } from "lucide-react";
+import { Droplets, CloudRain, AlertTriangle, HelpCircle } from "lucide-react";
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 interface FloodRiskCardProps {
-  level: RiskLevel;
+  level: RiskLevel | null | undefined;
 }
 
 interface LevelConfig {
@@ -42,16 +42,28 @@ const LEVEL_CONFIG: Record<RiskLevel, LevelConfig> = {
   },
 };
 
-/** Derives a deterministic placeholder flood risk level from a project ID. */
-export function mockFloodRiskFromId(id: string): RiskLevel {
-  if (!id) return "LOW";
-  const n = parseInt(id.slice(-3, -1) || "00", 16);
-  if (n % 7 === 0) return "HIGH";
-  if (n % 3 === 0) return "MEDIUM";
-  return "LOW";
-}
-
 export default function FloodRiskCard({ level }: FloodRiskCardProps) {
+  // No flood-risk assessment on record yet → honest "not assessed" state
+  // instead of a fabricated reading.
+  if (level == null) {
+    return (
+      <div className="rounded-2xl border border-white/10 glass p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <HelpCircle size={18} className="text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground/90">Flood Risk</span>
+          </div>
+          <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+            Not assessed
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Flood risk will appear once verified elevation and drainage data is available for this locality.
+        </p>
+      </div>
+    );
+  }
+
   const cfg = LEVEL_CONFIG[level];
   const { Icon } = cfg;
 

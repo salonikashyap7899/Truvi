@@ -210,6 +210,26 @@ export interface PaymentPlan {
   description?: string;
 }
 
+/**
+ * Admin-curated ownership record for a property (Truvi-verified registry data).
+ * `endYear` is null for the current owner.
+ */
+export interface OwnerHistoryEntry {
+  ownerLabel: string;
+  startYear: number;
+  endYear: number | null;
+}
+
+/**
+ * Admin-published appreciation forecast. `fiveYearPct` is the projected total
+ * appreciation over five years (e.g. 38 = +38%); `outlook` is a qualitative tag.
+ */
+export interface AppreciationForecast {
+  fiveYearPct: number;
+  outlook?: "Strong" | "Moderate" | "Stable";
+  note?: string;
+}
+
 // --- Ambassador task workflow (site-verification jobs) ---
 export interface AmbassadorTaskChecklist {
   gpsOn: boolean;
@@ -351,6 +371,9 @@ export const projects = pgTable(
     viewCount: integer("view_count").notNull().default(0),
     // Developer-managed payment plans (optional; shown publicly).
     paymentPlans: jsonb("payment_plans").$type<PaymentPlan[]>(),
+    // Admin-curated, Truvi-verified ownership history + appreciation forecast.
+    ownerHistory: jsonb("owner_history").$type<OwnerHistoryEntry[]>(),
+    appreciationForecast: jsonb("appreciation_forecast").$type<AppreciationForecast>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

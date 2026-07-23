@@ -1,9 +1,9 @@
-import { ShieldCheck, Shield, ShieldAlert } from "lucide-react";
+import { ShieldCheck, Shield, ShieldAlert, ShieldQuestion } from "lucide-react";
 
 type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 
 interface CrimeIndexCardProps {
-  level: RiskLevel;
+  level: RiskLevel | null | undefined;
 }
 
 interface LevelConfig {
@@ -46,16 +46,28 @@ const LEVEL_CONFIG: Record<RiskLevel, LevelConfig> = {
   },
 };
 
-/** Deterministic placeholder crime level derived from project ID. */
-export function mockCrimeFromId(id: string): RiskLevel {
-  if (!id) return "LOW";
-  const n = parseInt(id.slice(-5, -3) || "00", 16);
-  if (n % 9 === 0) return "HIGH";
-  if (n % 4 === 0) return "MEDIUM";
-  return "LOW";
-}
-
 export default function CrimeIndexCard({ level }: CrimeIndexCardProps) {
+  // No crime-index assessment on record yet → honest "not assessed" state
+  // instead of a fabricated reading.
+  if (level == null) {
+    return (
+      <div className="rounded-2xl border border-white/10 glass p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShieldQuestion size={18} className="text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground/90">Crime Index</span>
+          </div>
+          <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold text-muted-foreground">
+            Not assessed
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          A safety reading will appear once verified local crime data is available for this locality.
+        </p>
+      </div>
+    );
+  }
+
   const cfg = LEVEL_CONFIG[level];
   const { Icon } = cfg;
 
