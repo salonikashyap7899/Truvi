@@ -661,6 +661,26 @@ export const projectAssets = pgTable(
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]
 );
 
+/**
+ * Threaded discussion on a project/inventory listing. Channel partners and team
+ * members discuss a property here. The commenter's name is never exposed — the
+ * UI shows a profile avatar + short user id only.
+ */
+export const projectComments = pgTable(
+  "project_comments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    // Null for a top-level comment; set to the parent comment for a reply.
+    parentId: uuid("parent_id"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("project_comments_project_created_idx").on(t.projectId, t.createdAt)]
+);
+export type IProjectComment = typeof projectComments.$inferSelect;
+
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
 

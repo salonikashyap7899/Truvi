@@ -7,6 +7,8 @@ import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle, Trash2, Pencil } from "lucide-react";
 import AdminLegalReview from "@/components/AdminLegalReview";
+import { shareProject } from "@/components/ShareProjectButton";
+import { Share2 } from "lucide-react";
 import type { Project } from "@/types";
 
 interface VerificationDetails {
@@ -385,6 +387,17 @@ export default function AdminListingsPage() {
                     onClick={() => navigate(`/admin/listings/${p._id}`)}
                   >
                     <LayoutGrid size={13} className="mr-1" /> Content &amp; Plots
+                  </Button>
+
+                  {/* Share the project via the device's native share sheet —
+                      no need to open the project first. */}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-emerald-700 text-emerald-300 hover:bg-emerald-900/20"
+                    onClick={() => shareProject(p)}
+                  >
+                    <Share2 size={13} className="mr-1" /> Share
                   </Button>
 
                   {/* Verification details toggle */}

@@ -10,6 +10,7 @@ import { LayoutGrid, CalendarClock } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
+import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project, ProjectAsset } from "@/types";
@@ -472,6 +473,9 @@ export default function ProjectPresentationPage() {
           </p>
         </div>
       )}
+
+      {/* Per-listing discussion — channel partners & team (names stay private) */}
+      <ProjectComments projectId={project._id} />
     </main>
   );
 }
