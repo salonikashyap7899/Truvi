@@ -154,15 +154,6 @@ const ROTATING_QUESTIONS = [
 const BEFORE_TRUVI = ["Broker opinion", "Multiple portals", "Manual documents", "Guesswork", "Days of research"];
 const WITH_TRUVI = ["One property profile", "Truvi Intelligence Engine™ analysis", "Risk Signals™", "Data-backed decision", "Minutes"];
 
-const DEVELOPER_INTEL = [
-  { title: "Demand Heatmaps", desc: "Where buyers are actually searching, enquiring and converting — mapped by micro-market." },
-  { title: "Pricing Intelligence", desc: "Live rate benchmarks against comparable projects, corridors and circle rates." },
-  { title: "Competitor Tracking", desc: "Launches, price moves and absorption of every competing project around yours." },
-  { title: "Inventory Signals", desc: "Which configurations move, which stall — across your portfolio and the market's." },
-  { title: "Lead Intelligence", desc: "Enquiries scored and tagged by intent, purpose and readiness — not just volume." },
-  { title: "Location Opportunity", desc: "Land and corridor opportunities ranked by infrastructure and growth signals." },
-];
-
 const FLYWHEEL = ["More Properties", "More Signals", "Better Intelligence", "Better Decisions", "More Users"];
 
 const METHODOLOGY = [
@@ -796,8 +787,6 @@ export default function LandingPage() {
   // except Admin/Founder (who have full oversight and don't refer).
   const bannerUser = useAuthStore((s) => s.user);
   const showEnrollBanner = !!bannerUser && bannerUser.role !== "ADMIN";
-  // "For Developers" section: visible to guests, developers and ambassadors only.
-  const showDeveloperSection = !bannerUser || bannerUser.role === "DEVELOPER" || bannerUser.role === "AMBASSADOR";
 
   // Arriving from another page with a hash (e.g. /#ask-truvi) — scroll to it
   useEffect(() => {
@@ -1093,46 +1082,9 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* ---------- 9 · DEVELOPER INTELLIGENCE (B2B) ---------- */}
-      {/* ---------- For Developers — guests, developers & ambassadors only ---------- */}
-      {showDeveloperSection && (
-        <Section id="developer-intelligence">
-          <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>
-          <Reveal delay={0.1}>
-            <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
-              The market, as your{" "}
-              <span className="text-gradient-trust">launch dashboard.</span>
-            </h2>
-          </Reveal>
-          <Reveal delay={0.2}>
-            <p className="mt-6 max-w-2xl text-muted-foreground md:text-lg">
-              The same engine that scores properties for buyers gives developers the demand, pricing and
-              competitive intelligence behind every launch decision.
-            </p>
-          </Reveal>
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {DEVELOPER_INTEL.map((d, i) => (
-              <Reveal key={d.title} delay={i * 0.06}>
-                <div className="h-full rounded-2xl glass p-6">
-                  <h3 className="font-display text-lg font-medium text-[var(--trust)]">{d.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{d.desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-          <Reveal delay={0.4}>
-            <div className="mt-10 flex flex-wrap items-center gap-4">
-              <GlowButton to="/signup?role=DEVELOPER">List Your Project on Truvi</GlowButton>
-              <Link
-                to="/login"
-                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-foreground/90 transition hover:bg-white/5"
-              >
-                Sign in as Developer
-              </Link>
-            </div>
-          </Reveal>
-        </Section>
-      )}
+      {/* The old "For Developers / Developer Intelligence" section was removed —
+          the "Enroll a Developer — earn 2%" banner near the top now drives
+          developer acquisition. */}
 
       {/* ---------- 11 · DATA MOAT ---------- */}
       <Section id="data-moat" className="items-center text-center">

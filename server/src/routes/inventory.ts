@@ -25,11 +25,13 @@ router.get("/", async (_req, res) => {
       ? await db.select().from(units).where(inArray(units.projectId, projectIds))
       : [];
 
-  // First public gallery photo per project → the listing card's cover image.
+  // Auto-select the "featured" cover per project: the highest-resolution image
+  // wins (largest file ≈ best quality), newest breaking ties — so uploading a
+  // better photo automatically promotes it to the listing cover.
   const coverRows =
     projectIds.length > 0
       ? await db
-          .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl, createdAt: projectAssets.createdAt })
+          .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl })
           .from(projectAssets)
           .where(
             and(
@@ -38,7 +40,7 @@ router.get("/", async (_req, res) => {
               eq(projectAssets.verified, true),
             ),
           )
-          .orderBy(asc(projectAssets.createdAt))
+          .orderBy(desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
       : [];
   const coverMap = new Map<string, string>();
   for (const c of coverRows) {
