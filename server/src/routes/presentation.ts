@@ -20,6 +20,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
+import { scoreImageFile } from "../services/ai/scoreImage";
 
 const router = Router();
 
@@ -239,6 +240,22 @@ router.post(
         verified,
       })
       .returning();
+
+    // Auto-score gallery photos with AI vision so the best one becomes the cover.
+    // Fire-and-forget — never blocks or fails the upload; unscored images just
+    // fall back to the resolution heuristic in the cover queries.
+    if (parsed.data.category === "GALLERY_IMAGE" && req.file.mimetype.startsWith("image/")) {
+      const assetId = asset._id;
+      const { path: filePath, mimetype } = req.file;
+      void scoreImageFile(filePath, mimetype).then(async (score) => {
+        if (score === null) return;
+        try {
+          await getDb().update(projectAssets).set({ aiScore: score }).where(eq(projectAssets._id, assetId));
+        } catch {
+          /* non-fatal */
+        }
+      });
+    }
 
     res.status(201).json({
       asset,

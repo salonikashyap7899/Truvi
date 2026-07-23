@@ -70,8 +70,8 @@ router.get("/", async (req: AuthedRequest, res) => {
             eq(projectAssets.verified, true),
           ),
         )
-        // Highest-resolution image wins (best quality), newest breaks ties.
-        .orderBy(desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
+        // AI visual-quality score wins; unscored fall back to resolution, then newest.
+        .orderBy(sql`${projectAssets.aiScore} desc nulls last`, desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
     : [];
   const coverMap = new Map<string, string>();
   for (const c of coverRows) {

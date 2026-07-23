@@ -25,9 +25,9 @@ router.get("/", async (_req, res) => {
       ? await db.select().from(units).where(inArray(units.projectId, projectIds))
       : [];
 
-  // Auto-select the "featured" cover per project: the highest-resolution image
-  // wins (largest file ≈ best quality), newest breaking ties — so uploading a
-  // better photo automatically promotes it to the listing cover.
+  // Auto-select the "featured" cover per project: the AI visual-quality score
+  // wins; unscored images fall back to highest-resolution, then newest — so
+  // uploading a better photo automatically promotes it to the listing cover.
   const coverRows =
     projectIds.length > 0
       ? await db
@@ -40,7 +40,7 @@ router.get("/", async (_req, res) => {
               eq(projectAssets.verified, true),
             ),
           )
-          .orderBy(desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
+          .orderBy(sql`${projectAssets.aiScore} desc nulls last`, desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
       : [];
   const coverMap = new Map<string, string>();
   for (const c of coverRows) {

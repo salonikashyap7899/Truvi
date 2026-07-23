@@ -656,6 +656,9 @@ export const projectAssets = pgTable(
     // start unverified and only appear publicly after an admin verifies them.
     // Non-legal categories default to true.
     verified: boolean("verified").notNull().default(true),
+    // AI-scored visual quality (0–100) for gallery images — drives automatic
+    // "best cover" selection. Null until scored (or when AI is unavailable).
+    aiScore: doublePrecision("ai_score"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("project_assets_project_category_created_idx").on(t.projectId, t.category, t.createdAt)]

@@ -98,7 +98,7 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
   // developer's projects: commission → lead → project → developer. The referrer
   // earns REFERRAL_INCENTIVE_PERCENT of each such booking value.
   const devIds = referred.map((r) => String(r._id));
-  const stats = new Map<string, { count: number; sales: number; last: Date | null; activated: boolean }>();
+  const stats = new Map<string, { count: number; sales: number; last: Date | null; activated: boolean; properties: number }>();
 
   if (devIds.length) {
     const devProjects = await db
@@ -106,10 +106,11 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
       .from(projects)
       .where(inArray(projects.developerId, devIds));
     const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
-    // A developer counts as "active" once they have at least one live project.
+    // Count each developer's listed projects; ≥1 project also marks them active.
     for (const p of devProjects) {
-      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, activated: false };
+      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, activated: false, properties: 0 };
       cur.activated = true;
+      cur.properties += 1;
       stats.set(String(p.developerId), cur);
     }
 
@@ -130,7 +131,7 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
         for (const t of txns) {
           const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
           if (!devId) continue;
-          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, activated: true };
+          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, activated: true, properties: 0 };
           cur.count += 1;
           cur.sales += Number(t.bookingValue || 0);
           const at = new Date(t.createdAt);
@@ -151,6 +152,7 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
       // listed a project yet. (`activated` still drives the deeper "listing"
       // state used for transactions/earnings below.)
       status: "ACTIVE" as "ACTIVE" | "PENDING",
+      propertiesListed: s?.properties ?? 0,
       totalTransactions: s?.count ?? 0,
       totalSalesValue: Math.round(s?.sales ?? 0),
       incentiveEarned: Math.round((s?.sales ?? 0) * rate),

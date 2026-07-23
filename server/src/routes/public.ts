@@ -54,13 +54,13 @@ router.get("/projects", async (req, res) => {
     const ids = rows.map((r) => r.project._id);
     if (ids.length === 0) return res.json({ projects: [] });
 
-    // Featured cover per project: highest-resolution verified gallery image
-    // (largest file ≈ best quality), newest breaking ties.
+    // Featured cover per project: AI visual-quality score first, then highest
+    // resolution, then newest — so the best photo automatically leads.
     const coverRows = await db
       .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl })
       .from(projectAssets)
       .where(and(inArray(projectAssets.projectId, ids), eq(projectAssets.category, "GALLERY_IMAGE"), eq(projectAssets.verified, true)))
-      .orderBy(desc(projectAssets.sizeBytes), desc(projectAssets.createdAt));
+      .orderBy(sql`${projectAssets.aiScore} desc nulls last`, desc(projectAssets.sizeBytes), desc(projectAssets.createdAt));
     const coverMap = new Map<string, string>();
     for (const c of coverRows) if (!coverMap.has(String(c.projectId))) coverMap.set(String(c.projectId), c.fileUrl);
 
