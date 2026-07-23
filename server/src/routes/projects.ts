@@ -171,6 +171,11 @@ const updateProjectSchema = z.object({
     })
     .nullable()
     .optional(),
+  // Truvi-verified risk assessment (ADMIN only; ignored for developers).
+  // `null` clears an assessment back to "not assessed".
+  legalRiskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
+  floodRiskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
+  crimeIndexLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -196,6 +201,14 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
   if (d.lat !== undefined) update.lat = d.lat;
   if (d.lng !== undefined) update.lng = d.lng;
+
+  // Risk assessment is Truvi-verified data — only admins may set it. A
+  // developer editing their own project cannot rate its risk.
+  if (req.user!.role === "ADMIN") {
+    for (const k of ["legalRiskLevel", "floodRiskLevel", "crimeIndexLevel"] as const) {
+      if (d[k] !== undefined) update[k] = d[k];
+    }
+  }
 
   const [updated] = await db
     .update(projects)

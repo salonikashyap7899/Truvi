@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
 import PresentationManager from "@/components/PresentationManager";
 import UnitsManager from "@/components/UnitsManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import RiskAssessmentEditor from "@/components/RiskAssessmentEditor";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project } from "@/types";
 
@@ -63,6 +64,9 @@ export default function AdminProjectManagePage() {
 
       {/* Editable core details: name, location, RERA, possession, contact, plans */}
       <ProjectDetailsEditor project={project} onUpdated={setProject} />
+
+      {/* Truvi-verified risk levels (admin-only) shown on the intelligence cards */}
+      <RiskAssessmentEditor project={project} onUpdated={setProject} />
 
       {/* Plots / units */}
       <UnitsManager projectId={project._id} />
