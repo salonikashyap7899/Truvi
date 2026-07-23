@@ -71,6 +71,7 @@ import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
 import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
 import AdminVerificationPage from "@/pages/admin/AdminVerificationPage";
 import AdminKycPage from "@/pages/admin/AdminKycPage";
+import AdminReferralLeadsPage from "@/pages/admin/AdminReferralLeadsPage";
 import AdminDocumentsPage from "@/pages/admin/AdminDocumentsPage";
 import AdminFinancePage from "@/pages/admin/AdminFinancePage";
 import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
@@ -177,6 +178,7 @@ export default function App() {
         <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
         <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
         <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
+        <Route path="/admin/referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
         <Route path="/admin/documents" element={<ProtectedRoute roles={["ADMIN"]}><AdminDocumentsPage /></ProtectedRoute>} />
         <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
         <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />

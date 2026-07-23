@@ -146,7 +146,11 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
     const s = stats.get(String(r._id));
     return {
       ...r,
-      status: (s?.activated ? "ACTIVE" : "PENDING") as "ACTIVE" | "PENDING",
+      // A developer who registered with the referral code has ACCEPTED the
+      // referral — so they count as Active immediately, whether or not they've
+      // listed a project yet. (`activated` still drives the deeper "listing"
+      // state used for transactions/earnings below.)
+      status: "ACTIVE" as "ACTIVE" | "PENDING",
       totalTransactions: s?.count ?? 0,
       totalSalesValue: Math.round(s?.sales ?? 0),
       incentiveEarned: Math.round((s?.sales ?? 0) * rate),
@@ -164,12 +168,29 @@ router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedReque
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, referredDevelopers, summary });
 });
 
-// GET /api/onboarding/developers — the CP's own referrals (admins see all).
+// GET /api/onboarding/developers — the CP's own referrals (admins see all,
+// with the referring CP's name so the admin panel shows who referred whom).
 router.get("/developers", async (req: AuthedRequest, res) => {
   const db = getDb();
   const rows = await db
-    .select()
+    .select({
+      _id: developerReferrals._id,
+      cpId: developerReferrals.cpId,
+      cpName: users.name,
+      developerName: developerReferrals.developerName,
+      companyName: developerReferrals.companyName,
+      phone: developerReferrals.phone,
+      email: developerReferrals.email,
+      city: developerReferrals.city,
+      landDetails: developerReferrals.landDetails,
+      notes: developerReferrals.notes,
+      status: developerReferrals.status,
+      incentivePercent: developerReferrals.incentivePercent,
+      createdAt: developerReferrals.createdAt,
+      updatedAt: developerReferrals.updatedAt,
+    })
     .from(developerReferrals)
+    .leftJoin(users, eq(developerReferrals.cpId, users._id))
     .where(req.user!.role === "ADMIN" ? undefined : eq(developerReferrals.cpId, req.user!.userId))
     .orderBy(desc(developerReferrals.createdAt));
   res.json({ referrals: rows });
