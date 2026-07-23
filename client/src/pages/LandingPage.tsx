@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
-import { FloatingProperties } from "@/components/landing/FloatingProperties";
 import { SiteNav } from "@/components/SiteNav";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -833,9 +832,6 @@ export default function LandingPage() {
       <SiteNav />
 
       <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
-
-      {/* Live featured-property images drifting in the background */}
-      {mounted && <FloatingProperties />}
 
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
