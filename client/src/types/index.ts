@@ -87,6 +87,18 @@ export interface PaymentPlan {
   description?: string;
 }
 
+export interface OwnerHistoryEntry {
+  ownerLabel: string;
+  startYear: number;
+  endYear: number | null;
+}
+
+export interface AppreciationForecast {
+  fiveYearPct: number;
+  outlook?: "Strong" | "Moderate" | "Stable";
+  note?: string;
+}
+
 export interface VerificationDetails {
   reraVerified: boolean;
   titleClearance: boolean;
@@ -178,6 +190,9 @@ export interface Project {
   possessionDate?: string | null;
   salesContact?: SalesContact | null;
   paymentPlans?: PaymentPlan[] | null;
+  // Admin-curated, Truvi-verified intelligence
+  ownerHistory?: OwnerHistoryEntry[] | null;
+  appreciationForecast?: AppreciationForecast | null;
   // Live unit aggregates attached by GET /api/inventory
   minPrice?: number | null;
   maxPrice?: number | null;

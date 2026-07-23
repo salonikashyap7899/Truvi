@@ -163,7 +163,7 @@ export default function ProjectDetailPage() {
   const legalRisk = project.legalRiskLevel ?? null;
   const floodRisk = project.floodRiskLevel ?? null;
   const crimeIndex = project.crimeIndexLevel ?? null;
-  const ownerHistory: never[] = [];
+  const ownerHistory = project.ownerHistory ?? [];
   const reraInfo = {
     reraNumber: project.reraNumber ?? "",
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
@@ -192,7 +192,7 @@ export default function ProjectDetailPage() {
           <PriceFairnessMeter projectId={project._id} />
         </div>
         <div className="w-full sm:max-w-lg">
-          <FutureAppreciationCard projectId={project._id} />
+          <FutureAppreciationCard projectId={project._id} forecast={project.appreciationForecast} />
         </div>
         <div className="w-full sm:w-72">
           <OwnerHistoryCard owners={ownerHistory} />

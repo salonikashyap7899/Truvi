@@ -176,6 +176,26 @@ const updateProjectSchema = z.object({
   legalRiskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
   floodRiskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
   crimeIndexLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
+  // Truvi-verified ownership history + appreciation forecast (ADMIN only).
+  // `null` (or an empty array) clears the data.
+  ownerHistory: z
+    .array(
+      z.object({
+        ownerLabel: z.string().min(1).max(80),
+        startYear: z.number().int().min(1900).max(2100),
+        endYear: z.number().int().min(1900).max(2100).nullable(),
+      }),
+    )
+    .nullable()
+    .optional(),
+  appreciationForecast: z
+    .object({
+      fiveYearPct: z.number().min(-100).max(1000),
+      outlook: z.enum(["Strong", "Moderate", "Stable"]).optional(),
+      note: z.string().max(280).optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -202,12 +222,15 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.lat !== undefined) update.lat = d.lat;
   if (d.lng !== undefined) update.lng = d.lng;
 
-  // Risk assessment is Truvi-verified data — only admins may set it. A
-  // developer editing their own project cannot rate its risk.
+  // Risk assessment, ownership history and the appreciation forecast are all
+  // Truvi-verified data — only admins may set them. A developer editing their
+  // own project cannot rate its risk or publish these figures.
   if (req.user!.role === "ADMIN") {
     for (const k of ["legalRiskLevel", "floodRiskLevel", "crimeIndexLevel"] as const) {
       if (d[k] !== undefined) update[k] = d[k];
     }
+    if (d.ownerHistory !== undefined) update.ownerHistory = d.ownerHistory && d.ownerHistory.length ? d.ownerHistory : null;
+    if (d.appreciationForecast !== undefined) update.appreciationForecast = d.appreciationForecast;
   }
 
   const [updated] = await db
