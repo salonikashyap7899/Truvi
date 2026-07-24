@@ -885,6 +885,7 @@ export default function LandingPage() {
         poster="/media/base-one-poster.jpg"
         eyebrow="Truvi Ventures"
         overlayPos="top"
+        tint={0.35}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
@@ -1224,6 +1225,7 @@ export default function LandingPage() {
         title={<>Know the property before you buy it.</>}
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"
+        tint={0.6}
       />
 
       {/* ---------- FINAL CTA ---------- */}

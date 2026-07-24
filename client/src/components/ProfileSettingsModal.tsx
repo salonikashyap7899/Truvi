@@ -54,7 +54,9 @@ export default function ProfileSettingsModal({ open, onClose }: { open: boolean;
     fd.append("file", file);
     setUploading(true);
     try {
-      const res = await api.post("/uploads", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      // Do NOT set Content-Type manually — the browser must add the multipart
+      // boundary itself, or the server can't parse the file.
+      const res = await api.post("/uploads", fd);
       setAvatarUrl(res.data.url);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Image upload failed.");

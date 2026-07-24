@@ -20,6 +20,7 @@ export function VideoBand({
   align = "center",
   overlayPos = "center",
   height = "clamp(360px, 66vh, 680px)",
+  tint = 0,
 }: {
   srcWebm: string;
   poster: string;
@@ -29,6 +30,8 @@ export function VideoBand({
   align?: "center" | "left";
   overlayPos?: OverlayPos;
   height?: string;
+  /** 0–1 strength of a blue→violet brand recolour blended over the clip. */
+  tint?: number;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -76,6 +79,15 @@ export function VideoBand({
         >
           <source src={srcWebm} type="video/webm" />
         </video>
+      )}
+
+      {/* Brand recolour — maps the clip's hues onto Truvi's blue→violet palette
+          (luminance/detail preserved) so the animations match the site. */}
+      {tint > 0 && (
+        <>
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(130deg, #3b82f6 0%, #6d5cff 52%, #a855f7 100%)", mixBlendMode: "color", opacity: tint }} />
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(120% 90% at 50% 50%, transparent 40%, rgba(59,130,246,0.18) 100%)", mixBlendMode: "soft-light", opacity: Math.min(1, tint + 0.2) }} />
+        </>
       )}
 
       {/* Blend the top & bottom edges into the page so the band feels seamless. */}
