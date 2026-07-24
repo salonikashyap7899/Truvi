@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Ic, Kpi, Panel } from "@/pages/dashboard/DashboardOS";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
+import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import type { Project } from "@/types";
 import "@/styles/founder-os.css";
 
@@ -118,6 +119,7 @@ export default function AdminOsDashboardPage() {
   const [trends, setTrends] = useState<KpiTrends | null>(null);
   const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Each section loads independently and resiliently — the dashboard renders
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
@@ -188,6 +190,7 @@ export default function AdminOsDashboardPage() {
           <div className="top-actions">
             <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
+            <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
             <NotificationBell />
             <div className="divider-v" />
             <UserMenu />
@@ -294,6 +297,8 @@ export default function AdminOsDashboardPage() {
           </section>
         </div>
       </div>
+
+      <ProfileSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

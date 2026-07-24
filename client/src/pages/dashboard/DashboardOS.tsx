@@ -7,6 +7,7 @@ import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import { TeamPage, MarketingPage, LandBankPage, InvestorPage } from "@/pages/dashboard/FounderModules";
+import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import "@/styles/founder-os.css";
 
 /* ------------------------------------------------------------------ types */
@@ -54,6 +55,7 @@ const ICONS: Record<string, string> = {
   check: "M20 6L9 17l-5-5",
   alert: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
   trendUp: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
+  cog: "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V15z",
 };
 export const Ic = ({ n }: { n: string }) => P(ICONS[n] || ICONS.grid);
 
@@ -128,6 +130,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const [light, setLight] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   async function load() {
     // founder-overview drives the whole dashboard (nav + pages), so it's the
@@ -198,9 +201,12 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
             </button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
             <button className="icon-btn" title="Notifications"><Ic n="bell" /></button>
+            <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
             <div className="divider-v" />
-            <button className="profile-btn">
-              <div className="avatar">{initials(user?.name || config.fallbackName)}</div>
+            <button className="profile-btn" onClick={() => setSettingsOpen(true)} title="Edit profile">
+              <div className="avatar">
+                {user?.avatarUrl ? <img src={user.avatarUrl} alt="" /> : initials(user?.name || config.fallbackName)}
+              </div>
               <div><div className="profile-name">{user?.name || config.fallbackName}</div><div className="profile-role">{config.roleLabel}</div></div>
             </button>
           </div>
@@ -224,6 +230,8 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
 
       {/* AI Copilot — Founder-only per RBAC */}
       {config.showCopilot && <Copilot open={copilotOpen} setOpen={setCopilotOpen} />}
+
+      <ProfileSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
