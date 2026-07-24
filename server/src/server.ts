@@ -5,6 +5,19 @@ import { connectDB, disconnectDB } from "./config/db";
 import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 
+// Last-line safety net: a single stray async error (an unawaited promise, a
+// driver-level throw) must never take the whole API process down — that is what
+// surfaces as a 502 Bad Gateway at the edge for EVERY user. Express already
+// routes request errors to the error handler; these catch anything that escapes
+// it. We log loudly and keep serving; the process manager still restarts the
+// process on a genuinely fatal exit.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection (kept alive):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception (kept alive):", err);
+});
+
 async function main() {
   assertRequiredEnvForProduction();
 
