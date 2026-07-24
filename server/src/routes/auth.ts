@@ -161,6 +161,8 @@ function issueSession(res: import("express").Response, user: IUser) {
       phoneVerified: user.phoneVerified,
       onboardingVerified: user.onboardingVerified,
       onboardingChecks: user.onboardingChecks,
+      avatarUrl: user.avatarUrl ?? null,
+      bio: user.bio ?? null,
     },
   };
 }
@@ -405,6 +407,47 @@ router.get("/me", authenticate, async (req: AuthedRequest, res) => {
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
   const { password: _p, ...safeUser } = user;
+  return res.json({ user: safeUser });
+});
+
+// PATCH /api/auth/profile — the signed-in user edits their own display profile
+// (name, avatar image URL, bio). Any role can call it for their own account.
+// The avatar image is uploaded separately via POST /api/uploads (returns a URL),
+// then that URL is saved here.
+router.patch("/profile", authenticate, async (req: AuthedRequest, res) => {
+  const userId = req.user!.userId;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const body = (req.body ?? {}) as { name?: unknown; bio?: unknown; avatarUrl?: unknown };
+  const update: Record<string, unknown> = {};
+
+  if (body.name !== undefined) {
+    const name = String(body.name).trim();
+    if (name.length < 2 || name.length > 80) return res.status(400).json({ error: "Name must be 2–80 characters." });
+    update.name = name;
+  }
+  if (body.bio !== undefined) {
+    const bio = body.bio === null ? "" : String(body.bio).trim();
+    if (bio.length > 500) return res.status(400).json({ error: "Bio must be 500 characters or fewer." });
+    update.bio = bio || null;
+  }
+  if (body.avatarUrl !== undefined) {
+    const url = body.avatarUrl === null ? "" : String(body.avatarUrl).trim();
+    if (url.length > 1000) return res.status(400).json({ error: "Avatar URL is too long." });
+    update.avatarUrl = url || null;
+  }
+
+  const db = getDb();
+  if (Object.keys(update).length === 0) {
+    const current = await findUserById(userId);
+    if (!current) return res.status(404).json({ error: "User not found" });
+    const { password: _p, ...safeUser } = current;
+    return res.json({ user: safeUser });
+  }
+
+  const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
+  if (!updated) return res.status(404).json({ error: "User not found" });
+  const { password: _p, ...safeUser } = updated;
   return res.json({ user: safeUser });
 });
 

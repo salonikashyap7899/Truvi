@@ -326,6 +326,10 @@ export const users = pgTable(
     cpProfile: jsonb("cp_profile").$type<CpProfile>().default(DEFAULT_CP_PROFILE),
     developerProfile: jsonb("developer_profile").$type<DeveloperProfile>(),
     buyerProfile: jsonb("buyer_profile").$type<BuyerProfile>().default(DEFAULT_BUYER_PROFILE),
+    // Personal profile: display avatar (uploaded image URL) and a short bio,
+    // editable by the account owner from their dashboard settings.
+    avatarUrl: text("avatar_url"),
+    bio: text("bio"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

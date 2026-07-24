@@ -127,6 +127,8 @@ export interface User {
   approvalStatus: ApprovalStatus;
   disabled?: boolean;
   phone?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
   emailVerified?: boolean;
   phoneVerified?: boolean;
   onboardingVerified?: boolean;

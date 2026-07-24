@@ -20,6 +20,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_verified" boolean NOT NULL DEFAULT true`,
     // Admin can deactivate ("remove") an account without destroying its history.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "disabled" boolean NOT NULL DEFAULT false`,
+    // Personal profile: avatar image URL + short bio, editable from dashboard settings.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
     // GIS map coordinates (pin picker on the project form).

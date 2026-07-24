@@ -64,9 +64,13 @@ export function UserMenu() {
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-2.5 transition hover:bg-white/10"
       >
-        <span className="grid size-7 place-items-center rounded-full bg-gradient-to-br from-[var(--trust)] to-[#2563eb] text-xs font-bold text-white">
-          {initial}
-        </span>
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" className="size-7 rounded-full object-cover" />
+        ) : (
+          <span className="grid size-7 place-items-center rounded-full bg-gradient-to-br from-[var(--trust)] to-[#2563eb] text-xs font-bold text-white">
+            {initial}
+          </span>
+        )}
         <span className="hidden max-w-[110px] truncate text-xs font-semibold text-foreground/90 sm:block">
           {user.name}
         </span>
