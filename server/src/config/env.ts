@@ -41,8 +41,22 @@ export function getEnv() {
       .split(",")
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
+    // ── Default Founder account ──────────────────────────────────────────────
+    // A Founder (ADMIN-role) account is provisioned on boot so the CEO OS is
+    // reachable on a fresh deploy without running the destructive seed. Override
+    // any of these via the environment; always set FOUNDER_PASSWORD in prod.
+    founderName: process.env.FOUNDER_NAME?.trim() || "Truvi Founder",
+    founderEmail: (process.env.FOUNDER_EMAIL?.trim() || "founder@truvi.app").toLowerCase(),
+    founderPassword: process.env.FOUNDER_PASSWORD?.trim() || "",
   };
 }
+
+/**
+ * Strong built-in Founder password used only when FOUNDER_PASSWORD is not set.
+ * It is intentionally long and mixed-class; production deploys should override
+ * it via the environment and rotate after first login.
+ */
+export const DEFAULT_FOUNDER_PASSWORD = "Truvi@Founder!2026#OS";
 
 /** True only when both Razorpay keys are configured. */
 export function isRazorpayConfigured(): boolean {

@@ -1,6 +1,7 @@
 import type { Db } from "../db";
 import { connectDb, closeDb, getDb } from "../db";
 import { VERIFICATION_BOOT_SQL, ensureVerificationDefaults } from "../db/verificationBootSql";
+import { ensureDefaultFounder } from "../db/bootstrapFounder";
 
 let isConnected = false;
 let connectionError: Error | null = null;
@@ -213,6 +214,9 @@ export async function connectDB(url: string): Promise<boolean> {
     const db = connectDb(url);
     await db.execute("select 1");
     await ensureSchema(db);
+    // Provision the default Founder (CEO OS) account if it doesn't exist yet, so
+    // a fresh deploy is reachable without running the destructive seed.
+    await ensureDefaultFounder(db);
     isConnected = true;
     connectionError = null;
     console.log("Supabase (Postgres) connected");

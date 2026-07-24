@@ -206,7 +206,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
         </header>
 
         <div className="content">
-          {current === "overview" && <OverviewPage d={d} go={go} title={config.overviewTitle} sub={config.overviewSub} />}
+          {current === "overview" && <OverviewPage d={d} fin={fin} go={go} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
           {current === "projects" && <ProjectsPage d={d} navigate={navigate} />}
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
@@ -244,7 +244,123 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => void; title: string; sub: string }) {
+/* ---------------------------------------------------- Daily Founder Brief */
+type BriefLine = { icon: string; tone: Tone; text: string; page?: Page };
+
+/**
+ * Synthesises a plain-language "Daily Founder Brief" from live data — the
+ * proactive daily strategy briefing. Fully transparent: every sentence is
+ * derived from real platform numbers, no black-box ML.
+ */
+function buildBrief(d: Overview, fin: FinanceSummary | null): { headline: string; lines: BriefLine[] } {
+  const lines: BriefLine[] = [];
+  const ch = d.companyHealth;
+
+  // Health headline
+  const health = ch.healthScore;
+  const healthWord = health >= 70 ? "healthy" : health >= 40 ? "steady, watch a few areas" : "under pressure";
+  const headline = `Business health is ${health}/100 — ${healthWord}.`;
+
+  // Revenue pulse
+  lines.push({
+    icon: "wallet", tone: "blue", page: "finance",
+    text: `Revenue today ${formatINR(ch.revenueToday)} · ${formatINR(ch.revenueMTD)} MTD · ${formatINR(ch.revenueYTD)} YTD${ch.mrr > 0 ? ` · ${formatINR(ch.mrr)} recurring MRR` : ""}.`,
+  });
+
+  // Sales pulse
+  lines.push({
+    icon: "spark", tone: "green", page: "sales",
+    text: `${d.sales.leadsToday} lead${d.sales.leadsToday === 1 ? "" : "s"} today, ${d.sales.qualifiedLeads} qualified in pipeline · ${d.executive.todaysBookings} booking${d.executive.todaysBookings === 1 ? "" : "s"} today · ${d.sales.conversionRate}% conversion.`,
+  });
+
+  // Biggest risk (first material one)
+  const risk = topRisk(d, fin);
+  if (risk) lines.push({ icon: "alert", tone: "red", text: risk.text, page: risk.page });
+
+  // Biggest opportunity
+  const opp = topOpportunity(d);
+  if (opp) lines.push({ icon: "trendUp", tone: "green", text: opp });
+
+  // Pending actions / focus
+  if (d.executive.pendingActions > 0) {
+    lines.push({
+      icon: "bell", tone: "amber", page: "verification",
+      text: `${d.executive.pendingActions} action${d.executive.pendingActions === 1 ? "" : "s"} awaiting you — approvals, KYC, legal and enquiries.`,
+    });
+  } else {
+    lines.push({ icon: "check", tone: "green", text: "No pending approvals, KYC, legal or enquiries — queues are clear." });
+  }
+
+  // Runway note when finance is live
+  if (fin?.hasData) {
+    if (fin.runwayMonths === null) {
+      lines.push({ icon: "target", tone: "green", page: "finance", text: `Cash-flow positive — bank balance ${formatINR(fin.bankBalance)}, no burn.` });
+    } else {
+      const tone: Tone = fin.runwayMonths >= 12 ? "green" : fin.runwayMonths >= 6 ? "amber" : "red";
+      lines.push({ icon: "target", tone, page: "finance", text: `Runway ${fin.runwayMonths} month${fin.runwayMonths === 1 ? "" : "s"} at ${formatINR(fin.burnRate)}/mo burn · ${formatINR(fin.bankBalance)} in bank.` });
+    }
+  }
+
+  return { headline, lines };
+}
+
+function topRisk(d: Overview, fin: FinanceSummary | null): { text: string; page: Page } | null {
+  if (fin?.hasData && fin.runwayMonths !== null && fin.runwayMonths < 6)
+    return { text: `Runway is only ${fin.runwayMonths} month(s) — tighten burn or accelerate collections.`, page: "finance" };
+  if (d.verification.pendingProjects)
+    return { text: `${d.verification.pendingProjects} project(s) awaiting verification — unverified listings erode buyer trust.`, page: "verification" };
+  if (d.crm.followUpsDue)
+    return { text: `${d.crm.followUpsDue} CP follow-up(s) overdue — hot leads may be going cold.`, page: "crm" };
+  if (d.sales.conversionRate < 5 && d.projects.approved > 0)
+    return { text: `Lead→booking conversion is ${d.sales.conversionRate}% — the pipeline is leaking before booking.`, page: "sales" };
+  return null;
+}
+
+function topOpportunity(d: Overview): string | null {
+  const top = d.sales.revenueByProject[0];
+  if (top) return `${top.project} is your top GMV driver (${formatCompactINR(top.value)}) — worth featuring and doubling down.`;
+  if (d.companyHealth.mrr > 0) return `${formatINR(d.companyHealth.mrr)} recurring MRR — expand the CP-Pro upsell to compound it.`;
+  if (d.crm.newCustomers > 0) return `${d.crm.newCustomers} new buyer(s) in 30 days — nurture them toward site visits.`;
+  return null;
+}
+
+function DailyBrief({ d, fin, go }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void }) {
+  const { headline, lines } = buildBrief(d, fin);
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  return (
+    <div className="card brief-card">
+      <div className="brief-head">
+        <div className="brief-icon"><Ic n="spark" /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="brief-title">Daily Founder Brief</div>
+          <div className="brief-date">{greeting} · {today}</div>
+        </div>
+        <span className="brief-tag"><Ic n="bolt" /> AI · live data</span>
+      </div>
+      <div className="brief-headline">{headline}</div>
+      <div className="brief-lines">
+        {lines.map((l, i) => (
+          <div
+            className={`brief-line${l.page ? " clickable" : ""}`}
+            key={i}
+            onClick={l.page ? () => go(l.page!) : undefined}
+            role={l.page ? "button" : undefined}
+            tabIndex={l.page ? 0 : undefined}
+            onKeyDown={l.page ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(l.page!); } } : undefined}
+          >
+            <div className={`kpi-icon ${l.tone} brief-line-icon`}><Ic n={l.icon} /></div>
+            <span>{l.text}</span>
+            {l.page && <span className="brief-line-open"><Ic n="arrow" /></span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OverviewPage({ d, fin, go, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; title: string; sub: string }) {
   const ex = d.executive;
   return (
     <section className="page">
@@ -252,6 +368,8 @@ function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => voi
         <div><div className="page-title">{title}</div><div className="page-sub">{sub}</div></div>
         <div className="header-actions"><button className="btn btn-primary" onClick={() => go("finance")}><Ic n="wallet" /> Finance</button></div>
       </div>
+
+      <DailyBrief d={d} fin={fin} go={go} />
       <div className="kpi-grid">
         <Kpi icon="wallet" tone="blue" label="Total Revenue" value={formatCompactINR(ex.totalRevenue)} foot="Platform fee + leads + payments" />
         <Kpi icon="chart" tone="green" label="Total GMV" value={formatCompactINR(ex.gmv)} foot="Booking value routed" />

@@ -27,6 +27,7 @@ import {
   CommissionMilestone,
 } from "../db/schema";
 import { calculateCommission, buildMilestones } from "../services/commissionCalculator";
+import { founderDefaults } from "../db/bootstrapFounder";
 
 const CITIES = [
   { city: "Hyderabad", locations: ["Gachibowli", "Kondapur", "Financial District"] },
@@ -83,6 +84,10 @@ async function seed() {
 
   console.log("Seeding Truvi database...");
   const hashedPassword = await bcrypt.hash("Password123!", 12);
+  // Founder gets a dedicated strong password (env-overridable), matching the
+  // boot-time default-Founder bootstrap so both paths agree on one credential.
+  const founder = founderDefaults();
+  const founderHashed = await bcrypt.hash(founder.password, 12);
 
   // --- Admins ---
   const [adminUser] = await db
@@ -98,9 +103,9 @@ async function seed() {
     .returning();
 
   await db.insert(users).values({
-    name: "Truvi Founder",
-    email: "founder@truvi.app",
-    password: hashedPassword,
+    name: founder.name,
+    email: founder.email,
+    password: founderHashed,
     role: "ADMIN",
     approvalStatus: "APPROVED",
     phone: randomPhone(),
@@ -349,9 +354,10 @@ async function seed() {
   }
 
   console.log("Seed complete.\n");
-  console.log("--- Login credentials (all use password: Password123!) ---");
-  console.log("Admin:      admin@truvi.app");
-  console.log("Admin:      founder@truvi.app");
+  console.log("--- Login credentials ---");
+  console.log("Admin:      admin@truvi.app          (password: Password123!)");
+  console.log(`Founder:    ${founder.email}       (password: ${founder.password})  → CEO OS at /founder/dashboard`);
+  console.log("--- All other demo accounts use password: Password123! ---");
   console.log("Buyer:      buyer1@truvi.app");
   console.log("Developer:  dev1@truvi.app");
   console.log("Developer:  dev4@truvi.app");
