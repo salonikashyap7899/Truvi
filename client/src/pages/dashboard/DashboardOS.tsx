@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { formatCompactINR, formatINR } from "@/lib/utils";
@@ -61,7 +62,7 @@ type Tone = "blue" | "green" | "amber" | "red";
 export function Kpi({ icon, tone, label, value, foot, trend, onClick }: { icon: string; tone: Tone; label: string; value: string; foot?: string; trend?: { text: string; up?: boolean }; onClick?: () => void }) {
   return (
     <div
-      className={`card kpi-card${onClick ? " kpi-clickable" : ""}`}
+      className={`card kpi-card tone-${tone}${onClick ? " kpi-clickable" : ""}`}
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -410,6 +411,23 @@ function OverviewPage({ d, fin, go, title, sub }: { d: Overview; fin: FinanceSum
         </Panel>
       </div>
 
+      <div className="grid-2-even">
+        <Panel title="Marketplace Mix" sub="Developers · channel partners · buyers" icon="users" iconTone="blue">
+          <Donut centerLabel="Members" data={[
+            { name: "Developers", value: ex.totalDevelopers, color: "#5D87FF" },
+            { name: "Channel Partners", value: ex.totalCPs, color: "#7C5CFF" },
+            { name: "Buyers", value: ex.totalBuyers, color: "#14C79A" },
+          ]} />
+        </Panel>
+        <Panel title="Listings Status" sub="Verification pipeline across projects" icon="building" iconTone="green">
+          <Donut centerLabel="Projects" data={[
+            { name: "Verified", value: d.projects.verified, color: "#14C79A" },
+            { name: "Approved", value: Math.max(0, d.projects.approved - d.projects.verified), color: "#5D87FF" },
+            { name: "Pending", value: d.projects.pending, color: "#F5A524" },
+          ]} />
+        </Panel>
+      </div>
+
       <div className="grid-2">
         <Panel title="Sales Funnel" sub="Live pipeline by stage" icon="chart" iconTone="blue">
           <Funnel funnel={d.sales.funnel} />
@@ -454,6 +472,33 @@ function Funnel({ funnel }: { funnel: { stage: string; count: number }[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+function Donut({ data, centerLabel }: { data: { name: string; value: number; color: string }[]; centerLabel: string }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const shown = total === 0 ? [{ name: "No data", value: 1, color: "var(--border)" }] : data.filter((d) => d.value > 0);
+  return (
+    <div className="donut-wrap">
+      <div className="donut-chart">
+        <ResponsiveContainer width="100%" height={168}>
+          <PieChart>
+            <Pie data={shown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={54} outerRadius={78} paddingAngle={total === 0 ? 0 : 3} strokeWidth={0} startAngle={90} endAngle={-270}>
+              {shown.map((d, i) => <Cell key={i} fill={d.color} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="donut-center"><b>{total}</b><span>{centerLabel}</span></div>
+      </div>
+      <div className="donut-legend">
+        {data.map((d) => (
+          <div className="donut-leg-row" key={d.name}>
+            <span className="donut-dot" style={{ background: d.color }} />
+            <span className="donut-leg-name">{d.name}</span>
+            <b>{d.value}</b>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
