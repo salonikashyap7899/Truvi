@@ -84,10 +84,10 @@ async function seed() {
 
   console.log("Seeding Truvi database...");
   const hashedPassword = await bcrypt.hash("Password123!", 12);
-  // Founders (Sandeep & Meeraj) get a dedicated strong password (env-overridable),
-  // matching the boot-time founder bootstrap so both paths agree on one credential.
-  const founderCfg = founderDefaults();
-  const founderHashed = await bcrypt.hash(founderCfg.password, 12);
+  // Founders (Sandeep & Meraj) get their own passwords (env-overridable), matching
+  // the boot-time founder bootstrap so both paths agree on the same credentials.
+  const { founders: founderCfg } = founderDefaults();
+  const founderHashes = await Promise.all(founderCfg.map((f) => bcrypt.hash(f.password, 12)));
 
   // --- Admins ---
   const [adminUser] = await db
@@ -102,11 +102,11 @@ async function seed() {
     })
     .returning();
 
-  for (const founder of founderCfg.founders) {
+  for (let i = 0; i < founderCfg.length; i++) {
     await db.insert(users).values({
-      name: founder.name,
-      email: founder.email,
-      password: founderHashed,
+      name: founderCfg[i].name,
+      email: founderCfg[i].email,
+      password: founderHashes[i],
       role: "ADMIN",
       approvalStatus: "APPROVED",
       phone: randomPhone(),
@@ -358,8 +358,8 @@ async function seed() {
   console.log("Seed complete.\n");
   console.log("--- Login credentials ---");
   console.log("Admin:      admin@truvi.app          (password: Password123!)");
-  for (const founder of founderCfg.founders) {
-    console.log(`Founder:    ${founder.email}  (password: ${founderCfg.password})  → CEO OS at /founder/dashboard`);
+  for (const founder of founderCfg) {
+    console.log(`Founder:    ${founder.email}  (password: ${founder.password})  → CEO OS at /founder/dashboard`);
   }
   console.log("--- All other demo accounts use password: Password123! ---");
   console.log("Buyer:      buyer1@truvi.app");
