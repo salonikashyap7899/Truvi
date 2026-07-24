@@ -8,6 +8,7 @@ import UnitsManager from "@/components/UnitsManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
 import RiskAssessmentEditor from "@/components/RiskAssessmentEditor";
 import OwnershipGrowthEditor from "@/components/OwnershipGrowthEditor";
+import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project } from "@/types";
 
@@ -71,6 +72,9 @@ export default function AdminProjectManagePage() {
 
       {/* Truvi-verified ownership history + appreciation forecast (admin-only) */}
       <OwnershipGrowthEditor project={project} onUpdated={setProject} />
+
+      {/* Construction phase, percent complete and milestones */}
+      <ProjectProgressEditor project={project} onUpdated={setProject} />
 
       {/* Plots / units */}
       <UnitsManager projectId={project._id} />

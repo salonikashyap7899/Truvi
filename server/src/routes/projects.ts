@@ -196,6 +196,22 @@ const updateProjectSchema = z.object({
     })
     .nullable()
     .optional(),
+  // Developer-reported construction progress + milestones (developer or admin).
+  constructionStatus: z
+    .enum(["PLANNING", "EXCAVATION", "FOUNDATION", "STRUCTURE", "FINISHING", "COMPLETED"])
+    .nullable()
+    .optional(),
+  constructionProgress: z.number().int().min(0).max(100).nullable().optional(),
+  milestones: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(120),
+        targetDate: z.string().datetime().or(z.literal("")).nullable().optional(),
+        done: z.boolean(),
+      }),
+    )
+    .nullable()
+    .optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -221,6 +237,17 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
   if (d.lat !== undefined) update.lat = d.lat;
   if (d.lng !== undefined) update.lng = d.lng;
+
+  // Construction progress is developer-reported — the developer (or an admin)
+  // may set it on their own project.
+  if (d.constructionStatus !== undefined) update.constructionStatus = d.constructionStatus;
+  if (d.constructionProgress !== undefined) update.constructionProgress = d.constructionProgress;
+  if (d.milestones !== undefined) {
+    update.milestones =
+      d.milestones && d.milestones.length
+        ? d.milestones.map((m) => ({ label: m.label, targetDate: m.targetDate || null, done: m.done }))
+        : null;
+  }
 
   // Risk assessment, ownership history and the appreciation forecast are all
   // Truvi-verified data — only admins may set them. A developer editing their

@@ -99,6 +99,15 @@ export interface AppreciationForecast {
   note?: string;
 }
 
+export type ConstructionStatus =
+  | "PLANNING" | "EXCAVATION" | "FOUNDATION" | "STRUCTURE" | "FINISHING" | "COMPLETED";
+
+export interface ProjectMilestone {
+  label: string;
+  targetDate?: string | null;
+  done: boolean;
+}
+
 export interface VerificationDetails {
   reraVerified: boolean;
   titleClearance: boolean;
@@ -193,6 +202,10 @@ export interface Project {
   // Admin-curated, Truvi-verified intelligence
   ownerHistory?: OwnerHistoryEntry[] | null;
   appreciationForecast?: AppreciationForecast | null;
+  // Developer-reported construction progress
+  constructionStatus?: ConstructionStatus | null;
+  constructionProgress?: number | null;
+  milestones?: ProjectMilestone[] | null;
   // Live unit aggregates attached by GET /api/inventory
   minPrice?: number | null;
   maxPrice?: number | null;
