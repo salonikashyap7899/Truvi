@@ -21,6 +21,7 @@ import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
+import NotFoundPage from "@/pages/NotFoundPage";
 import LegalPage from "@/pages/LegalPage";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
@@ -216,6 +217,9 @@ export default function App() {
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />
         <Route path="/buyer/projects" element={<ProtectedRoute roles={["BUYER"]}><BuyerProjectsPage /></ProtectedRoute>} />
         <Route path="/buyer/compare" element={<ProtectedRoute roles={["BUYER"]}><ComparePage /></ProtectedRoute>} />
+
+        {/* 404 — catch-all, must stay last */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       </PageTransition>
     </BrowserRouter>
