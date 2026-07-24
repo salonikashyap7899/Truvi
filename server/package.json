@@ -13,6 +13,7 @@
     "postinstall": "npm run build",
     "start": "node dist/server.js",
     "seed": "tsx src/seed/seed.ts",
+    "founders": "tsx src/seed/sync-founders.ts",
     "cleanup:demo": "tsx src/seed/cleanup-demo.ts",
     "reset:verification": "tsx src/seed/reset-verification.ts",
     "razorpay:plans": "tsx src/seed/create-razorpay-plans.ts",

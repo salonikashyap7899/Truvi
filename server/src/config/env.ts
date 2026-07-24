@@ -42,19 +42,22 @@ export function getEnv() {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
     // ── Founder (CEO OS) accounts ────────────────────────────────────────────
-    // Truvi's two founders — Sandeep & Meeraj — are provisioned as ADMIN-role
+    // Truvi's two founders — Sandeep & Meraj — are provisioned as ADMIN-role
     // accounts on boot so the CEO OS is reachable on a fresh deploy without the
-    // destructive seed. Emails, names and the shared password are all
-    // env-overridable; always set FOUNDER_PASSWORD in production.
+    // destructive seed. Names, emails and passwords are env-overridable. Each
+    // founder can have their own password (FOUNDER1_PASSWORD / FOUNDER2_PASSWORD);
+    // FOUNDER_PASSWORD is a shared fallback for both.
     founderPassword: process.env.FOUNDER_PASSWORD?.trim() || "",
     founders: [
       {
         name: process.env.FOUNDER1_NAME?.trim() || "Sandeep",
-        email: (process.env.FOUNDER1_EMAIL?.trim() || "sandeep@truvi.app").toLowerCase(),
+        email: (process.env.FOUNDER1_EMAIL?.trim() || "sandeep@truviventures.com").toLowerCase(),
+        password: process.env.FOUNDER1_PASSWORD?.trim() || "",
       },
       {
-        name: process.env.FOUNDER2_NAME?.trim() || "Meeraj",
-        email: (process.env.FOUNDER2_EMAIL?.trim() || "meeraj@truvi.app").toLowerCase(),
+        name: process.env.FOUNDER2_NAME?.trim() || "Meraj",
+        email: (process.env.FOUNDER2_EMAIL?.trim() || "meraj@truviventures.com").toLowerCase(),
+        password: process.env.FOUNDER2_PASSWORD?.trim() || "",
       },
     ],
   };
