@@ -50,6 +50,9 @@ const ICONS: Record<string, string> = {
   bolt: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
   arrow: "M5 12h14M13 6l6 6-6 6",
   book: "M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15z",
+  check: "M20 6L9 17l-5-5",
+  alert: "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01",
+  trendUp: "M23 6l-9.5 9.5-5-5L1 18M17 6h6v6",
 };
 export const Ic = ({ n }: { n: string }) => P(ICONS[n] || ICONS.grid);
 
@@ -75,11 +78,14 @@ export function Kpi({ icon, tone, label, value, foot, trend, onClick }: { icon: 
     </div>
   );
 }
-export function Panel({ title, sub, action, children }: { title: string; sub?: string; action?: React.ReactNode; children: React.ReactNode }) {
+export function Panel({ title, sub, action, icon, iconTone, children }: { title: string; sub?: string; action?: React.ReactNode; icon?: string; iconTone?: Tone; children: React.ReactNode }) {
   return (
     <div className="card panel">
       <div className="panel-head">
-        <div><div className="panel-title">{title}</div>{sub && <div className="panel-sub">{sub}</div>}</div>
+        <div className="panel-head-l">
+          {icon && <div className={`kpi-icon ${iconTone || "blue"} panel-icon`}><Ic n={icon} /></div>}
+          <div><div className="panel-title">{title}</div>{sub && <div className="panel-sub">{sub}</div>}</div>
+        </div>
         {action}
       </div>
       {children}
@@ -266,7 +272,7 @@ function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => voi
       </div>
 
       <div className="grid-2">
-        <Panel title="Revenue" sub="Today · Month-to-date · Year-to-date">
+        <Panel title="Revenue" sub="Today · Month-to-date · Year-to-date" icon="wallet" iconTone="blue">
           <div className="kpi-grid" style={{ marginBottom: 0 }}>
             <div><div className="kpi-label">Today</div><div className="kpi-value">{formatINR(d.companyHealth.revenueToday)}</div></div>
             <div><div className="kpi-label">MTD</div><div className="kpi-value">{formatINR(d.companyHealth.revenueMTD)}</div></div>
@@ -274,7 +280,7 @@ function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => voi
             <div><div className="kpi-label">MRR</div><div className="kpi-value">{formatINR(d.companyHealth.mrr)}</div></div>
           </div>
         </Panel>
-        <Panel title="Business Health Score" sub="Composite of verified listings, conversion, activity & revenue">
+        <Panel title="Business Health Score" sub="Composite of verified listings, conversion, activity & revenue" icon="target" iconTone="green">
           <div className="ring-wrap">
             <HealthRing score={d.companyHealth.healthScore} />
             <div style={{ flex: 1 }}>
@@ -287,12 +293,12 @@ function OverviewPage({ d, go, title, sub }: { d: Overview; go: (p: Page) => voi
       </div>
 
       <div className="grid-2">
-        <Panel title="Sales Funnel" sub="Live pipeline by stage">
+        <Panel title="Sales Funnel" sub="Live pipeline by stage" icon="chart" iconTone="blue">
           <Funnel funnel={d.sales.funnel} />
         </Panel>
-        <Panel title="Top Priorities" sub="From live queues">
+        <Panel title="Top Priorities" sub="From live queues" icon="bolt" iconTone="amber">
           {priorities(d).length === 0
-            ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>🟢 All clear — no pending approvals, KYC, legal or enquiries.</p>
+            ? <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ink-500)" }}><span className="status-dot green" /> All clear — no pending approvals, KYC, legal or enquiries.</p>
             : <div>{priorities(d).map((t, i) => (
                 <div className="list-row" key={i}>
                   <div className="rank">{i + 1}</div>
@@ -357,8 +363,8 @@ function SalesPage({ d }: { d: Overview }) {
         <Kpi icon="chart" tone="blue" label="Conversion" value={`${d.sales.conversionRate}%`} />
       </div>
       <div className="grid-2">
-        <Panel title="Sales Funnel" sub="Live pipeline by stage"><Funnel funnel={d.sales.funnel} /></Panel>
-        <Panel title="Revenue by Project" sub="GMV contribution">
+        <Panel title="Sales Funnel" sub="Live pipeline by stage" icon="chart" iconTone="blue"><Funnel funnel={d.sales.funnel} /></Panel>
+        <Panel title="Revenue by Project" sub="GMV contribution" icon="wallet" iconTone="green">
           {d.sales.revenueByProject.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No bookings recorded yet.</p>
             : d.sales.revenueByProject.map((r) => (
               <div style={{ marginBottom: 12 }} key={r.project}>
@@ -554,10 +560,10 @@ function InsightsPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
     <section className="page">
       <div className="page-header"><div><div className="page-title">AI Insights</div><div className="page-sub">Transparent signals derived from live data</div></div></div>
       <div className="grid-2-even">
-        <Panel title="🔴 Biggest risks today">
+        <Panel title="Biggest risks today" icon="alert" iconTone="red">
           {risks.length ? risks.map((r, i) => <div className="feed-item" key={i}><div className="feed-dot" style={{ background: "var(--red-100)", color: "var(--red-500)" }}><Ic n="bell" /></div><div><div className="feed-title">{r}</div></div></div>) : <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No material risk signals.</p>}
         </Panel>
-        <Panel title="📈 Biggest opportunities">
+        <Panel title="Biggest opportunities" icon="trendUp" iconTone="green">
           {opps.length ? opps.map((o, i) => <div className="feed-item" key={i}><div className="feed-dot" style={{ background: "var(--green-100)", color: "var(--green-600)" }}><Ic n="spark" /></div><div><div className="feed-title">{o}</div></div></div>) : <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>Add bookings &amp; subscriptions to surface opportunities.</p>}
         </Panel>
       </div>

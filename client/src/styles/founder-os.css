@@ -132,6 +132,13 @@
 .founder-os .grid-2-even{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
 .founder-os .panel{padding:20px;}
 .founder-os .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
+.founder-os .panel-head-l{display:flex; align-items:center; gap:11px; min-width:0;}
+.founder-os .panel-icon{width:30px; height:30px; border-radius:8px; flex-shrink:0;}
+.founder-os .panel-icon svg{width:15px; height:15px;}
+.founder-os .status-dot{width:9px; height:9px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 3px rgba(20,199,154,.16);}
+.founder-os .status-dot.green{background:var(--green-600);}
+.founder-os .status-dot.amber{background:var(--amber-500); box-shadow:0 0 0 3px rgba(245,165,36,.16);}
+.founder-os .status-dot.red{background:var(--red-500); box-shadow:0 0 0 3px rgba(244,87,74,.16);}
 .founder-os .panel-title{font-family:var(--font-head); font-weight:700; font-size:15px;}
 .founder-os .panel-sub{font-size:11.5px; color:var(--ink-400); margin-top:2px;}
 .founder-os .chip{font-size:11px; font-weight:700; padding:5px 10px; border-radius:20px; border:1px solid var(--border-strong); color:var(--ink-500);}
