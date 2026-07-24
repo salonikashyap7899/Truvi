@@ -888,6 +888,8 @@ export default function LandingPage() {
         subtitle="Know the property before you buy it."
         overlayPos="bottom"
         tint={0.6}
+        zoom={1.6}
+        height="clamp(300px, 50vh, 520px)"
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}

@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, Environment } from "@react-three/drei";
 import * as THREE from "three";
@@ -159,14 +159,32 @@ function Scene() {
 }
 
 export function CityCanvas() {
+  // The scene is a fixed, full-screen background that's only visible behind the
+  // hero. Rendering it continuously the whole time you're on the page (even
+  // scrolled far below) pins a CPU/GPU core and makes the whole site feel laggy.
+  // So we only run the render loop while the hero is on screen, and drop it to
+  // "never" once you've scrolled roughly a screen past it.
+  const [active, setActive] = useState(true);
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setActive(window.scrollY < window.innerHeight * 1.1));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
+  }, []);
+
   return (
     <div className="pointer-events-none fixed inset-0 z-0">
       {/* Decorative only — devices without WebGL just skip the scene */}
       <SilentErrorBoundary>
         <Canvas
+          frameloop={active ? "always" : "never"}
           shadows={false}
-          dpr={[1, 1.75]}
-          gl={{ antialias: true, powerPreference: "high-performance" }}
+          dpr={[1, 1.5]}
+          gl={{ antialias: false, powerPreference: "high-performance" }}
           camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
         >
           <Scene />
