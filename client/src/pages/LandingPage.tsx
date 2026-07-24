@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
+import { VideoBand } from "@/components/landing/VideoBand";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
@@ -878,6 +879,15 @@ export default function LandingPage() {
         </Reveal>
       </Section>
 
+      {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
+      <VideoBand
+        srcWebm="/media/base-one.webm"
+        poster="/media/base-one-poster.jpg"
+        eyebrow="Truvi Ventures"
+        overlayPos="top"
+        tint={0.35}
+      />
+
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
       <LiveStatsBand />
 
@@ -1206,6 +1216,17 @@ export default function LandingPage() {
           </div>
         </Reveal>
       </Section>
+
+      {/* ---------- CINEMATIC VISION BAND ---------- */}
+      <VideoBand
+        srcWebm="/media/exosphere.webm"
+        poster="/media/exosphere-poster.jpg"
+        eyebrow="The Truvi vision"
+        title={<>Know the property before you buy it.</>}
+        subtitle="One verified source of truth — for every home, plot and project across India."
+        overlayPos="center"
+        tint={0.6}
+      />
 
       {/* ---------- FINAL CTA ---------- */}
       <Section id="join" className="items-center pb-32 text-center">
