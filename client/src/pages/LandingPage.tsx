@@ -881,11 +881,13 @@ export default function LandingPage() {
 
       {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
       <VideoBand
-        srcWebm="/media/base-one.webm"
-        poster="/media/base-one-poster.jpg"
-        eyebrow="Truvi Ventures"
-        overlayPos="top"
-        tint={0.35}
+        srcWebm="/media/big-screen.webm"
+        poster="/media/big-screen-poster.jpg"
+        eyebrow="Introducing"
+        title={<>Truvi Ventures Pvt. Ltd.</>}
+        subtitle="Know the property before you buy it."
+        overlayPos="bottom"
+        tint={0.6}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
