@@ -1,10 +1,26 @@
 import type { Role, User } from "@/types";
 
+/**
+ * Emails that land on the full CEO OS (/founder/dashboard) instead of the
+ * operational admin panel. Truvi's founders plus the legacy placeholder; extend
+ * via VITE_FOUNDER_EMAILS (comma-separated) without a code change.
+ */
+const FOUNDER_EMAILS = new Set(
+  [
+    "founder@truvi.app",
+    "sandeep@truviventures.com",
+    "meraj@truviventures.com",
+    ...(import.meta.env.VITE_FOUNDER_EMAILS?.split(",") ?? []),
+  ]
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
 /** The one page each role lands on — used by login, verify, and the nav. */
 export function dashboardPath(user: Pick<User, "role" | "email">): string {
   switch (user.role) {
     case "ADMIN":
-      return user.email?.toLowerCase() === "founder@truvi.app" ? "/founder/dashboard" : "/admin/dashboard";
+      return FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "") ? "/founder/dashboard" : "/admin/dashboard";
     case "DEVELOPER":
       return "/developer/dashboard";
     case "AMBASSADOR":
