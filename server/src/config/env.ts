@@ -41,22 +41,32 @@ export function getEnv() {
       .split(",")
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
-    // ── Default Founder account ──────────────────────────────────────────────
-    // A Founder (ADMIN-role) account is provisioned on boot so the CEO OS is
-    // reachable on a fresh deploy without running the destructive seed. Override
-    // any of these via the environment; always set FOUNDER_PASSWORD in prod.
-    founderName: process.env.FOUNDER_NAME?.trim() || "Truvi Founder",
-    founderEmail: (process.env.FOUNDER_EMAIL?.trim() || "founder@truvi.app").toLowerCase(),
+    // ── Founder (CEO OS) accounts ────────────────────────────────────────────
+    // Truvi's two founders — Sandeep & Meeraj — are provisioned as ADMIN-role
+    // accounts on boot so the CEO OS is reachable on a fresh deploy without the
+    // destructive seed. Emails, names and the shared password are all
+    // env-overridable; always set FOUNDER_PASSWORD in production.
     founderPassword: process.env.FOUNDER_PASSWORD?.trim() || "",
+    founders: [
+      {
+        name: process.env.FOUNDER1_NAME?.trim() || "Sandeep",
+        email: (process.env.FOUNDER1_EMAIL?.trim() || "sandeep@truvi.app").toLowerCase(),
+      },
+      {
+        name: process.env.FOUNDER2_NAME?.trim() || "Meeraj",
+        email: (process.env.FOUNDER2_EMAIL?.trim() || "meeraj@truvi.app").toLowerCase(),
+      },
+    ],
   };
 }
 
 /**
  * Strong built-in Founder password used only when FOUNDER_PASSWORD is not set.
- * It is intentionally long and mixed-class; production deploys should override
- * it via the environment and rotate after first login.
+ * Intentionally long and mixed-class (upper/lower/digits/symbols) and built
+ * from both founders' names — Sandeep & Meeraj. Production deploys should
+ * override it via FOUNDER_PASSWORD and rotate after first login.
  */
-export const DEFAULT_FOUNDER_PASSWORD = "Truvi@Founder!2026#OS";
+export const DEFAULT_FOUNDER_PASSWORD = "Sandeep@Meeraj#Truvi2026!";
 
 /** True only when both Razorpay keys are configured. */
 export function isRazorpayConfigured(): boolean {
