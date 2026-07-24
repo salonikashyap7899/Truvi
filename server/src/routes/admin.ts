@@ -239,6 +239,8 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
       approvalStatus: p.approvalStatus,
       verified: Boolean(p.isVerified),
       listingTier: p.listingTier,
+      constructionStatus: p.constructionStatus ?? null,
+      constructionProgress: typeof p.constructionProgress === "number" ? p.constructionProgress : null,
     }))
     .slice(0, 12);
 

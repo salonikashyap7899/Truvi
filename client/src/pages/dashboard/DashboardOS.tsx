@@ -14,7 +14,7 @@ export interface Overview {
   executive: { totalRevenue: number; gmv: number; totalDevelopers: number; totalCPs: number; totalBuyers: number; activeListings: number; todaysBookings: number; pendingActions: number };
   companyHealth: { revenueToday: number; revenueMTD: number; revenueYTD: number; activeProjects: number; healthScore: number; mrr: number };
   sales: { leadsToday: number; qualifiedLeads: number; siteVisits: number; bookings: number; agreements: number; registrations: number; conversionRate: number; funnel: { stage: string; count: number }[]; revenueByProject: { project: string; value: number }[] };
-  projects: { total: number; approved: number; verified: number; pending: number; rows: { id: string; name: string; city: string; approvalStatus: string; verified: boolean; listingTier: string }[] };
+  projects: { total: number; approved: number; verified: number; pending: number; rows: { id: string; name: string; city: string; approvalStatus: string; verified: boolean; listingTier: string; constructionStatus: string | null; constructionProgress: number | null }[] };
   crm: { newCustomers: number; activeCustomers: number; followUpsDue: number; enquiries: number };
   verification: { pendingProjects: number; pendingLegal: number; pendingKyc: number };
   kpi: { totalRevenue: number; gmv: number; mrr: number; conversionRate: number; healthScore: number; totalUnits: number; soldUnits: number };
@@ -388,7 +388,7 @@ function ProjectsPage({ d, navigate }: { d: Overview; navigate: ReturnType<typeo
       <Panel title="Project Listings" sub="Most recent">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Project</th><th>City</th><th>Approval</th><th>Verified</th><th>Tier</th></tr></thead>
+            <thead><tr><th>Project</th><th>City</th><th>Approval</th><th>Verified</th><th>Construction</th><th>Tier</th></tr></thead>
             <tbody>
               {d.projects.rows.map((p) => (
                 <tr key={p.id}>
@@ -396,6 +396,21 @@ function ProjectsPage({ d, navigate }: { d: Overview; navigate: ReturnType<typeo
                   <td>{p.city}</td>
                   <td><span className={`badge ${p.approvalStatus === "APPROVED" ? "green" : p.approvalStatus === "PENDING" ? "amber" : "red"}`}>{p.approvalStatus}</span></td>
                   <td>{p.verified ? <span className="badge green">Yes</span> : <span className="badge">No</span>}</td>
+                  <td>
+                    {p.constructionProgress == null && !p.constructionStatus ? (
+                      <span className="badge">Not reported</span>
+                    ) : (
+                      <div style={{ minWidth: 120 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+                          <span style={{ textTransform: "capitalize", opacity: 0.8 }}>{(p.constructionStatus ?? "").toLowerCase() || "—"}</span>
+                          <span style={{ fontWeight: 600 }}>{p.constructionProgress ?? 0}%</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.1)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, p.constructionProgress ?? 0))}%`, borderRadius: 999, background: "linear-gradient(90deg,#f59e0b,#10b981)" }} />
+                        </div>
+                      </div>
+                    )}
+                  </td>
                   <td>{p.listingTier}</td>
                 </tr>
               ))}

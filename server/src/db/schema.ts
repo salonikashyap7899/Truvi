@@ -230,6 +230,17 @@ export interface AppreciationForecast {
   note?: string;
 }
 
+/** Developer-reported construction phase for a project. */
+export type ConstructionStatus =
+  | "PLANNING" | "EXCAVATION" | "FOUNDATION" | "STRUCTURE" | "FINISHING" | "COMPLETED";
+
+/** A single construction milestone with an optional target date and done flag. */
+export interface ProjectMilestone {
+  label: string;
+  targetDate?: string | null; // ISO date string
+  done: boolean;
+}
+
 // --- Ambassador task workflow (site-verification jobs) ---
 export interface AmbassadorTaskChecklist {
   gpsOn: boolean;
@@ -374,6 +385,10 @@ export const projects = pgTable(
     // Admin-curated, Truvi-verified ownership history + appreciation forecast.
     ownerHistory: jsonb("owner_history").$type<OwnerHistoryEntry[]>(),
     appreciationForecast: jsonb("appreciation_forecast").$type<AppreciationForecast>(),
+    // Developer-reported construction progress + milestones.
+    constructionStatus: text("construction_status").$type<ConstructionStatus>(),
+    constructionProgress: integer("construction_progress"),
+    milestones: jsonb("milestones").$type<ProjectMilestone[]>(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [

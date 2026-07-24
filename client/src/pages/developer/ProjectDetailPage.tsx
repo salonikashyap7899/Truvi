@@ -17,6 +17,7 @@ import OwnerHistoryCard from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import LegalDocsManager from "@/components/LegalDocsManager";
 import type { Project, Unit, Lead } from "@/types";
 
@@ -216,6 +217,8 @@ export default function ProjectDetailPage() {
       {/* Editable commercial details: name/location/RERA/possession/contact/payment plans */}
       <div id="edit-project">
         <ProjectDetailsEditor project={project} onUpdated={setProject} />
+
+        <ProjectProgressEditor project={project} onUpdated={setProject} />
       </div>
 
       <section className="mt-8">
