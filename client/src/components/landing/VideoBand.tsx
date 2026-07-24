@@ -21,6 +21,7 @@ export function VideoBand({
   overlayPos = "center",
   height = "clamp(360px, 66vh, 680px)",
   tint = 0,
+  zoom = 1,
 }: {
   srcWebm: string;
   poster: string;
@@ -32,10 +33,13 @@ export function VideoBand({
   height?: string;
   /** 0–1 strength of a blue→violet brand recolour blended over the clip. */
   tint?: number;
+  /** Scale the clip up to crop dark letterbox/room edges (1 = none). */
+  zoom?: number;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [near, setNear] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -46,17 +50,26 @@ export function VideoBand({
     const el = wrapRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } },
-      { rootMargin: "300px 0px" },
+      ([e]) => {
+        setVisible(e.isIntersecting);
+        if (e.isIntersecting) setLoaded(true); // once loaded, stay mounted
+      },
+      { rootMargin: "150px 0px", threshold: 0.01 },
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
+  // Play only while on screen; pause when scrolled away so the AV1 decoder
+  // isn't burning CPU off-screen (a big cause of scroll jank).
   useEffect(() => {
     const v = videoRef.current;
-    if (v && near && !reduced) v.play().catch(() => {});
-  }, [near, reduced]);
+    if (!v) return;
+    if (visible && !reduced) v.play().catch(() => {});
+    else v.pause();
+  }, [visible, reduced, loaded]);
+
+  const zoomStyle = zoom !== 1 ? { transform: `scale(${zoom})`, transformOrigin: "center" as const } : undefined;
 
   const hasText = Boolean(eyebrow || title || subtitle);
   const justify = overlayPos === "top" ? "justify-start pt-10 sm:pt-14" : overlayPos === "bottom" ? "justify-end pb-10 sm:pb-14" : "justify-center";
@@ -65,11 +78,12 @@ export function VideoBand({
   return (
     <section ref={wrapRef} className="relative w-full overflow-hidden" style={{ height }}>
       {/* Poster: instant paint + the fallback for browsers without AV1/webm. */}
-      <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
-      {near && !reduced && (
+      <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" style={zoomStyle} />
+      {loaded && !reduced && (
         <video
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
+          style={zoomStyle}
           poster={poster}
           muted
           loop
