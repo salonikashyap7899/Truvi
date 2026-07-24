@@ -1,0 +1,123 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion } from "framer-motion";
+
+type OverlayPos = "center" | "top" | "bottom";
+
+/**
+ * Full-bleed cinematic video band for the landing page. The clip is AV1/webm
+ * (great quality, tiny size) so it plays in Chrome/Firefox/Edge/modern Android;
+ * browsers that can't (Safari/iOS, which has no webm) fall back to the poster
+ * still, so the band always looks intentional. Perf-friendly: the video is only
+ * fetched + played once the band scrolls near the viewport, and it stays paused
+ * for visitors who prefer reduced motion (poster shown instead).
+ */
+export function VideoBand({
+  srcWebm,
+  poster,
+  eyebrow,
+  title,
+  subtitle,
+  align = "center",
+  overlayPos = "center",
+  height = "clamp(360px, 66vh, 680px)",
+}: {
+  srcWebm: string;
+  poster: string;
+  eyebrow?: ReactNode;
+  title?: ReactNode;
+  subtitle?: ReactNode;
+  align?: "center" | "left";
+  overlayPos?: OverlayPos;
+  height?: string;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [near, setNear] = useState(false);
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    setReduced(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+  }, []);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setNear(true); io.disconnect(); } },
+      { rootMargin: "300px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v && near && !reduced) v.play().catch(() => {});
+  }, [near, reduced]);
+
+  const hasText = Boolean(eyebrow || title || subtitle);
+  const justify = overlayPos === "top" ? "justify-start pt-10 sm:pt-14" : overlayPos === "bottom" ? "justify-end pb-10 sm:pb-14" : "justify-center";
+  const items = align === "center" ? "items-center text-center" : "items-start text-left";
+
+  return (
+    <section ref={wrapRef} className="relative w-full overflow-hidden" style={{ height }}>
+      {/* Poster: instant paint + the fallback for browsers without AV1/webm. */}
+      <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+      {near && !reduced && (
+        <video
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full object-cover"
+          poster={poster}
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload="none"
+        >
+          <source src={srcWebm} type="video/webm" />
+        </video>
+      )}
+
+      {/* Blend the top & bottom edges into the page so the band feels seamless. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(to bottom, var(--background), transparent 15%, transparent 80%, var(--background))" }} />
+      {hasText && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: align === "center" ? "radial-gradient(ellipse at center, rgba(5,7,12,0.5), transparent 62%)" : "linear-gradient(to right, rgba(5,7,12,0.72), transparent 62%)" }}
+        />
+      )}
+
+      {hasText && (
+        <div className={`absolute inset-0 z-10 flex flex-col gap-3 px-6 sm:px-12 ${justify} ${items}`}>
+          {eyebrow && (
+            <motion.span
+              initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}
+              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/90 backdrop-blur-sm"
+            >
+              {eyebrow}
+            </motion.span>
+          )}
+          {title && (
+            <motion.h2
+              initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.55, delay: 0.05 }}
+              className="max-w-3xl font-display text-3xl font-semibold leading-[1.05] text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.6)] sm:text-4xl md:text-5xl"
+            >
+              {title}
+            </motion.h2>
+          )}
+          {subtitle && (
+            <motion.p
+              initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.55, delay: 0.1 }}
+              className="max-w-xl text-sm text-white/80 sm:text-base"
+            >
+              {subtitle}
+            </motion.p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default VideoBand;
