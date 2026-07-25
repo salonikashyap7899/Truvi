@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { toast } from "sonner";
-import { Kpi, Panel } from "@/pages/dashboard/DashboardOS";
+import { Kpi, Panel, type Overview, type FinanceSummary } from "@/pages/dashboard/DashboardOS";
 
 /* ------------------------------------------------------------------ types */
 interface TeamSummary {
@@ -277,15 +277,39 @@ export function LandBankPage() {
 }
 
 /* ============================================================== Investor */
-export function InvestorPage() {
+export function InvestorPage({ over, fin }: { over?: Overview; fin?: FinanceSummary | null }) {
   const { data, loading, reload } = useSummary();
   if (loading || !data) return <Loading />;
   const v = data.investor;
   async function delCap(id: string) { await api.delete(`/founder/cap-table/${id}`); reload(); }
   async function delUpdate(id: string) { await api.delete(`/founder/updates/${id}`); reload(); }
+
+  // Burn multiple = net cash burn ÷ net new revenue this month. A key investor
+  // efficiency ratio — lower is better. Only shown when both inputs are real.
+  const inv = over?.investor;
+  const growth = inv?.growthMoM ?? null;
+  const netNewRevenue = over?.metrics ? over.metrics.revenueThisMonth - over.metrics.revenueLastMonth : null;
+  const burnMultiple = fin?.hasData && fin.burnRate > 0 && netNewRevenue !== null && netNewRevenue > 0
+    ? Math.round((fin.burnRate / netNewRevenue) * 10) / 10 : null;
+
   return (
     <section className="page">
-      <div className="page-header"><div><div className="page-title">Investor</div><div className="page-sub">Valuation, fundraising, cap table &amp; ESOP</div></div></div>
+      <div className="page-header"><div><div className="page-title">Investor</div><div className="page-sub">Traction, valuation, fundraising, cap table &amp; ESOP</div></div></div>
+
+      {inv && (
+        <>
+          <div className="section-label" style={{ margin: "0 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Live traction — straight from the platform</div>
+          <div className="kpi-grid">
+            <Kpi icon="wallet" tone="blue" label="MRR" value={inv.mrr ? formatCompactINR(inv.mrr) : "—"} foot={`${formatCompactINR(inv.arr)} ARR`} />
+            <Kpi icon="chart" tone="green" label="GMV (cumulative)" value={formatCompactINR(inv.gmv)} foot={`${formatCompactINR(inv.totalRevenue)} revenue`} />
+            <Kpi icon="trendUp" tone={growth === null ? "blue" : growth >= 0 ? "green" : "red"} label="Revenue Growth (MoM)" value={growth === null ? "—" : `${growth >= 0 ? "+" : ""}${growth}%`} />
+            <Kpi icon="target" tone={burnMultiple === null ? "blue" : burnMultiple <= 1.5 ? "green" : burnMultiple <= 3 ? "amber" : "red"} label="Burn Multiple" value={burnMultiple === null ? "—" : `${burnMultiple}x`} foot={burnMultiple === null ? "Needs finance + growth data" : "Net burn ÷ net new revenue"} />
+            <Kpi icon="users" tone="blue" label="Paying Accounts" value={String(inv.payingAccounts)} foot={`${inv.totalCustomers} total customers`} />
+            <Kpi icon="wallet" tone={fin?.hasData && fin.runwayMonths !== null ? "amber" : "green"} label="Runway" value={fin?.hasData ? (fin.runwayMonths === null ? "∞" : `${fin.runwayMonths} mo`) : "—"} foot={fin?.hasData ? `${formatCompactINR(fin.burnRate)}/mo burn` : "Connect finance"} />
+          </div>
+        </>
+      )}
+
       <div className="kpi-grid">
         <Kpi icon="trophy" tone="blue" label="Valuation" value={v.valuation ? formatCompactINR(v.valuation) : "—"} foot={v.activeRound ? v.activeRound.name : "No active round"} />
         <Kpi icon="wallet" tone="green" label="Total Raised" value={formatCompactINR(v.totalRaised)} />
