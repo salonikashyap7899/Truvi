@@ -884,8 +884,8 @@ export default function LandingPage() {
         srcWebm="/media/big-screen.webm"
         poster="/media/big-screen-poster.jpg"
         eyebrow="Introducing"
-        title={<>Truvi Ventures Pvt. Ltd.</>}
-        subtitle="Know the property before you buy it."
+        title={<>TRUVI</>}
+        subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
         overlayPos="bottom"
         tint={0.6}
         zoom={1.6}
