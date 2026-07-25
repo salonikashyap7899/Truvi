@@ -124,6 +124,8 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  /** Server-stamped: true for Truvi founders (lands on the CEO OS). */
+  isFounder?: boolean;
   approvalStatus: ApprovalStatus;
   disabled?: boolean;
   phone?: string;
