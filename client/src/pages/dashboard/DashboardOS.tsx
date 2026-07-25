@@ -20,6 +20,9 @@ export interface Overview {
   crm: { newCustomers: number; activeCustomers: number; followUpsDue: number; enquiries: number };
   verification: { pendingProjects: number; pendingLegal: number; pendingKyc: number };
   kpi: { totalRevenue: number; gmv: number; mrr: number; conversionRate: number; healthScore: number; totalUnits: number; soldUnits: number };
+  metrics?: { avgDealSize: number; dealCount: number; revenuePerDeveloper: number; revenuePerCP: number; revenueThisMonth: number; revenueLastMonth: number; revenueGrowthMoM: number | null; arr: number };
+  notifications?: { tone: string; icon: string; text: string }[];
+  investor?: { mrr: number; arr: number; gmv: number; totalRevenue: number; growthMoM: number | null; payingAccounts: number; totalCustomers: number };
 }
 export interface FinanceSummary {
   hasData: boolean; cashInflow: number; cashOutflow: number; netCashFlow: number; receivables: number; payables: number;
@@ -233,7 +236,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "team" && <TeamPage />}
           {current === "marketing" && <MarketingPage />}
           {current === "land" && <LandBankPage />}
-          {current === "investor" && <InvestorPage />}
+          {current === "investor" && <InvestorPage over={d} fin={fin} />}
         </div>
       </div>
 
@@ -444,6 +447,29 @@ function DailyBrief({ d, fin, go }: { d: Overview; fin: FinanceSummary | null; g
   );
 }
 
+/* ---------------------------------------------------- Notifications feed */
+function NotificationsFeed({ items }: { items?: { tone: string; icon: string; text: string }[] }) {
+  const toneClass = (t: string): Tone => (t === "red" || t === "amber" || t === "green" ? (t as Tone) : "blue");
+  return (
+    <Panel title="Notifications" sub="What needs your attention now" icon="bell" iconTone="amber">
+      {!items || items.length === 0 ? (
+        <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ink-500)" }}>
+          <span className="status-dot green" /> You're all caught up — nothing needs attention right now.
+        </p>
+      ) : (
+        <div>
+          {items.map((n, i) => (
+            <div className="brief-line" key={i}>
+              <div className={`kpi-icon ${toneClass(n.tone)} brief-line-icon`}><Ic n={n.icon} /></div>
+              <span>{n.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; navigate: ReturnType<typeof useNavigate>; title: string; sub: string }) {
   const ex = d.executive;
   return (
@@ -454,7 +480,25 @@ function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: 
 
       <QuickActions navigate={navigate} go={go} />
       <CommandHero d={d} fin={fin} go={go} />
-      <DailyBrief d={d} fin={fin} go={go} />
+      <div className="grid-2">
+        <DailyBrief d={d} fin={fin} go={go} />
+        <NotificationsFeed items={d.notifications} />
+      </div>
+
+      {d.metrics && (
+        <>
+          <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Founder metrics</div>
+          <div className="kpi-grid">
+            <Kpi icon="target" tone="blue" label="Avg Deal Size" value={d.metrics.dealCount ? formatCompactINR(d.metrics.avgDealSize) : "—"} foot={`${d.metrics.dealCount} closed deal${d.metrics.dealCount === 1 ? "" : "s"}`} />
+            <Kpi icon="building" tone="green" label="Revenue / Developer" value={d.executive.totalDevelopers ? formatCompactINR(d.metrics.revenuePerDeveloper) : "—"} foot={`${d.executive.totalDevelopers} developers`} />
+            <Kpi icon="users" tone="amber" label="Revenue / Channel Partner" value={d.executive.totalCPs ? formatCompactINR(d.metrics.revenuePerCP) : "—"} foot={`${d.executive.totalCPs} CPs`} />
+            <Kpi icon="trendUp" tone={d.metrics.revenueGrowthMoM === null ? "blue" : d.metrics.revenueGrowthMoM >= 0 ? "green" : "red"} label="Revenue Growth (MoM)" value={d.metrics.revenueGrowthMoM === null ? "—" : `${d.metrics.revenueGrowthMoM >= 0 ? "+" : ""}${d.metrics.revenueGrowthMoM}%`} foot={`${formatCompactINR(d.metrics.revenueThisMonth)} this month`} />
+            <Kpi icon="wallet" tone="blue" label="Recurring (ARR)" value={d.metrics.arr ? formatCompactINR(d.metrics.arr) : "—"} foot={`${formatCompactINR(d.companyHealth.mrr)} MRR`} />
+            <Kpi icon="chart" tone="green" label="Units Sold" value={String(d.kpi.soldUnits)} foot={`of ${d.kpi.totalUnits} tracked`} />
+          </div>
+        </>
+      )}
+
       <div className="kpi-grid">
         <Kpi icon="wallet" tone="blue" label="Total Revenue" value={formatCompactINR(ex.totalRevenue)} foot="Platform fee + leads + payments" />
         <Kpi icon="chart" tone="green" label="Total GMV" value={formatCompactINR(ex.gmv)} foot="Booking value routed" />

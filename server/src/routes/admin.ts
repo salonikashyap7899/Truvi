@@ -277,6 +277,42 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
 
   const pendingActions = pendingProjects.length + pendingLegal.length + pendingKyc + allEnquiries.length;
 
+  // ---- Derived founder metrics (all from real, dated sources) ------------
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const revenueBetween = (from: Date, to: Date) =>
+    rupees(
+      allCommissions.filter((c) => c.createdAt >= from && c.createdAt < to).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0) +
+        allPurchases.filter((p) => p.createdAt >= from && p.createdAt < to).reduce((s, p) => s + Number(p.amountPaid || 0), 0) +
+        paidPayments.filter((p) => p.createdAt >= from && p.createdAt < to).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0),
+    );
+  const revenueThisMonth = revenueSince(startOfMonth);
+  const revenueLastMonth = revenueBetween(startOfLastMonth, startOfMonth);
+  const revenueGrowthMoM = revenueLastMonth > 0 ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100) : null;
+  const dealCount = allCommissions.length;
+  const totalDevelopers = byRole("DEVELOPER");
+  const totalCPs = byRole("CP");
+  const metrics = {
+    avgDealSize: dealCount ? rupees(gmv / dealCount) : 0,
+    dealCount,
+    revenuePerDeveloper: totalDevelopers ? rupees(totalRevenue / totalDevelopers) : 0,
+    revenuePerCP: totalCPs ? rupees(totalRevenue / totalCPs) : 0,
+    revenueThisMonth,
+    revenueLastMonth,
+    revenueGrowthMoM,
+    arr: rupees(mrr * 12),
+  };
+
+  // ---- Live notifications feed (computed from what actually needs the
+  // founder's attention — no fabricated events). Highest-urgency first.
+  const notifications: { tone: string; icon: string; text: string }[] = [];
+  if (pendingKyc > 0) notifications.push({ tone: "amber", icon: "shield", text: `${pendingKyc} channel-partner KYC awaiting review` });
+  if (pendingProjects.length > 0) notifications.push({ tone: "amber", icon: "building", text: `${pendingProjects.length} project${pendingProjects.length > 1 ? "s" : ""} awaiting approval` });
+  if (pendingLegal.length > 0) notifications.push({ tone: "red", icon: "doc", text: `${pendingLegal.length} legal document${pendingLegal.length > 1 ? "s" : ""} unverified` });
+  if (followUpsDue > 0) notifications.push({ tone: "red", icon: "phone", text: `${followUpsDue} lead follow-up${followUpsDue > 1 ? "s" : ""} overdue` });
+  if (allEnquiries.length > 0) notifications.push({ tone: "blue", icon: "mail", text: `${allEnquiries.length} enquir${allEnquiries.length > 1 ? "ies" : "y"} to respond to` });
+  if (leadsToday > 0) notifications.push({ tone: "green", icon: "user", text: `${leadsToday} new lead${leadsToday > 1 ? "s" : ""} generated today` });
+  if (metrics.revenueGrowthMoM !== null) notifications.push({ tone: metrics.revenueGrowthMoM >= 0 ? "green" : "amber", icon: "trendUp", text: `Revenue ${metrics.revenueGrowthMoM >= 0 ? "up" : "down"} ${Math.abs(metrics.revenueGrowthMoM)}% vs last month` });
+
   res.json({
     generatedAt: now.toISOString(),
     executive: {
@@ -324,6 +360,19 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
       totalRevenue, gmv, mrr, conversionRate, healthScore,
       totalUnits: allUnits.length,
       soldUnits: allUnits.filter((u) => u.status === "SOLD").length,
+    },
+    metrics,
+    notifications,
+    // Investor-facing snapshot — the numbers we can derive honestly from
+    // platform data. Ratios that need cost/usage tracking (CAC, LTV, MAU/DAU,
+    // burn multiple) are left to the client to combine with the finance ledger
+    // or flagged as awaiting a data source.
+    investor: {
+      mrr, arr: metrics.arr, gmv,
+      totalRevenue,
+      growthMoM: metrics.revenueGrowthMoM,
+      payingAccounts: activeSubs.length,
+      totalCustomers: activeCustomers,
     },
     // Sections with no data source yet — the client shows an honest
     // "connect a data source" state; NEVER fabricated numbers (rule #6).
