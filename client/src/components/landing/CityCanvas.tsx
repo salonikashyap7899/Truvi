@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Float, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
@@ -158,35 +158,43 @@ function Scene() {
   );
 }
 
-export function CityCanvas() {
-  // The scene is a fixed, full-screen background that's only visible behind the
-  // hero. Rendering it continuously the whole time you're on the page (even
-  // scrolled far below) pins a CPU/GPU core and makes the whole site feel laggy.
-  // So we only run the render loop while the hero is on screen, and drop it to
-  // "never" once you've scrolled roughly a screen past it.
-  const [active, setActive] = useState(true);
+/**
+ * Drives the scene on demand at a capped frame-rate instead of the default
+ * ~60fps every rAF. The city is a decorative background, so ~30fps looks
+ * identical but roughly halves the GPU/CPU cost — keeping it animating behind
+ * every section without making the page feel laggy. Rendering fully stops while
+ * the browser tab is hidden.
+ */
+function ThrottledFrames({ fps = 30 }: { fps?: number }) {
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setActive(window.scrollY < window.innerHeight * 1.1));
+    let last = 0;
+    const interval = 1000 / fps;
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop);
+      if (document.hidden) return;
+      if (t - last >= interval) { last = t; invalidate(); }
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => { window.removeEventListener("scroll", onScroll); cancelAnimationFrame(raf); };
-  }, []);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [invalidate, fps]);
+  return null;
+}
 
+export function CityCanvas() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0">
       {/* Decorative only — devices without WebGL just skip the scene */}
       <SilentErrorBoundary>
         <Canvas
-          frameloop={active ? "always" : "never"}
+          frameloop="demand"
           shadows={false}
           dpr={[1, 1.5]}
           gl={{ antialias: false, powerPreference: "high-performance" }}
           camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
         >
+          <ThrottledFrames fps={30} />
           <Scene />
         </Canvas>
       </SilentErrorBoundary>
