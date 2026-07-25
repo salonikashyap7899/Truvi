@@ -886,8 +886,8 @@ export default function LandingPage() {
         eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        overlayPos="bottom"
-        height="clamp(340px, 60vh, 640px)"
+        contained
+        maxWidth={880}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
