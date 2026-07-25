@@ -23,6 +23,7 @@ const config: DashboardOSConfig = {
     { group: "Trust & Growth", items: [
       { key: "verification", label: "Verification", icon: "shield", count: d.executive.pendingActions || undefined },
       { key: "kpi", label: "KPIs", icon: "target" },
+      { key: "analytics", label: "Analytics", icon: "chart" },
       { key: "insights", label: "AI Insights", icon: "spark" },
     ] },
     { group: "Founder-only", items: [

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { formatCompactINR, formatINR } from "@/lib/utils";
@@ -98,7 +98,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "projects" | "crm" | "finance" | "verification" | "kpi" | "insights" | "team" | "marketing" | "land" | "investor";
+export type Page = "overview" | "sales" | "projects" | "crm" | "finance" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -221,6 +221,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "verification" && <VerificationPage d={d} navigate={navigate} />}
           {current === "kpi" && <KpiPage d={d} fin={fin} />}
           {current === "insights" && <InsightsPage d={d} fin={fin} />}
+          {current === "analytics" && <AnalyticsPage />}
           {current === "team" && <TeamPage />}
           {current === "marketing" && <MarketingPage />}
           {current === "land" && <LandBankPage />}
@@ -743,6 +744,84 @@ function InsightsPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
         <Kpi icon="spark" tone="green" label="MRR" value={formatINR(d.companyHealth.mrr)} />
         <Kpi icon="trophy" tone="blue" label="Health Score" value={`${d.companyHealth.healthScore}/100`} />
       </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------- analytics */
+interface Analytics {
+  revenueTrend: { month: string; revenue: number; gmv: number; bookings: number }[];
+  leadsBySource: { source: string; count: number }[];
+  revenueByCity: { city: string; gmv: number; bookings: number }[];
+  inventoryByStatus: { status: string; count: number }[];
+  totalUnits: number;
+}
+const CHART_COLORS = ["#5D87FF", "#7C5CFF", "#14C79A", "#F5A524", "#F4574A", "#A855F7"];
+const chartTooltip = {
+  contentStyle: { background: "var(--surface)", border: "1px solid var(--border-strong)", borderRadius: 10, fontSize: 12, color: "var(--ink-900)" },
+  labelStyle: { color: "var(--ink-500)" },
+} as const;
+
+function AnalyticsPage() {
+  const [a, setA] = useState<Analytics | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get("/admin/founder-analytics").then((r) => setA(r.data)).catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load analytics")).finally(() => setLoading(false));
+  }, []);
+  if (loading) return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading analytics…</p></section>;
+  if (!a) return <section className="page"><p style={{ padding: 20 }}>Could not load analytics.</p></section>;
+
+  const invColors: Record<string, string> = { AVAILABLE: "#14C79A", RESERVED: "#F5A524", LOCKED: "#7C5CFF", SOLD: "#5D87FF" };
+  const maxCity = Math.max(1, ...a.revenueByCity.map((c) => c.gmv));
+
+  return (
+    <section className="page">
+      <div className="page-header"><div><div className="page-title">Analytics</div><div className="page-sub">Live trends across revenue, demand &amp; inventory · from real platform data</div></div></div>
+
+      <div className="grid-2-even">
+        <Panel title="Revenue trend" sub="Platform revenue · last 6 months" icon="chart" iconTone="blue">
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={a.revenueTrend} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
+              <defs><linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5D87FF" stopOpacity={0.5} /><stop offset="100%" stopColor="#5D87FF" stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "var(--ink-500)", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "var(--ink-500)", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCompactINR(Number(v))} width={56} />
+              <Tooltip {...chartTooltip} formatter={(v) => [formatINR(Number(v)), "Revenue"]} />
+              <Area type="monotone" dataKey="revenue" stroke="#5D87FF" strokeWidth={2.5} fill="url(#revGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Panel>
+        <Panel title="Bookings per month" sub="Closed bookings · last 6 months" icon="target" iconTone="green">
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={a.revenueTrend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: "var(--ink-500)", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "var(--ink-500)", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
+              <Tooltip {...chartTooltip} />
+              <Bar dataKey="bookings" fill="#14C79A" radius={[6, 6, 0, 0]} maxBarSize={44} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Panel>
+      </div>
+
+      <div className="grid-2-even">
+        <Panel title="Leads by source" sub="Where demand comes from" icon="spark" iconTone="blue">
+          <Donut centerLabel="Leads" data={a.leadsBySource.map((s, i) => ({ name: s.source, value: s.count, color: CHART_COLORS[i % CHART_COLORS.length] }))} />
+        </Panel>
+        <Panel title="Inventory status" sub={`${a.totalUnits} total units`} icon="building" iconTone="green">
+          <Donut centerLabel="Units" data={a.inventoryByStatus.map((s) => ({ name: s.status[0] + s.status.slice(1).toLowerCase(), value: s.count, color: invColors[s.status] || "#8A94A8" }))} />
+        </Panel>
+      </div>
+
+      <Panel title="Revenue by city" sub="GMV routed by project location" icon="land" iconTone="amber">
+        {a.revenueByCity.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No bookings recorded yet.</p>
+          : a.revenueByCity.map((c) => (
+            <div style={{ marginBottom: 12 }} key={c.city}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}><span style={{ fontWeight: 600, color: "var(--ink-700)" }}>{c.city}</span><b>{formatCompactINR(c.gmv)} · {c.bookings} bookings</b></div>
+              <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(3, Math.round((c.gmv / maxCity) * 100))}%` }} /></div>
+            </div>
+          ))}
+      </Panel>
     </section>
   );
 }
