@@ -246,6 +246,7 @@ export interface Lead {
   stage: LeadStage;
   source: string;
   notes?: string;
+  lostReason?: string | null;
   tags?: string[] | null;
   isDuplicate: boolean;
   createdAt: string;

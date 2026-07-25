@@ -13,6 +13,8 @@ export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 
 export const updateLeadStageSchema = z.object({
   stage: z.enum(["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"]),
+  /** Optional reason captured when a lead is marked LOST (founder analytics). */
+  lostReason: z.string().max(200).optional(),
 });
 
 export const createSiteVisitSchema = z.object({

@@ -45,6 +45,8 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<LeadStage | null>(null);
+  // When a lead is dropped into "Lost" we ask why (founder analytics).
+  const [lostPrompt, setLostPrompt] = useState<{ leadId: string; from: LeadStage } | null>(null);
 
   async function load() {
     try {
@@ -78,14 +80,20 @@ export default function PipelinePage() {
   const won = byStage.get("COMPLETED")?.length ?? 0;
   const active = leadRows.length - won - (byStage.get("LOST")?.length ?? 0);
 
-  async function moveLead(leadId: string, to: LeadStage) {
+  async function moveLead(leadId: string, to: LeadStage, lostReason?: string) {
     const lead = leadRows.find((l) => l._id === leadId);
     if (!lead || lead.stage === to) return;
+    // Moving into "Lost" opens a reason prompt first (unless a reason is
+    // already supplied by that prompt's confirm handler).
+    if (to === "LOST" && lostReason === undefined) {
+      setLostPrompt({ leadId, from: lead.stage });
+      return;
+    }
     const from = lead.stage;
     // Optimistic move; server is the authority and may reject (guardrails).
-    setLeadRows((prev) => prev.map((l) => (l._id === leadId ? { ...l, stage: to } : l)));
+    setLeadRows((prev) => prev.map((l) => (l._id === leadId ? { ...l, stage: to, ...(lostReason ? { lostReason } : {}) } : l)));
     try {
-      await api.patch(`/leads/${leadId}`, { stage: to });
+      await api.patch(`/leads/${leadId}`, { stage: to, ...(lostReason ? { lostReason } : {}) });
     } catch (err: any) {
       setLeadRows((prev) => prev.map((l) => (l._id === leadId ? { ...l, stage: from } : l)));
       toast.error(err?.response?.data?.error || "Could not move lead");
@@ -208,6 +216,65 @@ export default function PipelinePage() {
           Note: only an Admin or Developer can move a lead into <b>Booking</b> — the stages after it unlock once the booking is confirmed.
         </p>
       )}
+
+      {lostPrompt && (
+        <LostReasonModal
+          onClose={() => setLostPrompt(null)}
+          onConfirm={(reason) => { const p = lostPrompt; setLostPrompt(null); moveLead(p.leadId, "LOST", reason); }}
+        />
+      )}
     </main>
+  );
+}
+
+const LOST_REASONS = [
+  "Price too high",
+  "Chose a competitor",
+  "Financing / loan fell through",
+  "Location not suitable",
+  "Not ready to buy yet",
+  "Lost contact / no response",
+  "Other",
+];
+
+function LostReasonModal({ onClose, onConfirm }: { onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [reason, setReason] = useState(LOST_REASONS[0]);
+  const [custom, setCustom] = useState("");
+  const finalReason = reason === "Other" ? custom.trim() : reason;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0e1420] p-5 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-semibold">Why was this deal lost?</h3>
+        <p className="mt-1 text-xs text-white/60">Captured for founder analytics (lost-deal reasons).</p>
+        <div className="mt-4 space-y-2">
+          {LOST_REASONS.map((r) => (
+            <label key={r} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input type="radio" name="lost-reason" checked={reason === r} onChange={() => setReason(r)} />
+              <span>{r}</span>
+            </label>
+          ))}
+          {reason === "Other" && (
+            <input
+              autoFocus
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              placeholder="Type the reason…"
+              maxLength={200}
+              className="mt-1 w-full rounded-lg border border-white/12 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[var(--trust)]/50 focus:outline-none"
+            />
+          )}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button className="rounded-full px-4 py-2 text-sm text-white/70 hover:bg-white/10" onClick={() => onConfirm("")}>Skip</button>
+          <button
+            className="rounded-full bg-gradient-to-r from-[var(--trust)] to-[#2563eb] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            disabled={reason === "Other" && !finalReason}
+            onClick={() => onConfirm(finalReason)}
+          >
+            Mark as Lost
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
