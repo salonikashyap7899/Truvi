@@ -438,6 +438,9 @@ export const leads = pgTable(
     stage: text("stage").$type<LeadStage>().notNull().default("GENERATED"),
     source: text("source").notNull(),
     notes: text("notes"),
+    // Why a lead was marked LOST (founder analytics: lost-deal reasons). Set
+    // when the stage moves to LOST, cleared if it moves back into the pipeline.
+    lostReason: text("lost_reason"),
     // CRM: CP-managed labels like "Hot", "NRI", "Investor" (paid tier).
     tags: jsonb("tags").$type<string[]>(),
     isDuplicate: boolean("is_duplicate").notNull().default(false),

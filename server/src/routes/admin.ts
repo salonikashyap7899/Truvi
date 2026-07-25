@@ -25,6 +25,7 @@ import {
   crmTasks,
   ambassadorTasks,
   financeEntries,
+  marketingCampaigns,
   platformSettings,
   IPlatformSettings,
   LeadStage,
@@ -158,12 +159,12 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
   const [
     allUsers, allProjects, allUnits, allLeads, allSiteVisits,
     allCommissions, allPurchases, paidPayments, allSubs, allEnquiries,
-    pendingLegal, openFollowUps,
+    pendingLegal, openFollowUps, allCampaigns,
   ] = await Promise.all([
     db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingVerified: users.onboardingVerified, onboardingChecks: users.onboardingChecks }).from(users),
     db.select().from(projects),
     db.select({ _id: units._id, status: units.status, price: units.price }).from(units),
-    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt }).from(leads),
+    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lostReason: leads.lostReason }).from(leads),
     db.select({ _id: siteVisits._id, status: siteVisits.status, scheduledAt: siteVisits.scheduledAt }).from(siteVisits),
     db.select().from(commissions),
     db.select().from(leadPurchases),
@@ -172,6 +173,7 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     db.select({ _id: enquiries._id, createdAt: enquiries.createdAt }).from(enquiries),
     db.select({ _id: legalDocuments._id }).from(legalDocuments).where(eq(legalDocuments.verified, false)),
     db.select({ _id: leadFollowUps._id, dueAt: leadFollowUps.dueAt, status: leadFollowUps.status }).from(leadFollowUps),
+    db.select({ spend: marketingCampaigns.spend }).from(marketingCampaigns),
   ]);
 
   const byRole = (r: Role) => allUsers.filter((u) => u.role === r).length;
@@ -302,6 +304,47 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     arr: rupees(mrr * 12),
   };
 
+  // ---- Efficiency & growth (CAC, LTV, sales cycle, lost-deal reasons) ----
+  // All from real data; each returns null/0 when its inputs are absent so the
+  // client can show an honest "—" instead of a fabricated ratio.
+  const marketingSpend = rupees(allCampaigns.reduce((s, c) => s + Number(c.spend || 0), 0));
+  // Distinct paying accounts = subscribers + CPs who bought commissions/leads.
+  const payingIds = new Set<string>([
+    ...activeSubs.map((s) => String(s.userId)),
+    ...allCommissions.map((c) => String(c.cpId)),
+    ...allPurchases.map((p) => String(p.cpId)),
+  ]);
+  const payingCustomers = payingIds.size;
+  const cac = marketingSpend > 0 && activeCustomers > 0 ? rupees(marketingSpend / activeCustomers) : null;
+  const ltv = payingCustomers > 0 ? rupees(totalRevenue / payingCustomers) : null;
+
+  // Average sales cycle = mean days from lead creation to reaching a closed-won
+  // stage (updatedAt is the last transition, a fair proxy for the close date).
+  const wonLeads = allLeads.filter((l) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage));
+  const cycleDays = wonLeads
+    .map((l) => (l.updatedAt.getTime() - l.createdAt.getTime()) / (24 * 60 * 60 * 1000))
+    .filter((d) => d >= 0);
+  const avgSalesCycleDays = cycleDays.length ? Math.round(cycleDays.reduce((s, d) => s + d, 0) / cycleDays.length) : null;
+
+  // Lost deals + reasons (from the lostReason captured in the CRM).
+  const lostLeads = allLeads.filter((l) => l.stage === "LOST");
+  const lostReasonMap = new Map<string, number>();
+  for (const l of lostLeads) {
+    if (!l.lostReason) continue;
+    lostReasonMap.set(l.lostReason, (lostReasonMap.get(l.lostReason) || 0) + 1);
+  }
+  const lostByReason = [...lostReasonMap.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+  const totalClosed = closedWon + lostLeads.length;
+  const efficiency = {
+    cac, ltv,
+    marketingSpend,
+    avgSalesCycleDays,
+    lostDeals: lostLeads.length,
+    winRate: totalClosed ? Math.round((closedWon / totalClosed) * 100) : null,
+    lostByReason,
+    lostReasonsTracked: lostReasonMap.size > 0,
+  };
+
   // ---- Live notifications feed (computed from what actually needs the
   // founder's attention — no fabricated events). Highest-urgency first.
   const notifications: { tone: string; icon: string; text: string }[] = [];
@@ -362,6 +405,7 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
       soldUnits: allUnits.filter((u) => u.status === "SOLD").length,
     },
     metrics,
+    efficiency,
     notifications,
     // Investor-facing snapshot — the numbers we can derive honestly from
     // platform data. Ratios that need cost/usage tracking (CAC, LTV, MAU/DAU,

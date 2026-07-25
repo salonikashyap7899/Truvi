@@ -21,6 +21,7 @@ export interface Overview {
   verification: { pendingProjects: number; pendingLegal: number; pendingKyc: number };
   kpi: { totalRevenue: number; gmv: number; mrr: number; conversionRate: number; healthScore: number; totalUnits: number; soldUnits: number };
   metrics?: { avgDealSize: number; dealCount: number; revenuePerDeveloper: number; revenuePerCP: number; revenueThisMonth: number; revenueLastMonth: number; revenueGrowthMoM: number | null; arr: number };
+  efficiency?: { cac: number | null; ltv: number | null; marketingSpend: number; avgSalesCycleDays: number | null; lostDeals: number; winRate: number | null; lostByReason: { reason: string; count: number }[]; lostReasonsTracked: boolean };
   notifications?: { tone: string; icon: string; text: string }[];
   investor?: { mrr: number; arr: number; gmv: number; totalRevenue: number; growthMoM: number | null; payingAccounts: number; totalCustomers: number };
 }
@@ -496,6 +497,33 @@ function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: 
             <Kpi icon="wallet" tone="blue" label="Recurring (ARR)" value={d.metrics.arr ? formatCompactINR(d.metrics.arr) : "—"} foot={`${formatCompactINR(d.companyHealth.mrr)} MRR`} />
             <Kpi icon="chart" tone="green" label="Units Sold" value={String(d.kpi.soldUnits)} foot={`of ${d.kpi.totalUnits} tracked`} />
           </div>
+        </>
+      )}
+
+      {d.efficiency && (
+        <>
+          <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Efficiency &amp; growth</div>
+          <div className="kpi-grid">
+            <Kpi icon="target" tone="blue" label="CAC" value={d.efficiency.cac === null ? "—" : formatCompactINR(d.efficiency.cac)} foot={d.efficiency.cac === null ? "Log ad-spend in Marketing" : "Ad spend ÷ new customers"} onClick={() => go("marketing")} />
+            <Kpi icon="trophy" tone="green" label="LTV" value={d.efficiency.ltv === null ? "—" : formatCompactINR(d.efficiency.ltv)} foot={d.efficiency.ltv === null ? "No paying customers yet" : "Revenue ÷ paying customers"} />
+            <Kpi icon="spark" tone={d.efficiency.cac && d.efficiency.ltv ? (d.efficiency.ltv / d.efficiency.cac >= 3 ? "green" : "amber") : "blue"} label="LTV : CAC" value={d.efficiency.cac && d.efficiency.ltv ? `${(d.efficiency.ltv / d.efficiency.cac).toFixed(1)}x` : "—"} foot="Healthy ≥ 3x" />
+            <Kpi icon="refresh" tone="blue" label="Avg Sales Cycle" value={d.efficiency.avgSalesCycleDays === null ? "—" : `${d.efficiency.avgSalesCycleDays}d`} foot="Lead → booking" />
+            <Kpi icon="check" tone={d.efficiency.winRate === null ? "blue" : d.efficiency.winRate >= 50 ? "green" : "amber"} label="Win Rate" value={d.efficiency.winRate === null ? "—" : `${d.efficiency.winRate}%`} foot={`${d.efficiency.lostDeals} lost deal${d.efficiency.lostDeals === 1 ? "" : "s"}`} />
+            <Kpi icon="alert" tone={d.efficiency.lostDeals ? "red" : "green"} label="Lost Deals" value={String(d.efficiency.lostDeals)} foot={d.efficiency.lostReasonsTracked ? "Reasons tracked below" : "Add reasons in CRM"} onClick={() => go("sales")} />
+          </div>
+          {d.efficiency.lostReasonsTracked && d.efficiency.lostByReason.length > 0 && (
+            <Panel title="Why deals are lost" sub="Captured when a lead is marked Lost in the CRM" icon="alert" iconTone="red">
+              {(() => {
+                const max = Math.max(1, ...d.efficiency.lostByReason.map((r) => r.count));
+                return d.efficiency.lostByReason.map((r) => (
+                  <div style={{ marginBottom: 12 }} key={r.reason}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}><span style={{ fontWeight: 600, color: "var(--ink-700)" }}>{r.reason}</span><b>{r.count}</b></div>
+                    <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(4, Math.round((r.count / max) * 100))}%`, background: "var(--red-500)" }} /></div>
+                  </div>
+                ));
+              })()}
+            </Panel>
+          )}
         </>
       )}
 

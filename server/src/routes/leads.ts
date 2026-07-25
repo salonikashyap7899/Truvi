@@ -141,9 +141,13 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     }
   }
 
+  // Capture the lost-deal reason when a lead is marked LOST; clear it if the
+  // lead moves back into the active pipeline.
+  const lostReason = newStage === "LOST" ? (parsed.data.lostReason?.trim() || null) : null;
+
   const [updated] = await db
     .update(leads)
-    .set({ stage: newStage as LeadStage })
+    .set({ stage: newStage as LeadStage, lostReason })
     .where(eq(leads._id, lead._id))
     .returning();
 
