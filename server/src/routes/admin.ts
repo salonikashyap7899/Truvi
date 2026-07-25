@@ -333,6 +333,71 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
   });
 });
 
+// GET /api/admin/founder-analytics — live analytics for the Founder Dashboard
+// charts. Every series is computed from REAL platform data (commissions,
+// payments, lead purchases, leads, projects, units) — no mock numbers.
+router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  const [allCommissions, allPurchases, paidPayments, allLeads, allProjects, allUnits] = await Promise.all([
+    db.select().from(commissions),
+    db.select().from(leadPurchases),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select({ _id: leads._id, source: leads.source, createdAt: leads.createdAt, projectId: leads.projectId, stage: leads.stage }).from(leads),
+    db.select({ _id: projects._id, name: projects.name, city: projects.city }).from(projects),
+    db.select({ _id: units._id, status: units.status }).from(units),
+  ]);
+
+  // ---- Monthly revenue / GMV / bookings trend (last 6 months) --------------
+  const months: { label: string; start: Date; end: Date }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    months.push({ label: start.toLocaleString("en-US", { month: "short" }), start, end });
+  }
+  const inRange = (d: Date, m: { start: Date; end: Date }) => d >= m.start && d < m.end;
+  const revenueTrend = months.map((m) => {
+    const fee = allCommissions.filter((c) => inRange(c.createdAt, m)).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+    const purch = allPurchases.filter((p) => inRange(p.createdAt, m)).reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+    const pay = paidPayments.filter((p) => inRange(p.createdAt, m)).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+    const gmv = allCommissions.filter((c) => inRange(c.createdAt, m)).reduce((s, c) => s + Number(c.bookingValue || 0), 0);
+    const bookings = allCommissions.filter((c) => inRange(c.createdAt, m)).length;
+    return { month: m.label, revenue: rupees(fee + purch + pay), gmv: rupees(gmv), bookings };
+  });
+
+  // ---- Leads by source ------------------------------------------------------
+  const sourceMap = new Map<string, number>();
+  for (const l of allLeads) sourceMap.set(l.source, (sourceMap.get(l.source) || 0) + 1);
+  const leadsBySource = [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+
+  // ---- GMV & bookings by city ----------------------------------------------
+  const projCity = new Map(allProjects.map((p) => [String(p._id), p.city]));
+  const leadProj = new Map(allLeads.map((l) => [String(l._id), String(l.projectId)]));
+  const cityMap = new Map<string, { gmv: number; bookings: number }>();
+  for (const c of allCommissions) {
+    const pid = leadProj.get(String(c.leadId));
+    const city = pid ? projCity.get(pid) : undefined;
+    if (!city) continue;
+    const cur = cityMap.get(city) || { gmv: 0, bookings: 0 };
+    cur.gmv += Number(c.bookingValue || 0);
+    cur.bookings += 1;
+    cityMap.set(city, cur);
+  }
+  const revenueByCity = [...cityMap.entries()]
+    .map(([city, v]) => ({ city, gmv: rupees(v.gmv), bookings: v.bookings }))
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 8);
+
+  // ---- Inventory by status --------------------------------------------------
+  const invMap = new Map<string, number>();
+  for (const u of allUnits) invMap.set(u.status, (invMap.get(u.status) || 0) + 1);
+  const inventoryByStatus = ["AVAILABLE", "RESERVED", "LOCKED", "SOLD"].map((status) => ({ status, count: invMap.get(status) || 0 }));
+
+  res.json({ revenueTrend, leadsBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
+});
+
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const { role, approvalStatus, all } = req.query;
