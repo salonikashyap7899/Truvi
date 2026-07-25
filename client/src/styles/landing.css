@@ -41,12 +41,13 @@
   --gold: oklch(0.83 0.14 85);
   --glass: oklch(1 0 0 / 6%);
 
-  /* Typography — Slabo 27px for headings/display, Edu VIC WA NT Hand for body */
-  --font-hand: "Edu VIC WA NT Hand", ui-sans-serif, system-ui, cursive;
-  --font-serif-display: "Slabo 27px", Georgia, "Times New Roman", serif;
-  --font-display: var(--font-serif-display);
-  --font-sans-landing: var(--font-hand);
-  --font-sans: var(--font-hand);
+  /* Typography — Playfair Display used site-wide for both headings and body. */
+  --font-playfair: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-hand: var(--font-playfair);
+  --font-serif-display: var(--font-playfair);
+  --font-display: var(--font-playfair);
+  --font-sans-landing: var(--font-playfair);
+  --font-sans: var(--font-playfair);
 
   /* Gradients & glows */
   --gradient-trust: linear-gradient(135deg, oklch(0.65 0.19 250), oklch(0.55 0.2 270));
