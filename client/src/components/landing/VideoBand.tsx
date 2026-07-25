@@ -23,6 +23,8 @@ export function VideoBand({
   height = "clamp(360px, 66vh, 680px)",
   tint = 0,
   zoom = 1,
+  contained = false,
+  maxWidth = 900,
 }: {
   /** webm/AV1 source (Chrome/Firefox/Edge). At least one of srcWebm/srcMp4 required. */
   srcWebm?: string;
@@ -39,6 +41,10 @@ export function VideoBand({
   tint?: number;
   /** Scale the clip up to crop dark letterbox/room edges (1 = none). */
   zoom?: number;
+  /** Show the clip in a centred, capped-width frame (keeps low-res clips crisp) instead of full-bleed. */
+  contained?: boolean;
+  /** Max pixel width of the video frame in contained mode. */
+  maxWidth?: number;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -78,6 +84,35 @@ export function VideoBand({
   const hasText = Boolean(eyebrow || title || subtitle);
   const justify = overlayPos === "top" ? "justify-start pt-10 sm:pt-14" : overlayPos === "bottom" ? "justify-end pb-10 sm:pb-14" : "justify-center";
   const items = align === "center" ? "items-center text-center" : "items-start text-left";
+
+  // Contained mode: for lower-resolution clips, show the video in a centred,
+  // capped-width frame (no upscaling → stays sharp) with the caption below it,
+  // over the dark page instead of full-bleed.
+  if (contained) {
+    return (
+      <section ref={wrapRef} className="relative flex w-full flex-col items-center justify-center gap-7 px-6 py-14 sm:py-20">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 shadow-[0_28px_90px_-24px_rgba(0,0,0,0.85)]" style={{ maxWidth }}>
+          <img src={poster} alt="" aria-hidden className="block h-auto w-full" />
+          {loaded && !reduced && (
+            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted loop playsInline autoPlay preload="none">
+              {srcMp4 && <source src={srcMp4} type="video/mp4" />}
+              {srcWebm && <source src={srcWebm} type="video/webm" />}
+            </video>
+          )}
+          {tint > 0 && (
+            <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(130deg, #3b82f6 0%, #6d5cff 52%, #a855f7 100%)", mixBlendMode: "color", opacity: tint }} />
+          )}
+        </div>
+        {hasText && (
+          <div className="flex flex-col items-center gap-3 text-center">
+            {eyebrow && <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/90">{eyebrow}</span>}
+            {title && <h2 className="font-display text-3xl font-semibold leading-[1.05] text-white sm:text-4xl md:text-5xl">{title}</h2>}
+            {subtitle && <p className="max-w-xl text-sm text-white/80 sm:text-base">{subtitle}</p>}
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section ref={wrapRef} className="relative w-full overflow-hidden" style={{ height }}>
