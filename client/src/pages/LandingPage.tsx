@@ -881,15 +881,13 @@ export default function LandingPage() {
 
       {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
       <VideoBand
-        srcWebm="/media/big-screen.webm"
-        poster="/media/big-screen-poster.jpg"
+        srcMp4="/media/intro.mp4"
+        poster="/media/intro-poster.jpg"
         eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
         overlayPos="bottom"
-        tint={0.6}
-        zoom={1.6}
-        height="clamp(300px, 50vh, 520px)"
+        height="clamp(340px, 60vh, 640px)"
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}

@@ -13,6 +13,7 @@ type OverlayPos = "center" | "top" | "bottom";
  */
 export function VideoBand({
   srcWebm,
+  srcMp4,
   poster,
   eyebrow,
   title,
@@ -23,7 +24,10 @@ export function VideoBand({
   tint = 0,
   zoom = 1,
 }: {
-  srcWebm: string;
+  /** webm/AV1 source (Chrome/Firefox/Edge). At least one of srcWebm/srcMp4 required. */
+  srcWebm?: string;
+  /** mp4/H.264 source — the most compatible (plays on Safari/iOS too). */
+  srcMp4?: string;
   poster: string;
   eyebrow?: ReactNode;
   title?: ReactNode;
@@ -91,7 +95,8 @@ export function VideoBand({
           autoPlay
           preload="none"
         >
-          <source src={srcWebm} type="video/webm" />
+          {srcMp4 && <source src={srcMp4} type="video/mp4" />}
+          {srcWebm && <source src={srcWebm} type="video/webm" />}
         </video>
       )}
 
