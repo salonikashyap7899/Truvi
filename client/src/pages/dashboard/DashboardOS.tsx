@@ -213,7 +213,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
         </header>
 
         <div className="content">
-          {current === "overview" && <OverviewPage d={d} fin={fin} go={go} title={config.overviewTitle} sub={config.overviewSub} />}
+          {current === "overview" && <OverviewPage d={d} fin={fin} go={go} navigate={navigate} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
           {current === "partners" && <ChannelPartnersPage />}
           {current === "developers" && <DevelopersPage />}
@@ -258,6 +258,72 @@ function HealthRing({ score }: { score: number }) {
         <defs><linearGradient id="osGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#7C5CFF" /><stop offset="100%" stopColor="#A855F7" /></linearGradient></defs>
       </svg>
       <div className="ring-num"><b>{score}</b><span>{label}</span></div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------ command centre hero */
+function priorityLine(d: Overview, fin: FinanceSummary | null): string {
+  const bits: string[] = [];
+  if (d.sales.qualifiedLeads) bits.push(`call ${d.sales.qualifiedLeads} qualified lead${d.sales.qualifiedLeads === 1 ? "" : "s"}`);
+  if (d.verification.pendingKyc) bits.push(`approve ${d.verification.pendingKyc} CP KYC`);
+  if (d.verification.pendingProjects) bits.push(`verify ${d.verification.pendingProjects} project${d.verification.pendingProjects === 1 ? "" : "s"}`);
+  if (d.crm.followUpsDue) bits.push(`clear ${d.crm.followUpsDue} overdue follow-up${d.crm.followUpsDue === 1 ? "" : "s"}`);
+  if (d.verification.pendingLegal) bits.push(`review ${d.verification.pendingLegal} legal doc${d.verification.pendingLegal === 1 ? "" : "s"}`);
+  if (fin?.hasData && fin.upcomingPayments?.length) bits.push(`action ${fin.upcomingPayments.length} upcoming payment${fin.upcomingPayments.length === 1 ? "" : "s"}`);
+  if (bits.length === 0) return "All queues are clear — focus on growth: nurture your qualified leads and onboard new CPs & developers.";
+  return "Today's priority: " + bits.slice(0, 3).join(", ") + ".";
+}
+
+function CommandHero({ d, fin, go }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void }) {
+  const ch = d.companyHealth;
+  const health = ch.healthScore;
+  const healthTone: Tone = health >= 70 ? "green" : health >= 40 ? "amber" : "red";
+  const tiles: { icon: string; tone: Tone; label: string; value: string; foot?: string; onClick?: () => void }[] = [
+    { icon: "wallet", tone: "blue", label: "Bank Balance", value: fin?.hasData ? formatCompactINR(fin.bankBalance) : "—", foot: fin?.hasData ? (fin.runwayMonths === null ? "Cash-flow positive" : `${fin.runwayMonths} mo runway`) : "Connect finance ledger", onClick: () => go("finance") },
+    { icon: "chart", tone: "green", label: "Today's Revenue", value: formatINR(ch.revenueToday) },
+    { icon: "building", tone: "blue", label: "Active Projects", value: String(d.projects.approved), foot: `${d.projects.verified} verified`, onClick: () => go("projects") },
+    { icon: "target", tone: "amber", label: "Today's Bookings", value: String(d.executive.todaysBookings), onClick: () => go("bookings") },
+    { icon: "trophy", tone: healthTone, label: "Business Health", value: String(health), foot: health >= 70 ? "Healthy" : health >= 40 ? "Watch" : "Critical" },
+  ];
+  return (
+    <>
+      <div className="hero-grid">
+        {tiles.map((t) => (
+          <div key={t.label} className={`card hero-tile tone-${t.tone}${t.onClick ? " kpi-clickable" : ""}`} onClick={t.onClick} role={t.onClick ? "button" : undefined} tabIndex={t.onClick ? 0 : undefined}
+            onKeyDown={t.onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.onClick!(); } } : undefined}>
+            <div className={`kpi-icon ${t.tone} hero-icon`}><Ic n={t.icon} /></div>
+            <div className="hero-label">{t.label}</div>
+            <div className="hero-value">{t.value}</div>
+            {t.foot && <div className="hero-foot">{t.foot}</div>}
+          </div>
+        ))}
+      </div>
+      <div className="card hero-priority">
+        <div className="kpi-icon blue hero-icon"><Ic n="spark" /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="hero-priority-label">AI Founder Priority</div>
+          <div className="hero-priority-text">{priorityLine(d, fin)}</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function QuickActions({ navigate, go }: { navigate: ReturnType<typeof useNavigate>; go: (p: Page) => void }) {
+  const actions: { icon: string; label: string; onClick: () => void }[] = [
+    { icon: "building", label: "Add Project", onClick: () => navigate("/admin/listings") },
+    { icon: "users", label: "Add CP", onClick: () => navigate("/admin/users") },
+    { icon: "building", label: "Add Developer", onClick: () => navigate("/admin/users") },
+    { icon: "spark", label: "Add Lead", onClick: () => navigate("/crm/pipeline") },
+    { icon: "wallet", label: "Record Payment", onClick: () => navigate("/admin/finance") },
+    { icon: "book", label: "Reports", onClick: () => go("reports") },
+  ];
+  return (
+    <div className="qa-row">
+      {actions.map((a) => (
+        <button key={a.label} className="qa-btn" onClick={a.onClick}><Ic n={a.icon} /><span>{a.label}</span></button>
+      ))}
     </div>
   );
 }
@@ -378,15 +444,16 @@ function DailyBrief({ d, fin, go }: { d: Overview; fin: FinanceSummary | null; g
   );
 }
 
-function OverviewPage({ d, fin, go, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; title: string; sub: string }) {
+function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; navigate: ReturnType<typeof useNavigate>; title: string; sub: string }) {
   const ex = d.executive;
   return (
     <section className="page">
       <div className="page-header">
         <div><div className="page-title">{title}</div><div className="page-sub">{sub}</div></div>
-        <div className="header-actions"><button className="btn btn-primary" onClick={() => go("finance")}><Ic n="wallet" /> Finance</button></div>
       </div>
 
+      <QuickActions navigate={navigate} go={go} />
+      <CommandHero d={d} fin={fin} go={go} />
       <DailyBrief d={d} fin={fin} go={go} />
       <div className="kpi-grid">
         <Kpi icon="wallet" tone="blue" label="Total Revenue" value={formatCompactINR(ex.totalRevenue)} foot="Platform fee + leads + payments" />
