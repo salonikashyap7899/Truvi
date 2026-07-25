@@ -43,3 +43,18 @@ html, body {
 body {
   overflow-wrap: break-word;
 }
+
+/* ── Site-wide typeface: Playfair Display everywhere (headings + body + UI). ──
+   Set on the root so every element inherits it; individual components can still
+   opt into a different family, but the default across the whole app is Playfair. */
+html, body, #root {
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+}
+
+/* ── Media quality: ask the browser for its best downscaling filter so
+   full-bleed posters and the hero clip are rendered as crisply as their
+   native resolution allows (bicubic rather than a cheaper nearest-neighbour). */
+img, video {
+  image-rendering: auto;           /* UA default = high-quality (bicubic) scaler */
+  image-rendering: high-quality;   /* honoured where supported */
+}
