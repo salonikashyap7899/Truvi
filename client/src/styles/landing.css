@@ -41,9 +41,10 @@
   --gold: oklch(0.83 0.14 85);
   --glass: oklch(1 0 0 / 6%);
 
-  /* Typography — "Edu VIC WA NT Hand" applied site-wide */
+  /* Typography — Slabo 27px for headings/display, Edu VIC WA NT Hand for body */
   --font-hand: "Edu VIC WA NT Hand", ui-sans-serif, system-ui, cursive;
-  --font-display: var(--font-hand);
+  --font-serif-display: "Slabo 27px", Georgia, "Times New Roman", serif;
+  --font-display: var(--font-serif-display);
   --font-sans-landing: var(--font-hand);
   --font-sans: var(--font-hand);
 

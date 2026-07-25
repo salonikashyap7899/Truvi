@@ -98,7 +98,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "projects" | "crm" | "finance" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "crm" | "finance" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -215,6 +215,8 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
         <div className="content">
           {current === "overview" && <OverviewPage d={d} fin={fin} go={go} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
+          {current === "partners" && <ChannelPartnersPage />}
+          {current === "developers" && <DevelopersPage />}
           {current === "projects" && <ProjectsPage d={d} navigate={navigate} />}
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
@@ -744,6 +746,106 @@ function InsightsPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
         <Kpi icon="spark" tone="green" label="MRR" value={formatINR(d.companyHealth.mrr)} />
         <Kpi icon="trophy" tone="blue" label="Health Score" value={`${d.companyHealth.healthScore}/100`} />
       </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------ channel partners */
+const TIER_BADGE: Record<string, string> = { DIAMOND: "blue", PLATINUM: "blue", GOLD: "amber", SILVER: "" };
+const TIER_COLOR: Record<string, string> = { DIAMOND: "#5D87FF", PLATINUM: "#7C5CFF", GOLD: "#F5A524", SILVER: "#8A94A8" };
+
+interface CpData {
+  summary: { total: number; active: number; pendingKyc: number; totalEarned: number; totalGmv: number; byTier: { tier: string; count: number }[] };
+  partners: { id: string; name: string; email: string; tier: string; kycStatus: string; leads: number; bookings: number; gmv: number; earned: number }[];
+}
+function ChannelPartnersPage() {
+  const navigate = useNavigate();
+  const [d, setD] = useState<CpData | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.get("/admin/cp-performance").then((r) => setD(r.data)).catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load")).finally(() => setLoading(false)); }, []);
+  if (loading) return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading channel partners…</p></section>;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Channel Partners</div><div className="page-sub">CP network performance, commissions &amp; KYC</div></div>
+        <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/kyc")}><Ic n="users" /> KYC queue</button></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="users" tone="blue" label="Total CPs" value={String(s.total)} foot={`${s.active} with bookings`} />
+        <Kpi icon="target" tone="green" label="Active" value={String(s.active)} />
+        <Kpi icon="bell" tone={s.pendingKyc ? "amber" : "green"} label="Pending KYC" value={String(s.pendingKyc)} onClick={() => navigate("/admin/kyc")} />
+        <Kpi icon="wallet" tone="blue" label="Commissions Paid" value={formatCompactINR(s.totalEarned)} />
+        <Kpi icon="chart" tone="green" label="GMV Routed" value={formatCompactINR(s.totalGmv)} />
+      </div>
+      <div className="grid-2-even">
+        <Panel title="CP Leaderboard" sub="Top partners by commission earned" icon="trophy" iconTone="amber">
+          {d.partners.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No channel partners yet.</p>
+            : <div className="table-wrap"><table>
+                <thead><tr><th>#</th><th>Partner</th><th>Tier</th><th>Bookings</th><th>Earned</th><th>KYC</th></tr></thead>
+                <tbody>{d.partners.map((p, i) => (
+                  <tr key={p.id}>
+                    <td>{i + 1}</td>
+                    <td><div className="name-cell"><div className="mini-avatar">{initials(p.name)}</div>{p.name}</div></td>
+                    <td><span className={`badge ${TIER_BADGE[p.tier] || ""}`}>{p.tier}</span></td>
+                    <td>{p.bookings}</td>
+                    <td><b>{formatCompactINR(p.earned)}</b></td>
+                    <td>{p.kycStatus === "APPROVED" ? <span className="badge green">Verified</span> : p.kycStatus === "PENDING" ? <span className="badge amber">Pending</span> : <span className="badge red">{p.kycStatus}</span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>}
+        </Panel>
+        <Panel title="Tier distribution" sub="CPs by performance tier" icon="trophy" iconTone="blue">
+          <Donut centerLabel="CPs" data={s.byTier.map((t) => ({ name: t.tier[0] + t.tier.slice(1).toLowerCase(), value: t.count, color: TIER_COLOR[t.tier] || "#8A94A8" }))} />
+        </Panel>
+      </div>
+    </section>
+  );
+}
+
+/* ----------------------------------------------------------- developers */
+interface DevData {
+  summary: { total: number; totalProjects: number; verified: number; pending: number };
+  developers: { id: string; name: string; email: string; company: string; rera: string | null; status: string; total: number; approved: number; verified: number; pending: number }[];
+}
+function DevelopersPage() {
+  const navigate = useNavigate();
+  const [d, setD] = useState<DevData | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { api.get("/admin/developer-performance").then((r) => setD(r.data)).catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load")).finally(() => setLoading(false)); }, []);
+  if (loading) return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading developers…</p></section>;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Developers</div><div className="page-sub">Builder network, project health &amp; approvals</div></div>
+        <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="building" tone="blue" label="Developers" value={String(s.total)} />
+        <Kpi icon="grid" tone="green" label="Total Projects" value={String(s.totalProjects)} />
+        <Kpi icon="shield" tone="green" label="Verified Projects" value={String(s.verified)} />
+        <Kpi icon="bell" tone={s.pending ? "amber" : "green"} label="Pending Approval" value={String(s.pending)} onClick={() => navigate("/admin/verification")} />
+      </div>
+      <Panel title="Developer Network" sub="Projects, verification &amp; approval status" icon="building" iconTone="blue">
+        {d.developers.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No developers yet.</p>
+          : <div className="table-wrap"><table>
+              <thead><tr><th>Developer</th><th>RERA</th><th>Projects</th><th>Approved</th><th>Verified</th><th>Pending</th><th>Status</th></tr></thead>
+              <tbody>{d.developers.map((v) => (
+                <tr key={v.id}>
+                  <td><div className="name-cell"><div className="mini-avatar">{initials(v.company)}</div>{v.company}</div></td>
+                  <td>{v.rera || <span style={{ color: "var(--ink-400)" }}>—</span>}</td>
+                  <td><b>{v.total}</b></td>
+                  <td>{v.approved}</td>
+                  <td>{v.verified ? <span className="badge green">{v.verified}</span> : "0"}</td>
+                  <td>{v.pending ? <span className="badge amber">{v.pending}</span> : "0"}</td>
+                  <td><span className={`badge ${v.status === "APPROVED" ? "green" : v.status === "PENDING" ? "amber" : "red"}`}>{v.status}</span></td>
+                </tr>
+              ))}</tbody>
+            </table></div>}
+      </Panel>
     </section>
   );
 }

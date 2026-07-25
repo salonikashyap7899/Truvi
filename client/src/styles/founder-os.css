@@ -17,7 +17,7 @@
   --amber-500:#F5B33F; --red-500:#F4574A; --red-100: rgba(244,87,74,0.16);
   --shadow-sm:0 1px 2px rgba(0,0,0,.3); --shadow-md:0 6px 24px rgba(0,0,0,.4); --shadow-lg:0 18px 44px rgba(0,0,0,.55);
   --radius:16px; --radius-sm:10px; --sidebar-w:264px; --topbar-h:68px;
-  --font-ui:"Edu VIC WA NT Hand",'Inter',system-ui,sans-serif; --font-head:"Edu VIC WA NT Hand",'Inter Tight',system-ui,sans-serif;
+  --font-ui:"Edu VIC WA NT Hand",'Inter',system-ui,sans-serif; --font-head:"Slabo 27px",'Inter Tight',Georgia,serif;
   --brand-grad: linear-gradient(135deg, #7C5CFF, #A855F7);
 
   font-family:var(--font-ui); background:var(--bg); color:var(--ink-900);
