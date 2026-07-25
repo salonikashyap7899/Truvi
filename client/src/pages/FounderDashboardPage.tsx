@@ -19,14 +19,22 @@ const config: DashboardOSConfig = {
       { key: "partners", label: "Channel Partners", icon: "users" },
       { key: "developers", label: "Developers", icon: "building" },
       { key: "projects", label: "Projects", icon: "building" },
+      { key: "inventory", label: "Inventory", icon: "grid" },
+      { key: "bookings", label: "Bookings", icon: "target" },
       { key: "crm", label: "Customers", icon: "users", count: d.crm.followUpsDue || undefined },
       { key: "finance", label: "Finance", icon: "wallet" },
     ] },
-    { group: "Trust & Growth", items: [
+    { group: "Trust & Operations", items: [
       { key: "verification", label: "Verification", icon: "shield", count: d.executive.pendingActions || undefined },
+      { key: "legal", label: "Legal", icon: "book" },
+      { key: "support", label: "Support", icon: "bell", count: d.crm.enquiries || undefined },
+      { key: "operations", label: "Operations", icon: "grid" },
+    ] },
+    { group: "Intelligence", items: [
       { key: "kpi", label: "KPIs", icon: "target" },
       { key: "analytics", label: "Analytics", icon: "chart" },
       { key: "insights", label: "AI Insights", icon: "spark" },
+      { key: "reports", label: "Reports", icon: "book" },
     ] },
     { group: "Founder-only", items: [
       { key: "team", label: "Team", icon: "team" },

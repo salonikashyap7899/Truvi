@@ -23,6 +23,7 @@ import {
   leadFollowUps,
   leadActivities,
   crmTasks,
+  ambassadorTasks,
   financeEntries,
   platformSettings,
   IPlatformSettings,
@@ -489,6 +490,171 @@ router.get("/developer-performance", requireRole("ADMIN"), async (_req, res) => 
       pending: allProjects.filter((p) => p.approvalStatus === "PENDING").length,
     },
     developers: developers.slice(0, 50),
+  });
+});
+
+// GET /api/admin/inventory-overview — live unit inventory across all projects.
+router.get("/inventory-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [allUnits, allProjects] = await Promise.all([
+    db.select({ _id: units._id, projectId: units.projectId, unitNumber: units.unitNumber, type: units.type, areaSqft: units.areaSqft, price: units.price, status: units.status }).from(units),
+    db.select({ _id: projects._id, name: projects.name, city: projects.city }).from(projects),
+  ]);
+  const projInfo = new Map(allProjects.map((p) => [String(p._id), { name: p.name, city: p.city }]));
+  const statusCount = (s: string) => allUnits.filter((u) => u.status === s).length;
+
+  const byProjMap = new Map<string, { total: number; available: number; sold: number; value: number }>();
+  for (const u of allUnits) {
+    const k = String(u.projectId);
+    const cur = byProjMap.get(k) || { total: 0, available: 0, sold: 0, value: 0 };
+    cur.total += 1;
+    if (u.status === "AVAILABLE") cur.available += 1;
+    if (u.status === "SOLD") cur.sold += 1;
+    cur.value += Number(u.price || 0);
+    byProjMap.set(k, cur);
+  }
+  const byProject = [...byProjMap.entries()]
+    .map(([pid, v]) => ({ project: projInfo.get(pid)?.name || "Unknown", city: projInfo.get(pid)?.city || "", total: v.total, available: v.available, sold: v.sold, value: rupees(v.value) }))
+    .sort((a, b) => b.total - a.total);
+
+  res.json({
+    summary: {
+      total: allUnits.length,
+      available: statusCount("AVAILABLE"),
+      reserved: statusCount("RESERVED"),
+      locked: statusCount("LOCKED"),
+      sold: statusCount("SOLD"),
+      totalValue: rupees(allUnits.reduce((s, u) => s + Number(u.price || 0), 0)),
+      soldValue: rupees(allUnits.filter((u) => u.status === "SOLD").reduce((s, u) => s + Number(u.price || 0), 0)),
+    },
+    byProject,
+    units: allUnits.slice(0, 80).map((u) => ({
+      id: String(u._id), project: projInfo.get(String(u.projectId))?.name || "Unknown",
+      unitNumber: u.unitNumber, type: u.type, areaSqft: u.areaSqft, price: rupees(Number(u.price || 0)), status: u.status,
+    })),
+  });
+});
+
+// GET /api/admin/bookings-overview — live booking activity (from commissions).
+router.get("/bookings-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [allCommissions, allLeads, allProjects, allUsers] = await Promise.all([
+    db.select().from(commissions),
+    db.select({ _id: leads._id, projectId: leads.projectId, clientName: leads.clientName }).from(leads),
+    db.select({ _id: projects._id, name: projects.name }).from(projects),
+    db.select({ _id: users._id, name: users.name }).from(users),
+  ]);
+  const projName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const userName = new Map(allUsers.map((u) => [String(u._id), u.name]));
+  const leadInfo = new Map(allLeads.map((l) => [String(l._id), { projectId: String(l.projectId), client: l.clientName }]));
+
+  const bookings = allCommissions.map((c) => {
+    const li = leadInfo.get(String(c.leadId));
+    const ms = c.milestones || [];
+    return {
+      id: String(c._id),
+      date: c.createdAt,
+      project: li ? projName.get(li.projectId) || "Unknown" : "Unknown",
+      client: li?.client || "—",
+      cp: userName.get(String(c.cpId)) || "—",
+      bookingValue: rupees(Number(c.bookingValue || 0)),
+      commission: rupees(Number(c.cpCommissionAmount || 0)),
+      status: c.status,
+      milestones: ms.length,
+      released: ms.filter((m) => m.isReleased).length,
+    };
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const statusMap = new Map<string, number>();
+  for (const b of bookings) statusMap.set(b.status, (statusMap.get(b.status) || 0) + 1);
+  res.json({
+    summary: {
+      total: bookings.length,
+      totalGmv: rupees(bookings.reduce((s, b) => s + b.bookingValue, 0)),
+      totalCommission: rupees(bookings.reduce((s, b) => s + b.commission, 0)),
+      paid: bookings.filter((b) => b.status === "PAID").length,
+      pending: bookings.filter((b) => b.status !== "PAID").length,
+      byStatus: [...statusMap.entries()].map(([status, count]) => ({ status, count })),
+    },
+    bookings: bookings.slice(0, 60),
+  });
+});
+
+// GET /api/admin/legal-overview — live legal-document register & verification.
+router.get("/legal-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const [allDocs, allProjects] = await Promise.all([
+    db.select({ _id: legalDocuments._id, projectId: legalDocuments.projectId, title: legalDocuments.title, docType: legalDocuments.docType, verified: legalDocuments.verified, verifiedAt: legalDocuments.verifiedAt, createdAt: legalDocuments.createdAt }).from(legalDocuments),
+    db.select({ _id: projects._id, name: projects.name }).from(projects),
+  ]);
+  const projName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const typeMap = new Map<string, number>();
+  for (const d of allDocs) typeMap.set(d.docType, (typeMap.get(d.docType) || 0) + 1);
+  res.json({
+    summary: {
+      total: allDocs.length,
+      verified: allDocs.filter((d) => d.verified).length,
+      pending: allDocs.filter((d) => !d.verified).length,
+      byType: [...typeMap.entries()].map(([type, count]) => ({ type, count })),
+    },
+    docs: allDocs
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 60)
+      .map((d) => ({ id: String(d._id), project: projName.get(String(d.projectId)) || "Unknown", title: d.title, docType: d.docType, verified: d.verified, date: d.createdAt })),
+  });
+});
+
+// GET /api/admin/support-overview — live customer enquiries / support queue.
+router.get("/support-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const allEnquiries = await db.select().from(enquiries);
+  const purposeMap = new Map<string, number>();
+  for (const e of allEnquiries) purposeMap.set(e.purposeType, (purposeMap.get(e.purposeType) || 0) + 1);
+  res.json({
+    summary: {
+      total: allEnquiries.length,
+      thisWeek: allEnquiries.filter((e) => e.createdAt >= weekAgo).length,
+      byPurpose: [...purposeMap.entries()].map(([purpose, count]) => ({ purpose, count })),
+    },
+    tickets: allEnquiries
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 60)
+      .map((e) => ({ id: String(e._id), name: e.name, email: e.email, purpose: e.purposeType, project: e.projectName || null, message: e.message || null, date: e.createdAt })),
+  });
+});
+
+// GET /api/admin/ops-overview — consolidated operations queues (live).
+router.get("/ops-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const [tasks, followUps, crm, pendingProjects, pendingLegalDocs] = await Promise.all([
+    db.select({ _id: ambassadorTasks._id, title: ambassadorTasks.title, status: ambassadorTasks.status, deadline: ambassadorTasks.deadline }).from(ambassadorTasks),
+    db.select({ _id: leadFollowUps._id, dueAt: leadFollowUps.dueAt, status: leadFollowUps.status }).from(leadFollowUps),
+    db.select({ _id: crmTasks._id, status: crmTasks.status }).from(crmTasks),
+    db.select({ _id: projects._id }).from(projects).where(eq(projects.approvalStatus, "PENDING")),
+    db.select({ _id: legalDocuments._id }).from(legalDocuments).where(eq(legalDocuments.verified, false)),
+  ]);
+  const taskStatusMap = new Map<string, number>();
+  for (const t of tasks) taskStatusMap.set(t.status, (taskStatusMap.get(t.status) || 0) + 1);
+  res.json({
+    summary: {
+      siteTasks: tasks.length,
+      siteTasksOpen: tasks.filter((t) => t.status === "AVAILABLE" || t.status === "LOCKED").length,
+      followUpsPending: followUps.filter((f) => f.status === "PENDING").length,
+      followUpsOverdue: followUps.filter((f) => f.status === "PENDING" && f.dueAt <= now).length,
+      crmTasksOpen: crm.filter((c) => c.status === "OPEN").length,
+      pendingApprovals: pendingProjects.length,
+      pendingLegal: pendingLegalDocs.length,
+      byTaskStatus: [...taskStatusMap.entries()].map(([status, count]) => ({ status, count })),
+    },
+    siteVisitTasks: tasks
+      .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+      .slice(0, 40)
+      .map((t) => ({ id: String(t._id), title: t.title, status: t.status, deadline: t.deadline })),
   });
 });
 
