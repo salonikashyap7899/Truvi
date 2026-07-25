@@ -23,6 +23,7 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
+import { isFounderEmail } from "../config/env";
 
 const router = Router();
 
@@ -156,6 +157,7 @@ function issueSession(res: import("express").Response, user: IUser) {
       name: user.name,
       email: user.email,
       role: user.role,
+      isFounder: isFounderEmail(user.email),
       approvalStatus: user.approvalStatus,
       emailVerified: user.emailVerified,
       phoneVerified: user.phoneVerified,
@@ -407,7 +409,7 @@ router.get("/me", authenticate, async (req: AuthedRequest, res) => {
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
   const { password: _p, ...safeUser } = user;
-  return res.json({ user: safeUser });
+  return res.json({ user: { ...safeUser, isFounder: isFounderEmail(user.email) } });
 });
 
 // PATCH /api/auth/profile — the signed-in user edits their own display profile
@@ -442,13 +444,13 @@ router.patch("/profile", authenticate, async (req: AuthedRequest, res) => {
     const current = await findUserById(userId);
     if (!current) return res.status(404).json({ error: "User not found" });
     const { password: _p, ...safeUser } = current;
-    return res.json({ user: safeUser });
+    return res.json({ user: { ...safeUser, isFounder: isFounderEmail(current.email) } });
   }
 
   const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
   if (!updated) return res.status(404).json({ error: "User not found" });
   const { password: _p, ...safeUser } = updated;
-  return res.json({ user: safeUser });
+  return res.json({ user: { ...safeUser, isFounder: isFounderEmail(updated.email) } });
 });
 
 router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) => {

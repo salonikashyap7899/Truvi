@@ -17,10 +17,15 @@ const FOUNDER_EMAILS = new Set(
 );
 
 /** The one page each role lands on — used by login, verify, and the nav. */
-export function dashboardPath(user: Pick<User, "role" | "email">): string {
+export function dashboardPath(user: Pick<User, "role" | "email" | "isFounder">): string {
   switch (user.role) {
-    case "ADMIN":
-      return FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "") ? "/founder/dashboard" : "/admin/dashboard";
+    case "ADMIN": {
+      // Prefer the server-stamped flag (authoritative, immune to client
+      // build/env drift); fall back to the email allowlist for older sessions
+      // whose cached user predates the flag.
+      const isFounder = user.isFounder ?? FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "");
+      return isFounder ? "/founder/dashboard" : "/admin/dashboard";
+    }
     case "DEVELOPER":
       return "/developer/dashboard";
     case "AMBASSADOR":

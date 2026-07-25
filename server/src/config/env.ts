@@ -71,6 +71,20 @@ export function getEnv() {
  */
 export const DEFAULT_FOUNDER_PASSWORD = "Sandeep@Meeraj#Truvi2026!";
 
+/**
+ * True when the given email belongs to a Truvi founder (the accounts that land
+ * on the full CEO OS at /founder/dashboard rather than the operational admin
+ * panel). Server-authoritative so routing never depends on the client build
+ * carrying a matching email allowlist. Case-insensitive. The legacy
+ * `founder@truvi.app` placeholder is always included.
+ */
+export function isFounderEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  if (e === "founder@truvi.app") return true;
+  return getEnv().founders.some((f) => f.email === e);
+}
+
 /** True only when both Razorpay keys are configured. */
 export function isRazorpayConfigured(): boolean {
   const env = getEnv();
