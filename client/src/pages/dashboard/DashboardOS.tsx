@@ -98,7 +98,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "crm" | "finance" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -218,8 +218,14 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "partners" && <ChannelPartnersPage />}
           {current === "developers" && <DevelopersPage />}
           {current === "projects" && <ProjectsPage d={d} navigate={navigate} />}
+          {current === "inventory" && <InventoryDashPage />}
+          {current === "bookings" && <BookingsDashPage />}
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
+          {current === "legal" && <LegalDashPage navigate={navigate} />}
+          {current === "support" && <SupportDashPage navigate={navigate} />}
+          {current === "operations" && <OperationsDashPage navigate={navigate} />}
+          {current === "reports" && <ReportsDashPage d={d} fin={fin} />}
           {current === "verification" && <VerificationPage d={d} navigate={navigate} />}
           {current === "kpi" && <KpiPage d={d} fin={fin} />}
           {current === "insights" && <InsightsPage d={d} fin={fin} />}
@@ -923,6 +929,276 @@ function AnalyticsPage() {
               <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(3, Math.round((c.gmv / maxCity) * 100))}%` }} /></div>
             </div>
           ))}
+      </Panel>
+    </section>
+  );
+}
+
+/* ------------------------------------------------ inventory / bookings / etc */
+function useFetch<T>(url: string): { data: T | null; loading: boolean } {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    api.get(url).then((r) => { if (live) setData(r.data); }).catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load")).finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [url]);
+  return { data, loading };
+}
+const Loading = ({ what }: { what: string }) => <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading {what}…</p></section>;
+const unitBadge = (s: string) => s === "AVAILABLE" ? "green" : s === "SOLD" ? "blue" : s === "RESERVED" ? "amber" : "";
+const bookingBadge = (s: string) => s === "PAID" ? "green" : s === "PENDING" ? "amber" : "blue";
+
+interface InvData { summary: { total: number; available: number; reserved: number; locked: number; sold: number; totalValue: number; soldValue: number }; byProject: { project: string; city: string; total: number; available: number; sold: number; value: number }[]; units: { id: string; project: string; unitNumber: string; type: string; areaSqft: number; price: number; status: string }[]; }
+function InventoryDashPage() {
+  const { data: d, loading } = useFetch<InvData>("/admin/inventory-overview");
+  if (loading) return <Loading what="inventory" />;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header"><div><div className="page-title">Property Inventory</div><div className="page-sub">Live stock across all listed projects</div></div></div>
+      <div className="kpi-grid">
+        <Kpi icon="building" tone="blue" label="Total Units" value={String(s.total)} foot={formatCompactINR(s.totalValue)} />
+        <Kpi icon="check" tone="green" label="Available" value={String(s.available)} />
+        <Kpi icon="target" tone="amber" label="Reserved" value={String(s.reserved)} />
+        <Kpi icon="shield" tone="blue" label="Locked" value={String(s.locked)} />
+        <Kpi icon="trophy" tone="green" label="Sold" value={String(s.sold)} foot={formatCompactINR(s.soldValue)} />
+      </div>
+      <div className="grid-2-even">
+        <Panel title="Inventory by status" sub={`${s.total} total units`} icon="building" iconTone="blue">
+          <Donut centerLabel="Units" data={[
+            { name: "Available", value: s.available, color: "#14C79A" },
+            { name: "Reserved", value: s.reserved, color: "#F5A524" },
+            { name: "Locked", value: s.locked, color: "#7C5CFF" },
+            { name: "Sold", value: s.sold, color: "#5D87FF" },
+          ]} />
+        </Panel>
+        <Panel title="Stock by project" sub="Units & value per development" icon="land" iconTone="green">
+          {d.byProject.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No inventory yet.</p>
+            : d.byProject.map((p) => {
+              const max = Math.max(1, ...d.byProject.map((x) => x.total));
+              return (
+                <div style={{ marginBottom: 12 }} key={p.project}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}><span style={{ fontWeight: 600, color: "var(--ink-700)" }}>{p.project}</span><b>{p.available}/{p.total} avail · {formatCompactINR(p.value)}</b></div>
+                  <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(4, Math.round((p.total / max) * 100))}%` }} /></div>
+                </div>
+              );
+            })}
+        </Panel>
+      </div>
+      <Panel title="Units" sub="Live stock" icon="grid" iconTone="blue">
+        <div className="table-wrap"><table>
+          <thead><tr><th>Unit</th><th>Project</th><th>Type</th><th>Area</th><th>Price</th><th>Status</th></tr></thead>
+          <tbody>{d.units.map((u) => (
+            <tr key={u.id}><td><b>{u.unitNumber}</b></td><td>{u.project}</td><td>{u.type}</td><td>{u.areaSqft} sqft</td><td>{formatCompactINR(u.price)}</td><td><span className={`badge ${unitBadge(u.status)}`}>{u.status}</span></td></tr>
+          ))}</tbody>
+        </table></div>
+      </Panel>
+    </section>
+  );
+}
+
+interface BkData { summary: { total: number; totalGmv: number; totalCommission: number; paid: number; pending: number; byStatus: { status: string; count: number }[] }; bookings: { id: string; date: string; project: string; client: string; cp: string; bookingValue: number; commission: number; status: string; milestones: number; released: number }[]; }
+function BookingsDashPage() {
+  const { data: d, loading } = useFetch<BkData>("/admin/bookings-overview");
+  if (loading) return <Loading what="bookings" />;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header"><div><div className="page-title">Bookings</div><div className="page-sub">Live booking activity across the platform</div></div></div>
+      <div className="kpi-grid">
+        <Kpi icon="target" tone="blue" label="Total Bookings" value={String(s.total)} />
+        <Kpi icon="chart" tone="green" label="GMV" value={formatCompactINR(s.totalGmv)} />
+        <Kpi icon="wallet" tone="blue" label="CP Commission" value={formatCompactINR(s.totalCommission)} />
+        <Kpi icon="check" tone="green" label="Paid" value={String(s.paid)} />
+        <Kpi icon="bell" tone={s.pending ? "amber" : "green"} label="In Progress" value={String(s.pending)} />
+      </div>
+      <Panel title="Recent bookings" sub="Newest first" icon="target" iconTone="blue">
+        {d.bookings.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No bookings recorded yet.</p>
+          : <div className="table-wrap"><table>
+              <thead><tr><th>Date</th><th>Project</th><th>Client</th><th>CP</th><th>Value</th><th>Commission</th><th>Milestones</th><th>Status</th></tr></thead>
+              <tbody>{d.bookings.map((b) => (
+                <tr key={b.id}>
+                  <td>{new Date(b.date).toLocaleDateString("en-IN")}</td>
+                  <td>{b.project}</td><td>{b.client}</td><td>{b.cp}</td>
+                  <td><b>{formatCompactINR(b.bookingValue)}</b></td><td>{formatCompactINR(b.commission)}</td>
+                  <td>{b.milestones ? `${b.released}/${b.milestones}` : "—"}</td>
+                  <td><span className={`badge ${bookingBadge(b.status)}`}>{b.status.replace(/_/g, " ")}</span></td>
+                </tr>
+              ))}</tbody>
+            </table></div>}
+      </Panel>
+    </section>
+  );
+}
+
+interface LgData { summary: { total: number; verified: number; pending: number; byType: { type: string; count: number }[] }; docs: { id: string; project: string; title: string; docType: string; verified: boolean; date: string }[]; }
+function LegalDashPage({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const { data: d, loading } = useFetch<LgData>("/admin/legal-overview");
+  if (loading) return <Loading what="legal documents" />;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Legal</div><div className="page-sub">Document register, verification &amp; compliance</div></div>
+        <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/verification")}><Ic n="shield" /> Verification queue</button></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="book" tone="blue" label="Legal Documents" value={String(s.total)} />
+        <Kpi icon="check" tone="green" label="Verified" value={String(s.verified)} />
+        <Kpi icon="alert" tone={s.pending ? "amber" : "green"} label="Pending Review" value={String(s.pending)} />
+      </div>
+      <Panel title="Document register" sub="All legal documents by project" icon="book" iconTone="blue">
+        {d.docs.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No legal documents uploaded yet.</p>
+          : <div className="table-wrap"><table>
+              <thead><tr><th>Document</th><th>Project</th><th>Type</th><th>Uploaded</th><th>Status</th></tr></thead>
+              <tbody>{d.docs.map((doc) => (
+                <tr key={doc.id}>
+                  <td><b>{doc.title}</b></td><td>{doc.project}</td><td>{doc.docType.replace(/_/g, " ")}</td>
+                  <td>{new Date(doc.date).toLocaleDateString("en-IN")}</td>
+                  <td>{doc.verified ? <span className="badge green">Verified</span> : <span className="badge amber">Pending</span>}</td>
+                </tr>
+              ))}</tbody>
+            </table></div>}
+      </Panel>
+    </section>
+  );
+}
+
+interface SpData { summary: { total: number; thisWeek: number; byPurpose: { purpose: string; count: number }[] }; tickets: { id: string; name: string; email: string; purpose: string; project: string | null; message: string | null; date: string }[]; }
+function SupportDashPage({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const { data: d, loading } = useFetch<SpData>("/admin/support-overview");
+  if (loading) return <Loading what="support tickets" />;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Customer Support</div><div className="page-sub">Enquiries, complaints &amp; resolution</div></div>
+        <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/enquiries")}><Ic n="bell" /> Manage enquiries</button></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="bell" tone="blue" label="Total Tickets" value={String(s.total)} />
+        <Kpi icon="spark" tone="amber" label="This Week" value={String(s.thisWeek)} />
+        <Kpi icon="grid" tone="green" label="Categories" value={String(s.byPurpose.length)} />
+      </div>
+      <div className="grid-2">
+        <Panel title="Support queue" sub="Newest enquiries first" icon="bell" iconTone="blue">
+          {d.tickets.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No enquiries yet.</p>
+            : <div className="table-wrap"><table>
+                <thead><tr><th>From</th><th>Purpose</th><th>Project</th><th>Date</th></tr></thead>
+                <tbody>{d.tickets.map((t) => (
+                  <tr key={t.id}>
+                    <td><b>{t.name}</b><div style={{ fontSize: 11, color: "var(--ink-500)" }}>{t.email}</div></td>
+                    <td><span className="badge blue">{t.purpose.replace(/_/g, " ")}</span></td>
+                    <td>{t.project || "—"}</td><td>{new Date(t.date).toLocaleDateString("en-IN")}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>}
+        </Panel>
+        <Panel title="By category" sub="Enquiry purpose mix" icon="chart" iconTone="green">
+          <Donut centerLabel="Tickets" data={s.byPurpose.map((p, i) => ({ name: p.purpose.replace(/_/g, " "), value: p.count, color: CHART_COLORS[i % CHART_COLORS.length] }))} />
+        </Panel>
+      </div>
+    </section>
+  );
+}
+
+interface OpData { summary: { siteTasks: number; siteTasksOpen: number; followUpsPending: number; followUpsOverdue: number; crmTasksOpen: number; pendingApprovals: number; pendingLegal: number; byTaskStatus: { status: string; count: number }[] }; siteVisitTasks: { id: string; title: string; status: string; deadline: string }[]; }
+function OperationsDashPage({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const { data: d, loading } = useFetch<OpData>("/admin/ops-overview");
+  if (loading) return <Loading what="operations" />;
+  if (!d) return <section className="page"><p style={{ padding: 20 }}>Could not load.</p></section>;
+  const s = d.summary;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Operations</div><div className="page-sub">Site tasks, approvals &amp; follow-ups</div></div>
+        <div className="header-actions"><button className="btn btn-primary" onClick={() => navigate("/admin/ambassador-tasks")}><Ic n="grid" /> Site tasks</button></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="grid" tone="blue" label="Site Tasks" value={String(s.siteTasks)} foot={`${s.siteTasksOpen} open`} />
+        <Kpi icon="bell" tone={s.followUpsOverdue ? "red" : s.followUpsPending ? "amber" : "green"} label="Follow-ups Due" value={String(s.followUpsPending)} foot={`${s.followUpsOverdue} overdue`} />
+        <Kpi icon="target" tone={s.crmTasksOpen ? "amber" : "green"} label="CRM Tasks Open" value={String(s.crmTasksOpen)} />
+        <Kpi icon="building" tone={s.pendingApprovals ? "amber" : "green"} label="Pending Approvals" value={String(s.pendingApprovals)} onClick={() => navigate("/admin/verification")} />
+        <Kpi icon="shield" tone={s.pendingLegal ? "amber" : "green"} label="Legal Pending" value={String(s.pendingLegal)} />
+      </div>
+      <Panel title="Site verification tasks" sub="By deadline" icon="shield" iconTone="blue">
+        {d.siteVisitTasks.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No site tasks scheduled.</p>
+          : <div className="table-wrap"><table>
+              <thead><tr><th>Task</th><th>Deadline</th><th>Status</th></tr></thead>
+              <tbody>{d.siteVisitTasks.map((t) => (
+                <tr key={t.id}><td><b>{t.title}</b></td><td>{new Date(t.deadline).toLocaleDateString("en-IN")}</td><td><span className={`badge ${t.status === "COMPLETED" ? "green" : t.status === "LOCKED" ? "amber" : "blue"}`}>{t.status}</span></td></tr>
+              ))}</tbody>
+            </table></div>}
+      </Panel>
+    </section>
+  );
+}
+
+function ReportsDashPage({ d, fin }: { d: Overview; fin: FinanceSummary | null }) {
+  function downloadCsv() {
+    const rows: [string, string | number][] = [
+      ["Report", "Truvi Founder Snapshot"],
+      ["Generated", new Date().toLocaleString("en-IN")],
+      ["", ""],
+      ["Total Revenue", d.executive.totalRevenue],
+      ["Total GMV", d.executive.gmv],
+      ["MRR", d.companyHealth.mrr],
+      ["Health Score", d.companyHealth.healthScore],
+      ["Developers", d.executive.totalDevelopers],
+      ["Channel Partners", d.executive.totalCPs],
+      ["Buyers", d.executive.totalBuyers],
+      ["Active Listings", d.executive.activeListings],
+      ["Leads Today", d.sales.leadsToday],
+      ["Qualified Leads", d.sales.qualifiedLeads],
+      ["Bookings", d.sales.bookings],
+      ["Conversion %", d.sales.conversionRate],
+      ["Verified Projects", d.projects.verified],
+      ["Pending Approvals", d.verification.pendingProjects],
+    ];
+    if (fin?.hasData) {
+      rows.push(["Net Cash Flow", fin.netCashFlow], ["Bank Balance", fin.bankBalance], ["Receivables", fin.receivables], ["Payables", fin.payables], ["Net Profit", fin.netProfit]);
+    }
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `truvi-report-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Report exported");
+  }
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Reports</div><div className="page-sub">Founder-ready snapshots from live data</div></div>
+        <div className="header-actions">
+          <button className="btn" onClick={() => window.print()}><Ic n="book" /> Print</button>
+          <button className="btn btn-primary" onClick={downloadCsv}><Ic n="arrow" /> Export CSV</button>
+        </div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="wallet" tone="blue" label="Total Revenue" value={formatCompactINR(d.executive.totalRevenue)} />
+        <Kpi icon="chart" tone="green" label="Total GMV" value={formatCompactINR(d.executive.gmv)} />
+        <Kpi icon="spark" tone="blue" label="MRR" value={formatINR(d.companyHealth.mrr)} />
+        <Kpi icon="target" tone="green" label="Conversion" value={`${d.sales.conversionRate}%`} />
+        <Kpi icon="trophy" tone="blue" label="Health Score" value={`${d.companyHealth.healthScore}/100`} />
+        <Kpi icon="users" tone="blue" label="Network" value={String(d.executive.totalCPs + d.executive.totalDevelopers)} foot={`${d.executive.totalCPs} CPs · ${d.executive.totalDevelopers} devs`} />
+      </div>
+      <Panel title="Executive summary" sub="Snapshot exported by the buttons above" icon="grid" iconTone="blue">
+        <div className="table-wrap"><table>
+          <tbody>
+            <tr><td>Revenue (all-time)</td><td><b>{formatINR(d.executive.totalRevenue)}</b></td></tr>
+            <tr><td>GMV routed</td><td><b>{formatINR(d.executive.gmv)}</b></td></tr>
+            <tr><td>Active listings</td><td><b>{d.executive.activeListings}</b> ({d.projects.verified} verified)</td></tr>
+            <tr><td>Sales pipeline</td><td><b>{d.sales.qualifiedLeads}</b> qualified · {d.sales.bookings} bookings · {d.sales.conversionRate}% conversion</td></tr>
+            <tr><td>Network</td><td><b>{d.executive.totalCPs}</b> CPs · {d.executive.totalDevelopers} developers · {d.executive.totalBuyers} buyers</td></tr>
+            {fin?.hasData && <tr><td>Cash position</td><td><b>{formatINR(fin.bankBalance)}</b> bank · {formatINR(fin.netCashFlow)} net flow</td></tr>}
+          </tbody>
+        </table></div>
       </Panel>
     </section>
   );
