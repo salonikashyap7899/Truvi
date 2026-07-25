@@ -16,6 +16,8 @@ const config: DashboardOSConfig = {
     { group: "Command", items: [{ key: "overview", label: "Command Center", icon: "grid" }] },
     { group: "Business", items: [
       { key: "sales", label: "Sales CRM", icon: "chart" },
+      { key: "partners", label: "Channel Partners", icon: "users" },
+      { key: "developers", label: "Developers", icon: "building" },
       { key: "projects", label: "Projects", icon: "building" },
       { key: "crm", label: "Customers", icon: "users", count: d.crm.followUpsDue || undefined },
       { key: "finance", label: "Finance", icon: "wallet" },

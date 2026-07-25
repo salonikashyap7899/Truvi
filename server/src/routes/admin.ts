@@ -398,6 +398,100 @@ router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
   res.json({ revenueTrend, leadsBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
 });
 
+// GET /api/admin/cp-performance — live Channel Partner network dashboard.
+router.get("/cp-performance", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [cpUsers, allCommissions, allLeads] = await Promise.all([
+    db.select({ _id: users._id, name: users.name, email: users.email, cpTier: users.cpTier, onboardingChecks: users.onboardingChecks, createdAt: users.createdAt })
+      .from(users).where(inArray(users.role, ["CP", "AMBASSADOR"])),
+    db.select({ cpId: commissions.cpId, cpCommissionAmount: commissions.cpCommissionAmount, bookingValue: commissions.bookingValue }).from(commissions),
+    db.select({ assignedToId: leads.assignedToId }).from(leads),
+  ]);
+
+  const commByCp = new Map<string, { earned: number; gmv: number; bookings: number }>();
+  for (const c of allCommissions) {
+    const k = String(c.cpId);
+    const cur = commByCp.get(k) || { earned: 0, gmv: 0, bookings: 0 };
+    cur.earned += Number(c.cpCommissionAmount || 0);
+    cur.gmv += Number(c.bookingValue || 0);
+    cur.bookings += 1;
+    commByCp.set(k, cur);
+  }
+  const leadsByCp = new Map<string, number>();
+  for (const l of allLeads) {
+    if (!l.assignedToId) continue;
+    const k = String(l.assignedToId);
+    leadsByCp.set(k, (leadsByCp.get(k) || 0) + 1);
+  }
+
+  const partners = cpUsers.map((u) => {
+    const c = commByCp.get(String(u._id)) || { earned: 0, gmv: 0, bookings: 0 };
+    return {
+      id: String(u._id), name: u.name, email: u.email,
+      tier: u.cpTier || "SILVER",
+      kycStatus: u.onboardingChecks?.kycStatus || "PENDING",
+      leads: leadsByCp.get(String(u._id)) || 0,
+      bookings: c.bookings, gmv: rupees(c.gmv), earned: rupees(c.earned),
+    };
+  }).sort((a, b) => b.earned - a.earned || b.bookings - a.bookings);
+
+  const tierMap = new Map<string, number>();
+  for (const p of partners) tierMap.set(p.tier, (tierMap.get(p.tier) || 0) + 1);
+  res.json({
+    summary: {
+      total: partners.length,
+      active: partners.filter((p) => p.bookings > 0).length,
+      pendingKyc: partners.filter((p) => p.kycStatus === "PENDING").length,
+      totalEarned: rupees(partners.reduce((s, p) => s + p.earned, 0)),
+      totalGmv: rupees(partners.reduce((s, p) => s + p.gmv, 0)),
+      byTier: ["DIAMOND", "PLATINUM", "GOLD", "SILVER"].map((tier) => ({ tier, count: tierMap.get(tier) || 0 })),
+    },
+    partners: partners.slice(0, 50),
+  });
+});
+
+// GET /api/admin/developer-performance — live Developer network dashboard.
+router.get("/developer-performance", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const [devUsers, allProjects] = await Promise.all([
+    db.select({ _id: users._id, name: users.name, email: users.email, developerProfile: users.developerProfile, approvalStatus: users.approvalStatus, createdAt: users.createdAt })
+      .from(users).where(eq(users.role, "DEVELOPER")),
+    db.select({ _id: projects._id, developerId: projects.developerId, approvalStatus: projects.approvalStatus, isVerified: projects.isVerified }).from(projects),
+  ]);
+
+  const byDev = new Map<string, { total: number; approved: number; verified: number; pending: number }>();
+  for (const p of allProjects) {
+    const k = String(p.developerId);
+    const cur = byDev.get(k) || { total: 0, approved: 0, verified: 0, pending: 0 };
+    cur.total += 1;
+    if (p.approvalStatus === "APPROVED") cur.approved += 1;
+    if (p.isVerified) cur.verified += 1;
+    if (p.approvalStatus === "PENDING") cur.pending += 1;
+    byDev.set(k, cur);
+  }
+
+  const developers = devUsers.map((u) => {
+    const s = byDev.get(String(u._id)) || { total: 0, approved: 0, verified: 0, pending: 0 };
+    return {
+      id: String(u._id), name: u.name, email: u.email,
+      company: u.developerProfile?.companyName || u.name,
+      rera: u.developerProfile?.reraNumber || null,
+      status: u.approvalStatus, ...s,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  res.json({
+    summary: {
+      total: developers.length,
+      totalProjects: allProjects.length,
+      verified: allProjects.filter((p) => p.isVerified).length,
+      pending: allProjects.filter((p) => p.approvalStatus === "PENDING").length,
+    },
+    developers: developers.slice(0, 50),
+  });
+});
+
 // GET /api/admin/users?role=&approvalStatus=
 router.get("/users", requireRole("ADMIN"), async (req, res) => {
   const { role, approvalStatus, all } = req.query;
