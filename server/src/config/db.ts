@@ -44,6 +44,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
     // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
+    // Founder analytics: lost-deal reason captured when a lead is marked LOST.
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lost_reason" text`,
     `CREATE TABLE IF NOT EXISTS "lead_activities" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "lead_id" uuid NOT NULL REFERENCES "leads"("id"),
