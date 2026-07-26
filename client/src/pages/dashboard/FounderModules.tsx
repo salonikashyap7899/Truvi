@@ -116,21 +116,41 @@ const statusBadge = (s: string) => {
 };
 
 /* ================================================================= Team */
-export function TeamPage() {
+export function TeamPage({ over }: { over?: Overview }) {
   const { data, loading, reload } = useSummary();
   if (loading || !data) return <Loading />;
   const t = data.team;
+  const st = over?.salesTeam;
   async function del(id: string) { await api.delete(`/founder/employees/${id}`); reload(); }
   return (
     <section className="page">
-      <div className="page-header"><div><div className="page-title">Team</div><div className="page-sub">Headcount, attendance, productivity &amp; performance</div></div></div>
+      <div className="page-header"><div><div className="page-title">Team</div><div className="page-sub">Headcount, attendance, productivity &amp; sales performance</div></div></div>
       <div className="kpi-grid">
         <Kpi icon="team" tone="blue" label="Total Employees" value={String(t.total)} foot={`${t.active} active`} />
         <Kpi icon="users" tone="green" label="Present Today" value={String(t.presentToday)} foot={`${t.onLeave} on leave`} />
         <Kpi icon="target" tone={t.avgPerformance >= 70 ? "green" : t.avgPerformance >= 40 ? "amber" : "red"} label="Avg Productivity" value={`${t.avgPerformance}%`} />
         <Kpi icon="bell" tone={t.tasksPending ? "amber" : "green"} label="Tasks Pending" value={String(t.tasksPending)} />
         <Kpi icon="wallet" tone="blue" label="Monthly Payroll" value={formatCompactINR(t.monthlyPayroll)} />
+        {st && <Kpi icon="refresh" tone={st.avgResponseHours === null ? "blue" : st.avgResponseHours <= 24 ? "green" : "amber"} label="Avg Response Time" value={st.avgResponseHours === null ? "—" : `${st.avgResponseHours}h`} foot={st.respondedCount ? `${st.respondedCount} leads worked` : "Lead → first contact"} />}
       </div>
+
+      {st && st.tracked && (
+        <Panel title="Sales Leaderboard" sub="Live — reps ranked by conversions (leads assigned in the CRM)" icon="trophy" iconTone="amber">
+          <div className="table-wrap"><table>
+            <thead><tr><th>#</th><th>Rep</th><th>Leads</th><th>Conversions</th><th>Conv. rate</th><th>Revenue</th></tr></thead>
+            <tbody>{st.leaderboard.map((r, i) => (
+              <tr key={r.name + i}>
+                <td>{i + 1}</td>
+                <td><b>{r.name}</b></td>
+                <td>{r.leads}</td>
+                <td><b>{r.conversions}</b></td>
+                <td>{r.conversionRate}%</td>
+                <td>{formatCompactINR(r.revenue)}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </Panel>
+      )}
       <div className="grid-2">
         <Panel title="Performance Ranking" sub="Top employees by productivity score"
           action={<InlineForm endpoint="/founder/employees" submitLabel="Add employee" onSaved={reload}

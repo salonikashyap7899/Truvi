@@ -44,8 +44,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
     // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
-    // Founder analytics: lost-deal reason captured when a lead is marked LOST.
+    // Founder analytics: lost-deal reason + first-response time on leads.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lost_reason" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "first_contacted_at" timestamptz`,
     // Active-user tracking (MAU/DAU) and customer-experience (NPS/complaints).
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_active_at" timestamptz`,
     `CREATE TABLE IF NOT EXISTS "customer_feedback" (

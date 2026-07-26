@@ -162,10 +162,10 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     allCommissions, allPurchases, paidPayments, allSubs, allEnquiries,
     pendingLegal, openFollowUps, allCampaigns, allFeedback,
   ] = await Promise.all([
-    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, disabled: users.disabled, lastActiveAt: users.lastActiveAt, onboardingVerified: users.onboardingVerified, onboardingChecks: users.onboardingChecks }).from(users),
+    db.select({ _id: users._id, name: users.name, role: users.role, createdAt: users.createdAt, disabled: users.disabled, lastActiveAt: users.lastActiveAt, onboardingVerified: users.onboardingVerified, onboardingChecks: users.onboardingChecks }).from(users),
     db.select().from(projects),
     db.select({ _id: units._id, status: units.status, price: units.price }).from(units),
-    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lostReason: leads.lostReason }).from(leads),
+    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lostReason: leads.lostReason, assignedToId: leads.assignedToId, clientPhone: leads.clientPhone, firstContactedAt: leads.firstContactedAt }).from(leads),
     db.select({ _id: siteVisits._id, status: siteVisits.status, scheduledAt: siteVisits.scheduledAt }).from(siteVisits),
     db.select().from(commissions),
     db.select().from(leadPurchases),
@@ -350,6 +350,11 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
   // ---- Marketplace KPIs (the two-sided-network health at a glance) -------
   const activeOf = (r: Role) => allUsers.filter((u) => u.role === r && !u.disabled).length;
   const rejectedProjects = allProjects.filter((p) => p.approvalStatus === "REJECTED");
+  // Returning buyers = phone numbers that appear on more than one lead
+  // (someone who came back for a second property enquiry).
+  const phoneCounts = new Map<string, number>();
+  for (const l of allLeads) if (l.clientPhone) phoneCounts.set(l.clientPhone, (phoneCounts.get(l.clientPhone) || 0) + 1);
+  const returningBuyers = [...phoneCounts.values()].filter((c) => c > 1).length;
   const marketplace = {
     activeDevelopers: activeOf("DEVELOPER"),
     activeCPs: activeOf("CP"),
@@ -358,6 +363,42 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     verifiedProjects: verifiedProjects.length,
     suspendedProjects: rejectedProjects.length,
     newBuyers30d: newCustomers30d,
+    returningBuyers,
+  };
+
+  // ---- Sales team performance (leaderboard + first-response time) --------
+  const userName = new Map(allUsers.map((u) => [String(u._id), u.name]));
+  const cpRevenue = new Map<string, number>();
+  for (const c of allCommissions) cpRevenue.set(String(c.cpId), (cpRevenue.get(String(c.cpId)) || 0) + Number(c.platformFeeAmount || 0) + Number(c.cpCommissionAmount || 0));
+  const repStats = new Map<string, { leads: number; conversions: number }>();
+  for (const l of allLeads) {
+    if (!l.assignedToId) continue;
+    const id = String(l.assignedToId);
+    const cur = repStats.get(id) || { leads: 0, conversions: 0 };
+    cur.leads += 1;
+    if (["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)) cur.conversions += 1;
+    repStats.set(id, cur);
+  }
+  const salesLeaderboard = [...repStats.entries()]
+    .map(([id, s]) => ({
+      name: userName.get(id) || "Unknown",
+      leads: s.leads,
+      conversions: s.conversions,
+      conversionRate: s.leads ? Math.round((s.conversions / s.leads) * 100) : 0,
+      revenue: rupees(cpRevenue.get(id) || 0),
+    }))
+    .sort((a, b) => b.conversions - a.conversions || b.leads - a.leads)
+    .slice(0, 8);
+  // Average first-response time (hours) across leads that were worked.
+  const responded = allLeads.filter((l) => l.firstContactedAt);
+  const avgResponseHours = responded.length
+    ? Math.round((responded.reduce((s, l) => s + (l.firstContactedAt!.getTime() - l.createdAt.getTime()) / 3600000, 0) / responded.length) * 10) / 10
+    : null;
+  const salesTeam = {
+    leaderboard: salesLeaderboard,
+    avgResponseHours,
+    respondedCount: responded.length,
+    tracked: salesLeaderboard.length > 0,
   };
 
   // ---- Operations queues (what the team must clear today) ----------------
@@ -467,6 +508,7 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
     operations,
     activeUsers,
     cx,
+    salesTeam,
     notifications,
     // Investor-facing snapshot — the numbers we can derive honestly from
     // platform data. Ratios that need cost/usage tracking (CAC, LTV, MAU/DAU,
@@ -525,10 +567,18 @@ router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
     return { month: m.label, revenue: rupees(fee + purch + pay), gmv: rupees(gmv), bookings };
   });
 
-  // ---- Leads by source ------------------------------------------------------
-  const sourceMap = new Map<string, number>();
-  for (const l of allLeads) sourceMap.set(l.source, (sourceMap.get(l.source) || 0) + 1);
-  const leadsBySource = [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
+  // ---- Leads by source + conversion rate by source -------------------------
+  const sourceMap = new Map<string, { count: number; converted: number }>();
+  for (const l of allLeads) {
+    const cur = sourceMap.get(l.source) || { count: 0, converted: 0 };
+    cur.count += 1;
+    if (["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)) cur.converted += 1;
+    sourceMap.set(l.source, cur);
+  }
+  const leadsBySource = [...sourceMap.entries()].map(([source, v]) => ({ source, count: v.count })).sort((a, b) => b.count - a.count);
+  const conversionBySource = [...sourceMap.entries()]
+    .map(([source, v]) => ({ source, leads: v.count, converted: v.converted, rate: v.count ? Math.round((v.converted / v.count) * 100) : 0 }))
+    .sort((a, b) => b.leads - a.leads);
 
   // ---- GMV & bookings by city ----------------------------------------------
   const projCity = new Map(allProjects.map((p) => [String(p._id), p.city]));
@@ -553,7 +603,7 @@ router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
   for (const u of allUnits) invMap.set(u.status, (invMap.get(u.status) || 0) + 1);
   const inventoryByStatus = ["AVAILABLE", "RESERVED", "LOCKED", "SOLD"].map((status) => ({ status, count: invMap.get(status) || 0 }));
 
-  res.json({ revenueTrend, leadsBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
+  res.json({ revenueTrend, leadsBySource, conversionBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
 });
 
 // GET /api/admin/cp-performance — live Channel Partner network dashboard.
