@@ -1,8 +1,24 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken, TokenPayload } from "../lib/jwt";
+import { getDb } from "../config/db";
+import { users } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 export interface AuthedRequest extends Request {
   user?: TokenPayload;
+}
+
+// MAU/DAU: record each account's last-active time, but at most once per
+// ~10 min per user (in-memory throttle) so we don't write on every request.
+// Fire-and-forget — never blocks or fails the request.
+const ACTIVE_THROTTLE_MS = 10 * 60 * 1000;
+const lastTouched = new Map<string, number>();
+function touchActive(userId: string) {
+  const now = Date.now();
+  const prev = lastTouched.get(userId) ?? 0;
+  if (now - prev < ACTIVE_THROTTLE_MS) return;
+  lastTouched.set(userId, now);
+  getDb().update(users).set({ lastActiveAt: new Date() }).where(eq(users._id, userId)).catch(() => {});
 }
 
 /**
@@ -21,6 +37,7 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
 
   try {
     req.user = verifyAccessToken(token);
+    touchActive(req.user.userId);
     next();
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });

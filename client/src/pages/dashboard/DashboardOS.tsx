@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
-import { TeamPage, MarketingPage, LandBankPage, InvestorPage } from "@/pages/dashboard/FounderModules";
+import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperiencePage } from "@/pages/dashboard/FounderModules";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import "@/styles/founder-os.css";
 
@@ -22,8 +22,13 @@ export interface Overview {
   kpi: { totalRevenue: number; gmv: number; mrr: number; conversionRate: number; healthScore: number; totalUnits: number; soldUnits: number };
   metrics?: { avgDealSize: number; dealCount: number; revenuePerDeveloper: number; revenuePerCP: number; revenueThisMonth: number; revenueLastMonth: number; revenueGrowthMoM: number | null; arr: number };
   efficiency?: { cac: number | null; ltv: number | null; marketingSpend: number; avgSalesCycleDays: number | null; lostDeals: number; winRate: number | null; lostByReason: { reason: string; count: number }[]; lostReasonsTracked: boolean };
+  marketplace?: { activeDevelopers: number; activeCPs: number; activeBuyers: number; activeProjects: number; verifiedProjects: number; suspendedProjects: number; newBuyers30d: number; returningBuyers: number };
+  salesTeam?: { leaderboard: { name: string; leads: number; conversions: number; conversionRate: number; revenue: number }[]; avgResponseHours: number | null; respondedCount: number; tracked: boolean };
+  operations?: { siteVisitsToday: number; siteVisitsCompleted: number; kycPending: number; verificationPending: number; legalPending: number; agreementPending: number; registrationPending: number; followUpsDue: number };
+  activeUsers?: { dau: number; mau: number; tracked: boolean };
+  cx?: { nps: number | null; avgRating: number | null; responses: number; complaintsOpen: number; complaintsResolved: number; avgResolutionHours: number | null; tracked: boolean };
   notifications?: { tone: string; icon: string; text: string }[];
-  investor?: { mrr: number; arr: number; gmv: number; totalRevenue: number; growthMoM: number | null; payingAccounts: number; totalCustomers: number };
+  investor?: { mrr: number; arr: number; gmv: number; totalRevenue: number; growthMoM: number | null; payingAccounts: number; totalCustomers: number; mau: number; dau: number; activeUsersTracked: boolean };
 }
 export interface FinanceSummary {
   hasData: boolean; cashInflow: number; cashOutflow: number; netCashFlow: number; receivables: number; payables: number;
@@ -102,7 +107,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -234,10 +239,11 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "kpi" && <KpiPage d={d} fin={fin} />}
           {current === "insights" && <InsightsPage d={d} fin={fin} />}
           {current === "analytics" && <AnalyticsPage />}
-          {current === "team" && <TeamPage />}
+          {current === "team" && <TeamPage over={d} />}
           {current === "marketing" && <MarketingPage />}
           {current === "land" && <LandBankPage />}
           {current === "investor" && <InvestorPage over={d} fin={fin} />}
+          {current === "cx" && <CustomerExperiencePage />}
         </div>
       </div>
 
@@ -524,6 +530,35 @@ function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: 
               })()}
             </Panel>
           )}
+        </>
+      )}
+
+      {d.marketplace && (
+        <>
+          <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Marketplace health</div>
+          <div className="kpi-grid">
+            <Kpi icon="building" tone="blue" label="Active Developers" value={String(d.marketplace.activeDevelopers)} onClick={() => go("developers")} />
+            <Kpi icon="users" tone="green" label="Active Channel Partners" value={String(d.marketplace.activeCPs)} onClick={() => go("partners")} />
+            <Kpi icon="team" tone="blue" label="Active Buyers" value={String(d.marketplace.activeBuyers)} foot={`${d.marketplace.newBuyers30d} new in 30d`} />
+            <Kpi icon="grid" tone="green" label="Active Projects" value={String(d.marketplace.activeProjects)} foot={`${d.marketplace.verifiedProjects} verified`} onClick={() => go("projects")} />
+            <Kpi icon="shield" tone="blue" label="Verified Projects" value={String(d.marketplace.verifiedProjects)} />
+            <Kpi icon="refresh" tone="green" label="Returning Buyers" value={String(d.marketplace.returningBuyers)} foot="Enquired more than once" />
+            <Kpi icon="alert" tone={d.marketplace.suspendedProjects ? "red" : "green"} label="Suspended / Rejected" value={String(d.marketplace.suspendedProjects)} />
+          </div>
+        </>
+      )}
+
+      {d.operations && (
+        <>
+          <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>Operations queues</div>
+          <div className="kpi-grid">
+            <Kpi icon="target" tone="blue" label="Site Visits Today" value={String(d.operations.siteVisitsToday)} foot={`${d.operations.siteVisitsCompleted} completed all-time`} onClick={() => go("operations")} />
+            <Kpi icon="users" tone={d.operations.kycPending ? "amber" : "green"} label="KYC Pending" value={String(d.operations.kycPending)} onClick={() => go("verification")} />
+            <Kpi icon="shield" tone={d.operations.verificationPending ? "amber" : "green"} label="Verification Pending" value={String(d.operations.verificationPending)} onClick={() => go("verification")} />
+            <Kpi icon="book" tone={d.operations.legalPending ? "amber" : "green"} label="Legal Review Pending" value={String(d.operations.legalPending)} onClick={() => go("legal")} />
+            <Kpi icon="check" tone={d.operations.agreementPending ? "amber" : "green"} label="Agreement Pending" value={String(d.operations.agreementPending)} foot="Booked, awaiting agreement" onClick={() => go("bookings")} />
+            <Kpi icon="cog" tone={d.operations.registrationPending ? "amber" : "green"} label="Registration Pending" value={String(d.operations.registrationPending)} onClick={() => go("bookings")} />
+          </div>
         </>
       )}
 
@@ -999,6 +1034,7 @@ function DevelopersPage() {
 interface Analytics {
   revenueTrend: { month: string; revenue: number; gmv: number; bookings: number }[];
   leadsBySource: { source: string; count: number }[];
+  conversionBySource: { source: string; leads: number; converted: number; rate: number }[];
   revenueByCity: { city: string; gmv: number; bookings: number }[];
   inventoryByStatus: { status: string; count: number }[];
   totalUnits: number;
@@ -1059,6 +1095,19 @@ function AnalyticsPage() {
           <Donut centerLabel="Units" data={a.inventoryByStatus.map((s) => ({ name: s.status[0] + s.status.slice(1).toLowerCase(), value: s.count, color: invColors[s.status] || "#8A94A8" }))} />
         </Panel>
       </div>
+
+      <Panel title="Conversion by source" sub="Which lead sources actually close" icon="target" iconTone="blue">
+        {a.conversionBySource.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No leads recorded yet.</p>
+          : a.conversionBySource.map((s) => (
+            <div style={{ marginBottom: 12 }} key={s.source}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
+                <span style={{ fontWeight: 600, color: "var(--ink-700)" }}>{s.source}</span>
+                <b>{s.rate}% · {s.converted}/{s.leads}</b>
+              </div>
+              <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(3, s.rate)}%`, background: s.rate >= 30 ? "var(--green-600)" : s.rate >= 10 ? "var(--amber-500)" : "var(--red-500)" }} /></div>
+            </div>
+          ))}
+      </Panel>
 
       <Panel title="Revenue by city" sub="GMV routed by project location" icon="land" iconTone="amber">
         {a.revenueByCity.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No bookings recorded yet.</p>

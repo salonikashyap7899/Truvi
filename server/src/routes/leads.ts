@@ -145,9 +145,14 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   // lead moves back into the active pipeline.
   const lostReason = newStage === "LOST" ? (parsed.data.lostReason?.trim() || null) : null;
 
+  // First-response time: stamp the first time the lead is actively worked
+  // (moved to CONTACTED or any later stage) if not already recorded.
+  const worked = !["GENERATED", "ASSIGNED"].includes(newStage);
+  const firstContactedAt = lead.firstContactedAt || (worked ? new Date() : null);
+
   const [updated] = await db
     .update(leads)
-    .set({ stage: newStage as LeadStage, lostReason })
+    .set({ stage: newStage as LeadStage, lostReason, firstContactedAt })
     .where(eq(leads._id, lead._id))
     .returning();
 
