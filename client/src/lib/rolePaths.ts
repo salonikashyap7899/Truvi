@@ -20,10 +20,12 @@ const FOUNDER_EMAILS = new Set(
 export function dashboardPath(user: Pick<User, "role" | "email" | "isFounder">): string {
   switch (user.role) {
     case "ADMIN": {
-      // Prefer the server-stamped flag (authoritative, immune to client
-      // build/env drift); fall back to the email allowlist for older sessions
-      // whose cached user predates the flag.
-      const isFounder = user.isFounder ?? FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "");
+      // A founder lands on the CEO OS if EITHER signal says so: the
+      // server-stamped flag OR the client email allowlist. Using OR (not the
+      // server flag alone) means a known founder is never misrouted to the
+      // admin panel just because the server's founder-email config drifted
+      // and returned isFounder:false.
+      const isFounder = user.isFounder === true || FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "");
       return isFounder ? "/founder/dashboard" : "/admin/dashboard";
     }
     case "DEVELOPER":
