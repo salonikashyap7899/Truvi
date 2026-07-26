@@ -28,6 +28,7 @@ const config: DashboardOSConfig = {
       { key: "verification", label: "Verification", icon: "shield", count: d.executive.pendingActions || undefined },
       { key: "legal", label: "Legal", icon: "book" },
       { key: "support", label: "Support", icon: "bell", count: d.crm.enquiries || undefined },
+      { key: "cx", label: "Customer Experience", icon: "spark" },
       { key: "operations", label: "Operations", icon: "grid" },
     ] },
     { group: "Intelligence", items: [

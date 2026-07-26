@@ -46,6 +46,19 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
     // Founder analytics: lost-deal reason captured when a lead is marked LOST.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lost_reason" text`,
+    // Active-user tracking (MAU/DAU) and customer-experience (NPS/complaints).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_active_at" timestamptz`,
+    `CREATE TABLE IF NOT EXISTS "customer_feedback" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "kind" text NOT NULL DEFAULT 'NPS',
+       "customer_name" text,
+       "score" integer,
+       "note" text,
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "resolved_at" timestamptz,
+       "created_by_id" uuid,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
     `CREATE TABLE IF NOT EXISTS "lead_activities" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "lead_id" uuid NOT NULL REFERENCES "leads"("id"),

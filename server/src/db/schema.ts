@@ -330,6 +330,9 @@ export const users = pgTable(
     // editable by the account owner from their dashboard settings.
     avatarUrl: text("avatar_url"),
     bio: text("bio"),
+    // Last time this account made an authenticated request — powers the
+    // MAU/DAU active-user metrics (updated at most once per ~10 min).
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
@@ -863,6 +866,24 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+// Customer experience: NPS survey responses and complaints, logged by the
+// team. Drives the founder CX metrics (NPS score, open/closed complaints,
+// average resolution time). Created idempotently in ensureSchema.
+export const customerFeedback = pgTable("customer_feedback", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  kind: text("kind").$type<"NPS" | "COMPLAINT">().notNull().default("NPS"),
+  customerName: text("customer_name"),
+  // NPS: 0–10 recommendation score. Null for pure complaints.
+  score: integer("score"),
+  note: text("note"),
+  // COMPLAINT lifecycle.
+  status: text("status").$type<"OPEN" | "RESOLVED">().notNull().default("OPEN"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type ICustomerFeedback = typeof customerFeedback.$inferSelect;
 
 export const landParcels = pgTable("land_parcels", {
   _id: uuid("id").defaultRandom().primaryKey(),

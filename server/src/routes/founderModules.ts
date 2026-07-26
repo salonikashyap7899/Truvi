@@ -9,8 +9,9 @@ import {
   capTableEntries,
   fundraiseRounds,
   investorUpdates,
+  customerFeedback,
 } from "../db/schema";
-import { authenticate, requireRole } from "../middleware/auth";
+import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 
 /**
  * Founder-only operating modules (Team, Marketing, Land Bank, Investor). These
@@ -35,13 +36,14 @@ const zBool = z.preprocess((v) => {
 // --------------------------------------------------------------- aggregate
 router.get("/summary", async (_req, res) => {
   const db = getDb();
-  const [emps, campaigns, land, cap, rounds, updates] = await Promise.all([
+  const [emps, campaigns, land, cap, rounds, updates, feedback] = await Promise.all([
     db.select().from(employees).orderBy(desc(employees.performanceScore)),
     db.select().from(marketingCampaigns).orderBy(desc(marketingCampaigns.createdAt)),
     db.select().from(landParcels).orderBy(desc(landParcels.createdAt)),
     db.select().from(capTableEntries).orderBy(desc(capTableEntries.equityPercent)),
     db.select().from(fundraiseRounds).orderBy(desc(fundraiseRounds.createdAt)),
     db.select().from(investorUpdates).orderBy(desc(investorUpdates.createdAt)),
+    db.select().from(customerFeedback).orderBy(desc(customerFeedback.createdAt)),
   ]);
 
   // ---- Team ----
@@ -132,7 +134,30 @@ router.get("/summary", async (_req, res) => {
     updates: updates.slice(0, 10).map((u) => ({ id: String(u._id), title: u.title, body: u.body, createdAt: u.createdAt })),
   };
 
-  res.json({ team, marketing, landBank, investor });
+  // ---- Customer Experience (NPS / complaints) ----
+  const npsRows = feedback.filter((f) => f.kind === "NPS" && typeof f.score === "number");
+  const promoters = npsRows.filter((f) => (f.score as number) >= 9).length;
+  const detractors = npsRows.filter((f) => (f.score as number) <= 6).length;
+  const complaints = feedback.filter((f) => f.kind === "COMPLAINT");
+  const resolvedComplaints = complaints.filter((c) => c.status === "RESOLVED" && c.resolvedAt);
+  const cx = {
+    nps: npsRows.length ? Math.round(((promoters - detractors) / npsRows.length) * 100) : null,
+    avgRating: npsRows.length ? round(npsRows.reduce((s, f) => s + (f.score as number), 0) / npsRows.length) : null,
+    responses: npsRows.length,
+    promoters, detractors,
+    passives: npsRows.length - promoters - detractors,
+    complaintsOpen: complaints.filter((c) => c.status === "OPEN").length,
+    complaintsResolved: resolvedComplaints.length,
+    avgResolutionHours: resolvedComplaints.length
+      ? Math.round(resolvedComplaints.reduce((s, c) => s + (c.resolvedAt!.getTime() - c.createdAt.getTime()) / 3600000, 0) / resolvedComplaints.length)
+      : null,
+    rows: feedback.slice(0, 20).map((f) => ({
+      id: String(f._id), kind: f.kind, customerName: f.customerName, score: f.score,
+      note: f.note, status: f.status, createdAt: f.createdAt,
+    })),
+  };
+
+  res.json({ team, marketing, landBank, investor, cx });
 });
 
 // --------------------------------------------------------------- Team CRUD
@@ -263,6 +288,47 @@ router.post("/updates", async (req, res) => {
 router.delete("/updates/:id", async (req, res) => {
   const db = getDb();
   const [row] = await db.delete(investorUpdates).where(eq(investorUpdates._id, String(req.params.id))).returning();
+  if (!row) return res.status(404).json({ error: "Not found" });
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------ Customer Experience CRUD
+const feedbackSchema = z.object({
+  kind: z.enum(["NPS", "COMPLAINT"]),
+  customerName: z.string().max(120).optional(),
+  score: z.coerce.number().int().min(0).max(10).optional(),
+  note: z.string().max(500).optional(),
+  status: z.enum(["OPEN", "RESOLVED"]).optional(),
+});
+router.post("/feedback", async (req: AuthedRequest, res) => {
+  const parsed = feedbackSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const d = parsed.data;
+  const db = getDb();
+  const [row] = await db.insert(customerFeedback).values({
+    kind: d.kind,
+    customerName: d.customerName || null,
+    score: d.kind === "NPS" ? d.score ?? null : null,
+    note: d.note || null,
+    status: d.kind === "COMPLAINT" ? d.status ?? "OPEN" : "OPEN",
+    resolvedAt: d.kind === "COMPLAINT" && d.status === "RESOLVED" ? new Date() : null,
+    createdById: req.user!.userId,
+  }).returning();
+  res.status(201).json({ feedback: row });
+});
+// Mark a complaint resolved / reopen it.
+router.patch("/feedback/:id", async (req, res) => {
+  const status = req.body?.status === "RESOLVED" ? "RESOLVED" : "OPEN";
+  const db = getDb();
+  const [row] = await db.update(customerFeedback)
+    .set({ status, resolvedAt: status === "RESOLVED" ? new Date() : null })
+    .where(eq(customerFeedback._id, String(req.params.id))).returning();
+  if (!row) return res.status(404).json({ error: "Not found" });
+  res.json({ feedback: row });
+});
+router.delete("/feedback/:id", async (req, res) => {
+  const db = getDb();
+  const [row] = await db.delete(customerFeedback).where(eq(customerFeedback._id, String(req.params.id))).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
 });

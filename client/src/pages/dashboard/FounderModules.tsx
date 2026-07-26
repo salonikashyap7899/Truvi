@@ -29,7 +29,12 @@ interface InvestorSummary {
   capTable: { id: string; holderName: string; holderType: string; equityPercent: number; investedAmount: number }[];
   updates: { id: string; title: string; body: string | null; createdAt: string }[];
 }
-interface FounderSummary { team: TeamSummary; marketing: MarketingSummary; landBank: LandSummary; investor: InvestorSummary }
+interface CxSummary {
+  nps: number | null; avgRating: number | null; responses: number; promoters: number; detractors: number; passives: number;
+  complaintsOpen: number; complaintsResolved: number; avgResolutionHours: number | null;
+  rows: { id: string; kind: "NPS" | "COMPLAINT"; customerName: string | null; score: number | null; note: string | null; status: string; createdAt: string }[];
+}
+interface FounderSummary { team: TeamSummary; marketing: MarketingSummary; landBank: LandSummary; investor: InvestorSummary; cx: CxSummary }
 
 /* ------------------------------------------------------------------ hook */
 function useSummary() {
@@ -306,6 +311,8 @@ export function InvestorPage({ over, fin }: { over?: Overview; fin?: FinanceSumm
             <Kpi icon="target" tone={burnMultiple === null ? "blue" : burnMultiple <= 1.5 ? "green" : burnMultiple <= 3 ? "amber" : "red"} label="Burn Multiple" value={burnMultiple === null ? "—" : `${burnMultiple}x`} foot={burnMultiple === null ? "Needs finance + growth data" : "Net burn ÷ net new revenue"} />
             <Kpi icon="users" tone="blue" label="Paying Accounts" value={String(inv.payingAccounts)} foot={`${inv.totalCustomers} total customers`} />
             <Kpi icon="wallet" tone={fin?.hasData && fin.runwayMonths !== null ? "amber" : "green"} label="Runway" value={fin?.hasData ? (fin.runwayMonths === null ? "∞" : `${fin.runwayMonths} mo`) : "—"} foot={fin?.hasData ? `${formatCompactINR(fin.burnRate)}/mo burn` : "Connect finance"} />
+            <Kpi icon="spark" tone="green" label="MAU" value={inv.activeUsersTracked ? String(inv.mau) : "—"} foot={inv.activeUsersTracked ? "Active in 30 days" : "Starts tracking on deploy"} />
+            <Kpi icon="target" tone="blue" label="DAU" value={inv.activeUsersTracked ? String(inv.dau) : "—"} foot={inv.activeUsersTracked ? "Active today" : "Starts tracking on deploy"} />
           </div>
         </>
       )}
@@ -369,3 +376,49 @@ export function InvestorPage({ over, fin }: { over?: Overview; fin?: FinanceSumm
 }
 
 function statusBadgeText(s: string) { return s === "OPEN" ? "Open round" : "Closed"; }
+
+/* ==================================================== Customer Experience */
+export function CustomerExperiencePage() {
+  const { data, loading, reload } = useSummary();
+  if (loading || !data) return <Loading />;
+  const c = data.cx;
+  async function resolve(id: string, status: string) { await api.patch(`/founder/feedback/${id}`, { status: status === "OPEN" ? "RESOLVED" : "OPEN" }); reload(); }
+  async function del(id: string) { await api.delete(`/founder/feedback/${id}`); reload(); }
+  const npsTone = c.nps === null ? "blue" : c.nps >= 50 ? "green" : c.nps >= 0 ? "amber" : "red";
+  return (
+    <section className="page">
+      <div className="page-header"><div><div className="page-title">Customer Experience</div><div className="page-sub">NPS, ratings &amp; complaint resolution</div></div></div>
+      <div className="kpi-grid">
+        <Kpi icon="trophy" tone={npsTone as any} label="NPS Score" value={c.nps === null ? "—" : String(c.nps)} foot={c.responses ? `${c.responses} responses` : "Log survey responses"} />
+        <Kpi icon="spark" tone="green" label="Avg Rating" value={c.avgRating === null ? "—" : `${c.avgRating}/10`} foot={`${c.promoters} promoters · ${c.detractors} detractors`} />
+        <Kpi icon="alert" tone={c.complaintsOpen ? "red" : "green"} label="Open Complaints" value={String(c.complaintsOpen)} />
+        <Kpi icon="check" tone="blue" label="Resolved Complaints" value={String(c.complaintsResolved)} />
+        <Kpi icon="refresh" tone="blue" label="Avg Resolution" value={c.avgResolutionHours === null ? "—" : `${c.avgResolutionHours}h`} foot="Open → resolved" />
+      </div>
+      <Panel title="Feedback &amp; Complaints" sub="NPS responses and customer complaints"
+        action={<InlineForm endpoint="/founder/feedback" submitLabel="Add entry" onSaved={reload}
+          fields={[
+            { name: "kind", label: "Type", type: "select", options: [{ value: "NPS", label: "NPS / rating" }, { value: "COMPLAINT", label: "Complaint" }] },
+            { name: "customerName", label: "Customer", placeholder: "Name (optional)" },
+            { name: "score", label: "NPS score (0–10)", type: "number", placeholder: "0-10" },
+            { name: "status", label: "Complaint status", type: "select", options: [{ value: "OPEN", label: "Open" }, { value: "RESOLVED", label: "Resolved" }] },
+            { name: "note", label: "Note", type: "textarea", full: true, placeholder: "What did the customer say?" },
+          ]} />}>
+        {c.rows.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No feedback logged yet. Add NPS responses or complaints to track customer experience.</p>
+          : <div className="table-wrap"><table>
+            <thead><tr><th>Type</th><th>Customer</th><th>Score</th><th>Note</th><th>Status</th><th></th></tr></thead>
+            <tbody>{c.rows.map((f) => (
+              <tr key={f.id}>
+                <td><span className={`badge ${f.kind === "COMPLAINT" ? "amber" : "blue"}`}>{f.kind}</span></td>
+                <td>{f.customerName || "—"}</td>
+                <td>{f.score === null ? "—" : <b>{f.score}/10</b>}</td>
+                <td style={{ maxWidth: 260, whiteSpace: "normal" }}>{f.note || "—"}</td>
+                <td>{f.kind === "COMPLAINT" ? <button className="chip" onClick={() => resolve(f.id, f.status)}>{f.status === "OPEN" ? "Mark resolved" : "Reopen"}</button> : <span className="badge green">Logged</span>}</td>
+                <td><DelBtn onClick={() => del(f.id)} /></td>
+              </tr>
+            ))}</tbody>
+          </table></div>}
+      </Panel>
+    </section>
+  );
+}
