@@ -14,7 +14,7 @@
     "test:lighthouse": "node tests/06-lighthouse.mjs",
     "test:a11y": "node tests/07-accessibility.mjs",
     "test:security": "node tests/08-security-headers.mjs",
-    "postinstall": "echo 'Next: run \\'npx playwright install\\' once to download the browser, then \\'npm run test:all\\'.'"
+    "postinstall": "echo 'Next: run npx playwright install once to download the browser, then npm run test:all'"
   },
   "keywords": ["playwright", "qa", "accessibility", "lighthouse", "security", "non-destructive"],
   "license": "ISC",
