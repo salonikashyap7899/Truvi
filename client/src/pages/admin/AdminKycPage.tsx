@@ -64,8 +64,8 @@ export default function AdminKycPage() {
         <ShieldCheck size={22} className="text-[var(--trust)]" /> Identity verification
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Review Channel Partner Aadhaar, PAN and selfie submissions. Approving unlocks their workspace; documents are
-        deleted once you decide.
+        Review Aadhaar, PAN and selfie submissions from partners and developers. Approving unlocks their workspace;
+        documents are deleted once you decide. Each submitter's role is shown on their card.
       </p>
 
       {loading ? (
