@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
@@ -66,7 +66,12 @@ export default function AmbassadorLoginPage() {
                 />
               </div>
               <div>
-                <Label>Password</Label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <Label className="mb-0">Password</Label>
+                  <Link to="/forgot-password" className="text-xs font-medium text-sky-300 underline-offset-4 hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
                 <Input
                   type="password"
                   value={password}
