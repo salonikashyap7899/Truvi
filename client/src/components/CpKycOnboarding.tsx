@@ -104,7 +104,20 @@ export function CpKycOnboarding() {
       );
       toast.success(res.data.message || "Documents submitted for verification.");
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Could not submit your documents. Please try again.");
+      // Surface the *specific* reason: the server's own message (e.g. "Enter a
+      // valid 12-digit Aadhaar number", "Enter a valid PAN…"), then any field
+      // validation issue, then a status-coded message, and only fall back to a
+      // generic line when the request never reached the server at all.
+      const resp = err?.response;
+      const fieldError =
+        resp?.data?.issues?.fieldErrors &&
+        (Object.values(resp.data.issues.fieldErrors as Record<string, string[]>).flat().find(Boolean) as string | undefined);
+      const message =
+        resp?.data?.error ||
+        fieldError ||
+        (resp ? `Submission failed (error ${resp.status}). Please check your details and try again.`
+              : "Couldn't reach the server — check your internet connection and try again.");
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
