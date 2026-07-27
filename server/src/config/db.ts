@@ -200,6 +200,62 @@ async function ensureSchema(db: Db): Promise<void> {
        "body" text,
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    // Command Center financials: salary-payment tracking on employees + the
+    // founder-entered investment / revenue / recurring-payment ledgers.
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_paid_for_month" text`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_due_day" integer NOT NULL DEFAULT 1`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_start_date" timestamptz`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "notes" text`,
+    `CREATE TABLE IF NOT EXISTS "employee_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "employee_id" uuid NOT NULL REFERENCES "employees"("id"),
+       "month_key" text NOT NULL,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "note" text,
+       "paid_at" timestamptz NOT NULL DEFAULT now(),
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "employee_payments_employee_idx" ON "employee_payments" ("employee_id", "month_key")`,
+    `CREATE TABLE IF NOT EXISTS "command_investments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_investments_date_idx" ON "command_investments" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "command_revenues" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_revenues_date_idx" ON "command_revenues" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "recurring_expenses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "label" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'Other',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "due_day" integer NOT NULL DEFAULT 1,
+       "paid_for_month" text,
+       "paid_date" timestamptz,
+       "notes" text,
+       "active" boolean NOT NULL DEFAULT true,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // Monthly Costing payment tracking (added after the table's first release).
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "due_day" integer NOT NULL DEFAULT 1`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_for_month" text`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_date" timestamptz`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

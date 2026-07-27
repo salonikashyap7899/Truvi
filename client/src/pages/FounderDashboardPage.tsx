@@ -12,8 +12,12 @@ const config: DashboardOSConfig = {
   overviewTitle: "Founder Command Center",
   overviewSub: "Real-time snapshot across revenue, growth, trust & operations · Live data",
   showCopilot: true,
+  showFinancials: true,
   buildNav: (d: Overview) => [
     { group: "Command", items: [{ key: "overview", label: "Command Center", icon: "grid" }] },
+    { group: "Financials", items: [
+      { key: "financials", label: "Financials", icon: "wallet" },
+    ] },
     { group: "Business", items: [
       { key: "sales", label: "Sales CRM", icon: "chart" },
       { key: "partners", label: "Channel Partners", icon: "users" },
@@ -42,6 +46,8 @@ const config: DashboardOSConfig = {
       { key: "marketing", label: "Marketing", icon: "mega" },
       { key: "land", label: "Land Bank", icon: "land" },
       { key: "investor", label: "Investor", icon: "trophy" },
+      { key: "costing", label: "Monthly Costing", icon: "wallet" },
+      { key: "employers", label: "Total Employer", icon: "team" },
     ] },
   ],
 };
