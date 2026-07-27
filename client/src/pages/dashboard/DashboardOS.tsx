@@ -7,7 +7,7 @@ import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperiencePage } from "@/pages/dashboard/FounderModules";
-import { FinancialsPage, FinancialCards, useCommandFinance, type FinSection } from "@/pages/dashboard/CommandCenterFinance";
+import { FinancialsPage, FinancialCards, MonthlyCostingPage, useCommandFinance, type FinSection } from "@/pages/dashboard/CommandCenterFinance";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import "@/styles/founder-os.css";
 
@@ -108,7 +108,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "financials" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "financials" | "costing" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -237,6 +237,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
           {current === "financials" && <FinancialsPage initialSection={finSection} />}
+          {current === "costing" && <MonthlyCostingPage />}
           {current === "legal" && <LegalDashPage navigate={navigate} />}
           {current === "support" && <SupportDashPage navigate={navigate} />}
           {current === "operations" && <OperationsDashPage navigate={navigate} />}

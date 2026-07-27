@@ -972,16 +972,22 @@ export const commandRevenues = pgTable("command_revenues", {
 });
 export type ICommandRevenue = typeof commandRevenues.$inferSelect;
 
-// Recurring monthly payments (API/software subscriptions, hosting, Twilio,
-// office & other recurring costs). Only `active` rows count toward the Monthly
-// Payments card total.
-export type RecurringExpenseCategory =
-  | "API" | "SOFTWARE" | "HOSTING" | "TWILIO" | "OFFICE" | "MARKETING" | "OTHER";
+// Recurring monthly costs — the "Monthly Costing" ledger (API/software
+// subscriptions, hosting/server, Twilio, office rent, internet & other
+// recurring costs). Only `active` rows count toward the Monthly Costing total.
+// Payment tracking is month-scoped: `paidForMonth` holds the month key
+// (e.g. "2026-07") the expense was last marked paid for, so a new month
+// automatically flips everything back to Pending with no reset job.
+// `dueDay` is the day-of-month (1–28) the payment is due, driving the
+// upcoming-due list; `paidDate` is when it was actually paid this month.
 export const recurringExpenses = pgTable("recurring_expenses", {
   _id: uuid("id").defaultRandom().primaryKey(),
   label: text("label").notNull(),
-  category: text("category").$type<RecurringExpenseCategory>().notNull().default("OTHER"),
+  category: text("category").notNull().default("Other"),
   amount: doublePrecision("amount").notNull().default(0),
+  dueDay: integer("due_day").notNull().default(1),
+  paidForMonth: text("paid_for_month"),
+  paidDate: timestamp("paid_date", { withTimezone: true, mode: "date" }),
   notes: text("notes"),
   active: boolean("active").notNull().default(true),
   createdById: uuid("created_by_id").references(() => users._id),

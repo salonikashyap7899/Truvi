@@ -7,7 +7,6 @@ import {
   commandRevenues,
   recurringExpenses,
   employees,
-  RecurringExpenseCategory,
 } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
@@ -32,10 +31,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const isThisMonth = (d: Date, now: Date) =>
   d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-
-const RECURRING_CATEGORIES: RecurringExpenseCategory[] = [
-  "API", "SOFTWARE", "HOSTING", "TWILIO", "OFFICE", "MARKETING", "OTHER",
-];
+const isToday = (d: Date, now: Date) =>
+  d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 
 /* --------------------------------------------------------------- schemas */
 const entrySchema = z.object({
@@ -48,8 +45,9 @@ const entrySchema = z.object({
 
 const recurringSchema = z.object({
   label: z.string().min(1).max(200),
-  category: z.enum(RECURRING_CATEGORIES as [RecurringExpenseCategory, ...RecurringExpenseCategory[]]).default("OTHER"),
+  category: z.string().min(1).max(80).default("Other"),
   amount: z.coerce.number().min(0),
+  dueDay: z.coerce.number().int().min(1).max(28).default(1),
   notes: z.string().max(1000).optional().nullable(),
   active: z.coerce.boolean().default(true),
 });
@@ -118,10 +116,11 @@ router.delete("/revenues/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-/* ================================================= recurring monthly payments */
+/* ============================================ recurring monthly costing */
 router.get("/recurring", async (_req, res) => {
   const rows = await getDb().select().from(recurringExpenses).orderBy(desc(recurringExpenses.createdAt));
-  res.json({ recurring: rows });
+  const curKey = monthKey(new Date());
+  res.json({ monthKey: curKey, recurring: rows.map((r) => ({ ...r, paidThisMonth: r.paidForMonth === curKey })) });
 });
 
 router.post("/recurring", async (req: AuthedRequest, res) => {
@@ -131,6 +130,7 @@ router.post("/recurring", async (req: AuthedRequest, res) => {
     label: p.data.label,
     category: p.data.category,
     amount: p.data.amount,
+    dueDay: p.data.dueDay,
     notes: p.data.notes ?? null,
     active: p.data.active,
     createdById: req.user!.userId,
@@ -144,10 +144,24 @@ router.patch("/recurring/:id", async (req, res) => {
   const p = recurringSchema.partial().safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
   const patch: Record<string, unknown> = {};
-  for (const k of ["label", "category", "amount", "notes", "active"] as const)
+  for (const k of ["label", "category", "amount", "dueDay", "notes", "active"] as const)
     if (p.data[k] !== undefined) patch[k] = p.data[k];
   if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Nothing to update" });
   const [row] = await getDb().update(recurringExpenses).set(patch).where(eq(recurringExpenses._id, req.params.id)).returning();
+  if (!row) return res.status(404).json({ error: "Not found" });
+  pushLive();
+  res.json({ recurring: row });
+});
+
+// Mark (or un-mark) a recurring cost as paid for the CURRENT month. Records the
+// payment date; a new month automatically flips it back to Pending.
+router.post("/recurring/:id/pay", async (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
+  const paid = req.body?.paid !== false; // default: mark paid
+  const [row] = await getDb().update(recurringExpenses)
+    .set({ paidForMonth: paid ? monthKey(new Date()) : null, paidDate: paid ? new Date() : null })
+    .where(eq(recurringExpenses._id, req.params.id))
+    .returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   pushLive();
   res.json({ recurring: row });
@@ -228,22 +242,41 @@ router.get("/summary", async (_req, res) => {
 
   // ---- Revenue ----
   const revenueMonthRows = revenueRows.filter((r) => isThisMonth(r.date, now));
+  const revenueTodayRows = revenueRows.filter((r) => isToday(r.date, now));
   const revenue = {
     total: sum(revenueRows, (r) => r.amount),
     thisMonth: sum(revenueMonthRows, (r) => r.amount),
+    today: sum(revenueTodayRows, (r) => r.amount),
     count: revenueRows.length,
     monthCount: revenueMonthRows.length,
+    todayCount: revenueTodayRows.length,
   };
 
-  // ---- Monthly recurring payments ----
+  // ---- Monthly Costing (recurring expenses) ----
   const activeRecurring = recurringRows.filter((r) => r.active);
   const byCategory = Object.entries(
     activeRecurring.reduce<Record<string, number>>((acc, r) => ((acc[r.category] = (acc[r.category] || 0) + r.amount), acc), {})
   ).map(([category, amount]) => ({ category, amount: round2(amount) }));
-  const monthlyPayments = {
-    total: sum(activeRecurring, (r) => r.amount),
+  const paidRecurring = activeRecurring.filter((r) => r.paidForMonth === curKey);
+  const pendingRecurring = activeRecurring.filter((r) => r.paidForMonth !== curKey);
+  const totalMonthlyExpenses = sum(activeRecurring, (r) => r.amount);
+  const upcomingCosts = pendingRecurring
+    .map((r) => {
+      const day = Math.min(Math.max(r.dueDay || 1, 1), 28);
+      return { id: String(r._id), label: r.label, category: r.category, amount: round2(r.amount), dueDate: new Date(now.getFullYear(), now.getMonth(), day) };
+    })
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  const monthlyCosting = {
+    total: totalMonthlyExpenses,
+    finalMonthlyCost: totalMonthlyExpenses,
+    paidThisMonth: sum(paidRecurring, (r) => r.amount),
+    pending: sum(pendingRecurring, (r) => r.amount),
     activeCount: activeRecurring.length,
     totalCount: recurringRows.length,
+    paidCount: paidRecurring.length,
+    pendingCount: pendingRecurring.length,
+    upcomingCount: upcomingCosts.length,
+    upcoming: upcomingCosts.slice(0, 12),
     byCategory,
   };
 
@@ -270,13 +303,20 @@ router.get("/summary", async (_req, res) => {
     upcoming,
   };
 
+  // ---- Profit / Loss (Revenue − Investment − Monthly Expenses) ----
+  const profitLoss = {
+    total: round2(revenue.total - investments.total - monthlyCosting.total),
+    monthly: round2(revenue.thisMonth - investments.thisMonth - monthlyCosting.total),
+  };
+
   res.json({
     monthKey: curKey,
     monthLabel: now.toLocaleString("en-IN", { month: "long", year: "numeric" }),
     investments,
     revenue,
-    monthlyPayments,
+    monthlyCosting,
     salaries,
+    profitLoss,
   });
 });
 

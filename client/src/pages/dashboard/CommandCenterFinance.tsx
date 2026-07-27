@@ -7,22 +7,28 @@ import { Kpi, Panel } from "@/pages/dashboard/DashboardOS";
 
 /* ------------------------------------------------------------------ types */
 export type FinSection =
-  | "investment" | "monthly-investment" | "revenue" | "monthly-revenue" | "payments" | "salaries";
+  | "investment" | "monthly-investment" | "revenue" | "monthly-revenue" | "today-revenue" | "costing" | "salaries";
 
 export interface CommandFinanceSummary {
   monthKey: string;
   monthLabel: string;
   investments: { total: number; thisMonth: number; count: number; monthCount: number };
-  revenue: { total: number; thisMonth: number; count: number; monthCount: number };
-  monthlyPayments: { total: number; activeCount: number; totalCount: number; byCategory: { category: string; amount: number }[] };
+  revenue: { total: number; thisMonth: number; today: number; count: number; monthCount: number; todayCount: number };
+  monthlyCosting: {
+    total: number; finalMonthlyCost: number; paidThisMonth: number; pending: number;
+    activeCount: number; totalCount: number; paidCount: number; pendingCount: number; upcomingCount: number;
+    upcoming: { id: string; label: string; category: string; amount: number; dueDate: string }[];
+    byCategory: { category: string; amount: number }[];
+  };
   salaries: {
     payable: number; paid: number; pending: number; employeeCount: number; paidCount: number; pendingCount: number;
     upcoming: { id: string; name: string; amount: number; dueDate: string }[];
   };
+  profitLoss: { total: number; monthly: number };
 }
 
 interface EntryRow { _id: string; title: string; category: string; amount: number; date: string; notes: string | null }
-interface RecurringRow { _id: string; label: string; category: string; amount: number; notes: string | null; active: boolean }
+interface CostingRow { _id: string; label: string; category: string; amount: number; dueDay: number; paidThisMonth: boolean; paidDate: string | null; notes: string | null; active: boolean }
 interface SalaryRow { id: string; name: string; title: string | null; department: string; status: string; monthlyCtc: number; salaryDueDay: number; paidThisMonth: boolean }
 
 /* ------------------------------------------------------------------- hook */
@@ -99,28 +105,22 @@ function DelBtn({ onClick }: { onClick: () => void }) {
 }
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-const isThisMonth = (iso: string) => { const d = new Date(iso); const n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth(); };
+const sameMonth = (iso: string, ref: Date) => { const d = new Date(iso); return d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth(); };
+const isToday = (iso: string) => { const d = new Date(iso); const n = new Date(); return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate(); };
 
 const INVESTMENT_CATEGORIES = ["Product", "Infrastructure", "Marketing", "Team", "Legal", "Equipment", "Operations", "General"];
 const REVENUE_CATEGORIES = ["Sales", "Subscription", "Commission", "Service", "Consulting", "Other"];
-const RECURRING_CATEGORIES = [
-  { value: "API", label: "API subscription" },
-  { value: "SOFTWARE", label: "Software subscription" },
-  { value: "HOSTING", label: "Hosting / Server" },
-  { value: "TWILIO", label: "Twilio / Messaging" },
-  { value: "OFFICE", label: "Office expense" },
-  { value: "MARKETING", label: "Marketing" },
-  { value: "OTHER", label: "Other" },
-];
-const recurringLabel = (v: string) => RECURRING_CATEGORIES.find((c) => c.value === v)?.label ?? v;
+const COSTING_CATEGORIES = ["API Charges", "Software Subscription", "Server / Hosting", "Twilio", "Office Rent", "Internet", "Marketing", "Utilities", "Other"];
 
 /* =========================================================== overview cards */
 /**
- * The six always-visible financial summary cards for the Command Center. Each
- * is tappable and opens the matching detail section via `onOpen`.
+ * The always-visible financial summary cards for the Command Center / Revenue
+ * dashboard. Each is tappable and opens the matching detail section via
+ * `onOpen`. Every figure updates instantly on a command-finance:update event.
  */
 export function FinancialCards({ summary, onOpen }: { summary: CommandFinanceSummary | null; onOpen: (s: FinSection) => void }) {
   const s = summary;
+  const pl = s?.profitLoss.total ?? 0;
   return (
     <>
       <div className="section-label" style={{ margin: "4px 0 12px", fontSize: 12, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--ink-500)" }}>
@@ -131,21 +131,24 @@ export function FinancialCards({ summary, onOpen }: { summary: CommandFinanceSum
         <Kpi icon="trendUp" tone="blue" label="Monthly Investment" value={s ? formatCompactINR(s.investments.thisMonth) : "—"} foot={s ? `${s.investments.monthCount} this month` : "Loading…"} onClick={() => onOpen("monthly-investment")} />
         <Kpi icon="chart" tone="green" label="Total Revenue" value={s ? formatCompactINR(s.revenue.total) : "—"} foot={s ? `${s.revenue.count} entr${s.revenue.count === 1 ? "y" : "ies"}` : "Loading…"} onClick={() => onOpen("revenue")} />
         <Kpi icon="spark" tone="green" label="Monthly Revenue" value={s ? formatCompactINR(s.revenue.thisMonth) : "—"} foot={s ? `${s.revenue.monthCount} this month` : "Loading…"} onClick={() => onOpen("monthly-revenue")} />
-        <Kpi icon="refresh" tone="amber" label="Monthly Payments" value={s ? formatCompactINR(s.monthlyPayments.total) : "—"} foot={s ? `${s.monthlyPayments.activeCount} recurring` : "Loading…"} onClick={() => onOpen("payments")} />
+        <Kpi icon="bolt" tone="green" label="Today's Revenue" value={s ? formatINR(s.revenue.today) : "—"} foot={s ? `${s.revenue.todayCount} today` : "Loading…"} onClick={() => onOpen("today-revenue")} />
+        <Kpi icon="refresh" tone="amber" label="Monthly Costing" value={s ? formatCompactINR(s.monthlyCosting.total) : "—"} foot={s ? `${formatCompactINR(s.monthlyCosting.pending)} pending` : "Loading…"} onClick={() => onOpen("costing")} />
         <Kpi icon="team" tone={s && s.salaries.pending > 0 ? "amber" : "green"} label="Employee Salaries" value={s ? formatCompactINR(s.salaries.payable) : "—"} foot={s ? `${formatCompactINR(s.salaries.pending)} pending` : "Loading…"} onClick={() => onOpen("salaries")} />
+        <Kpi icon="trophy" tone={pl >= 0 ? "green" : "red"} label="Profit / Loss" value={s ? `${pl >= 0 ? "" : "−"}${formatCompactINR(Math.abs(pl))}` : "—"} foot="Revenue − Investment − Costing" />
       </div>
     </>
   );
 }
 
 /* ============================================================= detail page */
-const SECTIONS: { key: FinSection; label: string; icon: string }[] = [
-  { key: "investment", label: "Total Investment", icon: "wallet" },
-  { key: "monthly-investment", label: "Monthly Investment", icon: "trendUp" },
-  { key: "revenue", label: "Total Revenue", icon: "chart" },
-  { key: "monthly-revenue", label: "Monthly Revenue", icon: "spark" },
-  { key: "payments", label: "Monthly Payments", icon: "refresh" },
-  { key: "salaries", label: "Employee Salaries", icon: "team" },
+const SECTIONS: { key: FinSection; label: string }[] = [
+  { key: "investment", label: "Total Investment" },
+  { key: "monthly-investment", label: "Monthly Investment" },
+  { key: "revenue", label: "Total Revenue" },
+  { key: "monthly-revenue", label: "Monthly Revenue" },
+  { key: "today-revenue", label: "Today's Revenue" },
+  { key: "costing", label: "Monthly Costing" },
+  { key: "salaries", label: "Employee Salaries" },
 ];
 
 export function FinancialsPage({ initialSection = "investment" }: { initialSection?: FinSection }) {
@@ -156,35 +159,50 @@ export function FinancialsPage({ initialSection = "investment" }: { initialSecti
   return (
     <section className="page">
       <div className="page-header">
-        <div><div className="page-title">Financials</div><div className="page-sub">Investments, revenue, recurring payments &amp; salaries · Live{summary ? ` · ${summary.monthLabel}` : ""}</div></div>
+        <div><div className="page-title">Financials</div><div className="page-sub">Investment, revenue, monthly costing &amp; salaries · Live{summary ? ` · ${summary.monthLabel}` : ""}</div></div>
       </div>
 
       <FinancialCards summary={summary} onOpen={setSection} />
 
       <div className="fin-tabs" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "6px 0 4px" }}>
         {SECTIONS.map((t) => (
-          <button key={t.key} className={`chip${section === t.key ? " active" : ""}`} style={section === t.key ? { background: "var(--brand-100, rgba(124,92,255,.14))", color: "var(--brand-600, #7C5CFF)", borderColor: "var(--brand-500, #7C5CFF)" } : undefined} onClick={() => setSection(t.key)}>
+          <button key={t.key} className="chip" style={section === t.key ? { background: "var(--brand-100, rgba(124,92,255,.14))", color: "var(--brand-600, #7C5CFF)", borderColor: "var(--brand-500, #7C5CFF)" } : undefined} onClick={() => setSection(t.key)}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {section === "investment" && <EntrySection kind="investment" summary={summary} reload={reload} />}
-      {section === "monthly-investment" && <EntrySection kind="investment" monthly summary={summary} reload={reload} />}
-      {section === "revenue" && <EntrySection kind="revenue" summary={summary} reload={reload} />}
-      {section === "monthly-revenue" && <EntrySection kind="revenue" monthly summary={summary} reload={reload} />}
-      {section === "payments" && <PaymentsSection summary={summary} reload={reload} />}
+      {section === "investment" && <EntrySection kind="investment" mode="all" summary={summary} reload={reload} />}
+      {section === "monthly-investment" && <EntrySection kind="investment" mode="monthly" summary={summary} reload={reload} />}
+      {section === "revenue" && <EntrySection kind="revenue" mode="all" summary={summary} reload={reload} />}
+      {section === "monthly-revenue" && <EntrySection kind="revenue" mode="monthly" summary={summary} reload={reload} />}
+      {section === "today-revenue" && <EntrySection kind="revenue" mode="today" summary={summary} reload={reload} />}
+      {section === "costing" && <CostingSection summary={summary} reload={reload} />}
       {section === "salaries" && <SalariesSection summary={summary} reload={reload} />}
     </section>
   );
 }
 
+/** Standalone Founders-Only "Monthly Costing" page (sidebar section). */
+export function MonthlyCostingPage() {
+  const { summary, reload } = useCommandFinance();
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Monthly Costing</div><div className="page-sub">All recurring monthly business expenses · Live{summary ? ` · ${summary.monthLabel}` : ""}</div></div>
+      </div>
+      <CostingSection summary={summary} reload={reload} />
+    </section>
+  );
+}
+
 /* ------------------------------------------------ investment / revenue view */
-function EntrySection({ kind, monthly, summary, reload }: { kind: "investment" | "revenue"; monthly?: boolean; summary: CommandFinanceSummary | null; reload: () => void }) {
+function EntrySection({ kind, mode, summary, reload }: { kind: "investment" | "revenue"; mode: "all" | "monthly" | "today"; summary: CommandFinanceSummary | null; reload: () => void }) {
   const isInvest = kind === "investment";
   const path = isInvest ? "/command-finance/investments" : "/command-finance/revenues";
   const listKey = isInvest ? "investments" : "revenues";
   const [rows, setRows] = useState<EntryRow[] | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = current month, negative = past
   const categories = isInvest ? INVESTMENT_CATEGORIES : REVENUE_CATEGORIES;
 
   const load = useCallback(async () => {
@@ -193,7 +211,15 @@ function EntrySection({ kind, monthly, summary, reload }: { kind: "investment" |
   useEffect(() => { load(); }, [load]);
   useSocketEvent("command-finance:update", load);
 
-  const shown = useMemo(() => (rows || []).filter((r) => !monthly || isThisMonth(r.date)), [rows, monthly]);
+  const now = new Date();
+  const selMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const selLabel = selMonth.toLocaleString("en-IN", { month: "long", year: "numeric" });
+
+  const shown = useMemo(() => (rows || []).filter((r) => {
+    if (mode === "monthly") return sameMonth(r.date, selMonth);
+    if (mode === "today") return isToday(r.date);
+    return true;
+  }), [rows, mode, selMonth]);
   const total = shown.reduce((sm, r) => sm + r.amount, 0);
 
   async function add(v: Record<string, string>) {
@@ -206,42 +232,59 @@ function EntrySection({ kind, monthly, summary, reload }: { kind: "investment" |
   }
 
   const noun = isInvest ? "investment" : "revenue entry";
-  const title = monthly ? (isInvest ? "This Month's Investments" : "This Month's Revenue") : (isInvest ? "All Investments" : "All Revenue");
   const headTone = isInvest ? "blue" : "green";
+  const title =
+    mode === "today" ? (isInvest ? "Today's Investments" : "Today's Revenue")
+    : mode === "monthly" ? `${selLabel} — ${isInvest ? "Investments" : "Revenue"}`
+    : (isInvest ? "All Investments" : "All Revenue");
+  const metricLabel = mode === "today" ? "Today" : mode === "monthly" ? selLabel : "Total";
 
   return (
     <>
       <div className="kpi-grid">
-        <Kpi icon={isInvest ? "wallet" : "chart"} tone={headTone} label={monthly ? "This Month" : "Total"} value={formatINR(total)} foot={`${shown.length} entr${shown.length === 1 ? "y" : "ies"}`} />
-        {summary && !monthly && <Kpi icon="trendUp" tone={headTone} label="This Month" value={formatINR(isInvest ? summary.investments.thisMonth : summary.revenue.thisMonth)} />}
-        {summary && monthly && <Kpi icon={isInvest ? "wallet" : "chart"} tone={headTone} label="All-time Total" value={formatINR(isInvest ? summary.investments.total : summary.revenue.total)} />}
+        <Kpi icon={isInvest ? "wallet" : "chart"} tone={headTone} label={metricLabel} value={formatINR(total)} foot={`${shown.length} entr${shown.length === 1 ? "y" : "ies"}`} />
+        {summary && mode !== "all" && <Kpi icon={isInvest ? "wallet" : "chart"} tone={headTone} label="All-time Total" value={formatINR(isInvest ? summary.investments.total : summary.revenue.total)} />}
+        {summary && mode === "all" && <Kpi icon="trendUp" tone={headTone} label="This Month" value={formatINR(isInvest ? summary.investments.thisMonth : summary.revenue.thisMonth)} />}
+        {summary && !isInvest && mode !== "today" && <Kpi icon="bolt" tone="green" label="Today" value={formatINR(summary.revenue.today)} />}
       </div>
       <Panel
         title={title}
-        sub={monthly ? "Automatically limited to the current month — resets each month" : `Every entry updates the ${isInvest ? "Total Investment" : "Total Revenue"} card instantly`}
+        sub={
+          mode === "today" ? "Automatically limited to entries dated today"
+          : mode === "monthly" ? "Automatically rolled up by month — use the arrows to browse past months"
+          : `Every entry updates the ${isInvest ? "Total Investment" : "Total Revenue"} card instantly`
+        }
         icon={isInvest ? "wallet" : "chart"} iconTone={headTone}
-        action={monthly ? undefined : (
-          <InlineForm submitLabel={`Add ${noun}`} onSubmit={add}
-            fields={[
-              { name: "title", label: isInvest ? "Title / Purpose" : "Title", placeholder: isInvest ? "e.g. Cloud infrastructure" : "e.g. Enterprise plan sale" },
-              { name: "category", label: "Category", type: "select", options: categories.map((c) => ({ value: c, label: c })) },
-              { name: "amount", label: "Amount (₹)", type: "number", placeholder: "0" },
-              { name: "date", label: "Date", type: "date" },
-              { name: "notes", label: "Notes (optional)", type: "textarea", placeholder: "Any details…", full: true },
-            ]} />
-        )}
+        action={
+          mode === "monthly" ? (
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button className="chip" onClick={() => setMonthOffset((o) => o - 1)} title="Previous month">‹</button>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-700)", minWidth: 96, textAlign: "center" }}>{selLabel}</span>
+              <button className="chip" onClick={() => setMonthOffset((o) => Math.min(0, o + 1))} disabled={monthOffset >= 0} title="Next month">›</button>
+            </div>
+          ) : mode === "all" ? (
+            <InlineForm submitLabel={`Add ${noun}`} onSubmit={add}
+              fields={[
+                { name: "title", label: isInvest ? "Title / Purpose" : "Title", placeholder: isInvest ? "e.g. Cloud infrastructure" : "e.g. Enterprise plan sale" },
+                { name: "category", label: "Category", type: "select", options: categories.map((c) => ({ value: c, label: c })) },
+                { name: "amount", label: "Amount (₹)", type: "number", placeholder: "0" },
+                { name: "date", label: "Date", type: "date" },
+                { name: "notes", label: "Notes (optional)", type: "textarea", placeholder: "Any details…", full: true },
+              ]} />
+          ) : undefined
+        }
       >
         {rows === null ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>Loading…</p>
-          : shown.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>{monthly ? `No ${noun}s recorded this month yet.` : `No ${noun}s yet. Add your first one.`}</p>
+          : shown.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>{mode === "all" ? `No ${noun}s yet. Add your first one.` : `No ${noun}s in this period yet.`}</p>
           : <div className="table-wrap"><table>
-              <thead><tr><th>{isInvest ? "Purpose" : "Title"}</th><th>Category</th><th>Date</th><th>Amount</th>{!monthly && <th></th>}</tr></thead>
+              <thead><tr><th>{isInvest ? "Purpose" : "Title"}</th><th>Category</th><th>Date</th><th>Amount</th>{mode === "all" && <th></th>}</tr></thead>
               <tbody>{shown.map((r) => (
                 <tr key={r._id}>
                   <td><b>{r.title}</b>{r.notes ? <div style={{ fontSize: 11, color: "var(--ink-500)" }}>{r.notes}</div> : null}</td>
                   <td><span className="badge blue">{r.category}</span></td>
                   <td>{fmtDate(r.date)}</td>
                   <td><b>{formatINR(r.amount)}</b></td>
-                  {!monthly && <td><DelBtn onClick={() => del(r._id)} /></td>}
+                  {mode === "all" && <td><DelBtn onClick={() => del(r._id)} /></td>}
                 </tr>
               ))}</tbody>
             </table></div>}
@@ -250,22 +293,26 @@ function EntrySection({ kind, monthly, summary, reload }: { kind: "investment" |
   );
 }
 
-/* -------------------------------------------------- recurring payments view */
-function PaymentsSection({ summary, reload }: { summary: CommandFinanceSummary | null; reload: () => void }) {
-  const [rows, setRows] = useState<RecurringRow[] | null>(null);
+/* --------------------------------------------------- Monthly Costing view */
+function CostingSection({ summary, reload }: { summary: CommandFinanceSummary | null; reload: () => void }) {
+  const [rows, setRows] = useState<CostingRow[] | null>(null);
   const load = useCallback(async () => {
     try { setRows((await api.get("/command-finance/recurring")).data.recurring); } catch { setRows([]); }
   }, []);
   useEffect(() => { load(); }, [load]);
   useSocketEvent("command-finance:update", load);
 
-  const activeTotal = (rows || []).filter((r) => r.active).reduce((s, r) => s + r.amount, 0);
+  const c = summary?.monthlyCosting;
 
   async function add(v: Record<string, string>) {
     try { await api.post("/command-finance/recurring", v); toast.success("Saved"); reload(); load(); }
     catch (err: any) { toast.error(err?.response?.data?.error || "Failed to save"); throw err; }
   }
-  async function toggle(r: RecurringRow) {
+  async function pay(id: string, paid: boolean) {
+    try { await api.post(`/command-finance/recurring/${id}/pay`, { paid }); reload(); load(); }
+    catch (err: any) { toast.error(err?.response?.data?.error || "Failed to update"); }
+  }
+  async function toggleActive(r: CostingRow) {
     try { await api.patch(`/command-finance/recurring/${r._id}`, { active: !r.active }); reload(); load(); }
     catch (err: any) { toast.error(err?.response?.data?.error || "Failed to update"); }
   }
@@ -274,43 +321,71 @@ function PaymentsSection({ summary, reload }: { summary: CommandFinanceSummary |
     catch (err: any) { toast.error(err?.response?.data?.error || "Failed to delete"); }
   }
 
+  const dueLabel = (day: number) => new Date(new Date().getFullYear(), new Date().getMonth(), Math.min(Math.max(day, 1), 28)).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
   return (
     <>
       <div className="kpi-grid">
-        <Kpi icon="refresh" tone="amber" label="Total Monthly Payments" value={formatINR(activeTotal)} foot={`${(rows || []).filter((r) => r.active).length} active recurring`} />
-        {summary?.monthlyPayments.byCategory.slice(0, 4).map((c) => (
-          <Kpi key={c.category} icon="wallet" tone="blue" label={recurringLabel(c.category)} value={formatINR(c.amount)} />
-        ))}
+        <Kpi icon="refresh" tone="amber" label="Total Monthly Expenses" value={c ? formatINR(c.total) : "—"} foot={c ? `${c.activeCount} recurring` : ""} />
+        <Kpi icon="check" tone="green" label="Paid This Month" value={c ? formatINR(c.paidThisMonth) : "—"} foot={c ? `${c.paidCount} paid` : ""} />
+        <Kpi icon="bell" tone={c && c.pending > 0 ? "amber" : "green"} label="Pending Payments" value={c ? formatINR(c.pending) : "—"} foot={c ? `${c.pendingCount} pending` : ""} />
+        <Kpi icon="target" tone="blue" label="Upcoming Due" value={c ? String(c.upcomingCount) : "—"} foot="Not yet paid this month" />
+        <Kpi icon="wallet" tone="blue" label="Final Monthly Cost" value={c ? formatINR(c.finalMonthlyCost) : "—"} foot="Total recurring cost / month" />
       </div>
+
       <Panel
-        title="Recurring Monthly Payments"
-        sub="API & software subscriptions, hosting, Twilio, office & other recurring costs — the total feeds the dashboard card automatically"
+        title="Monthly Expenses"
+        sub="API & software subscriptions, server/hosting, Twilio, office rent, internet & other recurring costs — mark each paid as you settle it"
         icon="refresh" iconTone="amber"
         action={
-          <InlineForm submitLabel="Add payment" onSubmit={add}
+          <InlineForm submitLabel="Add expense" onSubmit={add}
             fields={[
-              { name: "label", label: "Label", placeholder: "e.g. AWS hosting" },
-              { name: "category", label: "Category", type: "select", options: RECURRING_CATEGORIES },
-              { name: "amount", label: "Monthly amount (₹)", type: "number", placeholder: "0" },
+              { name: "label", label: "Expense name", placeholder: "e.g. AWS server" },
+              { name: "category", label: "Category", type: "select", options: COSTING_CATEGORIES.map((c) => ({ value: c, label: c })) },
+              { name: "amount", label: "Amount (₹)", type: "number", placeholder: "0" },
+              { name: "dueDay", label: "Payment due day (1-28)", type: "number", placeholder: "1" },
               { name: "notes", label: "Notes (optional)", type: "textarea", placeholder: "Any details…", full: true },
             ]} />
         }
       >
         {rows === null ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>Loading…</p>
-          : rows.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No recurring payments yet. Add your subscriptions, hosting &amp; office costs.</p>
+          : rows.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No monthly expenses yet. Add your subscriptions, hosting, rent &amp; other recurring costs.</p>
           : <div className="table-wrap"><table>
-              <thead><tr><th>Payment</th><th>Category</th><th>Monthly</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Expense</th><th>Category</th><th>Amount</th><th>Due</th><th>Status</th><th>Paid on</th><th></th></tr></thead>
               <tbody>{rows.map((r) => (
-                <tr key={r._id} style={r.active ? undefined : { opacity: 0.55 }}>
+                <tr key={r._id} style={r.active ? undefined : { opacity: 0.5 }}>
                   <td><b>{r.label}</b>{r.notes ? <div style={{ fontSize: 11, color: "var(--ink-500)" }}>{r.notes}</div> : null}</td>
-                  <td><span className="badge blue">{recurringLabel(r.category)}</span></td>
+                  <td><span className="badge blue">{r.category}</span></td>
                   <td><b>{formatINR(r.amount)}</b></td>
-                  <td><button className={`badge ${r.active ? "green" : "amber"}`} style={{ cursor: "pointer", border: "none" }} onClick={() => toggle(r)} title="Toggle active">{r.active ? "Active" : "Paused"}</button></td>
-                  <td><DelBtn onClick={() => del(r._id)} /></td>
+                  <td>{dueLabel(r.dueDay)}</td>
+                  <td>{r.paidThisMonth ? <span className="badge green">Paid</span> : <span className="badge amber">Pending</span>}</td>
+                  <td>{r.paidThisMonth && r.paidDate ? fmtDate(r.paidDate) : <span style={{ color: "var(--ink-400)" }}>—</span>}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {r.paidThisMonth
+                      ? <button className="chip" onClick={() => pay(r._id, false)}>Undo</button>
+                      : <button className="btn btn-primary" onClick={() => pay(r._id, true)}>Mark paid</button>}
+                    <button className="chip" style={{ marginLeft: 6 }} onClick={() => toggleActive(r)} title={r.active ? "Pause (exclude from totals)" : "Resume"}>{r.active ? "Pause" : "Resume"}</button>
+                    <DelBtn onClick={() => del(r._id)} />
+                  </td>
                 </tr>
               ))}</tbody>
             </table></div>}
       </Panel>
+
+      {c && c.upcoming.length > 0 && (
+        <Panel title="Upcoming Due Payments" sub="Active expenses not yet paid this month" icon="bell" iconTone="amber">
+          {c.upcoming.map((u) => (
+            <div className="list-row" key={u.id}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{u.label}</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>{u.category} · due {fmtDate(u.dueDate)}</div>
+              </div>
+              <b>{formatINR(u.amount)}</b>
+              <button className="btn btn-primary" onClick={() => pay(u.id, true)} style={{ marginLeft: 10 }}>Pay</button>
+            </div>
+          ))}
+        </Panel>
+      )}
     </>
   );
 }

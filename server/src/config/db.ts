@@ -229,13 +229,20 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE TABLE IF NOT EXISTS "recurring_expenses" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "label" text NOT NULL,
-       "category" text NOT NULL DEFAULT 'OTHER',
+       "category" text NOT NULL DEFAULT 'Other',
        "amount" double precision NOT NULL DEFAULT 0,
+       "due_day" integer NOT NULL DEFAULT 1,
+       "paid_for_month" text,
+       "paid_date" timestamptz,
        "notes" text,
        "active" boolean NOT NULL DEFAULT true,
        "created_by_id" uuid REFERENCES "users"("id"),
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    // Monthly Costing payment tracking (added after the table's first release).
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "due_day" integer NOT NULL DEFAULT 1`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_for_month" text`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_date" timestamptz`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
