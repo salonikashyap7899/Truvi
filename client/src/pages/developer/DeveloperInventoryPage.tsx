@@ -1,13 +1,16 @@
 import { useMemo, useState } from "react";
 import { Boxes, Gauge, AlertTriangle, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
 import { DevHubNav } from "@/components/DevHubNav";
 import { DevProGate } from "@/components/DevProGate";
 import UserMenu from "@/components/UserMenu";
+import { api } from "@/lib/api";
 import { useDeveloperData } from "@/lib/useDeveloperData";
 import { useDeveloperEntitlement } from "@/lib/devEntitlements";
 import { inventoryHeatMap, inventoryHealth, unitTower } from "@/lib/devIntel";
+import { PROJECT_TYPE_OPTIONS, inventoryTerms } from "@/lib/projectTypes";
 import { formatINR, formatCompactINR, cn } from "@/lib/utils";
 import type { UnitStatus } from "@/types";
 
@@ -19,12 +22,39 @@ const STATUS_VARIANT: Record<UnitStatus, "success" | "warning" | "info" | "dange
 };
 
 export default function DeveloperInventoryPage() {
-  const { projects, units, unitsByProject } = useDeveloperData();
+  const { projects, units, unitsByProject, reload } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [projectFilter, setProjectFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<UnitStatus | "ALL">("ALL");
+  // Optimistic project-type edits so the inventory relabels instantly, before
+  // the background reload lands.
+  const [typeOverrides, setTypeOverrides] = useState<Record<string, string>>({});
+  const [savingType, setSavingType] = useState(false);
 
   const aiUnlocked = !!entitlement?.ai;
+
+  // A single selected project drives the inventory vocabulary (Tower / Plot /
+  // Block…). "All projects" falls back to neutral terms.
+  const selectedProject = projectFilter === "ALL" ? null : projects.find((p) => p._id === projectFilter) ?? null;
+  const effectiveType = selectedProject ? (typeOverrides[selectedProject._id] ?? selectedProject.projectType ?? "") : "";
+  const terms = inventoryTerms(effectiveType || undefined);
+
+  async function changeProjectType(value: string) {
+    if (!selectedProject || !value) return;
+    const previous = typeOverrides[selectedProject._id] ?? selectedProject.projectType ?? "";
+    setTypeOverrides((o) => ({ ...o, [selectedProject._id]: value }));
+    setSavingType(true);
+    try {
+      await api.patch(`/projects/${selectedProject._id}`, { projectType: value });
+      toast.success("Project type updated — inventory relabelled");
+      reload();
+    } catch (err: any) {
+      setTypeOverrides((o) => ({ ...o, [selectedProject._id]: previous }));
+      toast.error(err?.response?.data?.error || "Couldn't update project type");
+    } finally {
+      setSavingType(false);
+    }
+  }
 
   const visibleUnits = useMemo(() => {
     let list = projectFilter === "ALL" ? units : unitsByProject[projectFilter] ?? [];
@@ -86,11 +116,11 @@ export default function DeveloperInventoryPage() {
       {/* Heat map */}
       {heat.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-medium">Heat map — absorption by tower</h2>
+          <h2 className="text-lg font-medium">Heat map — absorption by {terms.group.toLowerCase()}</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {heat.map((b) => (
               <div key={b.label} className="flex items-center gap-3 rounded-xl border border-white/10 glass px-4 py-3">
-                <span className="w-16 shrink-0 text-sm">Tower {b.label}</span>
+                <span className="w-16 shrink-0 text-sm">{terms.group} {b.label}</span>
                 <div className="h-3 flex-1 overflow-hidden rounded-full bg-white/5">
                   <div
                     className={cn("h-full rounded-full", b.soldPercent >= 80 ? "bg-emerald-500" : b.soldPercent >= 50 ? "bg-amber-500" : "bg-sky-500")}
@@ -115,7 +145,7 @@ export default function DeveloperInventoryPage() {
               const delta = b.soldPercent >= 80 ? 3 : b.soldPercent >= 50 ? 0 : -3;
               return (
                 <Card key={b.label} className="border-purple-500/20 bg-purple-950/10 text-white">
-                  <p className="text-sm font-medium">Tower {b.label}</p>
+                  <p className="text-sm font-medium">{terms.group} {b.label}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{b.soldPercent}% sold</p>
                   <p className={cn("mt-2 text-sm font-semibold", delta > 0 ? "text-emerald-400" : delta < 0 ? "text-rose-400" : "text-muted-foreground")}>
                     {delta > 0 ? `Raise price ${delta}%` : delta < 0 ? `Discount ${Math.abs(delta)}% to move` : "Hold price"}
@@ -140,6 +170,20 @@ export default function DeveloperInventoryPage() {
               <option value="ALL">All projects</option>
               {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
             </select>
+            {/* Project type — sets what a project's units are called (Tower / Plot
+                / Block…). Enabled once a single project is selected above. */}
+            <select
+              value={effectiveType}
+              onChange={(e) => changeProjectType(e.target.value)}
+              disabled={!selectedProject || savingType}
+              title={selectedProject ? "Set this project's type — the inventory relabels automatically" : "Pick a single project first to set its type"}
+              className="h-9 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">{selectedProject ? "Set project type…" : "Project type — pick a project"}</option>
+              {PROJECT_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
+              ))}
+            </select>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as UnitStatus | "ALL")}
@@ -153,14 +197,21 @@ export default function DeveloperInventoryPage() {
             </select>
           </div>
         </div>
+        {selectedProject && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {effectiveType
+              ? <>Showing <b className="text-white/80">{selectedProject.name}</b> as {inventoryTerms(effectiveType).unit.toLowerCase()}s grouped by {terms.group.toLowerCase()}.</>
+              : <>Pick a project type for <b className="text-white/80">{selectedProject.name}</b> to label its inventory correctly.</>}
+          </p>
+        )}
 
         <div className="mt-3 overflow-x-auto rounded-xl border border-white/10 glass">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">
               <tr className="border-b border-white/10">
-                <th className="px-4 py-3">Unit</th>
+                <th className="px-4 py-3">{terms.unit}</th>
                 <th className="px-4 py-3">Project</th>
-                <th className="px-4 py-3">Tower</th>
+                <th className="px-4 py-3">{terms.group}</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3 text-right">Area</th>
                 <th className="px-4 py-3 text-right">Price</th>

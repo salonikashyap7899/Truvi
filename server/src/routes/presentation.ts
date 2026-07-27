@@ -17,6 +17,7 @@ import {
   PresentationInfo,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
@@ -317,7 +318,7 @@ router.delete(
 
 // PUT /api/presentation/:id/info — structured details (type, amenities, security…)
 const infoSchema = z.object({
-  projectType: z.enum(["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL", "MIXED_USE", "PLOTTED"]).optional(),
+  projectType: z.enum(PROJECT_TYPE_VALUES).optional(),
   amenities: z.array(z.string()).optional(),
   securityFeatures: z.array(z.string()).optional(),
   smartHomeFeatures: z.array(z.string()).optional(),

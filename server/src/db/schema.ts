@@ -32,7 +32,17 @@ export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type ListingTier = "STANDARD" | "FEATURED";
-export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
+export type ProjectType =
+  | "APARTMENT"
+  | "VILLA"
+  | "PLOTTED"
+  | "COMMERCIAL"
+  | "INDUSTRIAL"
+  | "LAND"
+  | "MIXED"
+  // Legacy values still present on older projects.
+  | "RESIDENTIAL"
+  | "MIXED_USE";
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH";
 export type ReraStatus = "REGISTERED" | "PENDING" | "NOT_REGISTERED";
 export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";

@@ -6,7 +6,8 @@ import { Input, Label } from "@/components/ui/primitives";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { Upload, Trash2, FileText, Loader2, ExternalLink, Save, ShieldCheck, Clock } from "lucide-react";
-import { ASSET_SECTIONS, ALL_CATEGORIES, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
+import { ASSET_SECTIONS, ALL_CATEGORIES, categoryLabel } from "@/lib/assetCategories";
+import { PROJECT_TYPE_OPTIONS } from "@/lib/projectTypes";
 import type { Project, ProjectAsset } from "@/types";
 
 /** Categories treated as legal documents — public only after admin verification. */
@@ -166,8 +167,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
               className="mt-1 h-9 w-full rounded-lg border border-white/15 bg-card px-3 text-sm text-white outline-none focus:border-blue-500"
             >
               <option value="">— Select —</option>
-              {Object.entries(PROJECT_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {PROJECT_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
               ))}
             </select>
           </div>
