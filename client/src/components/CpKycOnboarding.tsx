@@ -110,18 +110,6 @@ export function CpKycOnboarding() {
     }
   }
 
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-display font-semibold tracking-wide">
-          <ShieldCheck size={18} className="text-[var(--trust)]" /> Identity verification
-        </div>
-        <UserMenu />
-      </div>
-      <div className="mx-auto max-w-xl">{children}</div>
-    </main>
-  );
-
   // Submitted and awaiting review — no form, just a status card.
   if (status === "PENDING") {
     return (
@@ -239,6 +227,26 @@ export function CpKycOnboarding() {
         </button>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Page chrome for the identity flow. Defined at module scope (NOT inside
+ * CpKycOnboarding) so its component identity is stable across renders —
+ * otherwise every keystroke would remount the whole form and the focused input
+ * (e.g. the Aadhaar field) would lose the cursor after each character.
+ */
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="min-h-screen p-6 text-white md:p-10">
+      <div className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-2 font-display font-semibold tracking-wide">
+          <ShieldCheck size={18} className="text-[var(--trust)]" /> Identity verification
+        </div>
+        <UserMenu />
+      </div>
+      <div className="mx-auto max-w-xl">{children}</div>
+    </main>
   );
 }
 
