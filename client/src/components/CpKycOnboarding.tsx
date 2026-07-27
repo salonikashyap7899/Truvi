@@ -16,6 +16,11 @@ export function CpKycOnboarding() {
   const user = useAuthStore((s) => s.user);
   const status = user?.onboardingChecks?.kycStatus;
   const rejectionReason = user?.onboardingChecks?.kycRejectionReason;
+  // Same KYC flow for Channel Partners and Ambassadors — just role-aware copy.
+  const intro =
+    user?.role === "AMBASSADOR"
+      ? "Ambassadors must verify their identity before accessing tasks and earnings. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification."
+      : "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.";
 
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [panNumber, setPanNumber] = useState("");
@@ -104,7 +109,20 @@ export function CpKycOnboarding() {
       );
       toast.success(res.data.message || "Documents submitted for verification.");
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Could not submit your documents. Please try again.");
+      // Surface the *specific* reason: the server's own message (e.g. "Enter a
+      // valid 12-digit Aadhaar number", "Enter a valid PAN…"), then any field
+      // validation issue, then a status-coded message, and only fall back to a
+      // generic line when the request never reached the server at all.
+      const resp = err?.response;
+      const fieldError =
+        resp?.data?.issues?.fieldErrors &&
+        (Object.values(resp.data.issues.fieldErrors as Record<string, string[]>).flat().find(Boolean) as string | undefined);
+      const message =
+        resp?.data?.error ||
+        fieldError ||
+        (resp ? `Submission failed (error ${resp.status}). Please check your details and try again.`
+              : "Couldn't reach the server — check your internet connection and try again.");
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -135,10 +153,7 @@ export function CpKycOnboarding() {
           <ShieldCheck size={22} />
         </div>
         <h1 className="mt-4 text-xl font-semibold">Verify your identity to start</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar
-          and PAN, and take a live selfie. Your documents are stored securely for verification.
-        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{intro}</p>
 
         {status === "REJECTED" && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2.5 text-sm text-red-300">

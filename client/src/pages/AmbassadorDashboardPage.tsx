@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
-import { AmbassadorOnboarding } from "@/components/AmbassadorOnboarding";
+import { CpKycOnboarding } from "@/components/CpKycOnboarding";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
@@ -75,6 +75,10 @@ export default function AmbassadorDashboardPage() {
 
   if (!user) return null;
 
+  // Identity gate — same full KYC (Aadhaar + PAN + live selfie → admin review)
+  // as Channel Partners. Ambassadors can't access tasks until verified.
+  if (!user.onboardingVerified) return <CpKycOnboarding />;
+
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -97,17 +101,7 @@ export default function AmbassadorDashboardPage() {
         </div>
       </div>
 
-      <AmbassadorOnboarding />
-
-      {!user.onboardingVerified ? (
-        <div className="mt-8 rounded-3xl border border-amber-500/20 bg-amber-950/20 p-6 text-sm text-amber-100">
-          <p className="text-base font-semibold">Verification required</p>
-          <p className="mt-2">
-            Complete phone, email, and Aadhaar verification above to unlock available tasks.
-          </p>
-        </div>
-      ) : (
-        <div className="mt-8 space-y-8">
+      <div className="mt-8 space-y-8">
           {/* My active / completed tasks */}
           {mine.length > 0 && (
             <section className="space-y-4">
@@ -183,8 +177,7 @@ export default function AmbassadorDashboardPage() {
               </div>
             )}
           </section>
-        </div>
-      )}
+      </div>
 
       {showQRCode && <AmbassadorQRCode onClose={() => setShowQRCode(false)} />}
     </main>

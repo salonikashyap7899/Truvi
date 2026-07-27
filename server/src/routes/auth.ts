@@ -19,7 +19,7 @@ import {
 import { isValidId } from "../lib/ids";
 import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
-import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { authenticate, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
@@ -762,10 +762,15 @@ router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), as
 // scoped to those roles. Documents are stored and the submission is marked
 // PENDING for review — access stays locked until a provider (see kycService) or
 // an admin approves it.
+//
+// NOTE: we deliberately do NOT use `requireRole` here — its CP branch rejects
+// any Channel Partner whose onboarding isn't verified yet, which is exactly the
+// state of every user submitting KYC (they submit precisely to get verified).
+// The role check is done inline below, after the upload is consumed, so a
+// rejected request never resets the connection mid-upload.
 router.post(
   "/submit-kyc",
   authenticate,
-  requireRole("CP", "AMBASSADOR"),
   kycUpload.fields([
     { name: "aadhaar", maxCount: 1 },
     { name: "pan", maxCount: 1 },
@@ -774,6 +779,11 @@ router.post(
   async (req: AuthedRequest, res) => {
     const userId = req.user!.userId;
     if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+    // KYC is a Channel Partner / Ambassador requirement only.
+    if (req.user!.role !== "CP" && req.user!.role !== "AMBASSADOR") {
+      return res.status(403).json({ error: "Identity verification is only required for Channel Partners and Ambassadors." });
+    }
 
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const aadhaarFile = files?.aadhaar?.[0];
