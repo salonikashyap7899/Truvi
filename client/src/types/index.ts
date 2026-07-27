@@ -40,7 +40,17 @@ export type LeadStage =
   | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "COMPLETED" | "LOST";
 export type ListingTier = "STANDARD" | "FEATURED";
 
-export type ProjectType = "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL" | "MIXED_USE" | "PLOTTED";
+export type ProjectType =
+  | "APARTMENT"
+  | "VILLA"
+  | "PLOTTED"
+  | "COMMERCIAL"
+  | "INDUSTRIAL"
+  | "LAND"
+  | "MIXED"
+  // Legacy values still present on older projects.
+  | "RESIDENTIAL"
+  | "MIXED_USE";
 
 export type NearbyAmenityCategory = "school" | "hospital" | "transit" | "mall" | "restaurant";
 export interface NearbyAmenity {

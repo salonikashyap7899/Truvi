@@ -73,10 +73,18 @@ export function categoryLabel(value: string): string {
   return ALL_CATEGORIES.find((c) => c.value === value)?.label ?? value;
 }
 
+// Display labels for every project type — the current 7 options plus legacy
+// values still stored on older projects. The selectable list (with emojis) and
+// inventory vocabulary live in `@/lib/projectTypes`.
 export const PROJECT_TYPE_LABELS: Record<string, string> = {
-  RESIDENTIAL: "Residential",
+  APARTMENT: "Apartment",
+  VILLA: "Villa / Row House",
+  PLOTTED: "Plotted Development",
   COMMERCIAL: "Commercial",
   INDUSTRIAL: "Industrial",
+  LAND: "Land",
+  MIXED: "Mixed Project",
+  // Legacy
+  RESIDENTIAL: "Residential",
   MIXED_USE: "Mixed Use",
-  PLOTTED: "Plotted Development",
 };

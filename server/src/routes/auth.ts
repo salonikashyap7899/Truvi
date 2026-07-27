@@ -185,8 +185,11 @@ router.post("/signup", async (req, res) => {
     return res.status(409).json({ error: "An account with this email already exists" });
   }
 
-  // Resolve an optional referral code to the referring CP/Ambassador. Invalid
-  // codes are ignored silently so signup never fails on a bad code.
+  // Resolve an optional referral code to the referring CP/Ambassador/Developer.
+  // A referral code is valid whether it belongs to a Channel Partner, an
+  // Ambassador or a Developer — all three earn the 2% incentive on the referred
+  // developer's transactions. Invalid codes are ignored silently so signup
+  // never fails on a bad code.
   let referredBy: string | null = null;
   const code = referralCode?.trim().toUpperCase();
   if (code) {
@@ -194,7 +197,7 @@ router.post("/signup", async (req, res) => {
       .select({ _id: users._id, role: users.role })
       .from(users)
       .where(eq(users.referralCode, code));
-    if (referrer && (referrer.role === "CP" || referrer.role === "AMBASSADOR")) {
+    if (referrer && (referrer.role === "CP" || referrer.role === "AMBASSADOR" || referrer.role === "DEVELOPER")) {
       referredBy = String(referrer._id);
     }
   }

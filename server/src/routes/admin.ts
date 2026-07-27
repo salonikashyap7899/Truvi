@@ -261,10 +261,12 @@ router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
   // ---- Verification queue ------------------------------------------------
   // Count only submissions actually awaiting manual review (docs submitted →
   // kycStatus PENDING), matching exactly what GET /admin/kyc/pending returns.
-  // A CP who registered but never submitted KYC must NOT inflate this box,
-  // otherwise the dashboard shows a count while the review page is empty.
+  // kycStatus is unset until a user actually submits, so filtering on PENDING
+  // alone never inflates the box with accounts that never submitted — and it
+  // stays role-agnostic so a Developer (or any role) submission is counted too,
+  // not silently dropped.
   const pendingKyc = allUsers.filter(
-    (u) => (u.role === "CP" || u.role === "AMBASSADOR") && u.onboardingChecks?.kycStatus === "PENDING",
+    (u) => u.onboardingChecks?.kycStatus === "PENDING",
   ).length;
 
   // ---- CRM (real) --------------------------------------------------------
@@ -1227,7 +1229,11 @@ export function getPlatformFeePercent(): number {
 
 // ── CP identity (KYC) review ────────────────────────────────────────────────
 
-// GET /api/admin/kyc/pending — submissions awaiting manual review.
+// GET /api/admin/kyc/pending — submissions awaiting manual review. Any account
+// that submitted KYC is included regardless of role (CP, Ambassador, Developer,
+// …). kycStatus is only set once a user actually submits, so the PENDING filter
+// alone is enough — no role restriction, otherwise non-CP submissions would be
+// silently dropped and the queue would look empty even with real submissions.
 router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
   const db = getDb();
   const rows = await db
@@ -1240,8 +1246,7 @@ router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
       onboardingChecks: users.onboardingChecks,
       verification: users.verification,
     })
-    .from(users)
-    .where(inArray(users.role, ["CP", "AMBASSADOR"]));
+    .from(users);
 
   const pending = rows
     .filter((u) => u.onboardingChecks?.kycStatus === "PENDING")

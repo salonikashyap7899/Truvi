@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
+import { PROJECT_TYPE_OPTIONS, inventoryTerms } from "@/lib/projectTypes";
 
 /** Everything a developer uploads for a complete listing. Step 1 collects the
  *  core details; the rest is added on the project workspace right after. */
@@ -56,6 +57,7 @@ export default function NewProjectPage() {
     description: "",
     city: "",
     location: "",
+    projectType: "",
     reraNumber: "",
     possessionDate: "",
     salesName: "",
@@ -86,6 +88,7 @@ export default function NewProjectPage() {
         description: form.description,
         city: form.city,
         location: form.location,
+        projectType: form.projectType || undefined,
         reraNumber: form.reraNumber || undefined,
         possessionDate: form.possessionDate || undefined,
         salesContact:
@@ -161,6 +164,25 @@ export default function NewProjectPage() {
                 <Input required minLength={2} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="border-white/15 bg-card text-white" />
               </div>
             </div>
+            <div>
+              <Label className="text-foreground/90">Project type</Label>
+              <select
+                value={form.projectType}
+                onChange={(e) => setForm({ ...form, projectType: e.target.value })}
+                className="mt-1 h-10 w-full rounded-md border border-white/15 bg-card px-3 text-sm text-white"
+              >
+                <option value="">— Select project type —</option>
+                {PROJECT_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {form.projectType
+                  ? `Your inventory will list ${inventoryTerms(form.projectType).unit.toLowerCase()}s grouped by ${inventoryTerms(form.projectType).group.toLowerCase()}.`
+                  : "Apartment, Villa, Plotted, Commercial, Industrial, Land or Mixed — this shapes your inventory columns."}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label className="text-foreground/90">RERA number</Label>

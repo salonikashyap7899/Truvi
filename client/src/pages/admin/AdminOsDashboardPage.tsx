@@ -97,7 +97,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Listings", icon: "building", path: "/admin/listings" },
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },
   { label: "Verification", icon: "shield", path: "/admin/verification" },
-  { label: "CP KYC", icon: "users", path: "/admin/kyc" },
+  { label: "KYC", icon: "users", path: "/admin/kyc" },
   { label: "Referral Leads", icon: "users", path: "/admin/referral-leads" },
   { label: "Documents", icon: "verification", path: "/admin/documents" },
   { label: "Revenue", icon: "wallet", path: "/admin/revenue" },
@@ -221,7 +221,7 @@ export default function AdminOsDashboardPage() {
                 <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
                 <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
                 <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
-                <Kpi icon="users" tone="blue" label="Pending CP KYC" value={String(overview.verification.pendingKyc)} foot="Review identities" onClick={() => navigate("/admin/kyc")} />
+                <Kpi icon="users" tone="blue" label="Pending KYC" value={String(overview.verification.pendingKyc)} foot="Review identities" onClick={() => navigate("/admin/kyc")} />
                 <Kpi icon="shield" tone="amber" label="Pending Verification" value={String(overview.verification.pendingProjects + overview.verification.pendingLegal)} foot="Projects + legal docs" onClick={() => navigate("/admin/verification")} />
               </div>
             )}

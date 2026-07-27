@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { CpHubNav } from "@/components/CpHubNav";
+import { DevHubNav } from "@/components/DevHubNav";
 import { Card, Input, Label, Textarea, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -31,7 +32,8 @@ const EMPTY = { developerName: "", companyName: "", phone: "", email: "", city: 
 export default function OnboardDevelopersPage() {
   const role = useAuthStore((s) => s.user?.role);
   const isCp = role === "CP";
-  const isReferrer = role === "CP" || role === "AMBASSADOR";
+  const isDeveloper = role === "DEVELOPER";
+  const isReferrer = role === "CP" || role === "AMBASSADOR" || role === "DEVELOPER";
 
   const [referral, setReferral] = useState<ReferralData | null>(null);
   const [form, setForm] = useState({ ...EMPTY });
@@ -104,6 +106,7 @@ export default function OnboardDevelopersPage() {
       </p>
 
       {isCp && <CpHubNav />}
+      {isDeveloper && <DevHubNav />}
 
       {/* Referral code card (CP / Ambassador) */}
       {isReferrer && (

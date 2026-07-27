@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, leads, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
-import { createProjectSchema } from "../lib/validations/inventory";
+import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
 
@@ -159,6 +159,7 @@ const updateProjectSchema = z.object({
   priceListUrl: z.string().url().optional(),
   description: z.string().min(10).optional(),
   commissionPercent: z.number().min(0).max(20).optional(),
+  projectType: z.enum(PROJECT_TYPE_VALUES).optional(),
   possessionDate: z.string().datetime().or(z.literal("")).nullable().optional(),
   // GIS pin (both or neither; null clears the pin).
   lat: z.number().min(-90).max(90).nullable().optional(),
@@ -229,7 +230,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
   const d = parsed.data;
   const update: Record<string, unknown> = {};
-  for (const k of ["brochureUrl", "priceListUrl", "description", "commissionPercent", "name", "city", "location", "reraStatus", "salesContact"] as const) {
+  for (const k of ["brochureUrl", "priceListUrl", "description", "commissionPercent", "name", "city", "location", "reraStatus", "salesContact", "projectType"] as const) {
     if (d[k] !== undefined) update[k] = d[k];
   }
   if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;

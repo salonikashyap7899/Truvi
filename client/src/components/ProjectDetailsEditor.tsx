@@ -7,6 +7,7 @@ import { Loader2, Save, Plus, Trash2, Building2, MapPin } from "lucide-react";
 import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
 import { geocodeAddress, isGeocodingConfigured, GeocodeError, geocodeErrorMessage } from "@/lib/geocoding";
+import { PROJECT_TYPE_OPTIONS } from "@/lib/projectTypes";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
@@ -28,6 +29,7 @@ export default function ProjectDetailsEditor({
   const [name, setName] = useState(project.name);
   const [city, setCity] = useState(project.city);
   const [location, setLocation] = useState(project.location);
+  const [projectType, setProjectType] = useState<string>(project.projectType ?? "");
   const [reraNumber, setReraNumber] = useState(project.reraNumber ?? "");
   const [reraStatus, setReraStatus] = useState(project.reraStatus ?? "NOT_REGISTERED");
   const [reraValidityDate, setReraValidityDate] = useState(
@@ -104,6 +106,7 @@ export default function ProjectDetailsEditor({
         name: name.trim(),
         city: city.trim(),
         location: location.trim(),
+        projectType: projectType || undefined,
         reraNumber: reraNumber.trim(),
         reraStatus,
         reraValidityDate: reraValidityDate ? new Date(reraValidityDate).toISOString() : null,
@@ -151,6 +154,15 @@ export default function ProjectDetailsEditor({
           <div>
             <Label className="text-foreground/90">Location / area</Label>
             <Input value={location} onChange={(e) => setLocation(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <Label className="text-foreground/90">Project type</Label>
+            <select value={projectType} onChange={(e) => setProjectType(e.target.value)} className={`${inputCls} h-10 w-full rounded-md px-3 text-sm`}>
+              <option value="">— Select —</option>
+              {PROJECT_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
+              ))}
+            </select>
           </div>
           <div>
             <Label className="text-foreground/90">RERA number</Label>
