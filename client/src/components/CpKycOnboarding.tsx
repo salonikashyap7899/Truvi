@@ -8,16 +8,11 @@ import UserMenu from "@/components/UserMenu";
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
 /**
- * Identity (KYC) submission surface — Aadhaar + PAN + a live selfie, posted to
- * `/auth/submit-kyc` for an admin (or KYC provider) to approve. Used as the CP
- * onboarding gate (in place of the CP dashboard while `onboardingVerified` is
- * false) and, with different copy, as the Developer identity-verification page.
- * The heading/intro are overridable so the same flow works for any role.
+ * CP identity gate. A channel partner cannot use the workspace until they
+ * submit Aadhaar + PAN + a live selfie and an admin (or KYC provider) approves.
+ * Shown in place of the CP dashboard while `onboardingVerified` is false.
  */
-export function CpKycOnboarding({
-  heading = "Verify your identity to start",
-  intro = "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.",
-}: { heading?: string; intro?: string } = {}) {
+export function CpKycOnboarding() {
   const user = useAuthStore((s) => s.user);
   const status = user?.onboardingChecks?.kycStatus;
   const rejectionReason = user?.onboardingChecks?.kycRejectionReason;
@@ -151,8 +146,11 @@ export function CpKycOnboarding({
         <div className="grid size-12 place-items-center rounded-2xl bg-[var(--trust)]/12 text-[var(--trust)] ring-1 ring-inset ring-[var(--trust)]/25">
           <ShieldCheck size={22} />
         </div>
-        <h1 className="mt-4 text-xl font-semibold">{heading}</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">{intro}</p>
+        <h1 className="mt-4 text-xl font-semibold">Verify your identity to start</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar
+          and PAN, and take a live selfie. Your documents are stored securely for verification.
+        </p>
 
         {status === "REJECTED" && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2.5 text-sm text-red-300">

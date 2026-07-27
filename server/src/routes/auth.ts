@@ -19,7 +19,7 @@ import {
 import { isValidId } from "../lib/ids";
 import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
-import { authenticate, AuthedRequest } from "../middleware/auth";
+import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
@@ -757,12 +757,15 @@ router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), as
   });
 });
 
-// CP identity submission: Aadhaar + PAN + live selfie in one go. Documents are
-// stored and the submission is marked PENDING for review — access stays locked
-// until a provider (see kycService) or an admin approves it.
+// CP / Ambassador identity submission: Aadhaar + PAN + live selfie in one go.
+// KYC is required only for Channel Partners and Ambassadors, so the endpoint is
+// scoped to those roles. Documents are stored and the submission is marked
+// PENDING for review — access stays locked until a provider (see kycService) or
+// an admin approves it.
 router.post(
   "/submit-kyc",
   authenticate,
+  requireRole("CP", "AMBASSADOR"),
   kycUpload.fields([
     { name: "aadhaar", maxCount: 1 },
     { name: "pan", maxCount: 1 },
