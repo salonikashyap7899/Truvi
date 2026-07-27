@@ -606,6 +606,51 @@ router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
   res.json({ revenueTrend, leadsBySource, conversionBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
 });
 
+// POST /api/admin/leads — founder/admin adds a lead directly into the system
+// (the "Add Lead" form on the Founder Lead Management page). The lead lands in
+// the CRM pipeline like any other, immediately visible to the team.
+const founderLeadSchema = z.object({
+  clientName: z.string().min(2, "Lead name is required"),
+  clientPhone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  clientEmail: z.string().email().or(z.literal("")).optional(),
+  projectId: z.string().min(1, "Select the interested project"),
+  source: z.string().optional(),
+  budget: z.string().optional(),
+  location: z.string().optional(),
+  remarks: z.string().optional(),
+});
+router.post("/leads", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = founderLeadSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const d = parsed.data;
+  if (!isValidId(d.projectId)) return res.status(404).json({ error: "Project not found" });
+  const db = getDb();
+  const [project] = await db.select({ _id: projects._id }).from(projects).where(eq(projects._id, d.projectId));
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  // Budget / location / remarks are folded into notes so the founder's context
+  // travels with the lead without extra columns.
+  const noteParts = [
+    d.budget ? `Budget: ${d.budget}` : "",
+    d.location ? `Location: ${d.location}` : "",
+    d.remarks ? d.remarks : "",
+  ].filter(Boolean);
+
+  const [lead] = await db.insert(leads).values({
+    projectId: d.projectId,
+    clientName: d.clientName,
+    clientPhone: d.clientPhone,
+    clientEmail: d.clientEmail || null,
+    source: d.source || "Founder",
+    notes: noteParts.join(" · ") || null,
+    submittedById: req.user!.userId,
+    stage: "GENERATED",
+  }).returning();
+
+  await logAudit({ userId: req.user!.userId, action: "lead.create", resourceType: "lead", resourceId: String(lead._id), metadata: { client: d.clientName, source: lead.source } });
+  res.status(201).json({ lead });
+});
+
 // GET /api/admin/cp-performance — live Channel Partner network dashboard.
 router.get("/cp-performance", requireRole("ADMIN"), async (_req, res) => {
   const db = getDb();

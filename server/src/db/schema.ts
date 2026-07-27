@@ -1148,6 +1148,10 @@ export const developerReferrals = pgTable("developer_referrals", {
   phone: text("phone").notNull(),
   email: text("email"),
   city: text("city"),
+  // Which project/inventory the referred developer is interested in, and how
+  // the referral came in — captured on submission for the founder's review.
+  interestedProject: text("interested_project"),
+  source: text("source"),
   landDetails: text("land_details"),
   notes: text("notes"),
   status: text("status").$type<DeveloperReferralStatus>().notNull().default("PENDING"),

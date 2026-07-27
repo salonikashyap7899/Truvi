@@ -26,7 +26,8 @@ interface ReferralData {
   summary: { referredCount: number; active: number; totalTransactions: number; totalEarnings: number };
 }
 
-const EMPTY = { developerName: "", companyName: "", phone: "", email: "", city: "", landDetails: "", notes: "" };
+const EMPTY = { developerName: "", companyName: "", phone: "", email: "", city: "", interestedProject: "", source: "", landDetails: "", notes: "" };
+const REFERRAL_SOURCES = ["Personal contact", "WhatsApp", "Reference", "Cold call", "Event / expo", "Social media", "Other"];
 
 export default function OnboardDevelopersPage() {
   const role = useAuthStore((s) => s.user?.role);
@@ -77,6 +78,8 @@ export default function OnboardDevelopersPage() {
         phone: form.phone.trim(),
         email: form.email.trim() || undefined,
         city: form.city.trim() || undefined,
+        interestedProject: form.interestedProject.trim() || undefined,
+        source: form.source.trim() || undefined,
         landDetails: form.landDetails.trim() || undefined,
         notes: form.notes.trim() || undefined,
       });
@@ -208,8 +211,23 @@ export default function OnboardDevelopersPage() {
             <Input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} placeholder="e.g. Verma Estates" className="border-white/15 bg-card text-white" />
           </div>
           <div>
+            <Label>Email (optional)</Label>
+            <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="developer@email.com" className="border-white/15 bg-card text-white" />
+          </div>
+          <div>
             <Label>City / area</Label>
             <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="e.g. Lucknow" className="border-white/15 bg-card text-white" />
+          </div>
+          <div>
+            <Label>Interested project / inventory</Label>
+            <Input value={form.interestedProject} onChange={(e) => setForm({ ...form, interestedProject: e.target.value })} placeholder="e.g. Prime Estate, Kasmandi" className="border-white/15 bg-card text-white" />
+          </div>
+          <div>
+            <Label>Source</Label>
+            <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="h-10 w-full rounded-md border border-white/15 bg-card px-3 text-sm text-white">
+              <option value="">Select…</option>
+              {REFERRAL_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div className="sm:col-span-2">
             <Label>Notes (optional)</Label>

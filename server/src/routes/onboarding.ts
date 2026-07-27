@@ -25,6 +25,8 @@ const referralSchema = z.object({
   phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
   email: z.string().email().or(z.literal("")).optional(),
   city: z.string().optional(),
+  interestedProject: z.string().optional(),
+  source: z.string().optional(),
   landDetails: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -45,6 +47,8 @@ router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedReq
       phone: d.phone,
       email: d.email || null,
       city: d.city || null,
+      interestedProject: d.interestedProject || null,
+      source: d.source || null,
       landDetails: d.landDetails || null,
       notes: d.notes || null,
     })
@@ -184,6 +188,8 @@ router.get("/developers", async (req: AuthedRequest, res) => {
       phone: developerReferrals.phone,
       email: developerReferrals.email,
       city: developerReferrals.city,
+      interestedProject: developerReferrals.interestedProject,
+      source: developerReferrals.source,
       landDetails: developerReferrals.landDetails,
       notes: developerReferrals.notes,
       status: developerReferrals.status,

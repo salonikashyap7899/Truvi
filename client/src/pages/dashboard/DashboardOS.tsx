@@ -7,6 +7,7 @@ import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperiencePage } from "@/pages/dashboard/FounderModules";
+import { LeadManagementPage, ReferralLeadsPage } from "@/pages/dashboard/FounderLeads";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import "@/styles/founder-os.css";
 
@@ -107,7 +108,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx" | "leads" | "referrals";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -230,6 +231,8 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "inventory" && <InventoryDashPage />}
           {current === "bookings" && <BookingsDashPage />}
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
+          {current === "leads" && <LeadManagementPage />}
+          {current === "referrals" && <ReferralLeadsPage />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
           {current === "legal" && <LegalDashPage navigate={navigate} />}
           {current === "support" && <SupportDashPage navigate={navigate} />}
