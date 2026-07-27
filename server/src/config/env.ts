@@ -72,16 +72,31 @@ export function getEnv() {
 export const DEFAULT_FOUNDER_PASSWORD = "Sandeep@Meeraj#Truvi2026!";
 
 /**
+ * Founder accounts recognised for CEO-OS routing beyond the two provisioned
+ * founders — the legacy `founder@truvi.app` placeholder and any owner accounts
+ * that must always land on /founder/dashboard. Additional emails can also be
+ * supplied at runtime via FOUNDER_EMAILS (comma-separated) without a code change.
+ */
+const BUILTIN_FOUNDER_EMAILS = new Set(
+  [
+    "founder@truvi.app",
+    "isalonikashyap@gmail.com",
+    ...String(process.env.FOUNDER_EMAILS ?? "").split(","),
+  ]
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+/**
  * True when the given email belongs to a Truvi founder (the accounts that land
  * on the full CEO OS at /founder/dashboard rather than the operational admin
  * panel). Server-authoritative so routing never depends on the client build
- * carrying a matching email allowlist. Case-insensitive. The legacy
- * `founder@truvi.app` placeholder is always included.
+ * carrying a matching email allowlist. Case-insensitive.
  */
 export function isFounderEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.trim().toLowerCase();
-  if (e === "founder@truvi.app") return true;
+  if (BUILTIN_FOUNDER_EMAILS.has(e)) return true;
   return getEnv().founders.some((f) => f.email === e);
 }
 

@@ -10,6 +10,7 @@ const FOUNDER_EMAILS = new Set(
     "founder@truvi.app",
     "sandeep@truviventures.com",
     "meraj@truviventures.com",
+    "isalonikashyap@gmail.com",
     ...(import.meta.env.VITE_FOUNDER_EMAILS?.split(",") ?? []),
   ]
     .map((e) => e.trim().toLowerCase())

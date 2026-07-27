@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Flame, CalendarCheck, TrendingUp, Boxes, Activity, Megaphone, BrainCircuit,
-  ShieldCheck, Zap, ArrowRight, Sparkles, Pencil, Clock, BadgeCheck,
+  ShieldCheck, Zap, ArrowRight, Sparkles, Pencil,
 } from "lucide-react";
-import { useAuthStore } from "@/store/authStore";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
@@ -95,9 +94,6 @@ export default function DeveloperDashboardPage() {
       </div>
 
       <DevHubNav />
-
-      {/* Identity verification — developers submit KYC just like Channel Partners */}
-      <DeveloperKycBanner />
 
       {/* Refer a developer & earn 2% — same referral engine as Channel Partners */}
       <ReferralBanner className="mt-5" />
@@ -275,60 +271,6 @@ export default function DeveloperDashboardPage() {
       <MyPlans />
       <DevUpsellModal open={!!upsell} onClose={() => setUpsell(null)} plan={upsell?.plan} feature={upsell?.feature} />
     </main>
-  );
-}
-
-/**
- * Identity-verification prompt for developers. Mirrors the Channel Partner KYC
- * flow: invites an unverified developer to submit Aadhaar + PAN + selfie, shows
- * an "in review" state once submitted, and disappears once approved. Submissions
- * appear in the admin KYC review queue like any other role.
- */
-function DeveloperKycBanner() {
-  const user = useAuthStore((s) => s.user);
-  if (!user) return null;
-
-  const status = user.onboardingChecks?.kycStatus;
-  // Fully verified — nothing to prompt.
-  if (user.onboardingVerified || status === "APPROVED") return null;
-
-  if (status === "PENDING") {
-    return (
-      <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-5 text-white sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <Clock size={20} className="mt-0.5 shrink-0 text-amber-300" />
-          <div>
-            <p className="text-sm font-semibold">Identity verification in progress</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              We&apos;ve received your Aadhaar, PAN and selfie. You&apos;ll be notified the moment an admin approves it.
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const rejected = status === "REJECTED";
-  return (
-    <section className={`mt-5 flex flex-col gap-3 rounded-2xl border p-5 text-white sm:flex-row sm:items-center sm:justify-between ${rejected ? "border-red-500/30 bg-red-500/[0.06]" : "border-[var(--trust)]/25 bg-[var(--trust)]/[0.06]"}`}>
-      <div className="flex items-start gap-3">
-        <BadgeCheck size={20} className={`mt-0.5 shrink-0 ${rejected ? "text-red-300" : "text-[var(--trust)]"}`} />
-        <div>
-          <p className="text-sm font-semibold">{rejected ? "Re-submit your identity verification" : "Verify your identity — get the verified badge"}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {rejected
-              ? "Your last submission couldn't be verified. Re-submit clear Aadhaar, PAN and a live selfie."
-              : "Submit your Aadhaar, PAN and a live selfie to earn the verified badge and build buyer trust."}
-          </p>
-        </div>
-      </div>
-      <Link
-        to="/developer/kyc"
-        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--trust)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--trust)]/85"
-      >
-        {rejected ? "Re-submit" : "Verify now"} <ArrowRight size={14} />
-      </Link>
-    </section>
   );
 }
 
