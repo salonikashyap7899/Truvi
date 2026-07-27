@@ -6,7 +6,6 @@ import {
   commandInvestments,
   commandRevenues,
   recurringExpenses,
-  employees,
 } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
@@ -175,44 +174,6 @@ router.delete("/recurring/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-/* =============================================================== salaries */
-// Employee salary roster with each employee's current-month paid state, for the
-// Employee Salary Management page. Salary amounts come from employees.monthlyCtc
-// (managed in the Team module); this view adds the payment tracking on top.
-router.get("/salaries", async (_req, res) => {
-  const rows = await getDb().select().from(employees).orderBy(desc(employees.createdAt));
-  const curKey = monthKey(new Date());
-  res.json({
-    monthKey: curKey,
-    employees: rows.map((e) => ({
-      id: String(e._id),
-      name: e.name,
-      title: e.title,
-      department: e.department,
-      status: e.status,
-      monthlyCtc: round2(e.monthlyCtc),
-      salaryDueDay: e.salaryDueDay,
-      paidThisMonth: e.salaryPaidForMonth === curKey,
-    })),
-  });
-});
-
-// Mark (or un-mark) an employee's salary as paid for the CURRENT month. Storing
-// the month key means a new calendar month automatically flips everyone back to
-// "pending" with no reset job.
-router.post("/salaries/:id/pay", async (req, res) => {
-  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
-  const paid = req.body?.paid !== false; // default: mark paid
-  const key = paid ? monthKey(new Date()) : null;
-  const [row] = await getDb().update(employees)
-    .set({ salaryPaidForMonth: key })
-    .where(eq(employees._id, req.params.id))
-    .returning();
-  if (!row) return res.status(404).json({ error: "Not found" });
-  pushLive();
-  res.json({ employee: row });
-});
-
 /* ---------------------------------------------------------- combined summary */
 // GET /api/command-finance/summary — the live aggregate that feeds every
 // Command Center financial card. Recomputed on each request so totals always
@@ -222,11 +183,10 @@ router.get("/summary", async (_req, res) => {
   const now = new Date();
   const curKey = monthKey(now);
 
-  const [investRows, revenueRows, recurringRows, empRows] = await Promise.all([
+  const [investRows, revenueRows, recurringRows] = await Promise.all([
     db.select().from(commandInvestments),
     db.select().from(commandRevenues),
     db.select().from(recurringExpenses),
-    db.select().from(employees),
   ]);
 
   const sum = <T,>(rows: T[], f: (r: T) => number) => round2(rows.reduce((s, r) => s + f(r), 0));
@@ -280,29 +240,6 @@ router.get("/summary", async (_req, res) => {
     byCategory,
   };
 
-  // ---- Employee salaries ----
-  const activeEmps = empRows.filter((e) => e.status !== "INACTIVE");
-  const payable = sum(activeEmps, (e) => e.monthlyCtc);
-  const paidEmps = activeEmps.filter((e) => e.salaryPaidForMonth === curKey);
-  const paid = sum(paidEmps, (e) => e.monthlyCtc);
-  const pendingEmps = activeEmps.filter((e) => e.salaryPaidForMonth !== curKey);
-  const upcoming = pendingEmps
-    .map((e) => {
-      const day = Math.min(Math.max(e.salaryDueDay || 1, 1), 28);
-      return { id: String(e._id), name: e.name, amount: round2(e.monthlyCtc), dueDate: new Date(now.getFullYear(), now.getMonth(), day) };
-    })
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
-    .slice(0, 12);
-  const salaries = {
-    payable,
-    paid,
-    pending: round2(payable - paid),
-    employeeCount: activeEmps.length,
-    paidCount: paidEmps.length,
-    pendingCount: pendingEmps.length,
-    upcoming,
-  };
-
   // ---- Profit / Loss (Revenue − Investment − Monthly Expenses) ----
   const profitLoss = {
     total: round2(revenue.total - investments.total - monthlyCosting.total),
@@ -315,7 +252,6 @@ router.get("/summary", async (_req, res) => {
     investments,
     revenue,
     monthlyCosting,
-    salaries,
     profitLoss,
   });
 });

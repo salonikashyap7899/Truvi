@@ -860,9 +860,30 @@ export const employees = pgTable("employees", {
   // day-of-month (1–28) the salary is due, driving upcoming-due-date alerts.
   salaryPaidForMonth: text("salary_paid_for_month"),
   salaryDueDay: integer("salary_due_day").notNull().default(1),
+  // Employer Management: when salary payments start + free-form notes. Partial
+  // and full salary payments are recorded per-month in `employeePayments`.
+  salaryStartDate: timestamp("salary_start_date", { withTimezone: true, mode: "date" }),
+  notes: text("notes"),
   joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+// Salary payment history for the Employer Management page. Each row is one
+// (possibly partial) payment toward an employee's salary for a given month
+// (`monthKey`, e.g. "2026-07"). The amount paid this month is the sum of that
+// month's rows, so partial payments accumulate and status auto-resets when the
+// month rolls over.
+export const employeePayments = pgTable("employee_payments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  monthKey: text("month_key").notNull(),
+  amount: doublePrecision("amount").notNull().default(0),
+  note: text("note"),
+  paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("employee_payments_employee_idx").on(t.employeeId, t.monthKey)]);
+export type IEmployeePayment = typeof employeePayments.$inferSelect;
 
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   _id: uuid("id").defaultRandom().primaryKey(),

@@ -7,7 +7,7 @@ import { Kpi, Panel } from "@/pages/dashboard/DashboardOS";
 
 /* ------------------------------------------------------------------ types */
 export type FinSection =
-  | "investment" | "monthly-investment" | "revenue" | "monthly-revenue" | "today-revenue" | "costing" | "salaries";
+  | "investment" | "monthly-investment" | "revenue" | "monthly-revenue" | "today-revenue" | "costing";
 
 export interface CommandFinanceSummary {
   monthKey: string;
@@ -20,16 +20,11 @@ export interface CommandFinanceSummary {
     upcoming: { id: string; label: string; category: string; amount: number; dueDate: string }[];
     byCategory: { category: string; amount: number }[];
   };
-  salaries: {
-    payable: number; paid: number; pending: number; employeeCount: number; paidCount: number; pendingCount: number;
-    upcoming: { id: string; name: string; amount: number; dueDate: string }[];
-  };
   profitLoss: { total: number; monthly: number };
 }
 
 interface EntryRow { _id: string; title: string; category: string; amount: number; date: string; notes: string | null }
 interface CostingRow { _id: string; label: string; category: string; amount: number; dueDay: number; paidThisMonth: boolean; paidDate: string | null; notes: string | null; active: boolean }
-interface SalaryRow { id: string; name: string; title: string | null; department: string; status: string; monthlyCtc: number; salaryDueDay: number; paidThisMonth: boolean }
 
 /* ------------------------------------------------------------------- hook */
 export function useCommandFinance() {
@@ -133,7 +128,6 @@ export function FinancialCards({ summary, onOpen }: { summary: CommandFinanceSum
         <Kpi icon="spark" tone="green" label="Monthly Revenue" value={s ? formatCompactINR(s.revenue.thisMonth) : "—"} foot={s ? `${s.revenue.monthCount} this month` : "Loading…"} onClick={() => onOpen("monthly-revenue")} />
         <Kpi icon="bolt" tone="green" label="Today's Revenue" value={s ? formatINR(s.revenue.today) : "—"} foot={s ? `${s.revenue.todayCount} today` : "Loading…"} onClick={() => onOpen("today-revenue")} />
         <Kpi icon="refresh" tone="amber" label="Monthly Costing" value={s ? formatCompactINR(s.monthlyCosting.total) : "—"} foot={s ? `${formatCompactINR(s.monthlyCosting.pending)} pending` : "Loading…"} onClick={() => onOpen("costing")} />
-        <Kpi icon="team" tone={s && s.salaries.pending > 0 ? "amber" : "green"} label="Employee Salaries" value={s ? formatCompactINR(s.salaries.payable) : "—"} foot={s ? `${formatCompactINR(s.salaries.pending)} pending` : "Loading…"} onClick={() => onOpen("salaries")} />
         <Kpi icon="trophy" tone={pl >= 0 ? "green" : "red"} label="Profit / Loss" value={s ? `${pl >= 0 ? "" : "−"}${formatCompactINR(Math.abs(pl))}` : "—"} foot="Revenue − Investment − Costing" />
       </div>
     </>
@@ -148,7 +142,6 @@ const SECTIONS: { key: FinSection; label: string }[] = [
   { key: "monthly-revenue", label: "Monthly Revenue" },
   { key: "today-revenue", label: "Today's Revenue" },
   { key: "costing", label: "Monthly Costing" },
-  { key: "salaries", label: "Employee Salaries" },
 ];
 
 export function FinancialsPage({ initialSection = "investment" }: { initialSection?: FinSection }) {
@@ -178,7 +171,6 @@ export function FinancialsPage({ initialSection = "investment" }: { initialSecti
       {section === "monthly-revenue" && <EntrySection kind="revenue" mode="monthly" summary={summary} reload={reload} />}
       {section === "today-revenue" && <EntrySection kind="revenue" mode="today" summary={summary} reload={reload} />}
       {section === "costing" && <CostingSection summary={summary} reload={reload} />}
-      {section === "salaries" && <SalariesSection summary={summary} reload={reload} />}
     </section>
   );
 }
@@ -390,87 +382,3 @@ function CostingSection({ summary, reload }: { summary: CommandFinanceSummary | 
   );
 }
 
-/* ------------------------------------------------------- salary management */
-function SalariesSection({ summary, reload }: { summary: CommandFinanceSummary | null; reload: () => void }) {
-  const [rows, setRows] = useState<SalaryRow[] | null>(null);
-  const load = useCallback(async () => {
-    try { setRows((await api.get("/command-finance/salaries")).data.employees); } catch { setRows([]); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  useSocketEvent("command-finance:update", load);
-
-  const s = summary?.salaries;
-
-  async function pay(id: string, paid: boolean) {
-    try { await api.post(`/command-finance/salaries/${id}/pay`, { paid }); reload(); load(); }
-    catch (err: any) { toast.error(err?.response?.data?.error || "Failed to update"); }
-  }
-  async function add(v: Record<string, string>) {
-    try { await api.post("/founder/employees", v); toast.success("Employee added"); reload(); load(); }
-    catch (err: any) { toast.error(err?.response?.data?.error || "Failed to save"); throw err; }
-  }
-
-  const active = (rows || []).filter((e) => e.status !== "INACTIVE");
-
-  return (
-    <>
-      <div className="kpi-grid">
-        <Kpi icon="wallet" tone="blue" label="Payable This Month" value={s ? formatINR(s.payable) : "—"} foot={s ? `${s.employeeCount} employees` : ""} />
-        <Kpi icon="check" tone="green" label="Paid" value={s ? formatINR(s.paid) : "—"} foot={s ? `${s.paidCount} paid` : ""} />
-        <Kpi icon="bell" tone={s && s.pending > 0 ? "amber" : "green"} label="Pending" value={s ? formatINR(s.pending) : "—"} foot={s ? `${s.pendingCount} pending` : ""} />
-        <Kpi icon="target" tone="blue" label="Upcoming Due" value={s ? String(s.upcoming.length) : "—"} foot="Not yet paid this month" />
-      </div>
-
-      <div className="grid-2">
-        <Panel
-          title="Employee Salaries"
-          sub="Mark salaries paid as you disburse them — resets automatically each month"
-          icon="team" iconTone="blue"
-          action={
-            <InlineForm submitLabel="Add employee" onSubmit={add}
-              fields={[
-                { name: "name", label: "Name", placeholder: "Full name" },
-                { name: "title", label: "Title", placeholder: "e.g. Engineer" },
-                { name: "department", label: "Department", placeholder: "e.g. Engineering" },
-                { name: "monthlyCtc", label: "Monthly salary (₹)", type: "number", placeholder: "0" },
-                { name: "salaryDueDay", label: "Salary due day (1-28)", type: "number", placeholder: "1" },
-              ]} />
-          }
-        >
-          {rows === null ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>Loading…</p>
-            : active.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No employees yet. Add your team to track salaries.</p>
-            : <div className="table-wrap"><table>
-                <thead><tr><th>Employee</th><th>Salary</th><th>Due</th><th>Status</th><th></th></tr></thead>
-                <tbody>{active.map((e) => (
-                  <tr key={e.id}>
-                    <td><b>{e.name}</b>{e.title ? <div style={{ fontSize: 11, color: "var(--ink-500)" }}>{e.title} · {e.department}</div> : <div style={{ fontSize: 11, color: "var(--ink-500)" }}>{e.department}</div>}</td>
-                    <td><b>{formatINR(e.monthlyCtc)}</b></td>
-                    <td>Day {e.salaryDueDay}</td>
-                    <td>{e.paidThisMonth ? <span className="badge green">Paid</span> : <span className="badge amber">Pending</span>}</td>
-                    <td>
-                      {e.paidThisMonth
-                        ? <button className="chip" onClick={() => pay(e.id, false)}>Undo</button>
-                        : <button className="btn btn-primary" onClick={() => pay(e.id, true)}>Mark paid</button>}
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table></div>}
-        </Panel>
-        <Panel title="Upcoming Salary Due Dates" sub="Employees not yet paid this month" icon="bell" iconTone="amber">
-          {!s || s.upcoming.length === 0
-            ? <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--ink-500)" }}><span className="status-dot green" /> All salaries for this month are cleared.</p>
-            : s.upcoming.map((u) => (
-              <div className="list-row" key={u.id}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{u.name}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>Due {fmtDate(u.dueDate)}</div>
-                </div>
-                <b>{formatINR(u.amount)}</b>
-                <button className="btn btn-primary" onClick={() => pay(u.id, true)} style={{ marginLeft: 10 }}>Pay</button>
-              </div>
-            ))}
-        </Panel>
-      </div>
-    </>
-  );
-}

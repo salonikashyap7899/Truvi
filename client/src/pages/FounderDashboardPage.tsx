@@ -47,6 +47,7 @@ const config: DashboardOSConfig = {
       { key: "land", label: "Land Bank", icon: "land" },
       { key: "investor", label: "Investor", icon: "trophy" },
       { key: "costing", label: "Monthly Costing", icon: "wallet" },
+      { key: "employers", label: "Total Employer", icon: "team" },
     ] },
   ],
 };
