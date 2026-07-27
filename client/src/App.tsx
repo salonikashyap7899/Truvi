@@ -44,6 +44,7 @@ import DeveloperAnalyticsPage from "@/pages/developer/DeveloperAnalyticsPage";
 import DeveloperMarketingPage from "@/pages/developer/DeveloperMarketingPage";
 import NewProjectPage from "@/pages/developer/NewProjectPage";
 import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
+import DeveloperKycPage from "@/pages/developer/DeveloperKycPage";
 
 import CPDashboardPage from "@/pages/cp/CPDashboardPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
@@ -202,6 +203,7 @@ export default function App() {
         <Route path="/developer/campaigns" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperMarketingPage /></ProtectedRoute>} />
         <Route path="/developer/projects/new" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><NewProjectPage /></ProtectedRoute>} />
         <Route path="/developer/projects/:id" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><ProjectDetailPage /></ProtectedRoute>} />
+        <Route path="/developer/kyc" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperKycPage /></ProtectedRoute>} />
 
         {/* CP */}
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
