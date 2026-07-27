@@ -4,8 +4,9 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import {
   Handshake, ArrowRight, Globe, Mail, Phone,
   MapPin, FileCheck, ShieldCheck, Banknote, Star, Clock, QrCode,
-  Instagram, Linkedin,
 } from "lucide-react";
+import { InstagramIcon, LinkedInIcon, WhatsAppIcon } from "@/components/icons/SocialIcons";
+import { INSTAGRAM_URL, LINKEDIN_URL, WHATSAPP_CHANNEL_URL } from "@/lib/social";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import { SiteNav } from "@/components/SiteNav";
 
@@ -114,14 +115,19 @@ const OPPORTUNITY_CHIPS = ["Growing Housing Demand", "Smart Cities", "Government
 
 const SOCIAL_LINKS = [
   {
-    icon: <Instagram size={18} />,
+    icon: <InstagramIcon size={18} />,
     label: "Instagram",
-    href: "https://www.instagram.com/truviventures?igsh=MWpqNWdlMGhramk0Nw==",
+    href: INSTAGRAM_URL,
   },
   {
-    icon: <Linkedin size={18} />,
+    icon: <LinkedInIcon size={18} />,
     label: "LinkedIn",
-    href: "https://www.linkedin.com/company/truvi-truviventures",
+    href: LINKEDIN_URL,
+  },
+  {
+    icon: <WhatsAppIcon size={18} />,
+    label: "WhatsApp Channel",
+    href: WHATSAPP_CHANNEL_URL,
   },
 ];
 
