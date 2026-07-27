@@ -16,6 +16,11 @@ export function CpKycOnboarding() {
   const user = useAuthStore((s) => s.user);
   const status = user?.onboardingChecks?.kycStatus;
   const rejectionReason = user?.onboardingChecks?.kycRejectionReason;
+  // Same KYC flow for Channel Partners and Ambassadors — just role-aware copy.
+  const intro =
+    user?.role === "AMBASSADOR"
+      ? "Ambassadors must verify their identity before accessing tasks and earnings. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification."
+      : "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.";
 
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [panNumber, setPanNumber] = useState("");
@@ -148,10 +153,7 @@ export function CpKycOnboarding() {
           <ShieldCheck size={22} />
         </div>
         <h1 className="mt-4 text-xl font-semibold">Verify your identity to start</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar
-          and PAN, and take a live selfie. Your documents are stored securely for verification.
-        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{intro}</p>
 
         {status === "REJECTED" && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2.5 text-sm text-red-300">
