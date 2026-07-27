@@ -178,7 +178,7 @@ export default function SignupPage() {
                 <div>
                   <Label>Referral code <span className="text-muted-foreground">(optional)</span></Label>
                   <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${inputCls} uppercase placeholder:normal-case`} />
-                  <p className="mt-1 text-xs text-muted-foreground">Got a code from a Channel Partner or Ambassador? Enter it to link your account.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Got a code from a Channel Partner, Ambassador or Developer? Enter it to link your account.</p>
                 </div>
                 {serverError && (
                   <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>

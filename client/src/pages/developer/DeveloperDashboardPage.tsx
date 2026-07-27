@@ -8,6 +8,7 @@ import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
 import { DevHubNav } from "@/components/DevHubNav";
+import { ReferralBanner } from "@/components/ReferralBanner";
 import { DevProGate } from "@/components/DevProGate";
 import { DevUpsellModal, type DevUpsellPlan } from "@/components/DevUpsellModal";
 import UserMenu from "@/components/UserMenu";
@@ -93,6 +94,9 @@ export default function DeveloperDashboardPage() {
       </div>
 
       <DevHubNav />
+
+      {/* Refer a developer & earn 2% — same referral engine as Channel Partners */}
+      <ReferralBanner className="mt-5" />
 
       {/* Growth-engine banner for developers who haven't unlocked the paid OS */}
       {entitlement && !entitlement.pro && (

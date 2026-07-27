@@ -11,10 +11,11 @@ import { emitNotification } from "../sockets";
 const REFERRAL_INCENTIVE_PERCENT = 2;
 
 /**
- * Developer onboarding referrals. A Channel Partner refers a developer /
- * landowner to list their inventory on Truvi; the referring CP earns a +10%
- * commission incentive on sales from that developer's inventory — whether the
- * CP sells it themselves or anyone else does.
+ * Developer onboarding referrals. A Channel Partner, Ambassador OR an existing
+ * Developer refers a developer / landowner to list their inventory on Truvi;
+ * the referrer earns a 2% incentive on sales from that developer's inventory —
+ * whether the referrer sells it themselves or anyone else does. The referral
+ * system is identical across all referrer roles.
  */
 const router = Router();
 router.use(authenticate);
@@ -72,9 +73,9 @@ function genReferralCode(name: string): string {
   return `${prefix}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
-// GET /api/onboarding/referral — a CP/Ambassador's referral code + referred
-// developers + earnings summary (get-or-create the code on first view).
-router.get("/referral", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+// GET /api/onboarding/referral — a CP/Ambassador/Developer's referral code +
+// referred developers + earnings summary (get-or-create the code on first view).
+router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   let code = me?.referralCode ?? null;
