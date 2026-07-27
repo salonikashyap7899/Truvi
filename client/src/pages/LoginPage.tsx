@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
@@ -10,10 +10,15 @@ import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const roleParam = searchParams.get("role");
   const isAmbassador = roleParam === "AMBASSADOR";
   const { login, user, isAuthenticated } = useAuth();
+  // One-off success message passed from the password-reset flow.
+  const [notice, setNotice] = useState<string | null>(
+    (location.state as { notice?: string } | null)?.notice ?? null,
+  );
 
   // Already signed in? Straight to this role's own workspace.
   useEffect(() => {
@@ -75,6 +80,12 @@ export default function LoginPage() {
               {isAmbassador ? "Sign in to your Ambassador workspace." : "Sign in to your Truvi workspace."}
             </p>
 
+            {notice && (
+              <p className="mt-5 rounded-lg border border-emerald-400/25 bg-emerald-950/40 px-3 py-2 text-center text-sm text-emerald-300">
+                {notice}
+              </p>
+            )}
+
             <form onSubmit={onSubmit} className="mt-7 space-y-4">
               <div>
                 <Label>Email</Label>
@@ -88,11 +99,19 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <Label>Password</Label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <Label className="mb-0">Password</Label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-medium text-sky-300 underline-offset-4 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <Input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); if (notice) setNotice(null); }}
                   required
                   placeholder="••••••••"
                   className="h-11 border-white/12 bg-white/[0.04] text-white placeholder:text-white/30 transition-all focus:border-[var(--trust)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--trust)]/20"

@@ -61,6 +61,21 @@ export async function sendOtpEmail(to: string, otp: string): Promise<void> {
   );
 }
 
+export async function sendPasswordResetEmail(to: string, otp: string): Promise<void> {
+  await sendEmail(
+    to,
+    `${otp} is your Truvi password reset code`,
+    `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1e293b;margin-bottom:8px">Reset your Truvi password</h2>
+      <p style="color:#475569">Use the code below to set a new password. It expires in 10 minutes.</p>
+      <div style="margin:24px 0;padding:16px;background:#f1f5f9;border-radius:12px;text-align:center">
+        <span style="font-size:32px;font-weight:700;letter-spacing:6px;color:#0f172a">${otp}</span>
+      </div>
+      <p style="color:#94a3b8;font-size:13px">If you didn't request a password reset, you can safely ignore this email — your password won't change.</p>
+    </div>`
+  );
+}
+
 // Twilio SMS client — only created when credentials are present, so the app
 // still boots (and email OTP still works) if SMS isn't configured.
 const hasTwilioConfig = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM);

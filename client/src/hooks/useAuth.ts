@@ -44,6 +44,17 @@ export function useAuth() {
     return res.data;
   }, []);
 
+  // Forgot password: email a reset code, then confirm it with a new password.
+  const forgotPassword = useCallback(async (email: string) => {
+    const res = await api.post("/auth/forgot-password", { email });
+    return res.data;
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, otp: string, password: string) => {
+    const res = await api.post("/auth/reset-password", { email, otp, password });
+    return res.data;
+  }, []);
+
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => null);
     disconnectSocket();
@@ -51,5 +62,5 @@ export function useAuth() {
     useCompareStore.getState().clear(); // prevent stale selections carrying across sessions
   }, [clearAuth]);
 
-  return { user, accessToken, login, signup, verifyAccount, resendOtp, logout, isAuthenticated: !!accessToken };
+  return { user, accessToken, login, signup, verifyAccount, resendOtp, forgotPassword, resetPassword, logout, isAuthenticated: !!accessToken };
 }

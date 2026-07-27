@@ -66,7 +66,6 @@ export const PRICING_TABS: PriceTab[] = [
       { planId: "dev_crm", title: "Developer CRM", desc: "Manage leads and sales.", price: "₹49", unit: "/month", strike: "₹449", cta: "buy" },
       { planId: "dev_ai_analytics", title: "AI Analytics Dashboard", desc: "AI-powered project analytics.", price: "₹999", strike: "₹4,999", cta: "buy" },
       { planId: "dev_marketing_campaign", title: "Marketing Campaign", desc: "Full managed marketing campaign.", price: "₹1,00,000", strike: "₹2,00,000", cta: "buy" },
-      { planId: "dev_pro_monthly", title: "Developer Pro", desc: "All tools, unlimited, top placement.", price: "₹9,999", unit: "/month", offer: "or ₹99,999/year", cta: "subscribe", yearlyPlanId: "dev_pro_yearly", yearlyPrice: "₹99,999" },
     ],
   },
 ];

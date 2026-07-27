@@ -69,3 +69,17 @@ export const resendOtpSchema = z.object({
   email: emailField,
 });
 export type ResendOtpInput = z.infer<typeof resendOtpSchema>;
+
+// Forgot-password: request a reset code sent to the account's email.
+export const forgotPasswordSchema = z.object({
+  email: emailField,
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+// Reset-password: confirm the emailed code and set a new (strong) password.
+export const resetPasswordSchema = z.object({
+  email: emailField,
+  otp: otpField,
+  password: strongPassword,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

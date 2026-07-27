@@ -109,6 +109,10 @@ export interface UserVerification {
   phoneOtpExpiry?: string | null; // ISO date string
   emailOtp?: string | null;
   emailOtpExpiry?: string | null; // ISO date string
+  // Forgot-password flow: a 6-digit code emailed to the account owner so they
+  // can set a new password without being logged in. Cleared once used.
+  resetPasswordOtp?: string | null;
+  resetPasswordExpiry?: string | null; // ISO date string
   aadhaarDocumentUrl?: string;
   aadhaarVerifiedAt?: string | null; // ISO date string
   // CP identity docs. PAN number is stored masked. The document images are NOT

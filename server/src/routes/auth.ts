@@ -17,10 +17,10 @@ import {
   isOnboardingComplete,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
-import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema } from "../lib/validations/auth";
+import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
-import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
+import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
@@ -365,6 +365,75 @@ router.post("/resend-otp", async (req, res) => {
     phone: maskPhone(user.phone),
     smsSent,
   });
+});
+
+// Public: request a password-reset code. Emails a 6-digit code to the account.
+// Available to every role. Never reveals whether an email exists.
+router.post("/forgot-password", async (req, res) => {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  }
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email.toLowerCase().trim()));
+
+  // Only issue a code for accounts that can actually log in. Either way we
+  // respond identically so the endpoint can't be used to probe for accounts.
+  if (user && !user.disabled && user.approvalStatus === "APPROVED") {
+    const otp = generateOtp();
+    const verification: UserVerification = {
+      ...(user.verification ?? {}),
+      resetPasswordOtp: otp,
+      resetPasswordExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 mins
+    };
+    await db.update(users).set({ verification }).where(eq(users._id, user._id));
+    try {
+      await sendPasswordResetEmail(user.email, otp);
+    } catch (err) {
+      console.error("Failed to send password reset email:", err);
+    }
+  }
+
+  return res.json({
+    message: "If an account exists for that email, we've sent a reset code.",
+    email: parsed.data.email,
+  });
+});
+
+// Public: confirm the emailed reset code and set a new password. On success the
+// code is cleared and all reset state is wiped.
+router.post("/reset-password", async (req, res) => {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  }
+
+  const { email, otp, password } = parsed.data;
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+  if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
+
+  const v = user.verification;
+  if (!v?.resetPasswordOtp || !v?.resetPasswordExpiry) {
+    return res.status(400).json({ error: "No reset requested. Please request a new code." });
+  }
+  if (new Date(v.resetPasswordExpiry) < new Date()) {
+    return res.status(400).json({ error: "Reset code expired. Please request a new one." });
+  }
+  if (v.resetPasswordOtp !== otp) {
+    return res.status(400).json({ error: "Invalid reset code", field: "otp" });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+  const verification: UserVerification = {
+    ...(user.verification ?? {}),
+    resetPasswordOtp: null,
+    resetPasswordExpiry: null,
+  };
+  await db.update(users).set({ password: hashedPassword, verification }).where(eq(users._id, user._id));
+
+  return res.json({ message: "Password reset. You can now sign in with your new password." });
 });
 
 router.post("/refresh", async (req, res) => {
