@@ -44,9 +44,18 @@ import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { logAudit } from "../services/audit";
 import { kycDir } from "./auth";
+import { runLifecycleReminders } from "../services/lifecycleEmails";
 
 const router = Router();
 router.use(authenticate);
+
+// POST /api/admin/lifecycle/run-reminders — trigger the onboarding-reminder
+// sweep on demand (verify account / complete KYC / activate a plan). The same
+// sweep also runs automatically once a day; this lets a founder fire it now.
+router.post("/lifecycle/run-reminders", requireRole("ADMIN"), async (_req, res) => {
+  const result = await runLifecycleReminders();
+  res.json({ ok: true, ...result });
+});
 
 // GET /api/admin/investor-metrics — the live valuation-driving numbers
 // (users, MRR/ARR, LTV, CAC, churn, revenue, conversion) for the admin /

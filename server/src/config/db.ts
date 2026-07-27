@@ -49,6 +49,10 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "first_contacted_at" timestamptz`,
     // Active-user tracking (MAU/DAU) and customer-experience (NPS/complaints).
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_active_at" timestamptz`,
+    // Lifecycle emails: welcome (sent once on first full verification) and the
+    // throttled "finish your setup" reminder (verification / KYC / plan).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "welcome_email_sent_at" timestamptz`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_reminder_at" timestamptz`,
     `CREATE TABLE IF NOT EXISTS "customer_feedback" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "kind" text NOT NULL DEFAULT 'NPS',

@@ -11,16 +11,16 @@ const transporter = hasSmtpConfig
     })
   : nodemailer.createTransport({ jsonTransport: true }); // dev fallback: logs instead of sending
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const info = await transporter.sendMail({
-    from: process.env.SMTP_FROM || "Truvi <no-reply@truvi.app>",
-    to,
-    subject,
-    html,
-  });
+// All outbound mail is sent as Truvi Ventures. Override the display/address via
+// SMTP_FROM (e.g. when a dedicated domain sender is configured); otherwise it
+// defaults to the Truvi Ventures Gmail identity.
+export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
+
+export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<void> {
+  await transporter.sendMail({ from, to, subject, html });
 
   if (!hasSmtpConfig) {
-    console.log(`[dev email] To: ${to} | Subject: ${subject}`);
+    console.log(`[dev email] From: ${from} | To: ${to} | Subject: ${subject}`);
   }
 }
 
