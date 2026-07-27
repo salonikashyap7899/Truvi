@@ -21,6 +21,7 @@ import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema } from 
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { sendOtpEmail, sendPhoneOtpViaSms } from "../services/emailService";
+import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
 import { isFounderEmail } from "../config/env";
@@ -335,6 +336,10 @@ router.post("/verify-account", async (req, res) => {
     })
     .where(eq(users._id, user._id))
     .returning();
+
+  // Account is now fully verified — send the one-time welcome email as Truvi
+  // Ventures. Fire-and-forget so a mail hiccup never fails verification.
+  void sendWelcomeEmailOnce(updated);
 
   return res.json(issueSession(res, updated));
 });

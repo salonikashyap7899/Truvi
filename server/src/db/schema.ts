@@ -333,6 +333,12 @@ export const users = pgTable(
     // Last time this account made an authenticated request — powers the
     // MAU/DAU active-user metrics (updated at most once per ~10 min).
     lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),
+    // Lifecycle email tracking. `welcomeEmailSentAt` is stamped the first time
+    // the account is fully verified so the welcome mail is sent exactly once.
+    // `lastReminderAt` throttles the "finish your setup" nudge (verification /
+    // KYC / plan) so we never spam an account with pending steps.
+    welcomeEmailSentAt: timestamp("welcome_email_sent_at", { withTimezone: true, mode: "date" }),
+    lastReminderAt: timestamp("last_reminder_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
