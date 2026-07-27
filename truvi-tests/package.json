@@ -1,0 +1,28 @@
+{
+  "name": "truvi-tests",
+  "version": "1.0.0",
+  "description": "Safe, non-destructive automated test suite for the live Truvi production site (read-only; no form submits; no data writes).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:all": "node run-all.mjs",
+    "test:links": "node tests/01-links.mjs",
+    "test:nav": "node tests/02-navigation.mjs",
+    "test:forms": "node tests/03-forms.mjs",
+    "test:rls": "node tests/04-supabase-rls.mjs",
+    "test:responsive": "node tests/05-responsive.mjs",
+    "test:lighthouse": "node tests/06-lighthouse.mjs",
+    "test:a11y": "node tests/07-accessibility.mjs",
+    "test:security": "node tests/08-security-headers.mjs",
+    "postinstall": "echo 'Next: run \\'npx playwright install\\' once to download the browser, then \\'npm run test:all\\'.'"
+  },
+  "keywords": ["playwright", "qa", "accessibility", "lighthouse", "security", "non-destructive"],
+  "license": "ISC",
+  "dependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "chrome-launcher": "^1.2.1",
+    "lighthouse": "^13.4.1",
+    "linkinator": "^8.0.2",
+    "playwright": "^1.62.0"
+  }
+}
