@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import {
   Handshake, ArrowRight, Globe, Mail, Phone,
   MapPin, FileCheck, ShieldCheck, Banknote, Star, Clock, QrCode,
+  Instagram, Linkedin,
 } from "lucide-react";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import { SiteNav } from "@/components/SiteNav";
@@ -110,6 +111,19 @@ const OPPORTUNITY = [
 ];
 
 const OPPORTUNITY_CHIPS = ["Growing Housing Demand", "Smart Cities", "Government Digitization", "AI-Driven Decisions"];
+
+const SOCIAL_LINKS = [
+  {
+    icon: <Instagram size={18} />,
+    label: "Instagram",
+    href: "https://www.instagram.com/truviventures?igsh=MWpqNWdlMGhramk0Nw==",
+  },
+  {
+    icon: <Linkedin size={18} />,
+    label: "LinkedIn",
+    href: "https://www.linkedin.com/company/truvi-truviventures",
+  },
+];
 
 /* ── Ambassador flow steps ───────────────────────────────────────────────── */
 const AMBASSADOR_STEPS = [
@@ -486,6 +500,30 @@ export default function AboutPage() {
                   <p className="mt-1.5 truncate text-sm text-white/90">{c.value}</p>
                 </motion.a>
               ))}
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.3}>
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">
+                Follow Us
+              </p>
+              <div className="flex items-center gap-4">
+                {SOCIAL_LINKS.map((s) => (
+                  <motion.a
+                    key={s.label}
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={s.label}
+                    whileHover={{ y: -3, boxShadow: `0 8px 30px rgba(59,130,246,0.25)` }}
+                    className="grid size-11 place-items-center rounded-full text-white/85 backdrop-blur-md transition-colors hover:text-white"
+                    style={{ background: NAVY, border: `1px solid ${BLUE_BORDER}` }}
+                  >
+                    {s.icon}
+                  </motion.a>
+                ))}
+              </div>
             </div>
           </Reveal>
         </Section>
