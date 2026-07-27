@@ -7,6 +7,7 @@ import { formatCompactINR, formatINR } from "@/lib/utils";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperiencePage } from "@/pages/dashboard/FounderModules";
+import { FinancialsPage, FinancialCards, useCommandFinance, type FinSection } from "@/pages/dashboard/CommandCenterFinance";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import "@/styles/founder-os.css";
 
@@ -107,7 +108,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
+export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "financials" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -124,6 +125,8 @@ export interface DashboardOSConfig {
   overviewSub: string;
   /** Whether the AI Copilot chat FAB is mounted (Founder-only per RBAC). */
   showCopilot: boolean;
+  /** Whether the Command Center financial cards + Financials page are shown (Founder-only). */
+  showFinancials?: boolean;
   /** Build the sidebar navigation from live data. Only listed pages are reachable. */
   buildNav: (d: Overview) => NavGroup[];
 }
@@ -140,6 +143,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const [navOpen, setNavOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [finSection, setFinSection] = useState<FinSection>("investment");
 
   async function load() {
     // founder-overview drives the whole dashboard (nav + pages), so it's the
@@ -158,6 +162,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   useSocketEvent("finance:update", reloadFinance);
 
   function go(p: Page) { setPage(p); setNavOpen(false); }
+  function openFinancials(section: FinSection) { setFinSection(section); setPage("financials"); setNavOpen(false); }
   function doLogout() { clearAuth(); navigate("/login"); }
 
   if (loading) return <div className="founder-os" style={{ padding: 40 }}><p style={{ color: "var(--ink-500)" }}>Loading command center…</p></div>;
@@ -222,7 +227,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
         </header>
 
         <div className="content">
-          {current === "overview" && <OverviewPage d={d} fin={fin} go={go} navigate={navigate} title={config.overviewTitle} sub={config.overviewSub} />}
+          {current === "overview" && <OverviewPage d={d} fin={fin} go={go} openFinancials={config.showFinancials ? openFinancials : undefined} navigate={navigate} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
           {current === "partners" && <ChannelPartnersPage />}
           {current === "developers" && <DevelopersPage />}
@@ -231,6 +236,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "bookings" && <BookingsDashPage />}
           {current === "crm" && <CrmPage d={d} navigate={navigate} />}
           {current === "finance" && <FinancePage fin={fin} navigate={navigate} />}
+          {current === "financials" && <FinancialsPage initialSection={finSection} />}
           {current === "legal" && <LegalDashPage navigate={navigate} />}
           {current === "support" && <SupportDashPage navigate={navigate} />}
           {current === "operations" && <OperationsDashPage navigate={navigate} />}
@@ -477,8 +483,9 @@ function NotificationsFeed({ items }: { items?: { tone: string; icon: string; te
   );
 }
 
-function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; navigate: ReturnType<typeof useNavigate>; title: string; sub: string }) {
+function OverviewPage({ d, fin, go, openFinancials, navigate, title, sub }: { d: Overview; fin: FinanceSummary | null; go: (p: Page) => void; openFinancials?: (s: FinSection) => void; navigate: ReturnType<typeof useNavigate>; title: string; sub: string }) {
   const ex = d.executive;
+  const { summary: finSummary } = useCommandFinance();
   return (
     <section className="page">
       <div className="page-header">
@@ -487,6 +494,7 @@ function OverviewPage({ d, fin, go, navigate, title, sub }: { d: Overview; fin: 
 
       <QuickActions navigate={navigate} go={go} />
       <CommandHero d={d} fin={fin} go={go} />
+      {openFinancials && <FinancialCards summary={finSummary} onOpen={openFinancials} />}
       <div className="grid-2">
         <DailyBrief d={d} fin={fin} go={go} />
         <NotificationsFeed items={d.notifications} />

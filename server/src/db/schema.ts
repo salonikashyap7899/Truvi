@@ -853,6 +853,13 @@ export const employees = pgTable("employees", {
   performanceScore: integer("performance_score").notNull().default(0),
   tasksPending: integer("tasks_pending").notNull().default(0),
   monthlyCtc: doublePrecision("monthly_ctc").notNull().default(0),
+  // Salary-payment tracking for the Command Center "Employee Salaries" card.
+  // `salaryPaidForMonth` holds the month key (e.g. "2026-07") this employee's
+  // salary was last marked paid for — so a new month automatically flips
+  // everyone back to "pending" without a reset job. `salaryDueDay` is the
+  // day-of-month (1–28) the salary is due, driving upcoming-due-date alerts.
+  salaryPaidForMonth: text("salary_paid_for_month"),
+  salaryDueDay: integer("salary_due_day").notNull().default(1),
   joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
@@ -928,6 +935,59 @@ export const investorUpdates = pgTable("investor_updates", {
   body: text("body"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// COMMAND CENTER FINANCIALS — founder-entered capital investments, revenue and
+// recurring monthly payments that power the Founder Dashboard financial cards
+// (Total/Monthly Investment, Total/Monthly Revenue, Monthly Payments). Every
+// figure the cards show is derived from these rows (no fabricated numbers).
+// Amounts are stored in whole rupees (doublePrecision), matching the other
+// founder-module money columns (employees.monthlyCtc, marketingCampaigns.spend).
+// ---------------------------------------------------------------------------
+
+// Capital / business investments logged by founders. `date` is the investment
+// date (drives the Monthly Investment card's current-month rollup).
+export const commandInvestments = pgTable("command_investments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").notNull().default("General"),
+  amount: doublePrecision("amount").notNull().default(0),
+  date: timestamp("date", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type ICommandInvestment = typeof commandInvestments.$inferSelect;
+
+// Revenue entries logged by founders. `date` drives the Monthly Revenue card.
+export const commandRevenues = pgTable("command_revenues", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").notNull().default("General"),
+  amount: doublePrecision("amount").notNull().default(0),
+  date: timestamp("date", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  notes: text("notes"),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type ICommandRevenue = typeof commandRevenues.$inferSelect;
+
+// Recurring monthly payments (API/software subscriptions, hosting, Twilio,
+// office & other recurring costs). Only `active` rows count toward the Monthly
+// Payments card total.
+export type RecurringExpenseCategory =
+  | "API" | "SOFTWARE" | "HOSTING" | "TWILIO" | "OFFICE" | "MARKETING" | "OTHER";
+export const recurringExpenses = pgTable("recurring_expenses", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  label: text("label").notNull(),
+  category: text("category").$type<RecurringExpenseCategory>().notNull().default("OTHER"),
+  amount: doublePrecision("amount").notNull().default(0),
+  notes: text("notes"),
+  active: boolean("active").notNull().default(true),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type IRecurringExpense = typeof recurringExpenses.$inferSelect;
 
 // ---------------------------------------------------------------------------
 // Inferred row types (replacements for the old IUser/IProject/... interfaces)

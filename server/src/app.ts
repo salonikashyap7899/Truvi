@@ -32,6 +32,7 @@ import academyRoutes from "./routes/academy";
 import publicRoutes from "./routes/public";
 import vaultRoutes from "./routes/vault";
 import founderModuleRoutes from "./routes/founderModules";
+import commandFinanceRoutes from "./routes/commandFinance";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import presentationRoutes from "./routes/presentation";
@@ -103,6 +104,7 @@ export function createApp() {
   app.use("/api/public", publicRoutes);
   app.use("/api/vault", vaultRoutes);
   app.use("/api/founder", founderModuleRoutes);
+  app.use("/api/command-finance", commandFinanceRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/presentation", presentationRoutes);

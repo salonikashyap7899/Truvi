@@ -200,6 +200,42 @@ async function ensureSchema(db: Db): Promise<void> {
        "body" text,
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    // Command Center financials: salary-payment tracking on employees + the
+    // founder-entered investment / revenue / recurring-payment ledgers.
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_paid_for_month" text`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_due_day" integer NOT NULL DEFAULT 1`,
+    `CREATE TABLE IF NOT EXISTS "command_investments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_investments_date_idx" ON "command_investments" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "command_revenues" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_revenues_date_idx" ON "command_revenues" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "recurring_expenses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "label" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'OTHER',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "notes" text,
+       "active" boolean NOT NULL DEFAULT true,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

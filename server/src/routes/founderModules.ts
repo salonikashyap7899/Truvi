@@ -170,6 +170,7 @@ const employeeSchema = z.object({
   performanceScore: z.coerce.number().int().min(0).max(100).optional(),
   tasksPending: z.coerce.number().int().min(0).optional(),
   monthlyCtc: z.coerce.number().min(0).optional(),
+  salaryDueDay: z.coerce.number().int().min(1).max(28).optional(),
 });
 router.post("/employees", async (req, res) => {
   const parsed = employeeSchema.safeParse(req.body);
