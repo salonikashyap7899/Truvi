@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../config/db";
+import { getSqlClient } from "../db/index";
 import {
   users,
   notifications,
@@ -47,14 +48,12 @@ const aadhaarUpload = multer({
   },
 });
 
-// KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP identity.
-// Private (NOT statically served) KYC store — identity documents must never be
-// publicly reachable by URL. Files are streamed only to admins via an
-// authenticated route and deleted once verification is decided.
-export const kycDir = path.join(process.cwd(), "private", "kyc");
-if (!fs.existsSync(kycDir)) fs.mkdirSync(kycDir, { recursive: true });
+// KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP/Ambassador
+// identity. Held in memory (not on disk) and persisted durably to the
+// `kyc_documents` table as bytea — identity documents must never be publicly
+// reachable by URL; they are streamed only to admins via an authenticated route.
 const kycUpload = multer({
-  dest: kycDir,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 6 * 1024 * 1024 }, // 6MB per file
   fileFilter: (req, file, cb) => {
     // Selfies are always images; Aadhaar/PAN may be a PDF scan.
@@ -805,22 +804,34 @@ router.post(
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Files are kept privately by their stored (random) filename — never a
-    // public URL. Only admins can retrieve them, via an authenticated route.
+    // Document bytes are stored durably in Postgres (kyc_documents) — never on
+    // disk or a public URL. Only admins can retrieve them, via an authenticated
+    // route. On the user we keep just lightweight presence markers + mime.
     const kycFiles = {
-      aadhaar: { file: aadhaarFile.filename, mime: aadhaarFile.mimetype },
-      pan: { file: panFile.filename, mime: panFile.mimetype },
-      selfie: { file: selfieFile.filename, mime: selfieFile.mimetype },
+      aadhaar: { mime: aadhaarFile.mimetype },
+      pan: { mime: panFile.mimetype },
+      selfie: { mime: selfieFile.mimetype },
     };
+
+    const sqlc = getSqlClient();
+    await sqlc`
+      INSERT INTO kyc_documents (user_id, aadhaar_data, aadhaar_mime, pan_data, pan_mime, selfie_data, selfie_mime, updated_at)
+      VALUES (${userId}, ${aadhaarFile.buffer}, ${aadhaarFile.mimetype}, ${panFile.buffer}, ${panFile.mimetype}, ${selfieFile.buffer}, ${selfieFile.mimetype}, now())
+      ON CONFLICT (user_id) DO UPDATE SET
+        aadhaar_data = EXCLUDED.aadhaar_data, aadhaar_mime = EXCLUDED.aadhaar_mime,
+        pan_data = EXCLUDED.pan_data, pan_mime = EXCLUDED.pan_mime,
+        selfie_data = EXCLUDED.selfie_data, selfie_mime = EXCLUDED.selfie_mime,
+        updated_at = now()
+    `;
 
     // Let the provider hook decide automatically; with no provider it defers to
     // manual admin review, so we mark PENDING and leave the checks unverified.
     const provider = await runProviderKyc({
       aadhaarNumber,
       panNumber,
-      aadhaarDocumentUrl: kycFiles.aadhaar.file,
-      panDocumentUrl: kycFiles.pan.file,
-      selfieUrl: kycFiles.selfie.file,
+      aadhaarDocumentUrl: "",
+      panDocumentUrl: "",
+      selfieUrl: "",
     });
     const approved = provider.outcome === "APPROVED";
     const rejected = provider.outcome === "REJECTED";
