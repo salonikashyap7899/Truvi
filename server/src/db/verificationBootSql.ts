@@ -45,6 +45,22 @@ export const VERIFICATION_BOOT_SQL: string[] = [
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS kyc_data_aadhaar_hash_idx
      ON kyc_data (aadhaar_hash) WHERE aadhaar_hash IS NOT NULL`,
+
+  // CP/Ambassador identity documents (Aadhaar + PAN scans + live selfie) stored
+  // durably in Postgres as bytea — the server disk is ephemeral, so files kept
+  // there would vanish on redeploy. One row per user; admins stream each image
+  // through an authenticated route. Retained after approval so an admin can
+  // re-view a verified user's identity from the panel.
+  `CREATE TABLE IF NOT EXISTS kyc_documents (
+     user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+     aadhaar_data bytea,
+     aadhaar_mime text,
+     pan_data bytea,
+     pan_mime text,
+     selfie_data bytea,
+     selfie_mime text,
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
 ];
 
 const DEFAULT_SYSTEM_PROMPT = `You are Truvi's property verification assistant for the Indian real-estate market.

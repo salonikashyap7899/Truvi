@@ -1,9 +1,8 @@
 import { Router } from "express";
-import fs from "fs";
-import path from "path";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
+import { getSqlClient } from "../db/index";
 import {
   users,
   projects,
@@ -34,7 +33,6 @@ import {
   ApprovalStatus,
   VerificationDetails,
   OnboardingChecks,
-  UserVerification,
   DEFAULT_ONBOARDING_CHECKS,
   isOnboardingComplete,
 } from "../db/schema";
@@ -43,7 +41,6 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { logAudit } from "../services/audit";
-import { kycDir } from "./auth";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 
 const router = Router();
@@ -1264,27 +1261,69 @@ router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
   res.json({ submissions: pending });
 });
 
-// GET /api/admin/kyc/:userId/file/:type — stream a KYC document to an admin.
-// This is the ONLY way to view identity docs; they are not statically served.
+// GET /api/admin/kyc/:userId/file/:type — stream a KYC document (from the DB) to
+// an admin. This is the ONLY way to view identity docs; they are not statically
+// served. Available for as long as the document is retained (i.e. after approval
+// too, so an admin can re-check a verified user's identity).
 router.get("/kyc/:userId/file/:type", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const userId = String(req.params.userId);
   const type = String(req.params.type);
   if (!isValidId(userId)) return res.status(404).json({ error: "Not found" });
+  // `type` is validated against this fixed set before it's used as a column
+  // name, so the interpolation below can't be an injection vector.
   if (!["aadhaar", "pan", "selfie"].includes(type)) return res.status(400).json({ error: "Bad type" });
 
-  const db = getDb();
-  const [user] = await db.select({ verification: users.verification }).from(users).where(eq(users._id, userId));
-  const entry = user?.verification?.kycFiles?.[type as "aadhaar" | "pan" | "selfie"];
-  if (!entry) return res.status(404).json({ error: "Not found" });
+  const sqlc = getSqlClient();
+  const rows = await sqlc.unsafe(
+    `SELECT ${type}_data AS data, ${type}_mime AS mime FROM kyc_documents WHERE user_id = $1`,
+    [userId],
+  );
+  const row = rows?.[0] as unknown as { data: Uint8Array | null; mime: string | null } | undefined;
+  if (!row?.data) return res.status(404).json({ error: "Not found" });
 
-  const filePath = path.join(kycDir, entry.file);
-  // Guard against path traversal — the resolved path must stay inside kycDir.
-  if (!path.resolve(filePath).startsWith(path.resolve(kycDir)) || !fs.existsSync(filePath)) {
-    return res.status(404).json({ error: "Not found" });
-  }
-  res.setHeader("Content-Type", entry.mime || "application/octet-stream");
+  res.setHeader("Content-Type", row.mime || "application/octet-stream");
   res.setHeader("Cache-Control", "private, no-store");
-  fs.createReadStream(filePath).pipe(res);
+  res.end(Buffer.from(row.data));
+});
+
+// GET /api/admin/kyc/records — every CP/Ambassador who has ever submitted KYC
+// (pending, approved or rejected), so an admin can view identity documents even
+// after approval. The pending queue above stays scoped to what needs a decision.
+router.get("/kyc/records", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({
+      _id: users._id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      onboardingChecks: users.onboardingChecks,
+      verification: users.verification,
+    })
+    .from(users)
+    .where(inArray(users.role, ["CP", "AMBASSADOR"]));
+
+  const statusRank: Record<string, number> = { PENDING: 0, REJECTED: 1, APPROVED: 2 };
+  const records = rows
+    .filter((u) => Boolean(u.onboardingChecks?.kycStatus))
+    .map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      kycStatus: u.onboardingChecks?.kycStatus ?? null,
+      panNumberMasked: u.verification?.panNumberMasked ?? null,
+      hasAadhaar: Boolean(u.verification?.kycFiles?.aadhaar),
+      hasPan: Boolean(u.verification?.kycFiles?.pan),
+      hasSelfie: Boolean(u.verification?.kycFiles?.selfie),
+      submittedAt: u.verification?.kycSubmittedAt ?? null,
+    }))
+    .sort((a, b) => (statusRank[a.kycStatus ?? ""] ?? 9) - (statusRank[b.kycStatus ?? ""] ?? 9)
+      || (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
+
+  res.json({ records });
 });
 
 const kycDecisionSchema = z.object({ approve: z.boolean(), reason: z.string().max(300).optional() });
@@ -1316,21 +1355,12 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
   };
   const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
-  // Data-retention minimisation: once a decision is made we no longer need the
-  // raw identity images. Delete the files from disk and drop the references.
-  const kycFiles = user.verification?.kycFiles;
-  if (kycFiles) {
-    for (const entry of Object.values(kycFiles)) {
-      if (!entry?.file) continue;
-      const p = path.join(kycDir, entry.file);
-      if (path.resolve(p).startsWith(path.resolve(kycDir))) fs.promises.unlink(p).catch(() => null);
-    }
-  }
-  const verification: UserVerification = { ...(user.verification ?? {}), kycFiles: undefined };
-
+  // Identity documents are retained (in the kyc_documents table) after the
+  // decision so an admin can re-view a verified user's Aadhaar/PAN/selfie from
+  // the panel. Only the review outcome changes here.
   await db
     .update(users)
-    .set({ onboardingChecks, onboardingVerified, verification })
+    .set({ onboardingChecks, onboardingVerified })
     .where(eq(users._id, user._id));
 
   // Tell the CP the outcome in real time.

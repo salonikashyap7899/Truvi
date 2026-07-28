@@ -10,6 +10,7 @@ interface KycSubmission {
   email: string;
   phone?: string;
   role: string;
+  kycStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
   panNumberMasked: string | null;
   hasAadhaar: boolean;
   hasPan: boolean;
@@ -24,8 +25,10 @@ export default function AdminKycPage() {
 
   async function load() {
     try {
-      const res = await api.get("/admin/kyc/pending");
-      setSubmissions(res.data.submissions || []);
+      // All KYC records (pending + already reviewed) so verified users' docs
+      // remain viewable after approval.
+      const res = await api.get("/admin/kyc/records");
+      setSubmissions(res.data.records || []);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load submissions");
     } finally {
@@ -47,13 +50,17 @@ export default function AdminKycPage() {
     try {
       await api.post(`/admin/kyc/${userId}/decision`, { approve, reason });
       toast.success(approve ? "Approved — access unlocked." : "Rejected.");
-      setSubmissions((prev) => prev.filter((s) => s._id !== userId));
+      // Keep the record (documents are retained) — just move it to reviewed.
+      setSubmissions((prev) => prev.map((s) => (s._id === userId ? { ...s, kycStatus: approve ? "APPROVED" : "REJECTED" } : s)));
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Action failed");
     } finally {
       setBusyId(null);
     }
   }
+
+  const pending = submissions.filter((s) => s.kycStatus === "PENDING");
+  const reviewed = submissions.filter((s) => s.kycStatus && s.kycStatus !== "PENDING");
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
@@ -65,54 +72,92 @@ export default function AdminKycPage() {
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Review Channel Partner &amp; Ambassador Aadhaar, PAN and selfie submissions. Approving unlocks their workspace;
-        documents are deleted once you decide.
+        documents are retained securely so you can re-view a verified user's identity anytime.
       </p>
 
       {loading ? (
         <p className="mt-10 text-sm text-muted-foreground">Loading…</p>
       ) : submissions.length === 0 ? (
-        <p className="mt-10 text-sm text-muted-foreground">No submissions awaiting review.</p>
+        <p className="mt-10 text-sm text-muted-foreground">No identity submissions yet.</p>
       ) : (
-        <div className="mt-6 space-y-5">
-          {submissions.map((s) => (
-            <div key={s._id} className="rounded-2xl border border-white/10 glass p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{s.name} <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium">{s.role}</span></p>
-                  <p className="text-sm text-muted-foreground">{s.email}{s.phone ? ` · ${s.phone}` : ""}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    PAN: {s.panNumberMasked || "—"}
-                    {s.submittedAt ? ` · submitted ${new Date(s.submittedAt).toLocaleString("en-IN")}` : ""}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => decide(s._id, true)}
-                    disabled={busyId === s._id}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60"
-                  >
-                    {busyId === s._id && <Loader2 size={14} className="animate-spin" />} Approve
-                  </button>
-                  <button
-                    onClick={() => decide(s._id, false)}
-                    disabled={busyId === s._id}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
-                  >
-                    Reject
-                  </button>
-                </div>
+        <>
+          <section className="mt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-300/90">Awaiting review ({pending.length})</h2>
+            {pending.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">Nothing awaiting review right now.</p>
+            ) : (
+              <div className="mt-3 space-y-5">
+                {pending.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} />)}
               </div>
+            )}
+          </section>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <DocTile label="Aadhaar" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
-                <DocTile label="PAN" userId={s._id} type="pan" present={s.hasPan} />
-                <DocTile label="Selfie" userId={s._id} type="selfie" present={s.hasSelfie} />
+          {reviewed.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300/90">Verified &amp; reviewed identities ({reviewed.length})</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Documents stay available here for reference — open to view Aadhaar, PAN and selfie.</p>
+              <div className="mt-3 space-y-5">
+                {reviewed.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} readOnly />)}
               </div>
-            </div>
-          ))}
-        </div>
+            </section>
+          )}
+        </>
       )}
     </main>
+  );
+}
+
+/** One identity record — either awaiting review (with Approve/Reject) or an
+ *  already-reviewed record shown read-only with its retained documents. */
+function SubmissionCard({
+  s, busyId, onDecide, readOnly,
+}: {
+  s: KycSubmission;
+  busyId: string | null;
+  onDecide: (userId: string, approve: boolean) => void;
+  readOnly?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 glass p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold">{s.name} <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium">{s.role}</span></p>
+          <p className="text-sm text-muted-foreground">{s.email}{s.phone ? ` · ${s.phone}` : ""}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            PAN: {s.panNumberMasked || "—"}
+            {s.submittedAt ? ` · submitted ${new Date(s.submittedAt).toLocaleString("en-IN")}` : ""}
+          </p>
+        </div>
+        {readOnly ? (
+          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${s.kycStatus === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
+            {s.kycStatus === "APPROVED" ? "Verified" : "Rejected"}
+          </span>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onDecide(s._id, true)}
+              disabled={busyId === s._id}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60"
+            >
+              {busyId === s._id && <Loader2 size={14} className="animate-spin" />} Approve
+            </button>
+            <button
+              onClick={() => onDecide(s._id, false)}
+              disabled={busyId === s._id}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+            >
+              Reject
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DocTile label="Aadhaar" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
+        <DocTile label="PAN" userId={s._id} type="pan" present={s.hasPan} />
+        <DocTile label="Selfie" userId={s._id} type="selfie" present={s.hasSelfie} />
+      </div>
+    </div>
   );
 }
 
