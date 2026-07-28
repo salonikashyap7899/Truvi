@@ -27,8 +27,10 @@ import { connectDb, getSqlClient, closeDb } from "../db";
  * Safety: runs a read-only PREVIEW by default. To actually delete, re-run with
  *   CONFIRM_RESET=REMOVE_ALL_EXCEPT_FOUNDERS npm run reset:founders
  *
- * The kept accounts default to the two founders but can be overridden with a
- * comma-separated KEEP_EMAILS env var.
+ * The two founders and the platform admin (admin@truvi.app) are ALWAYS kept —
+ * everything on the platform is handled through these admin/founder logins, so
+ * they can never be removed. A comma-separated KEEP_EMAILS env var only adds
+ * further accounts on top of those three; it can never drop them.
  */
 
 const CONFIRM_TOKEN = "REMOVE_ALL_EXCEPT_FOUNDERS";
@@ -37,22 +39,27 @@ const CONFIRM_TOKEN = "REMOVE_ALL_EXCEPT_FOUNDERS";
 // preserved so the platform keeps working after the reset.
 const KEEP_TABLES = new Set(["users", "platform_settings", "subscription_plans"]);
 
-// The founder accounts to keep. These are Truvi's two founders; override with
-// KEEP_EMAILS="a@x.com,b@y.com" if ever needed.
-const DEFAULT_KEEP_EMAILS = ["sandeep@truviventures.com", "meraj@truviventures.com"];
+// The accounts that are ALWAYS kept — the two Truvi founders plus the platform
+// admin. Everything on the platform is handled through these admin/founder
+// logins, so they are the permanent survivors of a reset. KEEP_EMAILS, when
+// set, is added on top of these (it never removes them) — so these three can
+// never be wiped, even by a stray KEEP_EMAILS value.
+const DEFAULT_KEEP_EMAILS = [
+  "sandeep@truviventures.com",
+  "meraj@truviventures.com",
+  "admin@truvi.app",
+];
 
 async function main() {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) throw new Error("DATABASE_URL is not set. Add it to server/.env before running this.");
 
+  // The three default accounts are ALWAYS kept; KEEP_EMAILS only ever adds
+  // more on top, so admin/founder logins can never be removed by mistake.
+  const extra = (process.env.KEEP_EMAILS ?? "").split(",");
   const keepEmails = [
     ...new Set(
-      (process.env.KEEP_EMAILS?.trim()
-        ? process.env.KEEP_EMAILS.split(",")
-        : DEFAULT_KEEP_EMAILS
-      )
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean),
+      [...DEFAULT_KEEP_EMAILS, ...extra].map((e) => e.trim().toLowerCase()).filter(Boolean),
     ),
   ];
 
