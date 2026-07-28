@@ -75,8 +75,13 @@ export function VideoBand({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (visible && !reduced) v.play().catch(() => {});
-    else v.pause();
+    if (visible && !reduced) {
+      v.play().catch((err) => {
+        console.warn("Autoplay failed:", err);
+      });
+    } else {
+      v.pause();
+    }
   }, [visible, reduced, loaded]);
 
   const zoomStyle = zoom !== 1 ? { transform: `scale(${zoom})`, transformOrigin: "center" as const } : undefined;
@@ -94,7 +99,7 @@ export function VideoBand({
         <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 shadow-[0_28px_90px_-24px_rgba(0,0,0,0.85)]" style={{ maxWidth }}>
           <img src={poster} alt="" aria-hidden className="block h-auto w-full" />
           {loaded && !reduced && (
-            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted loop playsInline autoPlay preload="none">
+            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted loop playsInline autoPlay>
               {srcMp4 && <source src={srcMp4} type="video/mp4" />}
               {srcWebm && <source src={srcWebm} type="video/webm" />}
             </video>
@@ -128,7 +133,6 @@ export function VideoBand({
           loop
           playsInline
           autoPlay
-          preload="none"
         >
           {srcMp4 && <source src={srcMp4} type="video/mp4" />}
           {srcWebm && <source src={srcWebm} type="video/webm" />}
