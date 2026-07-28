@@ -320,7 +320,11 @@ export default function AdminUsersPage() {
           const busy = busyId === u._id;
           return (
             <Card key={u._id} className={`flex flex-col gap-3 border-white/10 text-white sm:flex-row sm:items-center sm:justify-between ${u.disabled ? "opacity-60" : ""}`}>
-              <div className="flex min-w-0 items-center gap-3">
+              <Link
+                to={`/admin/users/${u._id}`}
+                title="Open full profile"
+                className="-m-1 flex min-w-0 items-center gap-3 rounded-xl p-1 transition hover:bg-white/[0.04]"
+              >
                 <div className="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--trust,#3b82f6)] to-[#2563eb] text-sm font-bold text-white">
                   {(u.name || u.email || "?").trim().charAt(0).toUpperCase()}
                 </div>
@@ -352,7 +356,7 @@ export default function AdminUsersPage() {
                     {u.email}{u.phone ? ` · ${u.phone}` : ""}{u.createdAt ? ` · joined ${formatDate(u.createdAt)}` : ""}
                   </p>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {isAdmin || isSelf ? (

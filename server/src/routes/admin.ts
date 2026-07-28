@@ -26,6 +26,8 @@ import {
   financeEntries,
   marketingCampaigns,
   customerFeedback,
+  developerReferrals,
+  auditLogs,
   platformSettings,
   IPlatformSettings,
   LeadStage,
@@ -994,6 +996,242 @@ router.post("/users/:id/cancel-subscription", requireRole("ADMIN"), async (req: 
   const { password: _pw, ...safeUser } = updated;
 
   res.json({ cancelledCount: cancelled.length, user: safeUser });
+});
+
+// GET /api/admin/users/:id/profile — the complete, admin-only detailed profile
+// of ANY user. This is the data behind the "tap a user → see everything" view:
+// basic details, verification status, full KYC + every uploaded document,
+// delivery / booking / referral / transaction stats, account dates, and the
+// verification & approval history. Locked to ADMIN (requireRole) — no other
+// role can read another user's complete profile or identity documents.
+router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  const [
+    userCommissions,
+    submittedLeads,
+    assignedLeads,
+    userSiteVisits,
+    deliveryTasks,
+    userPayments,
+    userSubscriptions,
+    userLeadPurchases,
+    userBuyerDocs,
+    userLegalDocs,
+    userAssets,
+    registeredReferrals,
+    enrolledReferrals,
+    historyRows,
+  ] = await Promise.all([
+    db.select().from(commissions).where(eq(commissions.cpId, userId)),
+    db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.submittedById, userId)),
+    db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.assignedToId, userId)),
+    db.select({ _id: siteVisits._id, status: siteVisits.status }).from(siteVisits).where(eq(siteVisits.cpId, userId)),
+    db
+      .select({ _id: ambassadorTasks._id, status: ambassadorTasks.status, payoutAmount: ambassadorTasks.payoutAmount, payoutPaid: ambassadorTasks.payoutPaid, completedAt: ambassadorTasks.completedAt })
+      .from(ambassadorTasks)
+      .where(eq(ambassadorTasks.acceptedById, userId)),
+    db.select().from(payments).where(eq(payments.userId, userId)),
+    db.select().from(subscriptions).where(eq(subscriptions.userId, userId)),
+    db.select().from(leadPurchases).where(eq(leadPurchases.cpId, userId)),
+    db.select().from(buyerDocuments).where(eq(buyerDocuments.buyerId, userId)),
+    db
+      .select({ doc: legalDocuments, project: { name: projects.name } })
+      .from(legalDocuments)
+      .leftJoin(projects, eq(legalDocuments.projectId, projects._id))
+      .where(eq(legalDocuments.uploadedById, userId)),
+    db
+      .select({ doc: projectAssets, project: { name: projects.name } })
+      .from(projectAssets)
+      .leftJoin(projects, eq(projectAssets.projectId, projects._id))
+      .where(eq(projectAssets.uploadedBy, userId)),
+    db
+      .select({ _id: users._id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.referredBy, userId)),
+    db.select().from(developerReferrals).where(eq(developerReferrals.cpId, userId)),
+    db
+      .select({ log: auditLogs, actorName: users.name })
+      .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.userId, users._id))
+      .where(and(eq(auditLogs.resourceType, "user"), eq(auditLogs.resourceId, userId)))
+      .orderBy(desc(auditLogs.createdAt)),
+  ]);
+
+  // ---- Referral earnings — 2% of booking value on the sales of developers
+  // this user referred (commission → lead → project → referred developer),
+  // matching the incentive logic in the onboarding referral endpoint. A
+  // referred developer counts as "successful" once they have listed a project.
+  const REFERRAL_RATE = 0.02;
+  let referralSalesValue = 0;
+  let referralTransactions = 0;
+  const activatedReferralIds = new Set<string>();
+  const devIds = registeredReferrals.map((r) => String(r._id));
+  if (devIds.length) {
+    const devProjects = await db
+      .select({ _id: projects._id, developerId: projects.developerId })
+      .from(projects)
+      .where(inArray(projects.developerId, devIds));
+    const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
+    for (const p of devProjects) activatedReferralIds.add(String(p.developerId));
+    const projectIds = devProjects.map((p) => String(p._id));
+    if (projectIds.length) {
+      const projLeads = await db
+        .select({ _id: leads._id, projectId: leads.projectId })
+        .from(leads)
+        .where(inArray(leads.projectId, projectIds));
+      const leadToProject = new Map(projLeads.map((l) => [String(l._id), String(l.projectId)]));
+      const leadIds = projLeads.map((l) => String(l._id));
+      if (leadIds.length) {
+        const txns = await db
+          .select({ leadId: commissions.leadId, bookingValue: commissions.bookingValue })
+          .from(commissions)
+          .where(inArray(commissions.leadId, leadIds));
+        for (const t of txns) {
+          const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
+          if (!devId) continue;
+          referralTransactions += 1;
+          referralSalesValue += Number(t.bookingValue || 0);
+        }
+      }
+    }
+  }
+
+  // ---- Uploaded documents (identity images stream through the authenticated
+  // KYC file route; nothing is exposed as a public URL). ----------------------
+  const v = target.verification;
+  type ProfileDoc = {
+    category: string;
+    kind: "KYC" | "BUYER" | "LEGAL" | "ASSET";
+    fileName?: string | null;
+    fileUrl?: string | null;
+    streamUrl?: string | null;
+    mime?: string | null;
+    project?: string | null;
+    status?: string | null;
+    createdAt?: Date | null;
+  };
+  const documents: ProfileDoc[] = [];
+  if (v?.kycFiles?.aadhaar) documents.push({ category: "Aadhaar", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/aadhaar`, mime: v.kycFiles.aadhaar.mime, status: "SUBMITTED" });
+  if (v?.kycFiles?.pan) documents.push({ category: "PAN", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/pan`, mime: v.kycFiles.pan.mime, status: "SUBMITTED" });
+  if (v?.kycFiles?.selfie) documents.push({ category: "Selfie", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/selfie`, mime: v.kycFiles.selfie.mime, status: "SUBMITTED" });
+  for (const d of userBuyerDocs) {
+    documents.push({
+      category: d.docType.replace(/_/g, " "),
+      kind: "BUYER",
+      fileName: d.fileName,
+      fileUrl: d.fileUrl,
+      status: d.status === "VERIFIED" ? "APPROVED" : d.status === "REJECTED" ? "REJECTED" : "PENDING",
+      createdAt: d.createdAt,
+    });
+  }
+  for (const r of userLegalDocs) {
+    documents.push({
+      category: r.doc.docType,
+      kind: "LEGAL",
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      project: r.project?.name ?? null,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of userAssets) {
+    documents.push({
+      category: r.doc.category.replace(/_/g, " "),
+      kind: "ASSET",
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      project: r.project?.name ?? null,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      createdAt: r.doc.createdAt,
+    });
+  }
+
+  // ---- Verification status (same rule the admin user list uses). ------------
+  const kycStatus =
+    target.onboardingVerified || target.onboardingChecks?.kycStatus === "APPROVED"
+      ? "VERIFIED"
+      : target.onboardingChecks?.kycStatus === "PENDING"
+        ? "PENDING"
+        : target.onboardingChecks?.kycStatus === "REJECTED"
+          ? "REJECTED"
+          : "NONE";
+
+  // ---- Aggregated stats ------------------------------------------------------
+  const bookings = userCommissions.length;
+  const commissionEarned = rupees(userCommissions.reduce((s, c) => s + Number(c.cpCommissionAmount || 0), 0));
+  const gmv = rupees(userCommissions.reduce((s, c) => s + Number(c.bookingValue || 0), 0));
+  const deliveriesCompleted = deliveryTasks.filter((t) => t.status === "COMPLETED").length;
+  const deliveryEarnings = rupees(deliveryTasks.filter((t) => t.payoutPaid).reduce((s, t) => s + Number(t.payoutAmount || 0), 0));
+  const paidPayments = userPayments.filter((p) => p.status === "PAID");
+  const paymentsTotal = rupees(paidPayments.reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0));
+  const leadSpend = rupees(userLeadPurchases.reduce((s, p) => s + Number(p.amountPaid || 0), 0));
+
+  const { password: _pw, verification: _v, ...rest } = target;
+  res.json({
+    profile: {
+      ...rest,
+      // Only KYC-relevant verification metadata is exposed — never OTPs, reset
+      // codes or raw document bytes (those stream through the admin file route).
+      verification: {
+        panNumberMasked: v?.panNumberMasked ?? null,
+        kycSubmittedAt: v?.kycSubmittedAt ?? null,
+        hasAadhaar: Boolean(v?.kycFiles?.aadhaar),
+        hasPan: Boolean(v?.kycFiles?.pan),
+        hasSelfie: Boolean(v?.kycFiles?.selfie),
+      },
+      kycStatus,
+      lastLoginAt: target.lastActiveAt ?? null,
+      documents,
+      stats: {
+        deliveries: { completed: deliveriesCompleted, accepted: deliveryTasks.length, earnings: deliveryEarnings },
+        bookings: { total: bookings, gmv, commissionEarned },
+        leads: { submitted: submittedLeads.length, assigned: assignedLeads.length },
+        siteVisits: { total: userSiteVisits.length, completed: userSiteVisits.filter((s) => s.status === "COMPLETED").length },
+        referrals: {
+          registered: registeredReferrals.length,
+          successful: activatedReferralIds.size,
+          enrolled: enrolledReferrals.length,
+          enrolledActive: enrolledReferrals.filter((r) => r.status === "ACTIVE" || r.status === "VERIFIED").length,
+          transactions: referralTransactions,
+          salesValue: rupees(referralSalesValue),
+          earnings: rupees(referralSalesValue * REFERRAL_RATE),
+        },
+        transactions: {
+          paymentsCount: paidPayments.length,
+          paymentsTotal,
+          subscriptions: userSubscriptions.length,
+          activeSubscriptions: userSubscriptions.filter((s) => s.status === "ACTIVE").length,
+          leadPurchases: userLeadPurchases.length,
+          leadSpend,
+        },
+      },
+      referredList: registeredReferrals.map((r) => ({ ...r, activated: activatedReferralIds.has(String(r._id)) })),
+      enrolledReferralList: enrolledReferrals.map((r) => ({
+        _id: r._id,
+        developerName: r.developerName,
+        companyName: r.companyName,
+        city: r.city,
+        status: r.status,
+        createdAt: r.createdAt,
+      })),
+      history: historyRows.map((h) => ({
+        _id: h.log._id,
+        action: h.log.action,
+        metadata: h.log.metadata,
+        actorName: h.actorName ?? null,
+        createdAt: h.log.createdAt,
+      })),
+    },
+  });
 });
 
 // Admin account-approval has been removed — accounts self-approve on signup
