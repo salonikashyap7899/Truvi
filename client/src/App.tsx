@@ -28,6 +28,7 @@ import LegalPage from "@/pages/LegalPage";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
+import AdminUserProfilePage from "@/pages/admin/AdminUserProfilePage";
 import AdminListingsPage from "@/pages/admin/AdminListingsPage";
 import AdminProjectManagePage from "@/pages/admin/AdminProjectManagePage";
 import AdminRevenuePage from "@/pages/admin/AdminRevenuePage";
@@ -174,6 +175,7 @@ export default function App() {
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
+        <Route path="/admin/users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
         <Route path="/admin/listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
         <Route path="/admin/listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
         <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />

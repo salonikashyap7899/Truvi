@@ -127,6 +127,9 @@ function SubmissionCard({
             PAN: {s.panNumberMasked || "—"}
             {s.submittedAt ? ` · submitted ${new Date(s.submittedAt).toLocaleString("en-IN")}` : ""}
           </p>
+          <Link to={`/admin/users/${s._id}`} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-[var(--trust)] hover:underline">
+            View full profile <ExternalLink size={11} />
+          </Link>
         </div>
         {readOnly ? (
           <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${s.kycStatus === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
