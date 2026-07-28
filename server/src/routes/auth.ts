@@ -827,6 +827,11 @@ router.post(
 
     const onboardingChecks: OnboardingChecks = {
       ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+      // Carry the account's real email/phone verification (done at signup) onto
+      // onboardingChecks — CP accounts don't otherwise track these, and without
+      // them the account could never become fully onboarded after KYC approval.
+      emailVerified: user.emailVerified || (user.onboardingChecks?.emailVerified ?? false),
+      phoneVerified: user.phoneVerified || (user.onboardingChecks?.phoneVerified ?? false),
       aadhaarVerified: approved,
       panVerified: approved,
       kycStatus: approved ? "APPROVED" : rejected ? "REJECTED" : "PENDING",

@@ -1303,6 +1303,12 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
   const { approve, reason } = parsed.data;
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+    // Reflect the account's real email/phone verification (verified at signup)
+    // — CP accounts don't carry these on onboardingChecks, so without this the
+    // approval below could never satisfy isOnboardingComplete and the workspace
+    // would stay locked even after we mark the KYC approved.
+    emailVerified: user.emailVerified || (user.onboardingChecks?.emailVerified ?? false),
+    phoneVerified: user.phoneVerified || (user.onboardingChecks?.phoneVerified ?? false),
     aadhaarVerified: approve,
     panVerified: approve,
     kycStatus: approve ? "APPROVED" : "REJECTED",

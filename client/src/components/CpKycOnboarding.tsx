@@ -47,6 +47,36 @@ export function CpKycOnboarding() {
     if (cameraOn && stream && videoRef.current) videoRef.current.srcObject = stream;
   }, [cameraOn, stream]);
 
+  // While the account is still unverified (awaiting review or on this screen),
+  // poll the server so the workspace unlocks automatically the moment an admin
+  // approves — the client otherwise keeps a stale cached user until re-login.
+  useEffect(() => {
+    if (user?.onboardingVerified) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const res = await api.get("/auth/me");
+        const fresh = res.data.user;
+        const cur = useAuthStore.getState().user;
+        if (cancelled || !cur) return;
+        useAuthStore.getState().setUser({
+          ...cur,
+          emailVerified: fresh.emailVerified,
+          phoneVerified: fresh.phoneVerified,
+          onboardingVerified: fresh.onboardingVerified,
+          onboardingChecks: fresh.onboardingChecks,
+        });
+      } catch {
+        /* transient — try again on the next tick */
+      }
+    };
+    const id = setInterval(refresh, 12000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [user?.onboardingVerified]);
+
   async function startCamera() {
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
