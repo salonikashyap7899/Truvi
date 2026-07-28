@@ -7,10 +7,29 @@ import { useAuthStore } from "@/store/authStore";
 import { roleLabel } from "@/lib/rolePaths";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, ShieldAlert, Crown, X, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, ShieldAlert, Crown, X, CheckCircle2, Loader2, BadgeCheck, Clock } from "lucide-react";
 import type { User, Role } from "@/types";
 
 const ROLE_FILTERS: (Role | "ALL")[] = ["ALL", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "ADMIN"];
+
+type KycState = "VERIFIED" | "PENDING" | "REJECTED" | "NONE";
+
+/** A user's identity-verification (KYC) state, derived from their onboarding.
+ *  KYC applies to Channel Partners & Ambassadors; other roles show "NONE". */
+function kycState(u: User): KycState {
+  if (u.onboardingVerified || u.onboardingChecks?.kycStatus === "APPROVED") return "VERIFIED";
+  const s = u.onboardingChecks?.kycStatus;
+  if (s === "PENDING") return "PENDING";
+  if (s === "REJECTED") return "REJECTED";
+  return "NONE";
+}
+
+const KYC_FILTERS: { key: "ALL" | KycState; label: string }[] = [
+  { key: "ALL", label: "All KYC" },
+  { key: "VERIFIED", label: "Verified" },
+  { key: "PENDING", label: "Pending" },
+  { key: "REJECTED", label: "Rejected" },
+];
 
 // A pending confirmation — drives the in-app dialog so we never fall back to
 // the browser's native "site says…" popup for a destructive/status action.
@@ -29,6 +48,7 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "ALL">("ALL");
+  const [kycFilter, setKycFilter] = useState<"ALL" | KycState>("ALL");
   // Two boxes: users awaiting a decision (PENDING/REJECTED) vs already approved.
   const [statusView, setStatusView] = useState<"REVIEW" | "APPROVED">("REVIEW");
   const [pending, setPending] = useState<Pending | null>(null);
@@ -151,10 +171,11 @@ export default function AdminUsersPage() {
       const approved = u.approvalStatus === "APPROVED";
       if (statusView === "APPROVED" ? !approved : approved) return false;
       if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+      if (kycFilter !== "ALL" && kycState(u) !== kycFilter) return false;
       if (!q) return true;
       return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone || "").includes(q);
     });
-  }, [users, query, roleFilter, statusView]);
+  }, [users, query, roleFilter, kycFilter, statusView]);
 
   const counts = useMemo(() => ({
     total: users.length,
@@ -163,6 +184,8 @@ export default function AdminUsersPage() {
     pending: users.filter((u) => u.approvalStatus === "PENDING").length,
     review: users.filter((u) => u.approvalStatus !== "APPROVED").length,
     approved: users.filter((u) => u.approvalStatus === "APPROVED").length,
+    kycVerified: users.filter((u) => kycState(u) === "VERIFIED").length,
+    kycPending: users.filter((u) => kycState(u) === "PENDING").length,
   }), [users]);
 
   // Land on whichever box has something to look at: Needs Review if anyone is
@@ -187,7 +210,7 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-semibold">User Management</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {counts.total} accounts · {counts.active} active · {counts.subscribers} with an active subscription. Remove (deactivate) accounts, and cancel a subscription only where one exists.
+            {counts.total} accounts · {counts.active} active · {counts.kycVerified} KYC-verified{counts.kycPending ? ` · ${counts.kycPending} KYC pending` : ""} · {counts.subscribers} with an active subscription. Remove (deactivate) accounts, and cancel a subscription only where one exists.
           </p>
         </div>
       </div>
@@ -260,6 +283,24 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
+      {/* KYC / identity-verification filter */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Identity (KYC):</span>
+        {KYC_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setKycFilter(f.key)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              kycFilter === f.key ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200" : "border-white/15 text-muted-foreground hover:bg-white/5"
+            }`}
+          >
+            {f.label}
+            {f.key === "VERIFIED" && counts.kycVerified > 0 && <span className="ml-1 opacity-70">({counts.kycVerified})</span>}
+            {f.key === "PENDING" && counts.kycPending > 0 && <span className="ml-1 opacity-70">({counts.kycPending})</span>}
+          </button>
+        ))}
+      </div>
+
       {/* Users list */}
       <div className="mt-4 space-y-2.5">
         {filtered.length === 0 && (
@@ -296,6 +337,13 @@ export default function AdminUsersPage() {
                       </Badge>
                     )}
                     {u.disabled && <Badge className="border-red-500/30 bg-red-500/10 text-[11px] text-red-300">Deactivated</Badge>}
+                    {(() => {
+                      const k = kycState(u);
+                      if (k === "VERIFIED") return <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-300"><BadgeCheck size={11} className="mr-1 inline" /> KYC Verified</Badge>;
+                      if (k === "PENDING") return <Badge className="border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300"><Clock size={11} className="mr-1 inline" /> KYC Pending</Badge>;
+                      if (k === "REJECTED") return <Badge className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300">KYC Rejected</Badge>;
+                      return null;
+                    })()}
                     {isApproved && <Badge className="border-emerald-500/30 bg-emerald-500/10 text-[11px] text-emerald-300">Approved</Badge>}
                     {isRejected && <Badge className="border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300">Rejected</Badge>}
                     {u.approvalStatus === "PENDING" && <Badge className="border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-300">Pending</Badge>}
