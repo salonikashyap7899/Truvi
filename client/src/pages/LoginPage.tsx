@@ -6,6 +6,7 @@ import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
+import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -61,8 +62,10 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-sm"
+        className="relative w-full max-w-4xl"
       >
+        <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-start lg:justify-center">
+          <div className="w-full max-w-sm">
         <AuthCard>
             {otpPhase ? (
               <OtpStep
@@ -143,6 +146,18 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
           Neutral · Evidence-led · Source-backed
         </p>
+          </div>
+
+          {/* How-to-use voice guide alongside the form */}
+          <div className="w-full max-w-sm lg:pt-1">
+            <HowToUseGuide
+              audioSrc="/media/buyer-guide.mp3"
+              storageKey="truvi_auth_guide_dismissed"
+              title="New to Truvi? How to use it"
+              description="A quick voice guide — how to sign up, log in and get started on Truvi."
+            />
+          </div>
+        </div>
       </motion.div>
     </main>
   );
