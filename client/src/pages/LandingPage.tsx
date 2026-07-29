@@ -73,12 +73,16 @@ function GlowButton({
   href,
   to,
   onClick,
+  download,
+  target,
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost";
   href?: string;
   to?: string;
   onClick?: () => void;
+  download?: boolean;
+  target?: string;
 }) {
   const ghostClass =
     "inline-flex items-center gap-2 rounded-full glass px-6 py-3 text-sm font-medium transition hover:bg-white/10";
@@ -113,7 +117,14 @@ function GlowButton({
     );
   }
   return (
-    <a href={href ?? "#"} className={cls} style={style}>
+    <a
+      href={href ?? "#"}
+      className={cls}
+      style={style}
+      download={download || undefined}
+      target={target}
+      rel={target ? "noreferrer" : undefined}
+    >
       {inner}
     </a>
   );
@@ -636,6 +647,7 @@ function Footer() {
           <div className={col}>
             <Link to="/about" className={link}>About</Link>
             <Link to="/join" className={link}>Join Truvi</Link>
+            <a href="/brochure/Truvi-Ventures-Company-Profile.pdf" download className={link}>Company Brochure ↓</a>
           </div>
         </div>
         <div>
@@ -875,6 +887,9 @@ export default function LandingPage() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
             <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+            <GlowButton variant="ghost" href="/brochure/Truvi-Ventures-Company-Profile.pdf" download>
+              Download Brochure ↓
+            </GlowButton>
           </div>
         </Reveal>
       </Section>
