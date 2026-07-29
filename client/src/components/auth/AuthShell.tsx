@@ -46,7 +46,17 @@ export function AuthAurora() {
  * The premium glassy auth card — soft outer glow, gradient hairline border,
  * blurred surface and a top light sheen. Shared by signup, login and verify.
  */
-export function AuthCard({ children, className }: { children: React.ReactNode; className?: string }) {
+export function AuthCard({
+  children,
+  className,
+  topLeft,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** Optional element pinned to the card's top-left corner (e.g. a voice-guide
+   *  play button). It stays fixed while the card body scrolls. */
+  topLeft?: React.ReactNode;
+}) {
   return (
     <div className="relative">
       {/* Soft glow behind the card */}
@@ -59,10 +69,17 @@ export function AuthCard({ children, className }: { children: React.ReactNode; c
         className="relative rounded-[28px] p-px"
         style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.30), rgba(59,130,246,0.38) 45%, rgba(255,255,255,0.04) 85%)" }}
       >
-        <div className={`relative rounded-[27px] bg-[#0a0d14]/85 p-7 backdrop-blur-2xl sm:p-8 ${className ?? ""}`}>
+        <div className="relative rounded-[27px] bg-[#0a0d14]/85 backdrop-blur-2xl">
           {/* Top sheen */}
-          <div aria-hidden className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-          {children}
+          <div aria-hidden className="absolute inset-x-8 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+          {/* Pinned top-left slot (doesn't scroll with the body) */}
+          {topLeft && <div className="absolute left-4 top-4 z-20 sm:left-5 sm:top-5">{topLeft}</div>}
+          {/* Card body — scrolls inside the card so the page itself never scrolls */}
+          <div
+            className={`max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[27px] p-7 sm:p-8 [scrollbar-color:rgba(148,163,184,0.35)_transparent] [scrollbar-width:thin] ${className ?? ""}`}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>
