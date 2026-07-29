@@ -9,6 +9,7 @@ import { CompareBar } from "@/components/CompareBar";
 import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { MyPlans } from "@/components/MyPlans";
 import { DocumentUpload } from "@/components/DocumentUpload";
+import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import {
@@ -26,7 +27,6 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
-  Headphones,
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -226,7 +226,12 @@ export default function BuyerDashboardPage() {
       </div>
 
       {/* How-to-use audio guide */}
-      <HowToUseGuide />
+      <HowToUseGuide
+        className="mt-5"
+        audioSrc="/media/buyer-guide.mp3"
+        storageKey="truvi_buyer_guide_dismissed"
+        description="A quick voice guide — how to sign up, log in, browse properties, save your favourites and book a site visit."
+      />
 
       {/* Tabs */}
       <div className="mt-7 flex gap-1 border-b border-white/10 overflow-x-auto">
@@ -317,66 +322,6 @@ export default function BuyerDashboardPage() {
 
       <CompareBar />
     </main>
-  );
-}
-
-// ─── How-to-use audio guide ───────────────────────────────────────────────────
-// A short voice guide for new buyers (how to sign up, log in and get started).
-// The audio lives at /media/buyer-guide.mp3. Dismissible; the choice is
-// remembered so it doesn't nag returning users.
-
-function HowToUseGuide() {
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return localStorage.getItem("truvi_buyer_guide_dismissed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  if (dismissed) return null;
-
-  function dismiss() {
-    setDismissed(true);
-    try {
-      localStorage.setItem("truvi_buyer_guide_dismissed", "1");
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return (
-    <div className="mt-5 rounded-2xl border border-blue-500/25 bg-blue-500/[0.06] p-4 sm:p-5">
-      <div className="flex items-start gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-full bg-blue-500/15 text-blue-300">
-          <Headphones size={18} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-semibold">New here? How to use Truvi</p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                A quick voice guide — how to sign up, log in, browse properties, save your favourites and book a site visit.
-              </p>
-            </div>
-            <button
-              onClick={dismiss}
-              aria-label="Dismiss guide"
-              className="shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <audio
-            controls
-            preload="none"
-            src="/media/buyer-guide.mp3"
-            className="mt-3 w-full"
-          >
-            Your browser does not support audio playback.
-          </audio>
-        </div>
-      </div>
-    </div>
   );
 }
 
