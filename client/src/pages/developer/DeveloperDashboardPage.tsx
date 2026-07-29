@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
 import { DevHubNav } from "@/components/DevHubNav";
 import { ReferralBanner } from "@/components/ReferralBanner";
+import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { DevProGate } from "@/components/DevProGate";
 import { DevUpsellModal, type DevUpsellPlan } from "@/components/DevUpsellModal";
 import UserMenu from "@/components/UserMenu";
@@ -97,6 +98,14 @@ export default function DeveloperDashboardPage() {
 
       {/* Refer a developer & earn 2% — same referral engine as Channel Partners */}
       <ReferralBanner className="mt-5" />
+
+      {/* How-to-use audio guide for developers */}
+      <HowToUseGuide
+        className="mt-5"
+        audioSrc="/media/developer-guide.mp3"
+        storageKey="truvi_developer_guide_dismissed"
+        description="A quick voice guide — how to sign up, log in, list a project, manage inventory and grow on Truvi."
+      />
 
       {/* Growth-engine banner for developers who haven't unlocked the paid OS */}
       {entitlement && !entitlement.pro && (

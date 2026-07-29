@@ -9,6 +9,7 @@ import { CompareBar } from "@/components/CompareBar";
 import { SiteVisitModal } from "@/components/SiteVisitModal";
 import { MyPlans } from "@/components/MyPlans";
 import { DocumentUpload } from "@/components/DocumentUpload";
+import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import {
@@ -223,6 +224,14 @@ export default function BuyerDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* How-to-use audio guide */}
+      <HowToUseGuide
+        className="mt-5"
+        audioSrc="/media/buyer-guide.mp3"
+        storageKey="truvi_buyer_guide_dismissed"
+        description="A quick voice guide — how to sign up, log in, browse properties, save your favourites and book a site visit."
+      />
 
       {/* Tabs */}
       <div className="mt-7 flex gap-1 border-b border-white/10 overflow-x-auto">

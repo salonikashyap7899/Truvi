@@ -7,6 +7,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
 import { CpKycOnboarding } from "@/components/CpKycOnboarding";
 import { CpHubNav } from "@/components/CpHubNav";
+import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { UpsellModal } from "@/components/UpsellModal";
 import UserMenu from "@/components/UserMenu";
 import { useEntitlement, TIER_LABELS } from "@/lib/entitlements";
@@ -146,6 +147,14 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
       </div>
 
       <CpHubNav />
+
+      {/* How-to-use audio guide for Channel Partners */}
+      <HowToUseGuide
+        className="mt-5"
+        audioSrc="/media/cp-guide.mp3"
+        storageKey="truvi_cp_guide_dismissed"
+        description="A quick voice guide — how to sign up, complete KYC, find leads, share listings and earn commissions on Truvi."
+      />
 
       {/* Growth-engine banner for free CPs */}
       {entitlement && !entitlement.crm && (
