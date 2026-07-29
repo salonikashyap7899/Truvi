@@ -44,6 +44,8 @@ import DeveloperSalesPage from "@/pages/developer/DeveloperSalesPage";
 import DeveloperAnalyticsPage from "@/pages/developer/DeveloperAnalyticsPage";
 import DeveloperMarketingPage from "@/pages/developer/DeveloperMarketingPage";
 import NewProjectPage from "@/pages/developer/NewProjectPage";
+import DeveloperGuidePage from "@/pages/developer/DeveloperGuidePage";
+import CpGuidePage from "@/pages/cp/CpGuidePage";
 import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
 
 import CPDashboardPage from "@/pages/cp/CPDashboardPage";
@@ -198,6 +200,7 @@ export default function App() {
 
         {/* Developer (ADMIN may enter to review the full developer workflow) */}
         <Route path="/developer/dashboard" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperDashboardPage /></ProtectedRoute>} />
+        <Route path="/developer/guide" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperGuidePage /></ProtectedRoute>} />
         <Route path="/developer/inventory" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperInventoryPage /></ProtectedRoute>} />
         <Route path="/developer/crm" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperSalesPage /></ProtectedRoute>} />
         <Route path="/developer/analytics" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperAnalyticsPage /></ProtectedRoute>} />
@@ -207,6 +210,7 @@ export default function App() {
 
         {/* CP */}
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
+        <Route path="/cp/guide" element={<ProtectedRoute roles={["CP", "ADMIN"]}><CpGuidePage /></ProtectedRoute>} />
         <Route path="/cp/marketplace" element={<ProtectedRoute roles={["CP"]}><MarketplacePage /></ProtectedRoute>} />
         <Route path="/cp/academy" element={<ProtectedRoute roles={["CP"]}><LearningAcademyPage /></ProtectedRoute>} />
         <Route path="/cp/sales" element={<ProtectedRoute roles={["CP"]}><SalesHubPage /></ProtectedRoute>} />

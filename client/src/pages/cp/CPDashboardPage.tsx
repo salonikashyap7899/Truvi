@@ -474,17 +474,16 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
       <MyPlans />
       <UpsellModal open={upsellOpen} onClose={() => setUpsellOpen(false)} feature={upsellFeature} />
 
-      {/* Bottom-corner Channel Partner guide — "why partner with Truvi" (downloadable). */}
-      <a
-        href="/brochure/Truvi-Channel-Partner-Program.pdf"
-        download
-        title="Download the Truvi Channel Partner Program guide"
+      {/* Bottom-corner Channel Partner guide — "why partner with Truvi" (opens as a page). */}
+      <Link
+        to="/cp/guide"
+        title="Channel Partner Program guide"
         className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-muted-foreground backdrop-blur-xl transition hover:border-white/20 hover:bg-white/10 hover:text-white"
       >
         <FileText size={14} className="text-[var(--trust)]" />
         Channel Partner Program — Guide
-        <span className="opacity-70">↓</span>
-      </a>
+        <span className="opacity-70">→</span>
+      </Link>
     </main>
   );
 }
