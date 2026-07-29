@@ -1459,8 +1459,8 @@ export default function LandingPage() {
 
       {/* ---------- CINEMATIC VISION BAND ---------- */}
       <VideoBand
-        srcWebm="/media/exosphere.webm"
-        poster="/media/exosphere-poster.jpg"
+        srcMp4="/media/intro.mp4"
+        poster="/media/intro-poster.jpg"
         eyebrow="The Truvi vision"
         title={<>Know the property before you buy it.</>}
         subtitle="One verified source of truth — for every home, plot and project across India."
