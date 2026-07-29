@@ -958,7 +958,7 @@ export default function LandingPage() {
         eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        muted={true}
+        muted={false}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
