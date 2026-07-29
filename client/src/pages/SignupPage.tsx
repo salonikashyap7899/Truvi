@@ -78,6 +78,14 @@ export default function SignupPage() {
 
   const role = watch("role");
 
+  // Play the voice guide that matches the role the user is signing up as.
+  const guideAudio =
+    role === "DEVELOPER"
+      ? "/media/developer-guide.mp3"
+      : role === "CP"
+        ? "/media/cp-guide.mp3"
+        : "/media/buyer-guide.mp3";
+
   async function onSubmit(data: SignupForm) {
     setServerError(null);
     try {
@@ -102,7 +110,7 @@ export default function SignupPage() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="relative w-full max-w-md"
       >
-        <AuthCard topLeft={<VoiceGuideButton audioSrc="/media/buyer-guide.mp3" />}>
+        <AuthCard topLeft={<VoiceGuideButton key={guideAudio} audioSrc={guideAudio} />}>
             {step === "otp" && pending ? (
               <OtpStep
                 email={pending.email}

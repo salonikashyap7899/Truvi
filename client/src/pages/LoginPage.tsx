@@ -6,7 +6,6 @@ import { dashboardPath } from "@/lib/rolePaths";
 import { Input, Label } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
-import { VoiceGuideButton } from "@/components/VoiceGuideButton";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -64,7 +63,7 @@ export default function LoginPage() {
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="relative w-full max-w-sm"
       >
-        <AuthCard topLeft={<VoiceGuideButton audioSrc="/media/buyer-guide.mp3" />}>
+        <AuthCard>
             {otpPhase ? (
               <OtpStep
                 email={otpPhase.email}
