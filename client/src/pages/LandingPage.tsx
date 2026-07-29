@@ -958,7 +958,7 @@ export default function LandingPage() {
         eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        muted={false}
+        muted={true}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
@@ -1460,8 +1460,8 @@ export default function LandingPage() {
 
       {/* ---------- CINEMATIC VISION BAND ---------- */}
       <VideoBand
-        srcMp4="/media/intro.mp4"
-        poster="/media/intro-poster.jpg"
+        srcMp4="/media/vision.mp4"
+        poster="/media/vision-poster.jpg"
         eyebrow="The Truvi vision"
         title={<>Know the property before you buy it.</>}
         subtitle="One verified source of truth — for every home, plot and project across India."
