@@ -958,6 +958,7 @@ export default function LandingPage() {
         eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
+        muted={false}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
@@ -1466,6 +1467,7 @@ export default function LandingPage() {
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"
         tint={0}
+        muted={false}
       />
 
       {/* ---------- FINAL CTA ---------- */}

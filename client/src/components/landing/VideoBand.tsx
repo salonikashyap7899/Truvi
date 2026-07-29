@@ -25,6 +25,7 @@ export function VideoBand({
   zoom = 1,
   contained = false,
   maxWidth = 900,
+  muted = true,
 }: {
   /** webm/AV1 source (Chrome/Firefox/Edge). At least one of srcWebm/srcMp4 required. */
   srcWebm?: string;
@@ -45,6 +46,8 @@ export function VideoBand({
   contained?: boolean;
   /** Max pixel width of the video frame in contained mode. */
   maxWidth?: number;
+  /** Whether the video should be muted. Browsers often block autoplay with sound. */
+  muted?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -99,7 +102,7 @@ export function VideoBand({
         <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 shadow-[0_28px_90px_-24px_rgba(0,0,0,0.85)]" style={{ maxWidth }}>
           <img src={poster} alt="" aria-hidden className="block h-auto w-full" />
           {loaded && !reduced && (
-            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted loop playsInline autoPlay>
+            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted={muted} loop playsInline autoPlay>
               {srcMp4 && <source src={srcMp4} type="video/mp4" />}
               {srcWebm && <source src={srcWebm} type="video/webm" />}
             </video>
@@ -129,7 +132,7 @@ export function VideoBand({
           className="absolute inset-0 h-full w-full object-cover"
           style={zoomStyle}
           poster={poster}
-          muted
+          muted={muted}
           loop
           playsInline
           autoPlay
