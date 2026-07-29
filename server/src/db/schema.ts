@@ -361,6 +361,35 @@ export const users = pgTable(
   ]
 );
 
+/**
+ * Pending signups — a signup is held here (NOT in `users`) until BOTH the email
+ * and phone OTPs are verified. Only on successful verification is the real
+ * `users` row created and the pending row deleted. This means no account is ever
+ * created without OTP verification. One row per email (re-signing up refreshes
+ * the codes). `password` is already bcrypt-hashed.
+ */
+export const pendingSignups = pgTable(
+  "pending_signups",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    password: text("password").notNull(),
+    phone: text("phone"),
+    role: text("role").$type<Role>().notNull(),
+    companyName: text("company_name"),
+    reraNumber: text("rera_number"),
+    referredBy: uuid("referred_by"),
+    emailOtp: text("email_otp"),
+    emailOtpExpiry: timestamp("email_otp_expiry", { withTimezone: true, mode: "date" }),
+    phoneOtp: text("phone_otp"),
+    phoneOtpExpiry: timestamp("phone_otp_expiry", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("pending_signups_email_unique").on(t.email)]
+);
+export type IPendingSignup = typeof pendingSignups.$inferSelect;
+
 export const projects = pgTable(
   "projects",
   {
