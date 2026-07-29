@@ -184,6 +184,66 @@ const METHODOLOGY = [
   { n: "04", title: "Confidence Score", desc: "Every output carries a confidence level, so you know how strongly the evidence supports it." },
 ];
 
+/* ---------- Company profile (from the Truvi Ventures company profile) ---------- */
+
+const COMPANY_VALUES = [
+  { k: "Mission", v: "Make Indian real estate transparent through verified intelligence." },
+  { k: "Vision", v: "Become India's largest Real Estate Intelligence Platform." },
+  { k: "Purpose", v: "Empower buyers, investors, builders and government with trusted information." },
+  { k: "North Star", v: "Build India's Real Estate Intelligence Infrastructure." },
+  { k: "Values", v: "Transparency, Trust, Technology, Intelligence, Impact." },
+];
+
+const ECOSYSTEM = [
+  "Home Buyers", "Property Owners", "Investors", "Channel Partners", "Surveyors", "Law Firms",
+  "Builders", "Developers", "Banks & NBFCs", "Government Authorities", "Architects", "Technology Partners",
+];
+
+const VERIFICATION_STEPS = [
+  { n: "01", title: "Property Submission", desc: "Receive property details from verified sources." },
+  { n: "02", title: "Document Verification", desc: "Validate ownership, approvals and legal documentation." },
+  { n: "03", title: "AI Verification", desc: "AI checks consistency, duplicates and risk indicators." },
+  { n: "04", title: "Human Verification", desc: "Expert review for accuracy and authenticity." },
+  { n: "05", title: "Quality Assurance", desc: "Final compliance and quality checks." },
+  { n: "06", title: "Verified Badge", desc: "The property joins the Truvi verified ecosystem." },
+];
+
+const WIN_PILLARS = [
+  { title: "Verified Data", desc: "Trusted property information from multiple verified sources." },
+  { title: "AI Intelligence", desc: "ML, AI search, recommendation engine and predictive analytics." },
+  { title: "Trust Score", desc: "Proprietary scoring combining AI and human verification." },
+  { title: "Location Intelligence", desc: "GIS mapping, satellite intelligence and infrastructure analysis." },
+  { title: "Builder Intelligence", desc: "Builder reputation, project history and construction quality." },
+  { title: "Govt & Enterprise", desc: "RERA, municipal authorities, banks and enterprise APIs." },
+  { title: "Scalable Platform", desc: "Cloud-native, API-first, enterprise-ready and future-ready." },
+];
+
+const OPPORTUNITY_STATS = [
+  { n: "$1.3T+", l: "Indian real estate market opportunity" },
+  { n: "500M+", l: "Urban population — rapid urbanization" },
+  { n: "800M+", l: "Internet users — growing digital adoption" },
+  { n: "AI-First", l: "Next-generation property decisions" },
+];
+
+const ROADMAP = [
+  { phase: "Phase 1", years: "2026", items: ["Launch MVP", "Verified Listings", "Verification Engine", "Trust Score", "UP Launch"] },
+  { phase: "Phase 2", years: "2027–2028", items: ["Expand North India", "Developer Network", "Builder Network", "Growing User Base"] },
+  { phase: "Phase 3", years: "2029–2031", items: ["Pan-India Expansion", "Enterprise Clients", "Govt Partnerships", "API Platform"] },
+  { phase: "Phase 4", years: "2032–2035", items: ["AI-Driven Intelligence", "Predictive Analytics", "National Data Network", "Enterprise Intelligence"] },
+  { phase: "Phase 5", years: "2036–2045", items: ["Intelligence Infrastructure", "Largest Verified Database", "Trusted Across India", "Global Expansion"] },
+];
+
+const PARTNER_REASONS = [
+  { who: "Government", desc: "Support transparent governance through verified property intelligence." },
+  { who: "Builders & Developers", desc: "Increase credibility, visibility and buyer trust." },
+  { who: "Banks & Financial Institutions", desc: "Improve valuation accuracy and reduce lending risk." },
+  { who: "Investors", desc: "Access reliable market intelligence and smarter investment insights." },
+  { who: "Enterprise Clients", desc: "Leverage APIs, analytics and enterprise dashboards." },
+  { who: "Home Buyers", desc: "Make confident property decisions using verified information." },
+];
+
+const PARTNER_BADGES = ["Trusted Data", "AI Powered", "Enterprise Ready", "Government Ready", "Scalable", "Future Ready"];
+
 /* ---------------- Live showcase data ---------------- */
 /* Every showcase number on this page is driven by the platform's real
    Prime Listing and its intelligence profile. The static values below
@@ -647,7 +707,7 @@ function Footer() {
           <div className={col}>
             <Link to="/about" className={link}>About</Link>
             <Link to="/join" className={link}>Join Truvi</Link>
-            <a href="/brochure/Truvi-Ventures-Company-Profile.pdf" download className={link}>Company Brochure ↓</a>
+            <a href="#about-truvi" className={link}>Company Profile</a>
           </div>
         </div>
         <div>
@@ -887,9 +947,6 @@ export default function LandingPage() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
             <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
-            <GlowButton variant="ghost" href="/brochure/Truvi-Ventures-Company-Profile.pdf" download>
-              Download Brochure ↓
-            </GlowButton>
           </div>
         </Reveal>
       </Section>
@@ -1228,6 +1285,174 @@ export default function LandingPage() {
                 verification methodology
               </Link>.
             </p>
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* ================= COMPANY PROFILE ================= */}
+
+      {/* About Truvi Ventures — mission, vision, purpose, values */}
+      <Section id="about-truvi">
+        <Reveal><Eyebrow>Truvi Ventures Private Limited</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
+            Building India's most trusted{" "}
+            <span className="text-gradient-trust">real estate intelligence platform.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.2}>
+          <p className="mt-6 max-w-3xl text-muted-foreground md:text-lg">
+            India's real estate market lacks transparency, verified information and trust. Truvi was
+            founded to change that — collecting, verifying, organising and simplifying property
+            information using AI, technology and trusted data, so every stakeholder can decide with confidence.
+          </p>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {COMPANY_VALUES.map((c, i) => (
+            <Reveal key={c.k} delay={i * 0.06}>
+              <div className="h-full rounded-2xl glass p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--trust)]">{c.k}</p>
+                <p className="mt-2 text-sm text-foreground/90">{c.v}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* The Truvi ecosystem — every stakeholder */}
+      <Section id="ecosystem" className="items-center text-center">
+        <Reveal><Eyebrow>The Truvi Ecosystem</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
+            One platform. Every stakeholder.<br />
+            <span className="text-gradient-aurora">One trusted source of truth.</span>
+          </h2>
+        </Reveal>
+        <Reveal delay={0.25}>
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+            {ECOSYSTEM.map((s) => (
+              <span key={s} className="rounded-full border border-white/12 bg-white/[0.04] px-4 py-2 text-sm font-medium text-foreground/90">
+                {s}
+              </span>
+            ))}
+          </div>
+        </Reveal>
+      </Section>
+
+      {/* The verification engine — 6 steps */}
+      <Section id="verification-engine">
+        <Reveal><Eyebrow>The Truvi Verification Engine</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
+            AI-powered. Human-verified.{" "}
+            <span className="text-gradient-trust">Truvi-trusted.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {VERIFICATION_STEPS.map((s, i) => (
+            <Reveal key={s.n} delay={i * 0.06}>
+              <div className="h-full rounded-2xl glass p-6">
+                <span className="font-mono text-xs text-muted-foreground">STEP {s.n}</span>
+                <h3 className="mt-2 font-display text-lg font-medium text-[var(--trust)]">{s.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* Why Truvi wins — the 7 pillars */}
+      <Section id="why-truvi-wins">
+        <Reveal><Eyebrow>Why Truvi Wins</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
+            Seven pillars of a{" "}
+            <span className="text-gradient-trust">competitive moat.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {WIN_PILLARS.map((p, i) => (
+            <Reveal key={p.title} delay={i * 0.05}>
+              <div className="h-full rounded-2xl glass p-6">
+                <h3 className="font-display text-lg font-medium text-[var(--trust)]">{p.title}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{p.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* India's real-estate opportunity — headline stats */}
+      <Section id="opportunity" className="items-center text-center">
+        <Reveal><Eyebrow>India's Real Estate Opportunity</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
+            The world's fastest-growing market,{" "}
+            <span className="text-gradient-aurora">going digital.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {OPPORTUNITY_STATS.map((s, i) => (
+            <Reveal key={s.l} delay={i * 0.08}>
+              <div className="h-full rounded-2xl glass p-6 text-center">
+                <p className="font-display text-3xl font-semibold text-gradient-trust">{s.n}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{s.l}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* Growth roadmap — 5 phases */}
+      <Section id="roadmap">
+        <Reveal><Eyebrow>Our Growth Roadmap</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
+            From MVP to{" "}
+            <span className="text-gradient-trust">national intelligence infrastructure.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+          {ROADMAP.map((r, i) => (
+            <Reveal key={r.phase} delay={i * 0.07}>
+              <div className="h-full rounded-2xl glass p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--trust)]">{r.phase}</p>
+                <p className="mt-0.5 font-display text-sm font-semibold text-white">{r.years}</p>
+                <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                  {r.items.map((it) => <li key={it}>• {it}</li>)}
+                </ul>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </Section>
+
+      {/* Why partner with Truvi */}
+      <Section id="partner">
+        <Reveal><Eyebrow>Why Partner With Truvi</Eyebrow></Reveal>
+        <Reveal delay={0.1}>
+          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
+            Building trust before{" "}
+            <span className="text-gradient-trust">every property decision.</span>
+          </h2>
+        </Reveal>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {PARTNER_REASONS.map((p, i) => (
+            <Reveal key={p.who} delay={i * 0.05}>
+              <div className="h-full rounded-2xl glass p-6">
+                <h3 className="font-display text-base font-medium text-white">{p.who}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{p.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+        <Reveal delay={0.4}>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            {PARTNER_BADGES.map((t) => (
+              <span key={t} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-3 py-1.5 text-xs font-medium text-white">
+                <span className="text-emerald-400">✓</span> {t}
+              </span>
+            ))}
           </div>
         </Reveal>
       </Section>
