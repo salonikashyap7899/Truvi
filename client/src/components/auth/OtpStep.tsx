@@ -51,7 +51,13 @@ export function OtpStep({
     setResending(true);
     try {
       const data = await resendOtp(email);
-      if (data?.smsSent === false) {
+      const emailOk = data?.emailSent !== false;
+      const smsOk = data?.smsSent !== false;
+      if (!emailOk && !smsOk) {
+        toast.error("We couldn't send the codes right now. Please try again shortly or contact support.");
+      } else if (!emailOk) {
+        toast.message("Phone code sent. Email delivery isn't available right now — contact support if you can't get the email code.");
+      } else if (!smsOk) {
         toast.message("Email code sent. SMS delivery isn't available right now — contact support if you can't get the phone code.");
       } else {
         toast.success("Fresh codes have been sent to your email and phone.");

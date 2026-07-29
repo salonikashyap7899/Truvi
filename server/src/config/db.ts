@@ -260,6 +260,25 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "due_day" integer NOT NULL DEFAULT 1`,
     `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_for_month" text`,
     `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_date" timestamptz`,
+    // Pending signups — accounts are held here until email + phone OTPs are
+    // verified, then promoted into `users`. Created idempotently on boot.
+    `CREATE TABLE IF NOT EXISTS "pending_signups" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "email" text NOT NULL,
+       "password" text NOT NULL,
+       "phone" text,
+       "role" text NOT NULL,
+       "company_name" text,
+       "rera_number" text,
+       "referred_by" uuid,
+       "email_otp" text,
+       "email_otp_expiry" timestamptz,
+       "phone_otp" text,
+       "phone_otp_expiry" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "pending_signups_email_unique" ON "pending_signups" ("email")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

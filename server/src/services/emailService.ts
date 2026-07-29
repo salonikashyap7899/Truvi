@@ -7,21 +7,38 @@ const transporter = hasSmtpConfig
   ? nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
+      // Port 465 uses implicit TLS; 587/others use STARTTLS.
+      secure: Number(process.env.SMTP_PORT) === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
     })
-  : nodemailer.createTransport({ jsonTransport: true }); // dev fallback: logs instead of sending
+  : null;
+
+if (!hasSmtpConfig) {
+  console.warn(
+    "[email] SMTP is NOT configured — verification/OTP and other emails will NOT be delivered. " +
+      "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and optionally SMTP_FROM) to enable email.",
+  );
+}
 
 // All outbound mail is sent as Truvi Ventures. Override the display/address via
 // SMTP_FROM (e.g. when a dedicated domain sender is configured); otherwise it
 // defaults to the Truvi Ventures Gmail identity.
 export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
 
-export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<void> {
-  await transporter.sendMail({ from, to, subject, html });
-
-  if (!hasSmtpConfig) {
-    console.log(`[dev email] From: ${from} | To: ${to} | Subject: ${subject}`);
+/**
+ * Send an email. Returns `true` only when it was actually dispatched via SMTP.
+ * When SMTP isn't configured it logs (so a developer can still read the code
+ * from the subject) and returns `false`, so callers can honestly tell the user
+ * that email wasn't delivered instead of silently claiming success. Throws when
+ * SMTP *is* configured but the send fails, so real errors surface.
+ */
+export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
+  if (!transporter) {
+    console.warn(`[email] Not delivered (SMTP not configured). To: ${to} | Subject: ${subject}`);
+    return false;
   }
+  await transporter.sendMail({ from, to, subject, html });
+  return true;
 }
 
 export async function sendApprovalEmail(to: string, name: string, approved: boolean): Promise<void> {
@@ -46,8 +63,8 @@ export async function sendCommissionEmail(to: string, name: string, amount: numb
   );
 }
 
-export async function sendOtpEmail(to: string, otp: string): Promise<void> {
-  await sendEmail(
+export async function sendOtpEmail(to: string, otp: string): Promise<boolean> {
+  return sendEmail(
     to,
     `${otp} is your Truvi verification code`,
     `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">

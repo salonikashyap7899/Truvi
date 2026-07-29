@@ -8,8 +8,11 @@ import { getDb } from "../config/db";
 import { getSqlClient } from "../db/index";
 import {
   users,
+  pendingSignups,
   notifications,
   IUser,
+  IPendingSignup,
+  Role,
   OnboardingChecks,
   UserVerification,
   DEFAULT_CP_PROFILE,
@@ -97,10 +100,39 @@ function maskPhone(phone?: string | null): string {
 }
 
 /**
- * Generate fresh email + phone OTPs for `user`, persist them (10-minute
- * expiry) and dispatch both an e-mail and an SMS. Shared by signup, resend
- * and the login-when-unverified path. Returns which channels were dispatched
- * so callers can warn the user if SMS/email isn't configured on the server.
+ * Dispatch an email OTP + (when a phone is present) an SMS OTP. Returns which
+ * channels were ACTUALLY delivered, so callers can honestly tell the user if a
+ * channel (e.g. email) isn't working instead of falsely claiming success.
+ */
+async function dispatchOtps(
+  email: string,
+  phone: string | null | undefined,
+  emailOtp: string,
+  phoneOtp: string,
+): Promise<{ emailSent: boolean; smsSent: boolean }> {
+  let emailSent = false;
+  let smsSent = false;
+  try {
+    emailSent = await sendOtpEmail(email, emailOtp);
+  } catch (err) {
+    console.error("Failed to send verification email:", err);
+  }
+  if (phone) {
+    try {
+      // Returns false when Twilio isn't configured (the OTP is logged instead),
+      // throws when configured but delivery fails.
+      smsSent = await sendPhoneOtpViaSms(phone, phoneOtp);
+    } catch (err) {
+      console.error("Failed to send verification SMS:", err);
+    }
+  }
+  return { emailSent, smsSent };
+}
+
+/**
+ * Generate + persist fresh OTPs on an EXISTING user and dispatch them. Used by
+ * the login-when-unverified path for legacy accounts that predate the
+ * pending-signup flow (new signups live in `pending_signups`, not `users`).
  */
 async function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean; smsSent: boolean }> {
   const emailOtp = generateOtp();
@@ -115,25 +147,38 @@ async function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean;
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
+  return dispatchOtps(user.email, user.phone, emailOtp, phoneOtp);
+}
 
-  let emailSent = false;
-  let smsSent = false;
-  try {
-    await sendOtpEmail(user.email, emailOtp);
-    emailSent = true;
-  } catch (err) {
-    console.error("Failed to send verification email:", err);
-  }
-  if (user.phone) {
-    try {
-      // Returns false when Twilio isn't configured (the OTP is logged instead),
-      // throws when configured but delivery fails.
-      smsSent = await sendPhoneOtpViaSms(user.phone, phoneOtp);
-    } catch (err) {
-      console.error("Failed to send verification SMS:", err);
-    }
-  }
-  return { emailSent, smsSent };
+/**
+ * Promote a verified pending signup into a real, fully-verified `users` row and
+ * delete the pending record. Applies the same role-based profile defaults the
+ * old inline signup used. This is the ONLY place a self-signup account is
+ * created, so no account can exist without passing OTP verification.
+ */
+async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
+  const db = getDb();
+  const role = p.role as Role;
+  const [user] = await db
+    .insert(users)
+    .values({
+      name: p.name,
+      email: p.email,
+      password: p.password,
+      phone: p.phone,
+      role,
+      approvalStatus: "APPROVED",
+      emailVerified: true,
+      phoneVerified: true,
+      ...(p.referredBy ? { referredBy: p.referredBy } : {}),
+      ...(role === "DEVELOPER" ? { developerProfile: { companyName: p.companyName ?? "", reraNumber: p.reraNumber ?? undefined } } : {}),
+      ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
+      ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
+      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
+    })
+    .returning();
+  await db.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+  return user;
 }
 
 /**
@@ -202,39 +247,41 @@ router.post("/signup", async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
+  const emailOtp = generateOtp();
+  const phoneOtp = generateOtp();
+  const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-  // Admin account-approval has been removed — every account is auto-approved
-  // and instead gated by email + phone OTP verification. New accounts start
-  // unverified and must confirm the codes we send to their email AND phone
-  // before they can log in.
-  const [user] = await db
-    .insert(users)
-    .values({
-      name,
-      email: normalizedEmail,
-      password: hashedPassword,
-      phone,
-      role,
-      approvalStatus: "APPROVED",
-      emailVerified: false,
-      phoneVerified: false,
-      ...(referredBy ? { referredBy } : {}),
-      ...(role === "DEVELOPER" ? { developerProfile: { companyName: companyName!, reraNumber } } : {}),
-      ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
-      ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
-      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS } } : {}),
-    })
-    .returning();
+  // The account is NOT created yet. We hold the signup in `pending_signups`
+  // until BOTH OTPs are verified — only then is the real `users` row created.
+  // Re-signing up with the same email simply refreshes the pending codes.
+  const pendingValues = {
+    name,
+    email: normalizedEmail,
+    password: hashedPassword,
+    phone,
+    role,
+    companyName: companyName ?? null,
+    reraNumber: reraNumber ?? null,
+    referredBy,
+    emailOtp,
+    emailOtpExpiry: otpExpiry,
+    phoneOtp,
+    phoneOtpExpiry: otpExpiry,
+  };
+  await db
+    .insert(pendingSignups)
+    .values(pendingValues)
+    .onConflictDoUpdate({ target: pendingSignups.email, set: pendingValues });
 
-  const { smsSent } = await issueVerificationOtps(user);
+  const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, phone, emailOtp, phoneOtp);
 
   return res.status(201).json({
-    message: "Account created. Enter the codes we sent to your email and phone to verify your account.",
+    message: "Enter the codes we sent to your email and phone to create your account.",
     needsVerification: true,
-    email: user.email,
-    phone: maskPhone(user.phone),
+    email: normalizedEmail,
+    phone: maskPhone(phone),
+    emailSent,
     smsSent,
-    userId: user._id,
   });
 });
 
@@ -269,12 +316,13 @@ router.post("/login", async (req, res) => {
   // OTP gate: an account can't log in until BOTH email and phone are verified.
   // Send fresh codes and tell the client to route to the verification screen.
   if (!user.emailVerified || !user.phoneVerified) {
-    const { smsSent } = await issueVerificationOtps(user);
+    const { emailSent, smsSent } = await issueVerificationOtps(user);
     return res.status(403).json({
       error: "Please verify your account. We've sent fresh codes to your email and phone.",
       needsVerification: true,
       email: user.email,
       phone: maskPhone(user.phone),
+      emailSent,
       smsSent,
     });
   }
@@ -291,59 +339,69 @@ router.post("/verify-account", async (req, res) => {
   }
 
   const { email, emailOtp, phoneOtp } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
   const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user) return res.status(404).json({ error: "Account not found" });
+  const now = new Date();
 
-  if (user.emailVerified && user.phoneVerified) {
-    // Already verified — just log them in so a stale verify screen still works.
-    return res.json(issueSession(res, user));
+  // ── Legacy path: a real (unverified) account already exists ────────────────
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+  if (user) {
+    if (user.emailVerified && user.phoneVerified) {
+      // Already verified — just log them in so a stale verify screen still works.
+      return res.json(issueSession(res, user));
+    }
+    const v = user.verification;
+    if (!v?.emailOtp || !v?.emailOtpExpiry || !v?.phoneOtp || !v?.phoneOtpExpiry) {
+      return res.status(400).json({ error: "No codes requested. Please resend new codes." });
+    }
+    if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
+      return res.status(400).json({ error: "Codes expired. Please resend new codes." });
+    }
+    if (v.emailOtp !== emailOtp) return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
+    if (v.phoneOtp !== phoneOtp) return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
+
+    const verification: UserVerification = {
+      ...(user.verification ?? {}),
+      emailOtp: null,
+      emailOtpExpiry: null,
+      phoneOtp: null,
+      phoneOtpExpiry: null,
+    };
+    const onboardingChecks: OnboardingChecks | undefined = user.onboardingChecks
+      ? { ...user.onboardingChecks, emailVerified: true, phoneVerified: true }
+      : undefined;
+    const [updated] = await db
+      .update(users)
+      .set({ emailVerified: true, phoneVerified: true, verification, ...(onboardingChecks ? { onboardingChecks } : {}) })
+      .where(eq(users._id, user._id))
+      .returning();
+    void sendWelcomeEmailOnce(updated);
+    return res.json(issueSession(res, updated));
   }
 
-  const v = user.verification;
-  if (!v?.emailOtp || !v?.emailOtpExpiry || !v?.phoneOtp || !v?.phoneOtpExpiry) {
+  // ── New path: verify the pending signup and CREATE the account now ─────────
+  const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+  if (!pending) return res.status(404).json({ error: "No pending signup found. Please sign up again." });
+  if (!pending.emailOtp || !pending.emailOtpExpiry || !pending.phoneOtp || !pending.phoneOtpExpiry) {
     return res.status(400).json({ error: "No codes requested. Please resend new codes." });
   }
-  const now = new Date();
-  if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
+  if (pending.emailOtpExpiry < now || pending.phoneOtpExpiry < now) {
     return res.status(400).json({ error: "Codes expired. Please resend new codes." });
   }
-  if (v.emailOtp !== emailOtp) {
-    return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
+  if (pending.emailOtp !== emailOtp) return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
+  if (pending.phoneOtp !== phoneOtp) return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
+
+  // Guard against a race where a real account for this email appeared meanwhile.
+  const [already] = await db.select({ _id: users._id }).from(users).where(eq(users.email, normalizedEmail));
+  if (already) {
+    await db.delete(pendingSignups).where(eq(pendingSignups._id, pending._id));
+    return res.status(409).json({ error: "An account with this email already exists. Please log in." });
   }
-  if (v.phoneOtp !== phoneOtp) {
-    return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
-  }
 
-  // Clear both OTPs and flip the flags. If the account already tracks onboarding
-  // checks (CP / Ambassador), the email + phone steps are satisfied too.
-  const verification: UserVerification = {
-    ...(user.verification ?? {}),
-    emailOtp: null,
-    emailOtpExpiry: null,
-    phoneOtp: null,
-    phoneOtpExpiry: null,
-  };
-  const onboardingChecks: OnboardingChecks | undefined = user.onboardingChecks
-    ? { ...user.onboardingChecks, emailVerified: true, phoneVerified: true }
-    : undefined;
-
-  const [updated] = await db
-    .update(users)
-    .set({
-      emailVerified: true,
-      phoneVerified: true,
-      verification,
-      ...(onboardingChecks ? { onboardingChecks } : {}),
-    })
-    .where(eq(users._id, user._id))
-    .returning();
-
-  // Account is now fully verified — send the one-time welcome email as Truvi
-  // Ventures. Fire-and-forget so a mail hiccup never fails verification.
-  void sendWelcomeEmailOnce(updated);
-
-  return res.json(issueSession(res, updated));
+  const created = await createUserFromPending(pending);
+  // Account is now fully verified — send the one-time welcome email (best-effort).
+  void sendWelcomeEmailOnce(created);
+  return res.json(issueSession(res, created));
 });
 
 // Public: resend BOTH verification OTPs for an unverified account.
@@ -354,17 +412,41 @@ router.post("/resend-otp", async (req, res) => {
   }
 
   const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users.email, parsed.data.email.toLowerCase().trim()));
+  const normalizedEmail = parsed.data.email.toLowerCase().trim();
+
+  // A signup awaiting verification lives in `pending_signups` — refresh its codes.
+  const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+  if (pending) {
+    const emailOtp = generateOtp();
+    const phoneOtp = generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await db
+      .update(pendingSignups)
+      .set({ emailOtp, emailOtpExpiry: otpExpiry, phoneOtp, phoneOtpExpiry: otpExpiry })
+      .where(eq(pendingSignups._id, pending._id));
+    const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, pending.phone, emailOtp, phoneOtp);
+    return res.json({
+      message: "Fresh 6-digit codes have been sent to your email and phone.",
+      email: normalizedEmail,
+      phone: maskPhone(pending.phone),
+      emailSent,
+      smsSent,
+    });
+  }
+
+  // Legacy: an unverified real account (predates the pending-signup flow).
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
   // Don't reveal whether an email exists; respond the same either way.
   if (!user || (user.emailVerified && user.phoneVerified)) {
     return res.json({ message: "If that account needs verification, fresh codes have been sent." });
   }
 
-  const { smsSent } = await issueVerificationOtps(user);
+  const { emailSent, smsSent } = await issueVerificationOtps(user);
   return res.json({
     message: "Fresh 6-digit codes have been sent to your email and phone.",
     email: user.email,
     phone: maskPhone(user.phone),
+    emailSent,
     smsSent,
   });
 });
