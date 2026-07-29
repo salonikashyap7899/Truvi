@@ -1465,7 +1465,7 @@ export default function LandingPage() {
         title={<>Know the property before you buy it.</>}
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"
-        tint={0.6}
+        tint={0}
       />
 
       {/* ---------- FINAL CTA ---------- */}
