@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ShieldCheck, ExternalLink, Loader2, ArrowLeft } from "lucide-react";
+import { ShieldCheck, ExternalLink, Loader2, ArrowLeft, Trash2 } from "lucide-react";
 
 interface KycSubmission {
   _id: string;
@@ -59,6 +59,20 @@ export default function AdminKycPage() {
     }
   }
 
+  async function remove(userId: string) {
+    if (!window.confirm("Remove this user's KYC? Their documents will be deleted and they'll have to submit KYC again.")) return;
+    setBusyId(userId);
+    try {
+      await api.delete(`/admin/kyc/${userId}`);
+      toast.success("KYC removed — the user must re-submit.");
+      setSubmissions((prev) => prev.filter((s) => s._id !== userId));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to remove KYC");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const pending = submissions.filter((s) => s.kycStatus === "PENDING");
   const reviewed = submissions.filter((s) => s.kycStatus && s.kycStatus !== "PENDING");
 
@@ -87,7 +101,7 @@ export default function AdminKycPage() {
               <p className="mt-3 text-sm text-muted-foreground">Nothing awaiting review right now.</p>
             ) : (
               <div className="mt-3 space-y-5">
-                {pending.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} />)}
+                {pending.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} onRemove={remove} />)}
               </div>
             )}
           </section>
@@ -97,7 +111,7 @@ export default function AdminKycPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300/90">Verified &amp; reviewed identities ({reviewed.length})</h2>
               <p className="mt-1 text-xs text-muted-foreground">Documents stay available here for reference — open to view Aadhaar, PAN and selfie.</p>
               <div className="mt-3 space-y-5">
-                {reviewed.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} readOnly />)}
+                {reviewed.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} onRemove={remove} readOnly />)}
               </div>
             </section>
           )}
@@ -110,11 +124,12 @@ export default function AdminKycPage() {
 /** One identity record — either awaiting review (with Approve/Reject) or an
  *  already-reviewed record shown read-only with its retained documents. */
 function SubmissionCard({
-  s, busyId, onDecide, readOnly,
+  s, busyId, onDecide, onRemove, readOnly,
 }: {
   s: KycSubmission;
   busyId: string | null;
   onDecide: (userId: string, approve: boolean) => void;
+  onRemove: (userId: string) => void;
   readOnly?: boolean;
 }) {
   return (
@@ -131,28 +146,40 @@ function SubmissionCard({
             View full profile <ExternalLink size={11} />
           </Link>
         </div>
-        {readOnly ? (
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${s.kycStatus === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
-            {s.kycStatus === "APPROVED" ? "Verified" : "Rejected"}
-          </span>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              onClick={() => onDecide(s._id, true)}
-              disabled={busyId === s._id}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60"
-            >
-              {busyId === s._id && <Loader2 size={14} className="animate-spin" />} Approve
-            </button>
-            <button
-              onClick={() => onDecide(s._id, false)}
-              disabled={busyId === s._id}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
-            >
-              Reject
-            </button>
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {readOnly ? (
+            <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${s.kycStatus === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
+              {s.kycStatus === "APPROVED" ? "Verified" : "Rejected"}
+            </span>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => onDecide(s._id, true)}
+                disabled={busyId === s._id}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60"
+              >
+                {busyId === s._id && <Loader2 size={14} className="animate-spin" />} Approve
+              </button>
+              <button
+                onClick={() => onDecide(s._id, false)}
+                disabled={busyId === s._id}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+          {/* Remove KYC — deletes the documents and un-verifies the account so
+              the user must re-submit. */}
+          <button
+            onClick={() => onRemove(s._id)}
+            disabled={busyId === s._id}
+            title="Remove KYC — deletes documents and requires re-submission"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-60"
+          >
+            {busyId === s._id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Remove KYC
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">

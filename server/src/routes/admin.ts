@@ -35,6 +35,7 @@ import {
   ApprovalStatus,
   VerificationDetails,
   OnboardingChecks,
+  UserVerification,
   DEFAULT_ONBOARDING_CHECKS,
   isOnboardingComplete,
 } from "../db/schema";
@@ -1614,6 +1615,59 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
 
   await logAudit({ userId: req.user!.userId, action: approve ? "kyc.approve" : "kyc.reject", resourceType: "user", resourceId: String(user._id), metadata: { reason: approve ? undefined : reason } });
   res.json({ ok: true, userId: user._id, kycStatus: onboardingChecks.kycStatus, onboardingVerified });
+});
+
+// DELETE /api/admin/kyc/:userId — remove/reset a user's KYC. Deletes the stored
+// identity documents and un-verifies the account so they must submit KYC again.
+// Backs the admin identity page's "Remove KYC" action (e.g. wrong/fraudulent docs).
+router.delete("/kyc/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = String(req.params.userId);
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users._id, userId));
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Delete the stored document bytes.
+  try {
+    await getSqlClient()`DELETE FROM kyc_documents WHERE user_id = ${userId}`;
+  } catch {
+    /* non-fatal */
+  }
+
+  // Reset identity checks (email/phone verification is preserved). Clearing
+  // kycStatus sends the user back to the "submit your KYC" screen.
+  const prev = user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS;
+  const onboardingChecks: OnboardingChecks = {
+    ...prev,
+    aadhaarVerified: false,
+    panVerified: false,
+    kycStatus: undefined,
+    kycRejectionReason: null,
+  };
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
+
+  // Clear the KYC metadata on the verification blob (undefined → dropped from JSONB).
+  const verification: UserVerification = {
+    ...(user.verification ?? {}),
+    kycFiles: undefined,
+    panNumberMasked: undefined,
+    kycSubmittedAt: undefined,
+    aadhaarVerifiedAt: undefined,
+  };
+
+  await db.update(users).set({ onboardingChecks, verification, onboardingVerified }).where(eq(users._id, userId));
+
+  try {
+    const message = "Your identity verification was removed by an admin. Please re-submit your KYC to regain full access.";
+    const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
+    emitNotification(String(user._id), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "kyc.remove", resourceType: "user", resourceId: userId, metadata: { name: user.name, role: user.role } });
+  res.json({ ok: true, userId });
 });
 
 // ---------------------------------------------------------------------------
