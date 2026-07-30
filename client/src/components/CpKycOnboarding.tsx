@@ -27,6 +27,8 @@ export function CpKycOnboarding() {
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Brief "verifying…" state shown for ~2s after submit before access unlocks.
+  const [verifying, setVerifying] = useState(false);
 
   // Live selfie capture
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -133,11 +135,20 @@ export function CpKycOnboarding() {
       form.append("aadhaarNumber", aadhaarNumber.replace(/\s/g, ""));
       form.append("panNumber", panNumber.trim().toUpperCase());
       const res = await api.post("/auth/submit-kyc", form, { headers: { "Content-Type": "multipart/form-data" } });
-      useAuthStore.getState().setAuth(
-        { ...user, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified },
-        useAuthStore.getState().accessToken!,
-      );
-      toast.success(res.data.message || "Documents submitted for verification.");
+      // Auto-approved server-side. Show a brief "verifying…" beat (~2s), then
+      // apply the result so the workspace unlocks — no admin review needed.
+      setVerifying(true);
+      const token = useAuthStore.getState().accessToken!;
+      setTimeout(() => {
+        const cur = useAuthStore.getState().user ?? user;
+        useAuthStore.getState().setAuth(
+          { ...cur, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified },
+          token,
+        );
+        if (res.data.onboardingVerified) toast.success(res.data.message || "Identity verified — access unlocked.");
+        else toast.error(res.data.message || "Verification could not be completed. Please re-submit.");
+        setVerifying(false);
+      }, 2000);
     } catch (err: any) {
       // Surface the *specific* reason: the server's own message (e.g. "Enter a
       // valid 12-digit Aadhaar number", "Enter a valid PAN…"), then any field
@@ -158,7 +169,25 @@ export function CpKycOnboarding() {
     }
   }
 
-  // Submitted and awaiting review — no form, just a status card.
+  // Just submitted — a short "verifying" beat before access unlocks.
+  if (verifying) {
+    return (
+      <Shell>
+        <div className="rounded-2xl border border-white/10 glass p-8 text-center">
+          <div className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--trust)]/15 text-[var(--trust)]">
+            <Loader2 size={26} className="animate-spin" />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold">Verifying your identity…</h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+            Checking your Aadhaar, PAN and selfie. This only takes a couple of seconds — your workspace
+            will unlock automatically.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  // Legacy: submitted and awaiting review (no longer used — KYC auto-approves).
   if (status === "PENDING") {
     return (
       <Shell>

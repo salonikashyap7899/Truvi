@@ -906,8 +906,9 @@ router.post(
         updated_at = now()
     `;
 
-    // Let the provider hook decide automatically; with no provider it defers to
-    // manual admin review, so we mark PENDING and leave the checks unverified.
+    // KYC is auto-approved on submission — no manual admin review. A configured
+    // KYC provider can still explicitly REJECT; with no provider (the default)
+    // the identity is approved automatically.
     const provider = await runProviderKyc({
       aadhaarNumber,
       panNumber,
@@ -915,20 +916,20 @@ router.post(
       panDocumentUrl: "",
       selfieUrl: "",
     });
-    const approved = provider.outcome === "APPROVED";
     const rejected = provider.outcome === "REJECTED";
+    const approved = !rejected;
 
     const onboardingChecks: OnboardingChecks = {
       ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
       // Carry the account's real email/phone verification (done at signup) onto
       // onboardingChecks — CP accounts don't otherwise track these, and without
-      // them the account could never become fully onboarded after KYC approval.
+      // them the account could never become fully onboarded after KYC.
       emailVerified: user.emailVerified || (user.onboardingChecks?.emailVerified ?? false),
       phoneVerified: user.phoneVerified || (user.onboardingChecks?.phoneVerified ?? false),
       aadhaarVerified: approved,
       panVerified: approved,
-      kycStatus: approved ? "APPROVED" : rejected ? "REJECTED" : "PENDING",
-      kycRejectionReason: rejected ? provider.reason ?? null : null,
+      kycStatus: approved ? "APPROVED" : "REJECTED",
+      kycRejectionReason: rejected ? provider.reason ?? "Documents could not be verified." : null,
     };
     const verification: UserVerification = {
       ...(user.verification ?? {}),
@@ -945,24 +946,21 @@ router.post(
       .set({ onboardingChecks, verification, onboardingVerified })
       .where(eq(users._id, user._id));
 
-    // Alert admins there's a KYC submission to review (real-time bell + toast).
-    if (!approved) {
-      try {
-        const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-        if (admins.length) {
-          const message = `New identity verification to review: ${user.name} (${user.role}) submitted Aadhaar + PAN + selfie.`;
-          const rows = await db.insert(notifications).values(admins.map((a) => ({ userId: a._id, message }))).returning();
-          rows.forEach((n) => emitNotification(String(n.userId), n));
-        }
-      } catch {
-        /* non-fatal */
-      }
+    // Tell the user the outcome in real time — their workspace unlocks on approval.
+    try {
+      const message = approved
+        ? "Your identity has been verified — full access is now unlocked."
+        : `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`;
+      const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
+      emitNotification(String(user._id), n);
+    } catch {
+      /* non-fatal */
     }
 
     return res.json({
       message: approved
-        ? "Identity verified — you're all set."
-        : "Documents submitted. We'll verify your identity shortly.",
+        ? "Identity verified — full access is now unlocked."
+        : `Verification failed. ${onboardingChecks.kycRejectionReason ?? ""}`.trim(),
       onboardingChecks,
       onboardingVerified,
     });
