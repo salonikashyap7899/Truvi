@@ -225,14 +225,6 @@ const OPPORTUNITY_STATS = [
   { n: "AI-First", l: "Next-generation property decisions" },
 ];
 
-const ROADMAP = [
-  { phase: "Phase 1", years: "2026", items: ["Launch MVP", "Verified Listings", "Verification Engine", "Trust Score", "UP Launch"] },
-  { phase: "Phase 2", years: "2027–2028", items: ["Expand North India", "Developer Network", "Builder Network", "Growing User Base"] },
-  { phase: "Phase 3", years: "2029–2031", items: ["Pan-India Expansion", "Enterprise Clients", "Govt Partnerships", "API Platform"] },
-  { phase: "Phase 4", years: "2032–2035", items: ["AI-Driven Intelligence", "Predictive Analytics", "National Data Network", "Enterprise Intelligence"] },
-  { phase: "Phase 5", years: "2036–2045", items: ["Intelligence Infrastructure", "Largest Verified Database", "Trusted Across India", "Global Expansion"] },
-];
-
 const PARTNER_REASONS = [
   { who: "Government", desc: "Support transparent governance through verified property intelligence." },
   { who: "Builders & Developers", desc: "Increase credibility, visibility and buyer trust." },
@@ -1404,28 +1396,15 @@ export default function LandingPage() {
         </div>
       </Section>
 
-      {/* Growth roadmap — 5 phases */}
-      <Section id="roadmap">
+      {/* Growth roadmap — long-term mission statement */}
+      <Section id="roadmap" className="items-center text-center">
         <Reveal><Eyebrow>Our Growth Roadmap</Eyebrow></Reveal>
         <Reveal delay={0.1}>
-          <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
-            From MVP to{" "}
-            <span className="text-gradient-trust">national intelligence infrastructure.</span>
+          <h2 className="mt-2 max-w-4xl font-display text-3xl font-medium leading-[1.1] sm:text-4xl md:text-5xl">
+            Our long-term mission is to build{" "}
+            <span className="text-gradient-trust">India's most trusted real estate intelligence infrastructure.</span>
           </h2>
         </Reveal>
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-          {ROADMAP.map((r, i) => (
-            <Reveal key={r.phase} delay={i * 0.07}>
-              <div className="h-full rounded-2xl glass p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--trust)]">{r.phase}</p>
-                <p className="mt-0.5 font-display text-sm font-semibold text-white">{r.years}</p>
-                <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                  {r.items.map((it) => <li key={it}>• {it}</li>)}
-                </ul>
-              </div>
-            </Reveal>
-          ))}
-        </div>
       </Section>
 
       {/* Why partner with Truvi */}

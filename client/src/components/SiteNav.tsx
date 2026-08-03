@@ -200,7 +200,9 @@ export function SiteNav() {
             aria-label="Chat on WhatsApp"
             whileHover={{ scale: 1.05, boxShadow: "0 0 22px rgba(217,164,74,0.45)" }}
             whileTap={{ scale: 0.96 }}
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all sm:px-4"
+            /* Hidden on phones to keep the bar uncluttered — WhatsApp is in the
+               mobile menu below. Shown from sm up. */
+            className="hidden items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all sm:flex sm:px-4"
             style={{
               background: "rgba(59,130,246,0.12)",
               border: "1px solid rgba(59,130,246,0.45)",
