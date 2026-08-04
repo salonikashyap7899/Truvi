@@ -28,6 +28,7 @@ import {
   customerFeedback,
   developerReferrals,
   cpCommissionPayments,
+  cpManualCommissions,
   auditLogs,
   platformSettings,
   IPlatformSettings,
@@ -46,7 +47,7 @@ import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { logAudit } from "../services/audit";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
-import { getPartnersSummary, getCpWallet, accrueDeveloperCommissions } from "../services/commissionLedger";
+import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
 
 const router = Router();
 router.use(authenticate);
@@ -1842,11 +1843,14 @@ router.get("/commissions/partners", requireRole("ADMIN"), async (_req, res) => {
   res.json({ partners });
 });
 
-// GET /api/admin/commissions/partners/:id — one partner's full wallet.
+// GET /api/admin/commissions/partners/:id — one partner's full detail: CRM
+// stats (leads / site visits / bookings), bank details, wallet totals and every
+// manual commission (so the admin can add / approve / pay from one screen).
 router.get("/commissions/partners/:id", requireRole("ADMIN"), async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Partner not found" });
-  const wallet = await getCpWallet(req.params.id);
-  res.json({ wallet });
+  const detail = await getPartnerDetail(req.params.id);
+  if (!detail) return res.status(404).json({ error: "Partner not found" });
+  res.json({ detail, wallet: detail.wallet });
 });
 
 // POST /api/admin/commissions/accrue — run the monthly developer-commission
@@ -1903,6 +1907,174 @@ router.post("/commissions/pay", requireRole("ADMIN"), async (req: AuthedRequest,
   // Return the updated wallet so the admin UI reflects new paid/pending at once.
   const wallet = await getCpWallet(cpId);
   res.json({ ok: true, payment, wallet });
+});
+
+// ---------------------------------------------------------------------------
+// Manual commission management — the system NEVER auto-creates these. Once a
+// lead reaches Booking Confirmed, an admin adds the commission, approves it and
+// marks it paid. (The developer-referral 2% stays fully automatic elsewhere.)
+// ---------------------------------------------------------------------------
+
+const manualAddSchema = z.object({
+  cpId: z.string(),
+  amount: z.number().nonnegative(),
+  percent: z.number().min(0).max(100).optional(),
+  bookingValue: z.number().nonnegative().optional(),
+  leadId: z.string().optional(),
+  label: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+// POST /api/admin/commissions/manual — add a commission for a Channel Partner.
+router.post("/commissions/manual", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = manualAddSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const { cpId, amount, percent, bookingValue, leadId, label, notes } = parsed.data;
+  if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
+
+  const db = getDb();
+  const [cp] = await db.select({ _id: users._id, role: users.role, name: users.name }).from(users).where(eq(users._id, cpId));
+  if (!cp) return res.status(404).json({ error: "Partner not found" });
+  if (cp.role !== "CP" && cp.role !== "AMBASSADOR") return res.status(400).json({ error: "Commissions apply to Channel Partners and Ambassadors only" });
+
+  const [row] = await db
+    .insert(cpManualCommissions)
+    .values({
+      cpId,
+      amount,
+      percent: percent ?? null,
+      bookingValue: bookingValue ?? null,
+      leadId: leadId && isValidId(leadId) ? leadId : null,
+      label: label || null,
+      notes: notes || null,
+      status: "PENDING",
+      createdById: req.user!.userId,
+    })
+    .returning();
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.add", resourceType: "user", resourceId: cpId, metadata: { amount, label } });
+  const detail = await getPartnerDetail(cpId);
+  res.status(201).json({ ok: true, commission: row, detail });
+});
+
+const manualEditSchema = z.object({
+  amount: z.number().nonnegative().optional(),
+  percent: z.number().min(0).max(100).nullable().optional(),
+  bookingValue: z.number().nonnegative().nullable().optional(),
+  label: z.string().max(200).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+// PATCH /api/admin/commissions/manual/:id — edit a commission (not once it's paid).
+router.patch("/commissions/manual/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const parsed = manualEditSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "A paid commission can't be edited" });
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.edit", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+// POST /api/admin/commissions/manual/:id/approve — mark a commission Approved.
+router.post("/commissions/manual/:id/approve", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "Already paid" });
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ status: "APPROVED", updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  try {
+    const [n] = await db.insert(notifications).values({ userId: existing.cpId, message: `Your commission ${existing.label ? `"${existing.label}" ` : ""}of ₹${Number(existing.amount).toLocaleString("en-IN")} has been approved.` }).returning();
+    emitNotification(String(existing.cpId), n);
+  } catch { /* non-fatal */ }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.approve", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+const manualPaySchema = z.object({
+  paidAmount: z.number().positive().optional(),
+  paymentDate: z.string().optional(),
+  transactionRef: z.string().max(120).optional(),
+  paymentMode: z.enum(["UPI", "BANK_TRANSFER", "CASH", "CHEQUE", "OTHER"]).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+// POST /api/admin/commissions/manual/:id/pay — mark a commission Paid. This also
+// records a payout row so the wallet's paid/pending update, and notifies the CP.
+router.post("/commissions/manual/:id/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const parsed = manualPaySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "Already marked paid" });
+
+  const paidAmount = parsed.data.paidAmount ?? Number(existing.amount);
+  const mode = parsed.data.paymentMode ?? "BANK_TRANSFER";
+  const when = parsed.data.paymentDate ? new Date(parsed.data.paymentDate) : new Date();
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ status: "PAID", paidAmount, paymentDate: when, transactionRef: parsed.data.transactionRef || null, paymentMode: mode, notes: parsed.data.notes ?? existing.notes, updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  // Mirror into the payout ledger so wallet paid/pending stay the single source
+  // of truth (paid is always summed from cp_commission_payments).
+  await db.insert(cpCommissionPayments).values({
+    cpId: existing.cpId,
+    amount: paidAmount,
+    mode,
+    transactionId: parsed.data.transactionRef || null,
+    paymentDate: when,
+    notes: existing.label ? `Commission: ${existing.label}` : "Sale commission",
+    createdById: req.user!.userId,
+  });
+
+  try {
+    const [n] = await db.insert(notifications).values({ userId: existing.cpId, message: `A commission payment of ₹${paidAmount.toLocaleString("en-IN")} has been made to you${parsed.data.transactionRef ? ` (Ref ${parsed.data.transactionRef})` : ""}.` }).returning();
+    emitNotification(String(existing.cpId), n);
+  } catch { /* non-fatal */ }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.pay", resourceType: "commission", resourceId: req.params.id, metadata: { paidAmount, mode } });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+// DELETE /api/admin/commissions/manual/:id — remove a commission (not if paid).
+router.delete("/commissions/manual/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "A paid commission can't be deleted" });
+
+  await db.delete(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.delete", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, detail });
 });
 
 export default router;

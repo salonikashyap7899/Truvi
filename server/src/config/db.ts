@@ -303,6 +303,26 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "cp_commission_payments_cp_idx" ON "cp_commission_payments" ("cp_id", "created_at")`,
+    // Admin-managed (manual) Channel Partner commissions — add / approve / pay.
+    `CREATE TABLE IF NOT EXISTS "cp_manual_commissions" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "lead_id" uuid REFERENCES "leads"("id"),
+       "label" text,
+       "booking_value" double precision,
+       "percent" double precision,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "paid_amount" double precision,
+       "payment_date" timestamptz,
+       "transaction_ref" text,
+       "payment_mode" text,
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "cp_manual_commissions_cp_idx" ON "cp_manual_commissions" ("cp_id", "created_at")`,
     // Channel Partner payout / bank details for commission payouts.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payout_details" jsonb`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).

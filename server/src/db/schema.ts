@@ -1358,6 +1358,38 @@ export const cpCommissionPayments = pgTable(
 );
 export type ICpCommissionPayment = typeof cpCommissionPayments.$inferSelect;
 
+/**
+ * Admin-managed (manual) commission entries for Channel Partners. The system
+ * never auto-creates these — an admin/sales user adds a commission once a lead
+ * reaches Booking Confirmed, then Approves it and marks it Paid. This is the
+ * property-sale side of a CP's earnings (the developer-referral 2% stays fully
+ * automatic in `developer_commission_accruals`).
+ */
+export type ManualCommissionStatus = "PENDING" | "APPROVED" | "PAID";
+export const cpManualCommissions = pgTable(
+  "cp_manual_commissions",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    leadId: uuid("lead_id").references(() => leads._id),
+    label: text("label"),
+    bookingValue: doublePrecision("booking_value"),
+    percent: doublePrecision("percent"),
+    amount: doublePrecision("amount").notNull().default(0),
+    status: text("status").$type<ManualCommissionStatus>().notNull().default("PENDING"),
+    paidAmount: doublePrecision("paid_amount"),
+    paymentDate: timestamp("payment_date", { withTimezone: true, mode: "date" }),
+    transactionRef: text("transaction_ref"),
+    paymentMode: text("payment_mode"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("cp_manual_commissions_cp_idx").on(t.cpId, t.createdAt)]
+);
+export type ICpManualCommission = typeof cpManualCommissions.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;
