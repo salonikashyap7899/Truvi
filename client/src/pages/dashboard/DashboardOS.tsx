@@ -286,7 +286,7 @@ function HealthRing({ score }: { score: number }) {
 function priorityLine(d: Overview, fin: FinanceSummary | null): string {
   const bits: string[] = [];
   if (d.sales.qualifiedLeads) bits.push(`call ${d.sales.qualifiedLeads} qualified lead${d.sales.qualifiedLeads === 1 ? "" : "s"}`);
-  if (d.verification.pendingKyc) bits.push(`approve ${d.verification.pendingKyc} CP KYC`);
+  if (d.verification.pendingKyc) bits.push(`approve ${d.verification.pendingKyc} Partner KYC`);
   if (d.verification.pendingProjects) bits.push(`verify ${d.verification.pendingProjects} project${d.verification.pendingProjects === 1 ? "" : "s"}`);
   if (d.crm.followUpsDue) bits.push(`clear ${d.crm.followUpsDue} overdue follow-up${d.crm.followUpsDue === 1 ? "" : "s"}`);
   if (d.verification.pendingLegal) bits.push(`review ${d.verification.pendingLegal} legal doc${d.verification.pendingLegal === 1 ? "" : "s"}`);
@@ -589,7 +589,7 @@ function OverviewPage({ d, fin, go, openFinancials, navigate, title, sub }: { d:
         <Kpi icon="spark" tone="blue" label="Leads Today" value={String(d.sales.leadsToday)} foot={`${d.sales.qualifiedLeads} qualified`} />
         <Kpi icon="target" tone="green" label="Bookings Today" value={String(ex.todaysBookings)} foot={`${d.sales.siteVisits} site visits`} />
         <Kpi icon="wallet" tone="blue" label="Revenue Today" value={formatINR(d.companyHealth.revenueToday)} />
-        <Kpi icon="users" tone={d.verification.pendingKyc ? "amber" : "green"} label="Pending CP KYC" value={String(d.verification.pendingKyc)} onClick={() => go("verification")} />
+        <Kpi icon="users" tone={d.verification.pendingKyc ? "amber" : "green"} label="Pending Partner KYC" value={String(d.verification.pendingKyc)} onClick={() => go("verification")} />
         <Kpi icon="shield" tone={d.verification.pendingProjects ? "amber" : "green"} label="Site Verification Pending" value={String(d.verification.pendingProjects)} onClick={() => go("verification")} />
         <Kpi icon="bell" tone={d.crm.enquiries ? "amber" : "green"} label="Open Enquiries" value={String(d.crm.enquiries)} onClick={() => go("crm")} />
       </div>
@@ -709,7 +709,7 @@ function Donut({ data, centerLabel }: { data: { name: string; value: number; col
 function priorities(d: Overview): { text: string; page: Page }[] {
   const out: { text: string; page: Page }[] = [];
   if (d.verification.pendingProjects) out.push({ text: `Approve / verify ${d.verification.pendingProjects} pending project(s)`, page: "verification" });
-  if (d.verification.pendingKyc) out.push({ text: `Review ${d.verification.pendingKyc} CP KYC submission(s)`, page: "verification" });
+  if (d.verification.pendingKyc) out.push({ text: `Review ${d.verification.pendingKyc} Partner KYC submission(s)`, page: "verification" });
   if (d.verification.pendingLegal) out.push({ text: `Verify ${d.verification.pendingLegal} legal document(s)`, page: "verification" });
   if (d.crm.enquiries) out.push({ text: `Respond to ${d.crm.enquiries} open enquiry(ies)`, page: "crm" });
   if (d.crm.followUpsDue) out.push({ text: `${d.crm.followUpsDue} CP follow-up(s) overdue`, page: "crm" });
@@ -879,13 +879,67 @@ function VerificationPage({ d, navigate }: { d: Overview; navigate: ReturnType<t
       <div className="kpi-grid">
         <Kpi icon="building" tone={d.verification.pendingProjects ? "amber" : "green"} label="Projects Pending" value={String(d.verification.pendingProjects)} />
         <Kpi icon="shield" tone={d.verification.pendingLegal ? "amber" : "green"} label="Legal Docs Pending" value={String(d.verification.pendingLegal)} />
-        <Kpi icon="users" tone={d.verification.pendingKyc ? "amber" : "green"} label="CP KYC Pending" value={String(d.verification.pendingKyc)} />
+        <Kpi icon="users" tone={d.verification.pendingKyc ? "amber" : "green"} label="Partner KYC Pending" value={String(d.verification.pendingKyc)} />
         <Kpi icon="target" tone="green" label="Verified Projects" value={String(d.projects.verified)} />
       </div>
+      <PartnerKycPanel navigate={navigate} />
       <Panel title="Note" sub="Compliance register">
         <p style={{ fontSize: 12.5, color: "var(--ink-500)", lineHeight: 1.6 }}>ROC filings, GST returns, court cases and agreement-expiry alerts need a compliance register. Project-level RERA/legal verification counts above are live from the verification engine.</p>
       </Panel>
     </section>
+  );
+}
+
+interface KycRecord { _id: string; name: string; email: string; role: string; kycStatus: "PENDING" | "APPROVED" | "REJECTED" | "NOT_SUBMITTED"; submittedAt: string | null; }
+interface KycCounts { total: number; approved: number; pending: number; rejected: number; notSubmitted: number; }
+const KYC_BADGE: Record<KycRecord["kycStatus"], { cls: string; label: string }> = {
+  APPROVED: { cls: "green", label: "Verified" },
+  PENDING: { cls: "amber", label: "Pending" },
+  REJECTED: { cls: "red", label: "Rejected" },
+  NOT_SUBMITTED: { cls: "", label: "Not submitted" },
+};
+
+function PartnerKycPanel({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const [records, setRecords] = useState<KycRecord[]>([]);
+  const [counts, setCounts] = useState<KycCounts | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get("/admin/kyc/records")
+      .then((r) => { setRecords(r.data.records ?? []); setCounts(r.data.counts ?? null); })
+      .catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load KYC"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <Panel title="Channel Partner & Ambassador KYC" sub="Every partner's identity status — verified, pending, rejected & not submitted" icon="users" iconTone="blue"
+      action={<button className="btn" onClick={() => navigate("/admin/kyc")}><Ic n="shield" /> Review docs</button>}>
+      {counts && (
+        <div className="kpi-grid" style={{ marginBottom: 12 }}>
+          <Kpi icon="users" tone="blue" label="Total Partners" value={String(counts.total)} />
+          <Kpi icon="shield" tone="green" label="Verified" value={String(counts.approved)} />
+          <Kpi icon="bell" tone={counts.pending ? "amber" : "green"} label="Awaiting Review" value={String(counts.pending)} onClick={() => navigate("/admin/kyc")} />
+          <Kpi icon="target" tone={counts.rejected ? "red" : "green"} label="Rejected" value={String(counts.rejected)} />
+          <Kpi icon="grid" tone={counts.notSubmitted ? "amber" : "green"} label="Not Submitted" value={String(counts.notSubmitted)} />
+        </div>
+      )}
+      {loading ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>Loading…</p>
+        : records.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No Channel Partners or Ambassadors yet.</p>
+        : <div className="table-wrap"><table>
+            <thead><tr><th>Partner</th><th>Role</th><th>KYC Status</th><th>Submitted</th><th></th></tr></thead>
+            <tbody>{records.map((r) => {
+              const b = KYC_BADGE[r.kycStatus];
+              return (
+                <tr key={r._id}>
+                  <td><div className="name-cell"><div className="mini-avatar">{initials(r.name)}</div><div>{r.name}<div style={{ fontSize: 11, color: "var(--ink-500)" }}>{r.email}</div></div></div></td>
+                  <td>{r.role}</td>
+                  <td><span className={`badge ${b.cls}`}>{b.label}</span></td>
+                  <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-IN") : "—"}</td>
+                  <td style={{ textAlign: "right" }}><button className="btn" onClick={() => navigate(`/admin/users/${r._id}`)}>View</button></td>
+                </tr>
+              );
+            })}</tbody>
+          </table></div>}
+    </Panel>
   );
 }
 
