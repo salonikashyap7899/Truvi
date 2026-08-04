@@ -109,7 +109,7 @@ export function Panel({ title, sub, action, icon, iconTone, children }: { title:
 const initials = (s: string) => s.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 /* =============================================================== the shell */
-export type Page = "overview" | "sales" | "partners" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "financials" | "costing" | "employers" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
+export type Page = "overview" | "sales" | "partners" | "commissions" | "developers" | "projects" | "inventory" | "bookings" | "crm" | "finance" | "financials" | "costing" | "employers" | "legal" | "support" | "operations" | "reports" | "verification" | "kpi" | "insights" | "analytics" | "team" | "marketing" | "land" | "investor" | "cx";
 
 interface NavItem { key: Page; label: string; icon: string; count?: number }
 interface NavGroup { group: string; items: NavItem[] }
@@ -231,6 +231,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           {current === "overview" && <OverviewPage d={d} fin={fin} go={go} openFinancials={config.showFinancials ? openFinancials : undefined} navigate={navigate} title={config.overviewTitle} sub={config.overviewSub} />}
           {current === "sales" && <SalesPage d={d} />}
           {current === "partners" && <ChannelPartnersPage />}
+          {current === "commissions" && <CommissionsPage />}
           {current === "developers" && <DevelopersPage />}
           {current === "projects" && <ProjectsPage d={d} navigate={navigate} />}
           {current === "inventory" && <InventoryDashPage />}
@@ -993,6 +994,144 @@ function ChannelPartnersPage() {
         </Panel>
       </div>
     </section>
+  );
+}
+
+/* ---------------------------------------------------------- commissions */
+type CommMode = "BANK_TRANSFER" | "UPI" | "CASH" | "CHEQUE" | "OTHER";
+interface CommPayoutDetails { accountHolderName?: string; accountNumber?: string; ifsc?: string; bankName?: string; upiId?: string; method?: "BANK_TRANSFER" | "UPI"; updatedAt?: string; }
+interface CommPartner {
+  id: string; name: string; email: string; role: string;
+  developerCommission: number; saleCommission: number; total: number; paid: number; pending: number; nextPayable: number;
+  payoutDetails: CommPayoutDetails | null;
+}
+
+function CommissionsPage() {
+  const [partners, setPartners] = useState<CommPartner[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [payTarget, setPayTarget] = useState<CommPartner | null>(null);
+
+  useEffect(() => {
+    api.get("/admin/commissions/partners")
+      .then((r) => setPartners(r.data.partners ?? []))
+      .catch((e: any) => toast.error(e?.response?.data?.error || "Failed to load commissions"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const t = partners.reduce(
+    (a, p) => ({ dev: a.dev + p.developerCommission, sale: a.sale + p.saleCommission, total: a.total + p.total, paid: a.paid + p.paid, pending: a.pending + p.pending }),
+    { dev: 0, sale: 0, total: 0, paid: 0, pending: 0 },
+  );
+
+  if (loading) return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading commissions…</p></section>;
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Channel Partner Commissions</div><div className="page-sub">Developer onboarding (2% recurring) + property-sale commission · pay out &amp; track pending</div></div>
+      </div>
+      <div className="kpi-grid">
+        <Kpi icon="building" tone="blue" label="Developer (2%)" value={formatINR(t.dev)} />
+        <Kpi icon="chart" tone="blue" label="Sale Commission" value={formatINR(t.sale)} />
+        <Kpi icon="wallet" tone="green" label="Total Earned" value={formatINR(t.total)} />
+        <Kpi icon="target" tone="green" label="Paid Out" value={formatINR(t.paid)} />
+        <Kpi icon="bell" tone={t.pending ? "amber" : "green"} label="Pending" value={formatINR(t.pending)} />
+      </div>
+      <Panel title="Partner payouts" sub="Developer + sale commission, paid, pending &amp; bank / UPI details" icon="wallet" iconTone="green">
+        {partners.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No channel partners yet.</p> :
+          <div className="table-wrap"><table>
+            <thead><tr><th>Partner</th><th>Developer</th><th>Sale</th><th>Total</th><th>Paid</th><th>Pending</th><th>Payout To</th><th></th></tr></thead>
+            <tbody>{partners.map((p) => (
+              <tr key={p.id}>
+                <td><div className="name-cell"><div className="mini-avatar">{initials(p.name)}</div><div>{p.name}<div style={{ fontSize: 11, color: "var(--ink-500)" }}>{p.email}</div></div></div></td>
+                <td>{formatINR(p.developerCommission)}</td>
+                <td>{formatINR(p.saleCommission)}</td>
+                <td><b>{formatINR(p.total)}</b></td>
+                <td>{formatINR(p.paid)}</td>
+                <td><b style={{ color: "#E0A73B" }}>{formatINR(p.pending)}</b></td>
+                <td>{p.payoutDetails && (p.payoutDetails.accountNumber || p.payoutDetails.upiId)
+                  ? <span style={{ fontSize: 11.5 }}>{p.payoutDetails.method === "UPI" ? p.payoutDetails.upiId : `••••${(p.payoutDetails.accountNumber || "").slice(-4)}`}</span>
+                  : <span className="badge amber">Not added</span>}</td>
+                <td><button className="btn btn-primary" disabled={p.pending <= 0} onClick={() => setPayTarget(p)}><Ic n="wallet" /> Mark Paid</button></td>
+              </tr>
+            ))}</tbody>
+          </table></div>}
+      </Panel>
+      {payTarget && <CommissionPayModal partner={payTarget} onClose={() => setPayTarget(null)} onPaid={(u) => { setPartners((prev) => prev.map((x) => (x.id === u.id ? u : x))); setPayTarget(null); }} />}
+    </section>
+  );
+}
+
+function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner; onClose: () => void; onPaid: (p: CommPartner) => void }) {
+  const [amount, setAmount] = useState(String(partner.pending || ""));
+  const [mode, setMode] = useState<CommMode>(partner.payoutDetails?.method ?? "BANK_TRANSFER");
+  const [transactionId, setTransactionId] = useState("");
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const pd = partner.payoutDetails;
+
+  async function submit() {
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) { toast.error("Enter a valid amount"); return; }
+    if (amt > partner.pending + 0.5) { toast.error(`Amount exceeds pending ${formatINR(partner.pending)}`); return; }
+    setSaving(true);
+    try {
+      const res = await api.post("/admin/commissions/pay", { cpId: partner.id, amount: amt, mode, transactionId: transactionId.trim() || undefined, paymentDate, notes: notes.trim() || undefined });
+      const w = res.data.wallet;
+      toast.success(`Recorded ${formatINR(amt)} payout to ${partner.name}`);
+      onPaid({ ...partner, paid: w.paid, pending: w.pending, nextPayable: w.nextPayable, total: w.totalEarnings, developerCommission: w.developerCommission, saleCommission: w.saleCommission });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Failed to record payout");
+    } finally { setSaving(false); }
+  }
+
+  const selStyle: React.CSSProperties = { width: "100%", border: "1px solid var(--border-strong)", background: "var(--bg)", color: "var(--ink-900)", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontFamily: "inherit" };
+  return (
+    <div className="ps-overlay" onClick={onClose}>
+      <div className="ps-modal card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Record payout">
+        <div className="ps-head">
+          <div><div className="ps-title">Record Payout</div><div className="ps-sub">{partner.name} · {partner.email}</div></div>
+          <button className="ps-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, margin: "4px 0 14px" }}>
+          <MiniBox label="Total" value={formatINR(partner.total)} />
+          <MiniBox label="Paid" value={formatINR(partner.paid)} />
+          <MiniBox label="Next Payable" value={formatINR(partner.nextPayable)} amber />
+        </div>
+        <div className="card" style={{ padding: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--ink-500)", marginBottom: 6 }}>Payout Details</div>
+          {pd && (pd.accountNumber || pd.upiId) ? (
+            <div style={{ fontSize: 12.5, display: "grid", gap: 3 }}>
+              {pd.accountHolderName && <div>Holder: <b>{pd.accountHolderName}</b></div>}
+              {pd.bankName && <div>Bank: <b>{pd.bankName}</b></div>}
+              {pd.accountNumber && <div>A/C: <b>{pd.accountNumber}</b></div>}
+              {pd.ifsc && <div>IFSC: <b>{pd.ifsc}</b></div>}
+              {pd.upiId && <div>UPI: <b>{pd.upiId}</b></div>}
+              {pd.method && <div>Preferred: <b>{pd.method === "UPI" ? "UPI" : "Bank Transfer"}</b></div>}
+            </div>
+          ) : <div style={{ fontSize: 12, color: "#E0A73B" }}>This partner hasn't added bank / UPI details yet.</div>}
+        </div>
+        <div className="ps-field"><label>Amount (₹)</label><input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
+        <div className="ps-field"><label>Payment Mode</label>
+          <select value={mode} onChange={(e) => setMode(e.target.value as CommMode)} style={selStyle}>
+            <option value="BANK_TRANSFER">Bank Transfer</option><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="CHEQUE">Cheque</option><option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div className="ps-field"><label>Transaction ID / UTR</label><input value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="UTR / UPI ref / cheque no." /></div>
+        <div className="ps-field"><label>Payment Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} /></div>
+        <div className="ps-field"><label>Notes</label><input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" /></div>
+        <div className="ps-actions"><button className="btn" onClick={onClose} disabled={saving}>Cancel</button><button className="btn btn-primary" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Confirm Payout"}</button></div>
+      </div>
+    </div>
+  );
+}
+
+function MiniBox({ label, value, amber }: { label: string; value: string; amber?: boolean }) {
+  return (
+    <div className="card" style={{ padding: "8px 10px", textAlign: "center" }}>
+      <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--ink-500)" }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: amber ? "#E0A73B" : "var(--ink-900)" }}>{value}</div>
+    </div>
   );
 }
 
