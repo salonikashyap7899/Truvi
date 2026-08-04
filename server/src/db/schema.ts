@@ -1293,6 +1293,56 @@ export const developerReferrals = pgTable("developer_referrals", {
 });
 export type IDeveloperReferral = typeof developerReferrals.$inferSelect;
 
+// ---------------------------------------------------------------------------
+// Channel Partner commission wallet/ledger. Two earning streams feed ONE
+// wallet so the CP (and admin) always see a single Total / Paid / Pending:
+//   1. Developer Onboarding Commission — 2% recurring of a referred developer's
+//      monthly subscription, accrued once per developer per month
+//      (developer_commission_accruals).
+//   2. Property Sale Commission — the CP's commission on a booked sale (already
+//      stored in `commissions.cpCommissionAmount`).
+// Admin payouts are recorded in cp_commission_payments; pending = earned − paid.
+// All amounts are whole rupees (doublePrecision), matching `commissions`.
+// ---------------------------------------------------------------------------
+
+export const developerCommissionAccruals = pgTable(
+  "developer_commission_accruals",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    developerId: uuid("developer_id").notNull().references(() => users._id),
+    // Month this 2% accrual is for, e.g. "2026-08".
+    monthKey: text("month_key").notNull(),
+    // Rupee amount = 2% of the developer's monthly subscription value.
+    amount: doublePrecision("amount").notNull().default(0),
+    subscriptionAmount: doublePrecision("subscription_amount").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("dev_commission_dev_month_unique").on(t.developerId, t.monthKey),
+    index("dev_commission_cp_idx").on(t.cpId),
+  ]
+);
+export type IDeveloperCommissionAccrual = typeof developerCommissionAccruals.$inferSelect;
+
+export type CommissionPaymentMode = "UPI" | "BANK_TRANSFER" | "CASH" | "CHEQUE" | "OTHER";
+export const cpCommissionPayments = pgTable(
+  "cp_commission_payments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    amount: doublePrecision("amount").notNull().default(0),
+    mode: text("mode").$type<CommissionPaymentMode>().notNull().default("BANK_TRANSFER"),
+    transactionId: text("transaction_id"),
+    paymentDate: timestamp("payment_date", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("cp_commission_payments_cp_idx").on(t.cpId, t.createdAt)]
+);
+export type ICpCommissionPayment = typeof cpCommissionPayments.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;

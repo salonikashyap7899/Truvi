@@ -27,6 +27,7 @@ import {
   marketingCampaigns,
   customerFeedback,
   developerReferrals,
+  cpCommissionPayments,
   auditLogs,
   platformSettings,
   IPlatformSettings,
@@ -45,6 +46,7 @@ import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { logAudit } from "../services/audit";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
+import { getPartnersSummary, getCpWallet, accrueDeveloperCommissions } from "../services/commissionLedger";
 
 const router = Router();
 router.use(authenticate);
@@ -1813,6 +1815,82 @@ router.patch("/documents/:source/:id", requireRole("ADMIN"), async (req: AuthedR
   if (!ok) return res.status(404).json({ error: "Document not found" });
   await logAudit({ userId: req.user!.userId, action: approve ? "document.approve" : "document.reject", resourceType: "document", resourceId: id, metadata: { source } });
   res.json({ ok: true, status: parsed.data.status });
+});
+
+// ---------------------------------------------------------------------------
+// Channel Partner commission wallet — admin view + payouts.
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/commissions/partners — every CP/Ambassador with their
+// developer + sale commission, total, paid and pending. Accrues the current
+// month's developer commission first so figures are current.
+router.get("/commissions/partners", requireRole("ADMIN"), async (_req, res) => {
+  await accrueDeveloperCommissions().catch((e) => console.error("accrue failed:", e));
+  const partners = await getPartnersSummary();
+  res.json({ partners });
+});
+
+// GET /api/admin/commissions/partners/:id — one partner's full wallet.
+router.get("/commissions/partners/:id", requireRole("ADMIN"), async (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Partner not found" });
+  const wallet = await getCpWallet(req.params.id);
+  res.json({ wallet });
+});
+
+// POST /api/admin/commissions/accrue — run the monthly developer-commission
+// accrual on demand (also runs lazily on the two GETs above).
+router.post("/commissions/accrue", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const monthKey = typeof req.body?.monthKey === "string" && /^\d{4}-\d{2}$/.test(req.body.monthKey) ? req.body.monthKey : undefined;
+  const result = await accrueDeveloperCommissions(monthKey);
+  res.json({ ok: true, ...result });
+});
+
+// POST /api/admin/commissions/pay — record a payout to a Channel Partner. This
+// reduces their pending balance (pending = earned − paid) and notifies them.
+const commissionPaySchema = z.object({
+  cpId: z.string(),
+  amount: z.number().positive(),
+  mode: z.enum(["UPI", "BANK_TRANSFER", "CASH", "CHEQUE", "OTHER"]).optional(),
+  transactionId: z.string().max(120).optional(),
+  paymentDate: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+router.post("/commissions/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = commissionPaySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  const { cpId, amount, mode, transactionId, paymentDate, notes } = parsed.data;
+  if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
+
+  const db = getDb();
+  const [cp] = await db.select().from(users).where(eq(users._id, cpId));
+  if (!cp) return res.status(404).json({ error: "Partner not found" });
+
+  const [payment] = await db
+    .insert(cpCommissionPayments)
+    .values({
+      cpId,
+      amount,
+      mode: mode ?? "BANK_TRANSFER",
+      transactionId: transactionId || null,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      notes: notes || null,
+      createdById: req.user!.userId,
+    })
+    .returning();
+
+  try {
+    const message = `A commission payout of ₹${amount.toLocaleString("en-IN")} has been recorded to your account${transactionId ? ` (Txn ${transactionId})` : ""}.`;
+    const [n] = await db.insert(notifications).values({ userId: cpId, message }).returning();
+    emitNotification(String(cpId), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.pay", resourceType: "user", resourceId: cpId, metadata: { amount, mode: mode ?? "BANK_TRANSFER", transactionId } });
+
+  // Return the updated wallet so the admin UI reflects new paid/pending at once.
+  const wallet = await getCpWallet(cpId);
+  res.json({ ok: true, payment, wallet });
 });
 
 export default router;

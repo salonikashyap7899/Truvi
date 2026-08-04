@@ -8,6 +8,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { logAudit } from "../services/audit";
 import { calculateCommission, buildMilestones, assertReleasedNeverExceedsTotal } from "../services/commissionCalculator";
+import { getCpWallet, accrueDeveloperCommissions } from "../services/commissionLedger";
 import { DEFAULT_PLATFORM_FEE_PERCENT, TDS_PERCENT } from "../config/constants";
 import { emitCommissionUpdate, emitNotification } from "../sockets";
 import { sendCommissionEmail } from "../services/emailService";
@@ -20,6 +21,15 @@ class AppError extends Error {
     super(message);
   }
 }
+
+// GET /api/commissions/wallet — the Channel Partner's unified commission wallet
+// (developer-onboarding 2% + property-sale, with paid / pending / history). The
+// current month's developer commission is accrued lazily so it's always fresh.
+router.get("/wallet", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  await accrueDeveloperCommissions().catch((e) => console.error("accrue failed:", e));
+  const wallet = await getCpWallet(req.user!.userId);
+  res.json(wallet);
+});
 
 router.get("/", async (req: AuthedRequest, res) => {
   const user = req.user!;

@@ -279,6 +279,30 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "pending_signups_email_unique" ON "pending_signups" ("email")`,
+    // CP commission wallet — developer-onboarding 2% accruals + admin payouts.
+    `CREATE TABLE IF NOT EXISTS "developer_commission_accruals" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "developer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "month_key" text NOT NULL,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "subscription_amount" double precision NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "dev_commission_dev_month_unique" ON "developer_commission_accruals" ("developer_id", "month_key")`,
+    `CREATE INDEX IF NOT EXISTS "dev_commission_cp_idx" ON "developer_commission_accruals" ("cp_id")`,
+    `CREATE TABLE IF NOT EXISTS "cp_commission_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "amount" double precision NOT NULL DEFAULT 0,
+       "mode" text NOT NULL DEFAULT 'BANK_TRANSFER',
+       "transaction_id" text,
+       "payment_date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "cp_commission_payments_cp_idx" ON "cp_commission_payments" ("cp_id", "created_at")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
