@@ -4,6 +4,16 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR } from "@/lib/utils";
 
+interface PayoutDetails {
+  accountHolderName?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  bankName?: string;
+  upiId?: string;
+  method?: "BANK_TRANSFER" | "UPI";
+  updatedAt?: string;
+}
+
 interface Partner {
   id: string;
   name: string;
@@ -14,6 +24,8 @@ interface Partner {
   total: number;
   paid: number;
   pending: number;
+  nextPayable: number;
+  payoutDetails: PayoutDetails | null;
 }
 
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
@@ -105,14 +117,15 @@ export default function AdminCommissionsPage() {
               <th className="p-3 text-right">Total</th>
               <th className="p-3 text-right">Paid</th>
               <th className="p-3 text-right">Pending</th>
+              <th className="p-3 text-left">Payout To</th>
               <th className="p-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No channel partners found.</td></tr>
+              <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No channel partners found.</td></tr>
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="border-t border-white/10 transition hover:bg-white/[0.03]">
@@ -125,6 +138,20 @@ export default function AdminCommissionsPage() {
                   <td className="p-3 text-right font-medium tabular-nums">{formatINR(p.total)}</td>
                   <td className="p-3 text-right tabular-nums text-emerald-300">{formatINR(p.paid)}</td>
                   <td className="p-3 text-right font-semibold tabular-nums text-amber-300">{formatINR(p.pending)}</td>
+                  <td className="p-3">
+                    {p.payoutDetails && (p.payoutDetails.accountNumber || p.payoutDetails.upiId) ? (
+                      <div className="text-xs">
+                        <div className="text-white/80">{p.payoutDetails.method === "UPI" ? "UPI" : "Bank"}</div>
+                        <div className="font-mono text-muted-foreground">
+                          {p.payoutDetails.method === "UPI"
+                            ? p.payoutDetails.upiId
+                            : p.payoutDetails.accountNumber ? `••••${p.payoutDetails.accountNumber.slice(-4)}` : "—"}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-amber-300/70">Not added</span>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
                     <button
                       onClick={() => setPayTarget(p)}
@@ -172,7 +199,7 @@ function Kpi({ icon, label, value, tone }: { icon: React.ReactNode; label: strin
 
 function PayModal({ partner, onClose, onPaid }: { partner: Partner; onClose: () => void; onPaid: (p: Partner) => void }) {
   const [amount, setAmount] = useState<string>(String(partner.pending || ""));
-  const [mode, setMode] = useState<Mode>("BANK_TRANSFER");
+  const [mode, setMode] = useState<Mode>(partner.payoutDetails?.method ?? "BANK_TRANSFER");
   const [transactionId, setTransactionId] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
@@ -205,6 +232,7 @@ function PayModal({ partner, onClose, onPaid }: { partner: Partner; onClose: () 
         ...partner,
         paid: w.paid,
         pending: w.pending,
+        nextPayable: w.nextPayable,
         total: w.totalEarnings,
         developerCommission: w.developerCommission,
         saleCommission: w.saleCommission,
@@ -230,10 +258,27 @@ function PayModal({ partner, onClose, onPaid }: { partner: Partner; onClose: () 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           <MiniStat label="Total" value={formatINR(partner.total)} />
           <MiniStat label="Paid" value={formatINR(partner.paid)} tone="emerald" />
-          <MiniStat label="Pending" value={formatINR(partner.pending)} tone="amber" />
+          <MiniStat label="Next Payable" value={formatINR(partner.nextPayable)} tone="amber" />
         </div>
 
-        <form onSubmit={submit} className="mt-5 space-y-3">
+        {/* Payout details — the admin reviews these before releasing money. */}
+        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payout Details</p>
+          {partner.payoutDetails && (partner.payoutDetails.accountNumber || partner.payoutDetails.upiId) ? (
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+              {partner.payoutDetails.accountHolderName && <Row label="Account Holder" value={partner.payoutDetails.accountHolderName} />}
+              {partner.payoutDetails.bankName && <Row label="Bank" value={partner.payoutDetails.bankName} />}
+              {partner.payoutDetails.accountNumber && <Row label="Account No." value={partner.payoutDetails.accountNumber} mono />}
+              {partner.payoutDetails.ifsc && <Row label="IFSC" value={partner.payoutDetails.ifsc} mono />}
+              {partner.payoutDetails.upiId && <Row label="UPI ID" value={partner.payoutDetails.upiId} mono />}
+              {partner.payoutDetails.method && <Row label="Preferred" value={partner.payoutDetails.method === "UPI" ? "UPI" : "Bank Transfer"} />}
+            </dl>
+          ) : (
+            <p className="mt-1.5 text-xs text-amber-300/80">This partner hasn't added bank / UPI details yet.</p>
+          )}
+        </div>
+
+        <form onSubmit={submit} className="mt-4 space-y-3">
           <Field label="Amount (₹)">
             <input
               type="number"
@@ -304,6 +349,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`text-right text-white/90 ${mono ? "font-mono" : ""}`}>{value}</dd>
+    </div>
   );
 }
 

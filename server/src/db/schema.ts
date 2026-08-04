@@ -103,6 +103,18 @@ export interface DeveloperProfile {
   reraNumber?: string;
 }
 
+/** A Channel Partner's payout / bank details, used by the admin to process
+ *  commission payouts. Added by the CP after onboarding, editable any time. */
+export interface PayoutDetails {
+  accountHolderName?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  bankName?: string;
+  upiId?: string;
+  method?: "BANK_TRANSFER" | "UPI";
+  updatedAt?: string; // ISO
+}
+
 export interface OnboardingChecks {
   aadhaarVerified: boolean;
   phoneVerified: boolean;
@@ -338,6 +350,9 @@ export const users = pgTable(
     referredBy: uuid("referred_by"),
     cpTier: text("cp_tier").$type<CPTier>().default("SILVER"),
     cpProfile: jsonb("cp_profile").$type<CpProfile>().default(DEFAULT_CP_PROFILE),
+    // Channel Partner payout / bank details (account no., IFSC, UPI, preferred
+    // method) — set by the CP, read by the admin to process commission payouts.
+    payoutDetails: jsonb("payout_details").$type<PayoutDetails>(),
     developerProfile: jsonb("developer_profile").$type<DeveloperProfile>(),
     buyerProfile: jsonb("buyer_profile").$type<BuyerProfile>().default(DEFAULT_BUYER_PROFILE),
     // Personal profile: display avatar (uploaded image URL) and a short bio,

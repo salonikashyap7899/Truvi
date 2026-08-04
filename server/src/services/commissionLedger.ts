@@ -6,6 +6,7 @@ import {
   commissions,
   developerCommissionAccruals,
   cpCommissionPayments,
+  PayoutDetails,
 } from "../db/schema";
 
 /** Developer-onboarding commission rate — 2% of the referred developer's
@@ -79,6 +80,7 @@ export interface CpWallet {
   totalEarnings: number;
   paid: number;
   pending: number;
+  nextPayable: number;
   history: {
     _id: string;
     type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE";
@@ -153,7 +155,8 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
     .map((p) => ({ _id: String(p._id), amount: round2(Number(p.amount || 0)), mode: p.mode, transactionId: p.transactionId, paymentDate: p.paymentDate, notes: p.notes }))
     .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
 
-  return { developerCommission, saleCommission, totalEarnings, paid, pending, history, payments };
+  // "Next payable" is simply the outstanding balance the CP is owed right now.
+  return { developerCommission, saleCommission, totalEarnings, paid, pending, nextPayable: pending, history, payments };
 }
 
 export interface PartnerSummary {
@@ -166,13 +169,15 @@ export interface PartnerSummary {
   total: number;
   paid: number;
   pending: number;
+  nextPayable: number;
+  payoutDetails: PayoutDetails | null;
 }
 
 /** Commission summary for every Channel Partner / Ambassador (admin view). */
 export async function getPartnersSummary(): Promise<PartnerSummary[]> {
   const db = getDb();
   const [cps, saleRows, accrualRows, payRows] = await Promise.all([
-    db.select({ _id: users._id, name: users.name, email: users.email, role: users.role }).from(users).where(inArray(users.role, ["CP", "AMBASSADOR"])),
+    db.select({ _id: users._id, name: users.name, email: users.email, role: users.role, payoutDetails: users.payoutDetails }).from(users).where(inArray(users.role, ["CP", "AMBASSADOR"])),
     db.select({ cpId: commissions.cpId, amount: commissions.cpCommissionAmount }).from(commissions),
     db.select({ cpId: developerCommissionAccruals.cpId, amount: developerCommissionAccruals.amount }).from(developerCommissionAccruals),
     db.select({ cpId: cpCommissionPayments.cpId, amount: cpCommissionPayments.amount }).from(cpCommissionPayments),
@@ -193,6 +198,7 @@ export async function getPartnersSummary(): Promise<PartnerSummary[]> {
       const developerCommission = round2(dev.get(String(c._id)) ?? 0);
       const total = round2(saleCommission + developerCommission);
       const paid = round2(paidM.get(String(c._id)) ?? 0);
+      const pending = round2(total - paid);
       return {
         id: String(c._id),
         name: c.name,
@@ -202,7 +208,9 @@ export async function getPartnersSummary(): Promise<PartnerSummary[]> {
         saleCommission,
         total,
         paid,
-        pending: round2(total - paid),
+        pending,
+        nextPayable: pending,
+        payoutDetails: (c.payoutDetails as PayoutDetails | null) ?? null,
       };
     })
     .sort((a, b) => b.pending - a.pending || b.total - a.total);

@@ -303,6 +303,8 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "cp_commission_payments_cp_idx" ON "cp_commission_payments" ("cp_id", "created_at")`,
+    // Channel Partner payout / bank details for commission payouts.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payout_details" jsonb`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

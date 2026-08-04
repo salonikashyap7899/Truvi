@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { formatINR, formatDate } from "@/lib/utils";
 import { CpHubNav } from "@/components/CpHubNav";
 import UserMenu from "@/components/UserMenu";
-import { Wallet, Building2, Handshake, Clock, CheckCircle2, Receipt } from "lucide-react";
+import { Wallet, Building2, Handshake, Clock, CheckCircle2, Receipt, Landmark, Save, Loader2 } from "lucide-react";
 
 interface Wallet {
   developerCommission: number;
@@ -12,8 +12,19 @@ interface Wallet {
   totalEarnings: number;
   paid: number;
   pending: number;
+  nextPayable: number;
   history: { _id: string; type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE"; amount: number; date: string; description: string; status: string }[];
   payments: { _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[];
+}
+
+interface PayoutDetails {
+  accountHolderName?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  bankName?: string;
+  upiId?: string;
+  method?: "BANK_TRANSFER" | "UPI";
+  updatedAt?: string;
 }
 
 export default function CpCommissionsPage() {
@@ -57,7 +68,11 @@ export default function CpCommissionsPage() {
             <Tile icon={<Handshake size={16} />} label="Sale Commission" value={formatINR(w.saleCommission)} />
             <Tile icon={<Clock size={16} />} label="Pending" value={formatINR(w.pending)} tone="amber" />
             <Tile icon={<CheckCircle2 size={16} />} label="Paid" value={formatINR(w.paid)} tone="emerald" />
+            <Tile icon={<Wallet size={16} />} label="Next Payable" value={formatINR(w.nextPayable)} tone="amber" sub="outstanding balance" />
           </div>
+
+          {/* Payout details */}
+          <PayoutDetailsCard />
 
           {/* Earnings history */}
           <section className="mt-8">
@@ -131,6 +146,84 @@ export default function CpCommissionsPage() {
         </>
       )}
     </main>
+  );
+}
+
+function PayoutDetailsCard() {
+  const [d, setD] = useState<PayoutDetails>({ method: "BANK_TRANSFER" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | undefined>();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get("/commissions/payout-details");
+        if (res.data.payoutDetails) {
+          setD({ method: "BANK_TRANSFER", ...res.data.payoutDetails });
+          setSavedAt(res.data.payoutDetails.updatedAt);
+        }
+      } catch {
+        /* first-time: no details yet */
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const set = (k: keyof PayoutDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setD((p) => ({ ...p, [k]: e.target.value }));
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await api.put("/commissions/payout-details", {
+        accountHolderName: d.accountHolderName || undefined,
+        accountNumber: d.accountNumber || undefined,
+        ifsc: d.ifsc || undefined,
+        bankName: d.bankName || undefined,
+        upiId: d.upiId || undefined,
+        method: d.method || "BANK_TRANSFER",
+      });
+      setSavedAt(res.data.payoutDetails?.updatedAt);
+      toast.success("Payout details saved");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save payout details");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const input = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]/50";
+
+  return (
+    <section className="mt-8">
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/80"><Landmark size={15} /> Payout Details</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Add your bank / UPI details so the Truvi team can process your commission payouts. You can update these any time.</p>
+      {loading ? (
+        <p className="mt-3 text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <form onSubmit={save} className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:grid-cols-2">
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Account Holder Name</span><input className={input} value={d.accountHolderName ?? ""} onChange={set("accountHolderName")} placeholder="As per bank records" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Bank Name</span><input className={input} value={d.bankName ?? ""} onChange={set("bankName")} placeholder="e.g. HDFC Bank" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Bank Account Number</span><input className={input} value={d.accountNumber ?? ""} onChange={set("accountNumber")} placeholder="Account number" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">IFSC Code</span><input className={input} value={d.ifsc ?? ""} onChange={set("ifsc")} placeholder="e.g. HDFC0001234" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">UPI ID</span><input className={input} value={d.upiId ?? ""} onChange={set("upiId")} placeholder="name@upi" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Preferred Payment Method</span>
+            <select className={input} value={d.method ?? "BANK_TRANSFER"} onChange={set("method")}>
+              <option value="BANK_TRANSFER" className="bg-[#0e1116]">Bank Transfer</option>
+              <option value="UPI" className="bg-[#0e1116]">UPI</option>
+            </select>
+          </label>
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-[var(--trust)] px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Payout Details
+            </button>
+            {savedAt && <span className="text-xs text-muted-foreground">Last updated {formatDate(savedAt)}</span>}
+          </div>
+        </form>
+      )}
+    </section>
   );
 }
 

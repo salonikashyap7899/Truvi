@@ -31,6 +31,40 @@ router.get("/wallet", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest
   res.json(wallet);
 });
 
+// GET /api/commissions/payout-details — the CP's saved bank / UPI details, used
+// by the admin to process payouts. The CP can view and update these any time.
+router.get("/payout-details", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select({ payoutDetails: users.payoutDetails }).from(users).where(eq(users._id, req.user!.userId));
+  res.json({ payoutDetails: me?.payoutDetails ?? null });
+});
+
+const payoutDetailsSchema = z.object({
+  accountHolderName: z.string().max(120).optional(),
+  accountNumber: z.string().max(40).optional(),
+  ifsc: z.string().max(20).optional(),
+  bankName: z.string().max(120).optional(),
+  upiId: z.string().max(120).optional(),
+  method: z.enum(["BANK_TRANSFER", "UPI"]).optional(),
+});
+
+// PUT /api/commissions/payout-details — add / update the CP's payout details.
+router.put("/payout-details", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const parsed = payoutDetailsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+
+  const clean = Object.fromEntries(Object.entries(parsed.data).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
+  const payoutDetails = { ...clean, updatedAt: new Date().toISOString() };
+
+  const db = getDb();
+  const [updated] = await db
+    .update(users)
+    .set({ payoutDetails })
+    .where(eq(users._id, req.user!.userId))
+    .returning({ payoutDetails: users.payoutDetails });
+  res.json({ payoutDetails: updated?.payoutDetails ?? payoutDetails });
+});
+
 router.get("/", async (req: AuthedRequest, res) => {
   const user = req.user!;
   const db = getDb();
