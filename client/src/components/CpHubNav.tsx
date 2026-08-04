@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, Bot, Building2, CalendarCheck2, FolderLock, GraduationCap, KanbanSquare, LayoutDashboard, Trophy, Users } from "lucide-react";
+import { BarChart3, Bot, Building2, CalendarCheck2, FolderLock, GraduationCap, KanbanSquare, LayoutDashboard, Trophy, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
  */
 const HUBS: { to: string; label: string; icon: typeof LayoutDashboard; pro?: boolean; tooltip?: string }[] = [
   { to: "/cp/dashboard", label: "Overview", icon: LayoutDashboard },
+  { to: "/cp/commissions", label: "Commissions", icon: Wallet, tooltip: "Your unified commission wallet — developer onboarding (2%) + property sale." },
   { to: "/cp/sales", label: "Sales Hub", icon: KanbanSquare, pro: true },
   { to: "/crm/pipeline", label: "Pipeline", icon: KanbanSquare },
   { to: "/bookings", label: "Bookings", icon: CalendarCheck2 },

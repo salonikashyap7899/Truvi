@@ -49,6 +49,7 @@ import CpGuidePage from "@/pages/cp/CpGuidePage";
 import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
 
 import CPDashboardPage from "@/pages/cp/CPDashboardPage";
+import CpCommissionsPage from "@/pages/cp/CpCommissionsPage";
 import MarketplacePage from "@/pages/cp/MarketplacePage";
 import LearningAcademyPage from "@/pages/cp/LearningAcademyPage";
 import TruviConnectPage from "@/pages/cp/TruviConnectPage";
@@ -80,6 +81,7 @@ import AdminKycPage from "@/pages/admin/AdminKycPage";
 import AdminReferralLeadsPage from "@/pages/admin/AdminReferralLeadsPage";
 import AdminDocumentsPage from "@/pages/admin/AdminDocumentsPage";
 import AdminFinancePage from "@/pages/admin/AdminFinancePage";
+import AdminCommissionsPage from "@/pages/admin/AdminCommissionsPage";
 import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
@@ -190,6 +192,7 @@ export default function App() {
         <Route path="/admin/referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
         <Route path="/admin/documents" element={<ProtectedRoute roles={["ADMIN"]}><AdminDocumentsPage /></ProtectedRoute>} />
         <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
+        <Route path="/admin/commissions" element={<ProtectedRoute roles={["ADMIN"]}><AdminCommissionsPage /></ProtectedRoute>} />
         <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
         <Route path="/admin/audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
@@ -210,6 +213,7 @@ export default function App() {
 
         {/* CP */}
         <Route path="/cp/dashboard" element={<ProtectedRoute roles={["CP"]}><CPDashboardPage /></ProtectedRoute>} />
+        <Route path="/cp/commissions" element={<ProtectedRoute roles={["CP", "AMBASSADOR"]}><CpCommissionsPage /></ProtectedRoute>} />
         <Route path="/cp/guide" element={<ProtectedRoute roles={["CP", "ADMIN"]}><CpGuidePage /></ProtectedRoute>} />
         <Route path="/cp/marketplace" element={<ProtectedRoute roles={["CP"]}><MarketplacePage /></ProtectedRoute>} />
         <Route path="/cp/academy" element={<ProtectedRoute roles={["CP"]}><LearningAcademyPage /></ProtectedRoute>} />

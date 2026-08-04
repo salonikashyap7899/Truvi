@@ -21,6 +21,7 @@ const config: DashboardOSConfig = {
     { group: "Business", items: [
       { key: "sales", label: "Sales CRM", icon: "chart" },
       { key: "partners", label: "Channel Partners", icon: "users" },
+      { key: "commissions", label: "Commissions & Payouts", icon: "wallet" },
       { key: "developers", label: "Developers", icon: "building" },
       { key: "projects", label: "Projects", icon: "building" },
       { key: "inventory", label: "Inventory", icon: "grid" },
