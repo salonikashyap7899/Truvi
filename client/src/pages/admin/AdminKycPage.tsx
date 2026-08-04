@@ -4,31 +4,35 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ShieldCheck, ExternalLink, Loader2, ArrowLeft, Trash2 } from "lucide-react";
 
+type KycStatus = "PENDING" | "APPROVED" | "REJECTED" | "NOT_SUBMITTED";
 interface KycSubmission {
   _id: string;
   name: string;
   email: string;
   phone?: string;
   role: string;
-  kycStatus: "PENDING" | "APPROVED" | "REJECTED" | null;
+  kycStatus: KycStatus | null;
   panNumberMasked: string | null;
   hasAadhaar: boolean;
   hasPan: boolean;
   hasSelfie: boolean;
   submittedAt: string | null;
 }
+interface KycCounts { total: number; approved: number; pending: number; rejected: number; notSubmitted: number; }
 
 export default function AdminKycPage() {
   const [submissions, setSubmissions] = useState<KycSubmission[]>([]);
+  const [counts, setCounts] = useState<KycCounts | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     try {
-      // All KYC records (pending + already reviewed) so verified users' docs
-      // remain viewable after approval.
+      // Every CP/Ambassador with their KYC status — verified, pending, rejected
+      // and those who still haven't submitted — so nothing is hidden.
       const res = await api.get("/admin/kyc/records");
       setSubmissions(res.data.records || []);
+      setCounts(res.data.counts || null);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to load submissions");
     } finally {
@@ -74,7 +78,8 @@ export default function AdminKycPage() {
   }
 
   const pending = submissions.filter((s) => s.kycStatus === "PENDING");
-  const reviewed = submissions.filter((s) => s.kycStatus && s.kycStatus !== "PENDING");
+  const notSubmitted = submissions.filter((s) => s.kycStatus === "NOT_SUBMITTED");
+  const reviewed = submissions.filter((s) => s.kycStatus === "APPROVED" || s.kycStatus === "REJECTED");
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
@@ -85,14 +90,24 @@ export default function AdminKycPage() {
         <ShieldCheck size={22} className="text-[var(--trust)]" /> Identity verification
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Review Channel Partner &amp; Ambassador Aadhaar, PAN and selfie submissions. Approving unlocks their workspace;
-        documents are retained securely so you can re-view a verified user's identity anytime.
+        Every Channel Partner &amp; Ambassador and their KYC status — verified, pending, rejected, or still to submit.
+        Approving unlocks their workspace; documents are retained securely so you can re-view a verified user's identity anytime.
       </p>
+
+      {counts && (
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <CountTile label="Total Partners" value={counts.total} />
+          <CountTile label="Verified" value={counts.approved} tone="emerald" />
+          <CountTile label="Awaiting Review" value={counts.pending} tone="amber" />
+          <CountTile label="Rejected" value={counts.rejected} tone="rose" />
+          <CountTile label="Not Submitted" value={counts.notSubmitted} tone="slate" />
+        </div>
+      )}
 
       {loading ? (
         <p className="mt-10 text-sm text-muted-foreground">Loading…</p>
       ) : submissions.length === 0 ? (
-        <p className="mt-10 text-sm text-muted-foreground">No identity submissions yet.</p>
+        <p className="mt-10 text-sm text-muted-foreground">No Channel Partners or Ambassadors yet.</p>
       ) : (
         <>
           <section className="mt-8">
@@ -106,6 +121,29 @@ export default function AdminKycPage() {
             )}
           </section>
 
+          {notSubmitted.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300/90">Not yet submitted ({notSubmitted.length})</h2>
+              <p className="mt-1 text-xs text-muted-foreground">These partners are registered but haven't completed KYC yet. Their workspace stays locked until they do.</p>
+              <div className="mt-3 space-y-3">
+                {notSubmitted.map((s) => (
+                  <div key={s._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                    <div>
+                      <p className="font-medium">{s.name} <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-[11px]">{s.role}</span></p>
+                      <p className="text-sm text-muted-foreground">{s.email}{s.phone ? ` · ${s.phone}` : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-full bg-slate-500/15 px-3 py-1 text-xs font-semibold text-slate-300">Not submitted</span>
+                      <Link to={`/admin/users/${s._id}`} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--trust)] hover:underline">
+                        View profile <ExternalLink size={11} />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {reviewed.length > 0 && (
             <section className="mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300/90">Verified &amp; reviewed identities ({reviewed.length})</h2>
@@ -118,6 +156,16 @@ export default function AdminKycPage() {
         </>
       )}
     </main>
+  );
+}
+
+function CountTile({ label, value, tone }: { label: string; value: number; tone?: "emerald" | "amber" | "rose" | "slate" }) {
+  const valueCls = tone === "emerald" ? "text-emerald-300" : tone === "amber" ? "text-amber-300" : tone === "rose" ? "text-rose-300" : tone === "slate" ? "text-slate-300" : "text-white";
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`mt-1 font-display text-2xl font-semibold ${valueCls}`}>{value}</p>
+    </div>
   );
 }
 

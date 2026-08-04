@@ -1527,9 +1527,10 @@ router.get("/kyc/:userId/file/:type", requireRole("ADMIN"), async (req: AuthedRe
   res.end(Buffer.from(row.data));
 });
 
-// GET /api/admin/kyc/records — every CP/Ambassador who has ever submitted KYC
-// (pending, approved or rejected), so an admin can view identity documents even
-// after approval. The pending queue above stays scoped to what needs a decision.
+// GET /api/admin/kyc/records — EVERY Channel Partner & Ambassador with their KYC
+// status, including those who have not submitted yet (status NOT_SUBMITTED), so
+// the admin/founder can see the full roster: who's verified, who's pending, who
+// was rejected and who still owes KYC. Documents stay viewable after approval.
 router.get("/kyc/records", requireRole("ADMIN"), async (_req, res) => {
   const db = getDb();
   const rows = await db
@@ -1539,32 +1540,43 @@ router.get("/kyc/records", requireRole("ADMIN"), async (_req, res) => {
       email: users.email,
       phone: users.phone,
       role: users.role,
+      disabled: users.disabled,
       onboardingChecks: users.onboardingChecks,
       verification: users.verification,
     })
     .from(users)
     .where(inArray(users.role, ["CP", "AMBASSADOR"]));
 
-  const statusRank: Record<string, number> = { PENDING: 0, REJECTED: 1, APPROVED: 2 };
+  // PENDING first (needs a decision), then REJECTED, then NOT_SUBMITTED (needs a
+  // nudge), then APPROVED (all clear) — so the actionable rows float to the top.
+  const statusRank: Record<string, number> = { PENDING: 0, REJECTED: 1, NOT_SUBMITTED: 2, APPROVED: 3 };
   const records = rows
-    .filter((u) => Boolean(u.onboardingChecks?.kycStatus))
+    .filter((u) => !u.disabled)
     .map((u) => ({
       _id: u._id,
       name: u.name,
       email: u.email,
       phone: u.phone,
       role: u.role,
-      kycStatus: u.onboardingChecks?.kycStatus ?? null,
+      kycStatus: u.onboardingChecks?.kycStatus ?? "NOT_SUBMITTED",
       panNumberMasked: u.verification?.panNumberMasked ?? null,
       hasAadhaar: Boolean(u.verification?.kycFiles?.aadhaar),
       hasPan: Boolean(u.verification?.kycFiles?.pan),
       hasSelfie: Boolean(u.verification?.kycFiles?.selfie),
       submittedAt: u.verification?.kycSubmittedAt ?? null,
     }))
-    .sort((a, b) => (statusRank[a.kycStatus ?? ""] ?? 9) - (statusRank[b.kycStatus ?? ""] ?? 9)
+    .sort((a, b) => (statusRank[a.kycStatus] ?? 9) - (statusRank[b.kycStatus] ?? 9)
       || (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
 
-  res.json({ records });
+  const counts = {
+    total: records.length,
+    approved: records.filter((r) => r.kycStatus === "APPROVED").length,
+    pending: records.filter((r) => r.kycStatus === "PENDING").length,
+    rejected: records.filter((r) => r.kycStatus === "REJECTED").length,
+    notSubmitted: records.filter((r) => r.kycStatus === "NOT_SUBMITTED").length,
+  };
+
+  res.json({ records, counts });
 });
 
 const kycDecisionSchema = z.object({ approve: z.boolean(), reason: z.string().max(300).optional() });
