@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, Building2, Handshake, Clock, CheckCircle2, Search, X, Loader2, IndianRupee, Settings2, Plus, Trash2, Check, Users2, MapPin, CalendarCheck2 } from "lucide-react";
+import { Wallet, Building2, Handshake, Clock, CheckCircle2, Search, X, Loader2, IndianRupee, Settings2, Plus, Trash2, Check, Users2, MapPin, CalendarCheck2, Smartphone, Copy } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -436,7 +437,7 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
                         <button onClick={() => act(c._id, "approve", {}, "Approved")} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg border border-sky-400/40 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/10 disabled:opacity-60"><Check size={12} /> Approve</button>
                       )}
                       {c.status !== "PAID" && (
-                        <button onClick={() => { setPayFor(payFor === c._id ? null : c._id); setPayForm((f) => ({ ...f, paidAmount: String(c.amount) })); }} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"><IndianRupee size={12} /> Mark Paid</button>
+                        <button onClick={() => { setPayFor(payFor === c._id ? null : c._id); setPayForm((f) => ({ ...f, paidAmount: String(c.amount), paymentMode: d.payoutDetails?.upiId ? "UPI" : (d.payoutDetails?.method ?? "BANK_TRANSFER") })); }} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"><IndianRupee size={12} /> Mark Paid</button>
                       )}
                       {c.status !== "PAID" && (
                         <button onClick={() => removeCommission(c._id)} disabled={busy === c._id} title="Delete" className="rounded-lg border border-rose-400/40 p-1.5 text-rose-300 hover:bg-rose-500/10 disabled:opacity-60"><Trash2 size={12} /></button>
@@ -446,6 +447,9 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
 
                   {payFor === c._id && c.status !== "PAID" && (
                     <div className="mt-3 grid grid-cols-1 gap-2 border-t border-white/10 pt-3 sm:grid-cols-2">
+                      {d.payoutDetails?.upiId && (
+                        <UpiPayBlock upiId={d.payoutDetails.upiId} name={d.name} amount={Number(payForm.paidAmount || c.amount)} note={c.label || "Commission"} />
+                      )}
                       <Field label="Amount Paid (₹)"><input type="number" className={input} value={payForm.paidAmount} onChange={(e) => setPayForm({ ...payForm, paidAmount: e.target.value })} /></Field>
                       <Field label="Payment Date"><input type="date" className={input} value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} /></Field>
                       <Field label="Transaction Ref / UTR"><input className={input} value={payForm.transactionRef} onChange={(e) => setPayForm({ ...payForm, transactionRef: e.target.value })} placeholder="UTR / UPI ref" /></Field>
@@ -476,6 +480,45 @@ function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string;
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</p>
       <p className="mt-1 font-display text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+/** Build a standard UPI intent link (works with PhonePe / GPay / Paytm etc). */
+function upiIntent({ pa, pn, am, tn }: { pa: string; pn: string; am: number; tn?: string }) {
+  const params = [
+    `pa=${encodeURIComponent(pa)}`,
+    `pn=${encodeURIComponent(pn)}`,
+    am > 0 ? `am=${encodeURIComponent(am.toFixed(2))}` : "",
+    "cu=INR",
+    tn ? `tn=${encodeURIComponent(tn.slice(0, 40))}` : "",
+  ].filter(Boolean);
+  return `upi://pay?${params.join("&")}`;
+}
+
+/** Real UPI payment step: a scannable QR + "Open in UPI app" link pre-filled
+ *  with the CP's UPI ID and the amount. The admin pays from their own UPI app,
+ *  then records the reference below. No auto-payout / gateway needed. */
+function UpiPayBlock({ upiId, name, amount, note }: { upiId: string; name: string; amount: number; note?: string }) {
+  const link = upiIntent({ pa: upiId, pn: name, am: amount, tn: note });
+  const copy = (text: string, label: string) => { navigator.clipboard?.writeText(text).then(() => toast.success(`${label} copied`)).catch(() => {}); };
+  return (
+    <div className="rounded-lg border border-[var(--trust)]/30 bg-[var(--trust)]/[0.06] p-3 sm:col-span-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--trust)]"><Smartphone size={13} /> Pay {formatINR(amount)} to {name} via UPI</p>
+      <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+        <div className="rounded-lg bg-white p-2">
+          <QRCodeSVG value={link} size={128} />
+        </div>
+        <div className="flex-1 text-xs text-muted-foreground">
+          <p><b className="text-white/90">On your phone:</b> tap “Open in UPI app”. <b className="text-white/90">On desktop:</b> scan this QR with PhonePe / GPay / Paytm.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <a href={link} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--trust)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"><Smartphone size={13} /> Open in UPI app</a>
+            <button type="button" onClick={() => copy(upiId, "UPI ID")} className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"><Copy size={12} /> {upiId}</button>
+            <button type="button" onClick={() => copy(String(amount), "Amount")} className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"><Copy size={12} /> {formatINR(amount)}</button>
+          </div>
+          <p className="mt-2 text-[11px]">After paying, enter the <b>UPI reference</b> below and click <b>Confirm Payment</b> to record it.</p>
+        </div>
+      </div>
     </div>
   );
 }
