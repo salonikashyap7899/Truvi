@@ -7,8 +7,16 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitNotification } from "../sockets";
 
-/** The referral incentive a CP/Ambassador earns on a referred developer's sales. */
+/** The referral incentive a CP/Ambassador/Developer earns on a referred
+ *  developer's sales — 2% for lifetime on every transaction. */
 const REFERRAL_INCENTIVE_PERCENT = 2;
+
+/** One-time bonus paid on the referred developer's FIRST transaction. It's
+ *  larger when a Developer refers another Developer, smaller for a Channel
+ *  Partner / Ambassador. */
+const FIRST_TXN_BONUS_DEVELOPER = 100;
+const FIRST_TXN_BONUS_PARTNER = 75;
+const firstTxnBonusFor = (role?: string) => (role === "DEVELOPER" ? FIRST_TXN_BONUS_DEVELOPER : FIRST_TXN_BONUS_PARTNER);
 
 /**
  * Developer onboarding referrals. A Channel Partner, Ambassador OR an existing
@@ -144,8 +152,14 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
   }
 
   const rate = REFERRAL_INCENTIVE_PERCENT / 100;
+  const bonusAmount = firstTxnBonusFor(me?.role);
   const referredDevelopers = referred.map((r) => {
     const s = stats.get(String(r._id));
+    const txns = s?.count ?? 0;
+    const percentEarned = Math.round((s?.sales ?? 0) * rate);
+    // The one-time first-transaction bonus lands as soon as the referred
+    // developer completes their first transaction.
+    const firstTxnBonus = txns >= 1 ? bonusAmount : 0;
     return {
       ...r,
       // A developer who registered with the referral code has ACCEPTED the
@@ -154,9 +168,11 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
       // state used for transactions/earnings below.)
       status: "ACTIVE" as "ACTIVE" | "PENDING",
       propertiesListed: s?.properties ?? 0,
-      totalTransactions: s?.count ?? 0,
+      totalTransactions: txns,
       totalSalesValue: Math.round(s?.sales ?? 0),
-      incentiveEarned: Math.round((s?.sales ?? 0) * rate),
+      percentEarned,
+      firstTxnBonus,
+      incentiveEarned: percentEarned + firstTxnBonus,
       lastTransactionAt: s?.last ? s.last.toISOString() : null,
     };
   });
@@ -165,10 +181,11 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
     referredCount: referredDevelopers.length,
     active: referredDevelopers.filter((r) => r.status === "ACTIVE").length,
     totalTransactions: referredDevelopers.reduce((a, r) => a + r.totalTransactions, 0),
+    totalBonus: referredDevelopers.reduce((a, r) => a + r.firstTxnBonus, 0),
     totalEarnings: referredDevelopers.reduce((a, r) => a + r.incentiveEarned, 0),
   };
 
-  res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, referredDevelopers, summary });
+  res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredDevelopers, summary });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all,
