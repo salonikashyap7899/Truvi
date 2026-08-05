@@ -17,14 +17,17 @@ interface ReferredDev {
   propertiesListed: number;
   totalTransactions: number;
   totalSalesValue: number;
+  percentEarned: number;
+  firstTxnBonus: number;
   incentiveEarned: number;
   lastTransactionAt: string | null;
   createdAt: string;
 }
 interface ReferralData {
   referralCode: string | null;
+  firstTxnBonus: number;
   referredDevelopers: ReferredDev[];
-  summary: { referredCount: number; active: number; totalTransactions: number; totalEarnings: number };
+  summary: { referredCount: number; active: number; totalTransactions: number; totalBonus: number; totalEarnings: number };
 }
 
 const EMPTY = { developerName: "", companyName: "", phone: "", email: "", city: "", landDetails: "", notes: "" };
@@ -48,7 +51,8 @@ export default function OnboardDevelopersPage() {
     ? `${window.location.origin}/signup?ref=${referral.referralCode}`
     : "";
 
-  const summary = useMemo(() => referral?.summary ?? { referredCount: 0, active: 0, totalTransactions: 0, totalEarnings: 0 }, [referral]);
+  const summary = useMemo(() => referral?.summary ?? { referredCount: 0, active: 0, totalTransactions: 0, totalBonus: 0, totalEarnings: 0 }, [referral]);
+  const bonus = referral?.firstTxnBonus ?? (isDeveloper ? 100 : 75);
 
   async function copyCode() {
     if (!referral?.referralCode) return;
@@ -82,7 +86,7 @@ export default function OnboardDevelopersPage() {
         landDetails: form.landDetails.trim() || undefined,
         notes: form.notes.trim() || undefined,
       });
-      toast.success("Developer submitted — your 2% incentive is locked to you.");
+      toast.success(`Developer submitted — your ₹${bonus} first-transaction bonus + 2% lifetime is locked to you.`);
       setForm({ ...EMPTY });
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Could not submit — try again");
@@ -97,12 +101,15 @@ export default function OnboardDevelopersPage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">
         <Building2 size={22} className="text-emerald-400" /> Developer Referral
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+          <IndianRupee size={13} /> ₹{bonus} on 1st transaction
+        </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-          <BadgePercent size={13} /> Earn 2% on every transaction
+          <BadgePercent size={13} /> + 2% lifetime
         </span>
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Share your referral code — every developer who joins with it is linked to you, and you earn <b className="text-emerald-300">2% on every transaction</b> from their inventory.
+        Share your referral code — every developer who joins with it is linked to you. You earn a one-time <b className="text-amber-300">₹{bonus} bonus</b> on their first transaction, plus <b className="text-emerald-300">2% for lifetime</b> on every transaction from their inventory.
       </p>
 
       {isCp && <CpHubNav />}
@@ -126,11 +133,12 @@ export default function OnboardDevelopersPage() {
       )}
 
       {/* Summary cards */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <SummaryCard icon={<Users size={16} />} tone="text-sky-400" label="Referred Developers" value={String(summary.referredCount)} />
         <SummaryCard icon={<ShieldCheck size={16} />} tone="text-emerald-400" label="Active Developers" value={String(summary.active)} />
         <SummaryCard icon={<Activity size={16} />} tone="text-violet-400" label="Total Transactions" value={String(summary.totalTransactions)} />
-        <SummaryCard icon={<IndianRupee size={16} />} tone="text-amber-400" label="Referral Earnings (2%)" value={formatCompactINR(summary.totalEarnings)} />
+        <SummaryCard icon={<IndianRupee size={16} />} tone="text-amber-400" label="First-txn Bonus" value={formatCompactINR(summary.totalBonus)} />
+        <SummaryCard icon={<TrendingUp size={16} />} tone="text-emerald-400" label="Total Earnings" value={formatCompactINR(summary.totalEarnings)} />
       </div>
 
       {/* How it works */}
@@ -147,8 +155,8 @@ export default function OnboardDevelopersPage() {
         </Card>
         <Card className="border-white/10 glass text-white">
           <BadgePercent size={18} className="text-violet-400" />
-          <p className="mt-2 text-sm font-semibold">You earn 2%</p>
-          <p className="mt-1 text-xs text-muted-foreground">You automatically earn a 2% referral incentive on every one of their transactions.</p>
+          <p className="mt-2 text-sm font-semibold">₹{bonus} bonus + 2% lifetime</p>
+          <p className="mt-1 text-xs text-muted-foreground">A one-time ₹{bonus} bonus on their first transaction, then 2% on every transaction — automatically, for life.</p>
         </Card>
       </div>
 
@@ -159,15 +167,16 @@ export default function OnboardDevelopersPage() {
           <p className="mt-3 text-sm text-muted-foreground">No developers have joined with your code yet. Share it above to start earning 2%.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[820px] text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Developer</th>
                   <th className="py-2 px-3 font-medium">Status</th>
-                  <th className="py-2 px-3 text-right font-medium">Properties</th>
                   <th className="py-2 px-3 text-right font-medium">Transactions</th>
                   <th className="py-2 px-3 text-right font-medium">Sales value</th>
-                  <th className="py-2 px-3 text-right font-medium">2% earned</th>
+                  <th className="py-2 px-3 text-right font-medium">2% lifetime</th>
+                  <th className="py-2 px-3 text-right font-medium">1st-txn bonus</th>
+                  <th className="py-2 px-3 text-right font-medium">Total earned</th>
                   <th className="py-2 pl-3 text-right font-medium">Last txn</th>
                 </tr>
               </thead>
@@ -179,16 +188,17 @@ export default function OnboardDevelopersPage() {
                       <p className="text-[11px] text-muted-foreground">{r.email ?? `Joined ${formatDate(r.createdAt)}`}</p>
                     </td>
                     <td className="py-2.5 px-3"><Badge variant={r.status === "ACTIVE" ? "success" : "warning"}>{r.status}</Badge></td>
-                    <td className="py-2.5 px-3 text-right tabular-nums">{r.propertiesListed}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{r.totalTransactions}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
-                    <td className="py-2.5 px-3 text-right tabular-nums text-emerald-300">{formatINR(r.incentiveEarned)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums text-emerald-300">{formatINR(r.percentEarned)}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{r.firstTxnBonus > 0 ? <span className="text-amber-300">{formatINR(r.firstTxnBonus)}</span> : <span className="text-muted-foreground">—</span>}</td>
+                    <td className="py-2.5 px-3 text-right font-semibold tabular-nums">{formatINR(r.incentiveEarned)}</td>
                     <td className="py-2.5 pl-3 text-right text-muted-foreground">{r.lastTransactionAt ? formatDate(r.lastTransactionAt) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="mt-3 text-[11px] text-muted-foreground">Transactions, sales value and 2% earnings update live as your referred developers' inventory sells.</p>
+            <p className="mt-3 text-[11px] text-muted-foreground">Each developer earns you a one-time ₹{bonus} bonus on their first transaction, plus 2% lifetime on every transaction — updated live as their inventory sells.</p>
           </div>
         )}
       </Card>
