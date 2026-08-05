@@ -2031,7 +2031,11 @@ router.post("/commissions/manual/:id/pay", requireRole("ADMIN"), async (req: Aut
   if (!existing) return res.status(404).json({ error: "Commission not found" });
   if (existing.status === "PAID") return res.status(409).json({ error: "Already marked paid" });
 
-  const paidAmount = parsed.data.paidAmount ?? Number(existing.amount);
+  const amount = Number(existing.amount);
+  const paidAmount = parsed.data.paidAmount ?? amount;
+  // A commission can never be paid for more than it's worth — this is what kept
+  // the wallet's pending from going negative.
+  if (paidAmount > amount + 0.01) return res.status(400).json({ error: `Amount can't exceed the commission value of ₹${amount.toLocaleString("en-IN")}` });
   const mode = parsed.data.paymentMode ?? "BANK_TRANSFER";
   const when = parsed.data.paymentDate ? new Date(parsed.data.paymentDate) : new Date();
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Wallet, Building2, Handshake, Clock, CheckCircle2, Search, X, Loader2, IndianRupee, Settings2, Plus, Trash2, Check, Users2, MapPin, CalendarCheck2 } from "lucide-react";
+import { Wallet, Building2, Handshake, Clock, CheckCircle2, Search, X, Loader2, IndianRupee, Settings2, Plus, Trash2, Check, Users2, MapPin, CalendarCheck2, Smartphone, Copy } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR, formatDate } from "@/lib/utils";
@@ -29,13 +30,11 @@ interface Partner {
 }
 
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
-type Mode = (typeof MODES)[number];
 
 export default function AdminCommissionsPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [payTarget, setPayTarget] = useState<Partner | null>(null);
   const [manageId, setManageId] = useState<string | null>(null);
 
   async function load() {
@@ -154,21 +153,12 @@ export default function AdminCommissionsPage() {
                     )}
                   </td>
                   <td className="p-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setManageId(p.id)}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
-                      >
-                        <Settings2 size={13} /> Manage
-                      </button>
-                      <button
-                        onClick={() => setPayTarget(p)}
-                        disabled={p.pending <= 0}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
-                      >
-                        <IndianRupee size={13} /> Pay
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setManageId(p.id)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                    >
+                      <Settings2 size={13} /> Manage &amp; Pay
+                    </button>
                   </td>
                 </tr>
               ))
@@ -176,17 +166,6 @@ export default function AdminCommissionsPage() {
           </tbody>
         </table>
       </div>
-
-      {payTarget && (
-        <PayModal
-          partner={payTarget}
-          onClose={() => setPayTarget(null)}
-          onPaid={(updated) => {
-            setPartners((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-            setPayTarget(null);
-          }}
-        />
-      )}
 
       {manageId && (
         <PartnerDetailModal
@@ -210,152 +189,6 @@ function Kpi({ icon, label, value, tone }: { icon: React.ReactNode; label: strin
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</p>
       <p className={`mt-1 font-display text-xl font-semibold ${toneCls}`}>{value}</p>
-    </div>
-  );
-}
-
-function PayModal({ partner, onClose, onPaid }: { partner: Partner; onClose: () => void; onPaid: (p: Partner) => void }) {
-  const [amount, setAmount] = useState<string>(String(partner.pending || ""));
-  const [mode, setMode] = useState<Mode>(partner.payoutDetails?.method ?? "BANK_TRANSFER");
-  const [transactionId, setTransactionId] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-    if (amt > partner.pending + 0.5) {
-      toast.error(`Amount exceeds pending balance of ${formatINR(partner.pending)}`);
-      return;
-    }
-    setSaving(true);
-    try {
-      const res = await api.post("/admin/commissions/pay", {
-        cpId: partner.id,
-        amount: amt,
-        mode,
-        transactionId: transactionId.trim() || undefined,
-        paymentDate,
-        notes: notes.trim() || undefined,
-      });
-      const w = res.data.wallet;
-      toast.success(`Recorded ${formatINR(amt)} payout to ${partner.name}`);
-      onPaid({
-        ...partner,
-        paid: w.paid,
-        pending: w.pending,
-        nextPayable: w.nextPayable,
-        total: w.totalEarnings,
-        developerCommission: w.developerCommission,
-        saleCommission: w.saleCommission,
-      });
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to record payout");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0e1116] p-6 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Record Payout</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{partner.name} · {partner.email}</p>
-          </div>
-          <button onClick={onClose} className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white"><X size={18} /></button>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <MiniStat label="Total" value={formatINR(partner.total)} />
-          <MiniStat label="Paid" value={formatINR(partner.paid)} tone="emerald" />
-          <MiniStat label="Next Payable" value={formatINR(partner.nextPayable)} tone="amber" />
-        </div>
-
-        {/* Payout details — the admin reviews these before releasing money. */}
-        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payout Details</p>
-          {partner.payoutDetails && (partner.payoutDetails.accountNumber || partner.payoutDetails.upiId) ? (
-            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-              {partner.payoutDetails.accountHolderName && <Row label="Account Holder" value={partner.payoutDetails.accountHolderName} />}
-              {partner.payoutDetails.bankName && <Row label="Bank" value={partner.payoutDetails.bankName} />}
-              {partner.payoutDetails.accountNumber && <Row label="Account No." value={partner.payoutDetails.accountNumber} mono />}
-              {partner.payoutDetails.ifsc && <Row label="IFSC" value={partner.payoutDetails.ifsc} mono />}
-              {partner.payoutDetails.upiId && <Row label="UPI ID" value={partner.payoutDetails.upiId} mono />}
-              {partner.payoutDetails.method && <Row label="Preferred" value={partner.payoutDetails.method === "UPI" ? "UPI" : "Bank Transfer"} />}
-            </dl>
-          ) : (
-            <p className="mt-1.5 text-xs text-amber-300/80">This partner hasn't added bank / UPI details yet.</p>
-          )}
-        </div>
-
-        <form onSubmit={submit} className="mt-4 space-y-3">
-          <Field label="Amount (₹)">
-            <input
-              type="number"
-              min="1"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              autoFocus
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
-            />
-          </Field>
-          <Field label="Payment Mode">
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as Mode)}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
-            >
-              {MODES.map((m) => (
-                <option key={m} value={m} className="bg-[#0e1116]">{m.replace(/_/g, " ")}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Transaction ID">
-            <input
-              value={transactionId}
-              onChange={(e) => setTransactionId(e.target.value)}
-              placeholder="UTR / UPI ref / cheque no."
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
-            />
-          </Field>
-          <Field label="Payment Date">
-            <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
-            />
-          </Field>
-          <Field label="Notes">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Optional"
-              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none focus:border-emerald-400/50"
-            />
-          </Field>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/10">Cancel</button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
-            >
-              {saving && <Loader2 size={14} className="animate-spin" />} Confirm Payout
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }
@@ -514,19 +347,20 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
   const pd = d?.payoutDetails;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="my-6 w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0e1116] p-6 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e1116] text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {loading || !d ? (
           <div className="grid h-40 place-items-center text-muted-foreground"><Loader2 size={20} className="animate-spin" /></div>
         ) : (
           <>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between border-b border-white/10 px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold">{d.name} <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-[11px]">{d.role}</span></h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">{d.email}{d.phone ? ` · ${d.phone}` : ""}</p>
               </div>
               <button onClick={onClose} className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white"><X size={18} /></button>
             </div>
+            <div className="overflow-y-auto px-6 py-5">
 
             {/* CRM stats */}
             <div className="mt-4 grid grid-cols-3 gap-3">
@@ -603,7 +437,7 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
                         <button onClick={() => act(c._id, "approve", {}, "Approved")} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg border border-sky-400/40 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/10 disabled:opacity-60"><Check size={12} /> Approve</button>
                       )}
                       {c.status !== "PAID" && (
-                        <button onClick={() => { setPayFor(payFor === c._id ? null : c._id); setPayForm((f) => ({ ...f, paidAmount: String(c.amount) })); }} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"><IndianRupee size={12} /> Mark Paid</button>
+                        <button onClick={() => { setPayFor(payFor === c._id ? null : c._id); setPayForm((f) => ({ ...f, paidAmount: String(c.amount), paymentMode: d.payoutDetails?.upiId ? "UPI" : (d.payoutDetails?.method ?? "BANK_TRANSFER") })); }} disabled={busy === c._id} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"><IndianRupee size={12} /> Mark Paid</button>
                       )}
                       {c.status !== "PAID" && (
                         <button onClick={() => removeCommission(c._id)} disabled={busy === c._id} title="Delete" className="rounded-lg border border-rose-400/40 p-1.5 text-rose-300 hover:bg-rose-500/10 disabled:opacity-60"><Trash2 size={12} /></button>
@@ -613,6 +447,9 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
 
                   {payFor === c._id && c.status !== "PAID" && (
                     <div className="mt-3 grid grid-cols-1 gap-2 border-t border-white/10 pt-3 sm:grid-cols-2">
+                      {d.payoutDetails?.upiId && (
+                        <UpiPayBlock upiId={d.payoutDetails.upiId} name={d.name} amount={Number(payForm.paidAmount || c.amount)} note={c.label || "Commission"} />
+                      )}
                       <Field label="Amount Paid (₹)"><input type="number" className={input} value={payForm.paidAmount} onChange={(e) => setPayForm({ ...payForm, paidAmount: e.target.value })} /></Field>
                       <Field label="Payment Date"><input type="date" className={input} value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} /></Field>
                       <Field label="Transaction Ref / UTR"><input className={input} value={payForm.transactionRef} onChange={(e) => setPayForm({ ...payForm, transactionRef: e.target.value })} placeholder="UTR / UPI ref" /></Field>
@@ -630,6 +467,7 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
                 </div>
               ))}
             </div>
+            </div>
           </>
         )}
       </div>
@@ -642,6 +480,45 @@ function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string;
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</p>
       <p className="mt-1 font-display text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+/** Build a standard UPI intent link (works with PhonePe / GPay / Paytm etc). */
+function upiIntent({ pa, pn, am, tn }: { pa: string; pn: string; am: number; tn?: string }) {
+  const params = [
+    `pa=${encodeURIComponent(pa)}`,
+    `pn=${encodeURIComponent(pn)}`,
+    am > 0 ? `am=${encodeURIComponent(am.toFixed(2))}` : "",
+    "cu=INR",
+    tn ? `tn=${encodeURIComponent(tn.slice(0, 40))}` : "",
+  ].filter(Boolean);
+  return `upi://pay?${params.join("&")}`;
+}
+
+/** Real UPI payment step: a scannable QR + "Open in UPI app" link pre-filled
+ *  with the CP's UPI ID and the amount. The admin pays from their own UPI app,
+ *  then records the reference below. No auto-payout / gateway needed. */
+function UpiPayBlock({ upiId, name, amount, note }: { upiId: string; name: string; amount: number; note?: string }) {
+  const link = upiIntent({ pa: upiId, pn: name, am: amount, tn: note });
+  const copy = (text: string, label: string) => { navigator.clipboard?.writeText(text).then(() => toast.success(`${label} copied`)).catch(() => {}); };
+  return (
+    <div className="rounded-lg border border-[var(--trust)]/30 bg-[var(--trust)]/[0.06] p-3 sm:col-span-2">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--trust)]"><Smartphone size={13} /> Pay {formatINR(amount)} to {name} via UPI</p>
+      <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+        <div className="rounded-lg bg-white p-2">
+          <QRCodeSVG value={link} size={128} />
+        </div>
+        <div className="flex-1 text-xs text-muted-foreground">
+          <p><b className="text-white/90">On your phone:</b> tap “Open in UPI app”. <b className="text-white/90">On desktop:</b> scan this QR with PhonePe / GPay / Paytm.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <a href={link} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--trust)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"><Smartphone size={13} /> Open in UPI app</a>
+            <button type="button" onClick={() => copy(upiId, "UPI ID")} className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"><Copy size={12} /> {upiId}</button>
+            <button type="button" onClick={() => copy(String(amount), "Amount")} className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10"><Copy size={12} /> {formatINR(amount)}</button>
+          </div>
+          <p className="mt-2 text-[11px]">After paying, enter the <b>UPI reference</b> below and click <b>Confirm Payment</b> to record it.</p>
+        </div>
+      </div>
     </div>
   );
 }
