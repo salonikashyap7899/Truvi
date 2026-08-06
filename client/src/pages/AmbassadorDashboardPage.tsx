@@ -8,7 +8,7 @@ import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
   FileUp, IndianRupee, ExternalLink, ClipboardCheck, Camera, X,
-  Network, Users, Share2, Copy, TrendingUp,
+  Network, Users, Share2, Copy, TrendingUp, Wallet, Landmark, Save, Building2, Handshake,
 } from "lucide-react";
 import { formatINR, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -102,6 +102,8 @@ export default function AmbassadorDashboardPage() {
           </button>
         </div>
       </div>
+
+      <AmbassadorCommissionSection />
 
       <Level2ReferralSection />
 
@@ -697,6 +699,158 @@ function L2Stat({ icon, tone, label, value }: { icon: React.ReactNode; tone: str
         <span className={tone}>{icon}</span>
       </div>
       <p className="mt-1 font-display text-xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Ambassador commission wallet + payout (bank/UPI) details — the same */
+/* system as Channel Partners, so admin/founder can pay ambassadors    */
+/* the same way (Add → Approve → Mark Paid → UPI).                     */
+/* ------------------------------------------------------------------ */
+interface AmbWallet {
+  developerCommission: number;
+  saleCommission: number;
+  totalEarnings: number;
+  paid: number;
+  pending: number;
+  nextPayable: number;
+  payments: { _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[];
+}
+interface AmbPayoutDetails {
+  accountHolderName?: string; accountNumber?: string; ifsc?: string; bankName?: string; upiId?: string; method?: "BANK_TRANSFER" | "UPI"; updatedAt?: string;
+}
+
+function AmbassadorCommissionSection() {
+  const [w, setW] = useState<AmbWallet | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/commissions/wallet").then((r) => setW(r.data)).catch(() => setW(null)).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <Card className="mt-8 border-emerald-500/25 bg-emerald-950/10 text-white">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+        <Wallet size={18} className="text-emerald-300" /> Commission & Payout
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Your commission earnings and payout details. Add your bank / UPI so the Truvi team can pay you directly.
+      </p>
+
+      {/* Wallet tiles */}
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <AmbTile icon={<Wallet size={15} />} label="Total Earnings" value={loading ? "…" : formatINR(w?.totalEarnings ?? 0)} />
+        <AmbTile icon={<Building2 size={15} />} label="Developer 2%" value={loading ? "…" : formatINR(w?.developerCommission ?? 0)} />
+        <AmbTile icon={<Handshake size={15} />} label="Sale / Bonus" value={loading ? "…" : formatINR(w?.saleCommission ?? 0)} />
+        <AmbTile icon={<Clock size={15} />} label="Pending" value={loading ? "…" : formatINR(w?.pending ?? 0)} tone="text-amber-300" />
+        <AmbTile icon={<CheckCircle2 size={15} />} label="Paid" value={loading ? "…" : formatINR(w?.paid ?? 0)} tone="text-emerald-300" />
+      </div>
+
+      <AmbassadorPayoutForm />
+
+      {/* Payments received */}
+      {w && w.payments.length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Payments Received</h3>
+          <div className="mt-2 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3">Mode</th>
+                  <th className="px-4 py-3">Transaction ID</th>
+                  <th className="px-4 py-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {w.payments.map((p) => (
+                  <tr key={p._id}>
+                    <td className="px-4 py-3 text-muted-foreground">{formatDate(p.paymentDate)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatINR(p.amount)}</td>
+                    <td className="px-4 py-3">{p.mode.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.transactionId || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{p.notes || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function AmbassadorPayoutForm() {
+  const [d, setD] = useState<AmbPayoutDetails>({ method: "BANK_TRANSFER" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | undefined>();
+
+  useEffect(() => {
+    api.get("/commissions/payout-details").then((r) => {
+      if (r.data.payoutDetails) { setD({ method: "BANK_TRANSFER", ...r.data.payoutDetails }); setSavedAt(r.data.payoutDetails.updatedAt); }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const set = (k: keyof AmbPayoutDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setD((p) => ({ ...p, [k]: e.target.value }));
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const r = await api.put("/commissions/payout-details", {
+        accountHolderName: d.accountHolderName || undefined,
+        accountNumber: d.accountNumber || undefined,
+        ifsc: d.ifsc || undefined,
+        bankName: d.bankName || undefined,
+        upiId: d.upiId || undefined,
+        method: d.method || "BANK_TRANSFER",
+      });
+      setSavedAt(r.data.payoutDetails?.updatedAt);
+      toast.success("Payout details saved");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save payout details");
+    } finally { setSaving(false); }
+  }
+
+  const input = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/50";
+
+  return (
+    <div className="mt-5">
+      <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/80"><Landmark size={14} /> Payout Details</h3>
+      {loading ? (
+        <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <form onSubmit={save} className="mt-2 grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:grid-cols-2">
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Account Holder Name</span><input className={input} value={d.accountHolderName ?? ""} onChange={set("accountHolderName")} placeholder="As per bank records" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Bank Name</span><input className={input} value={d.bankName ?? ""} onChange={set("bankName")} placeholder="e.g. HDFC Bank" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Bank Account Number</span><input className={input} value={d.accountNumber ?? ""} onChange={set("accountNumber")} placeholder="Account number" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">IFSC Code</span><input className={input} value={d.ifsc ?? ""} onChange={set("ifsc")} placeholder="e.g. HDFC0001234" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">UPI ID</span><input className={input} value={d.upiId ?? ""} onChange={set("upiId")} placeholder="name@upi" /></label>
+          <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Preferred Payment Method</span>
+            <select className={input} value={d.method ?? "BANK_TRANSFER"} onChange={set("method")}>
+              <option value="BANK_TRANSFER" className="bg-[#0a0d14]">Bank Transfer</option>
+              <option value="UPI" className="bg-[#0a0d14]">UPI</option>
+            </select>
+          </label>
+          <div className="flex items-center gap-3 sm:col-span-2">
+            <Button type="submit" disabled={saving} className="gap-2">{saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Payout Details</Button>
+            {savedAt && <span className="text-xs text-muted-foreground">Last updated {formatDate(savedAt)}</span>}
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function AmbTile({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</p>
+      <p className={`mt-1 font-display text-lg font-semibold ${tone ?? "text-white"}`}>{value}</p>
     </div>
   );
 }
