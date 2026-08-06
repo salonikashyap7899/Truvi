@@ -38,6 +38,7 @@ export default function AmbassadorSignupPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const defaultEmail = searchParams.get("email") ?? "";
+  const refCode = (searchParams.get("ref") ?? "").trim().toUpperCase();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
@@ -50,6 +51,7 @@ export default function AmbassadorSignupPage() {
       await signup({
         ...data,
         role: "AMBASSADOR",
+        ...(refCode ? { referralCode: refCode } : {}),
       });
       // Verify the email + phone OTPs before first sign-in.
       navigate(`/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`);
@@ -76,6 +78,11 @@ export default function AmbassadorSignupPage() {
 
             <h1 className="mt-5 text-center font-display text-2xl font-medium text-white">Join Truvi as an Ambassador</h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">Get started with verified site reporting and earn for every completed ambassador task.</p>
+            {refCode && (
+              <p className="mt-3 rounded-lg border border-sky-500/25 bg-sky-950/30 px-3 py-2 text-center text-xs text-sky-200">
+                Referred by an ambassador · code <b className="tracking-wider">{refCode}</b> (Level 2)
+              </p>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
                 <div>

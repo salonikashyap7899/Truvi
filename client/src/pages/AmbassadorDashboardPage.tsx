@@ -8,7 +8,9 @@ import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
   FileUp, IndianRupee, ExternalLink, ClipboardCheck, Camera, X,
+  Network, Users, Share2, Copy, TrendingUp,
 } from "lucide-react";
+import { formatINR, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import type { AmbassadorTask } from "@/types";
 import UserMenu from "@/components/UserMenu";
@@ -100,6 +102,8 @@ export default function AmbassadorDashboardPage() {
           </button>
         </div>
       </div>
+
+      <Level2ReferralSection />
 
       <div className="mt-8 space-y-8">
           {/* My active / completed tasks */}
@@ -554,5 +558,145 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
         </div>
       )}
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Ambassador → Ambassador Referral (Level 2) — an ambassador earns an */
+/* extra 0.5% on the referral earnings of every ambassador they refer. */
+/* ------------------------------------------------------------------ */
+interface Level2Ambassador {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  theirReferrals: number;
+  theirTransactions: number;
+  earnedByThem: number;
+  level2Commission: number;
+}
+interface Level2Data {
+  level2Percent: number;
+  referralCode: string | null;
+  referredAmbassadors: Level2Ambassador[];
+  summary: { referredAmbassadors: number; totalDownlineEarnings: number; totalLevel2Commission: number };
+}
+
+function Level2ReferralSection() {
+  const [data, setData] = useState<Level2Data | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/onboarding/level2")
+      .then((r) => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const inviteLink = data?.referralCode ? `${window.location.origin}/ambassador/signup?ref=${data.referralCode}` : "";
+
+  async function copyLink() {
+    if (!inviteLink) return;
+    try { await navigator.clipboard.writeText(inviteLink); toast.success("Level 2 invite link copied"); } catch { /* ignore */ }
+  }
+  async function shareLink() {
+    if (!inviteLink || !data?.referralCode) return;
+    const text = `Join Truvi as an Ambassador with my code ${data.referralCode}.\n${inviteLink}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try { await navigator.share({ title: "Join Truvi as an Ambassador", text, url: inviteLink }); return; }
+      catch (err) { if ((err as Error)?.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(text); toast.success("Invite copied — share it anywhere"); } catch { /* ignore */ }
+  }
+
+  const s = data?.summary ?? { referredAmbassadors: 0, totalDownlineEarnings: 0, totalLevel2Commission: 0 };
+  const pct = data?.level2Percent ?? 0.5;
+
+  return (
+    <Card className="mt-8 border-violet-500/25 bg-violet-950/10 text-white">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
+            <Network size={18} className="text-violet-300" /> Level 2 Referral Commission ({pct}%)
+            <Badge variant="info">Ambassador → Ambassador</Badge>
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Refer another ambassador and earn an extra <b className="text-violet-300">{pct}%</b> on everything they earn from their own referrals — for life.
+          </p>
+        </div>
+      </div>
+
+      {/* Referral code + invite link */}
+      <div className="mt-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-violet-300/80">Your ambassador referral code</p>
+          <div className="mt-1 flex items-center gap-3">
+            <span className="font-display text-2xl font-bold tracking-wider">{data?.referralCode ?? "…"}</span>
+            <button onClick={copyLink} title="Copy invite link" className="rounded-lg border border-white/15 bg-white/5 p-2 text-white/70 hover:bg-white/10"><Copy size={15} /></button>
+          </div>
+          {inviteLink && <p className="mt-2 break-all text-[11px] text-muted-foreground">{inviteLink}</p>}
+        </div>
+        <Button onClick={shareLink} className="shrink-0 gap-2"><Share2 size={15} /> Invite an ambassador</Button>
+      </div>
+
+      {/* Summary */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <L2Stat icon={<Users size={16} />} tone="text-sky-300" label="Referred Ambassadors" value={String(s.referredAmbassadors)} />
+        <L2Stat icon={<TrendingUp size={16} />} tone="text-emerald-300" label="Their Total Earnings" value={formatINR(s.totalDownlineEarnings)} />
+        <L2Stat icon={<IndianRupee size={16} />} tone="text-violet-300" label={`Your Level 2 (${pct}%)`} value={formatINR(s.totalLevel2Commission)} />
+      </div>
+
+      {/* Referral history */}
+      <div className="mt-4">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Level 2 Referral History</h3>
+        {loading ? (
+          <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
+        ) : (data?.referredAmbassadors.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">You haven't referred any ambassadors yet. Share your invite link above to start earning {pct}% Level 2 commission.</p>
+        ) : (
+          <div className="mt-2 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Ambassador</th>
+                  <th className="px-4 py-3 text-right">Their referrals</th>
+                  <th className="px-4 py-3 text-right">Their transactions</th>
+                  <th className="px-4 py-3 text-right">They earned</th>
+                  <th className="px-4 py-3 text-right">Your {pct}%</th>
+                  <th className="px-4 py-3 text-right">Joined</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {data!.referredAmbassadors.map((a) => (
+                  <tr key={a._id}>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{a.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{a.email ?? ""}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">{a.theirReferrals}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{a.theirTransactions}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{formatINR(a.earnedByThem)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-violet-300">{formatINR(a.level2Commission)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">{formatDate(a.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function L2Stat({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className={tone}>{icon}</span>
+      </div>
+      <p className="mt-1 font-display text-xl font-semibold">{value}</p>
+    </div>
   );
 }

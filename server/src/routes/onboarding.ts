@@ -81,33 +81,35 @@ function genReferralCode(name: string): string {
   return `${prefix}${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 }
 
-// GET /api/onboarding/referral — a CP/Ambassador/Developer's referral code +
-// referred developers + earnings summary (get-or-create the code on first view).
-router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req: AuthedRequest, res) => {
-  const db = getDb();
-  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
-  let code = me?.referralCode ?? null;
-  if (!code) {
-    for (let i = 0; i < 6; i++) {
-      const candidate = genReferralCode(me?.name ?? "TRV");
-      const [clash] = await db.select({ _id: users._id }).from(users).where(eq(users.referralCode, candidate));
-      if (!clash) { code = candidate; break; }
-    }
-    if (code) await db.update(users).set({ referralCode: code }).where(eq(users._id, req.user!.userId));
-  }
+type Db = ReturnType<typeof getDb>;
 
+/** Get the user's referral code, creating a unique one on first use. */
+async function getOrCreateReferralCode(db: Db, userId: string, name: string, current: string | null): Promise<string | null> {
+  if (current) return current;
+  let code: string | null = null;
+  for (let i = 0; i < 6; i++) {
+    const candidate = genReferralCode(name || "TRV");
+    const [clash] = await db.select({ _id: users._id }).from(users).where(eq(users.referralCode, candidate));
+    if (!clash) { code = candidate; break; }
+  }
+  if (code) await db.update(users).set({ referralCode: code }).where(eq(users._id, userId));
+  return code;
+}
+
+/**
+ * The referral earnings a CP/Ambassador/Developer has made from the developers
+ * they referred: 2% lifetime on each referred developer's booking transactions
+ * plus the one-time first-transaction bonus (₹100 dev-referrer / ₹75 partner).
+ */
+async function computeReferralEarnings(db: Db, referrerId: string, referrerRole: string) {
   const referred = await db
     .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
-    .where(eq(users.referredBy, req.user!.userId))
+    .where(eq(users.referredBy, referrerId))
     .orderBy(desc(users.createdAt));
 
-  // ---- Live sales/earnings per referred developer -------------------------
-  // A "transaction" is a booking commission on a lead for one of the
-  // developer's projects: commission → lead → project → developer. The referrer
-  // earns REFERRAL_INCENTIVE_PERCENT of each such booking value.
   const devIds = referred.map((r) => String(r._id));
-  const stats = new Map<string, { count: number; sales: number; last: Date | null; activated: boolean; properties: number }>();
+  const stats = new Map<string, { count: number; sales: number; last: Date | null; properties: number }>();
 
   if (devIds.length) {
     const devProjects = await db
@@ -115,10 +117,8 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
       .from(projects)
       .where(inArray(projects.developerId, devIds));
     const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
-    // Count each developer's listed projects; ≥1 project also marks them active.
     for (const p of devProjects) {
-      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, activated: false, properties: 0 };
-      cur.activated = true;
+      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, properties: 0 };
       cur.properties += 1;
       stats.set(String(p.developerId), cur);
     }
@@ -140,7 +140,7 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
         for (const t of txns) {
           const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
           if (!devId) continue;
-          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, activated: true, properties: 0 };
+          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, properties: 0 };
           cur.count += 1;
           cur.sales += Number(t.bookingValue || 0);
           const at = new Date(t.createdAt);
@@ -152,20 +152,14 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
   }
 
   const rate = REFERRAL_INCENTIVE_PERCENT / 100;
-  const bonusAmount = firstTxnBonusFor(me?.role);
+  const bonusAmount = firstTxnBonusFor(referrerRole);
   const referredDevelopers = referred.map((r) => {
     const s = stats.get(String(r._id));
     const txns = s?.count ?? 0;
     const percentEarned = Math.round((s?.sales ?? 0) * rate);
-    // The one-time first-transaction bonus lands as soon as the referred
-    // developer completes their first transaction.
     const firstTxnBonus = txns >= 1 ? bonusAmount : 0;
     return {
       ...r,
-      // A developer who registered with the referral code has ACCEPTED the
-      // referral — so they count as Active immediately, whether or not they've
-      // listed a project yet. (`activated` still drives the deeper "listing"
-      // state used for transactions/earnings below.)
       status: "ACTIVE" as "ACTIVE" | "PENDING",
       propertiesListed: s?.properties ?? 0,
       totalTransactions: txns,
@@ -184,8 +178,62 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
     totalBonus: referredDevelopers.reduce((a, r) => a + r.firstTxnBonus, 0),
     totalEarnings: referredDevelopers.reduce((a, r) => a + r.incentiveEarned, 0),
   };
+  return { referredDevelopers, summary, bonusAmount };
+}
 
+// GET /api/onboarding/referral — a CP/Ambassador/Developer's referral code +
+// referred developers + earnings summary (get-or-create the code on first view).
+router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
+  const { referredDevelopers, summary, bonusAmount } = await computeReferralEarnings(db, req.user!.userId, me?.role ?? "");
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredDevelopers, summary });
+});
+
+/** Ambassador → Ambassador (Level 2): extra 0.5% on a directly-referred
+ *  Ambassador's own referral earnings. */
+const LEVEL2_PERCENT = 0.5;
+
+// GET /api/onboarding/level2 — the Ambassador-to-Ambassador (Level 2) view:
+// every Ambassador this Ambassador referred, what THEY have earned, and the
+// referrer's 0.5% Level 2 cut on it.
+router.get("/level2", requireRole("AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
+
+  // Only Ambassadors that THIS ambassador referred count for Level 2.
+  const referredAmbs = await db
+    .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
+    .from(users)
+    .where(and(eq(users.referredBy, req.user!.userId), eq(users.role, "AMBASSADOR")))
+    .orderBy(desc(users.createdAt));
+
+  const rate = LEVEL2_PERCENT / 100;
+  const referredAmbassadors = [];
+  for (const b of referredAmbs) {
+    const { summary } = await computeReferralEarnings(db, String(b._id), "AMBASSADOR");
+    const earnedByThem = summary.totalEarnings;
+    referredAmbassadors.push({
+      _id: b._id,
+      name: b.name,
+      email: b.email,
+      createdAt: b.createdAt,
+      theirReferrals: summary.referredCount,
+      theirTransactions: summary.totalTransactions,
+      earnedByThem,
+      level2Commission: Math.round(earnedByThem * rate),
+    });
+  }
+
+  const summary = {
+    referredAmbassadors: referredAmbassadors.length,
+    totalDownlineEarnings: referredAmbassadors.reduce((a, r) => a + r.earnedByThem, 0),
+    totalLevel2Commission: referredAmbassadors.reduce((a, r) => a + r.level2Commission, 0),
+  };
+
+  res.json({ level2Percent: LEVEL2_PERCENT, referralCode: code, referredAmbassadors, summary });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all,
