@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import type { AmbassadorTask } from "@/types";
 import UserMenu from "@/components/UserMenu";
 import DeveloperReferralPanel from "@/components/DeveloperReferralPanel";
+import CpReferralPanel from "@/components/CpReferralPanel";
 
 function statusBadge(status: AmbassadorTask["status"]) {
   // SOP colour logic: GREEN = Available, YELLOW = Locked (in-progress), RED = Completed
@@ -105,6 +106,8 @@ export default function AmbassadorDashboardPage() {
       </div>
 
       <DeveloperReferralPanel className="mt-8" />
+
+      <CpReferralPanel className="mt-8" />
 
       <Level2ReferralSection />
 
