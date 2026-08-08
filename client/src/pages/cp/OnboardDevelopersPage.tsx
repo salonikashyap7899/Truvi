@@ -52,7 +52,7 @@ export default function OnboardDevelopersPage() {
     : "";
 
   const summary = useMemo(() => referral?.summary ?? { referredCount: 0, active: 0, totalTransactions: 0, totalBonus: 0, totalEarnings: 0 }, [referral]);
-  const bonus = referral?.firstTxnBonus ?? (isDeveloper ? 100 : 75);
+  const bonus = referral?.firstTxnBonus ?? 100;
 
   async function copyCode() {
     if (!referral?.referralCode) return;

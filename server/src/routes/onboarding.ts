@@ -11,12 +11,11 @@ import { emitNotification } from "../sockets";
  *  developer's sales — 2% for lifetime on every transaction. */
 const REFERRAL_INCENTIVE_PERCENT = 2;
 
-/** One-time bonus paid on the referred developer's FIRST transaction. It's
- *  larger when a Developer refers another Developer, smaller for a Channel
- *  Partner / Ambassador. */
-const FIRST_TXN_BONUS_DEVELOPER = 100;
-const FIRST_TXN_BONUS_PARTNER = 75;
-const firstTxnBonusFor = (role?: string) => (role === "DEVELOPER" ? FIRST_TXN_BONUS_DEVELOPER : FIRST_TXN_BONUS_PARTNER);
+/** One-time first-transaction bonus, by the TYPE of person onboarded:
+ *  onboarding a Developer pays ₹100, onboarding a Channel Partner pays ₹75.
+ *  (The amount is fixed per referral type — it does not depend on who refers.) */
+const DEVELOPER_REFERRAL_BONUS = 100;
+const CP_REFERRAL_BONUS = 75;
 
 /**
  * Developer onboarding referrals. A Channel Partner, Ambassador OR an existing
@@ -99,9 +98,9 @@ async function getOrCreateReferralCode(db: Db, userId: string, name: string, cur
 /**
  * The referral earnings a CP/Ambassador/Developer has made from the developers
  * they referred: 2% lifetime on each referred developer's booking transactions
- * plus the one-time first-transaction bonus (₹100 dev-referrer / ₹75 partner).
+ * plus a one-time ₹100 bonus on the developer's first transaction.
  */
-async function computeReferralEarnings(db: Db, referrerId: string, referrerRole: string) {
+async function computeReferralEarnings(db: Db, referrerId: string) {
   const referred = await db
     .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
@@ -152,7 +151,7 @@ async function computeReferralEarnings(db: Db, referrerId: string, referrerRole:
   }
 
   const rate = REFERRAL_INCENTIVE_PERCENT / 100;
-  const bonusAmount = firstTxnBonusFor(referrerRole);
+  const bonusAmount = DEVELOPER_REFERRAL_BONUS;
   const referredDevelopers = referred.map((r) => {
     const s = stats.get(String(r._id));
     const txns = s?.count ?? 0;
@@ -187,7 +186,7 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
   const db = getDb();
   const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
-  const { referredDevelopers, summary, bonusAmount } = await computeReferralEarnings(db, req.user!.userId, me?.role ?? "");
+  const { referredDevelopers, summary, bonusAmount } = await computeReferralEarnings(db, req.user!.userId);
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredDevelopers, summary });
 });
 
@@ -213,7 +212,7 @@ router.get("/level2", requireRole("AMBASSADOR"), async (req: AuthedRequest, res)
   const rate = LEVEL2_PERCENT / 100;
   const referredAmbassadors = [];
   for (const b of referredAmbs) {
-    const { summary } = await computeReferralEarnings(db, String(b._id), "AMBASSADOR");
+    const { summary } = await computeReferralEarnings(db, String(b._id));
     const earnedByThem = summary.totalEarnings;
     referredAmbassadors.push({
       _id: b._id,
@@ -241,7 +240,7 @@ router.get("/level2", requireRole("AMBASSADOR"), async (req: AuthedRequest, res)
  * first-transaction bonus (₹75 for a partner referrer) + 2% lifetime on each
  * referred CP's own commission earnings.
  */
-async function computeCpReferralEarnings(db: Db, referrerId: string, referrerRole: string) {
+async function computeCpReferralEarnings(db: Db, referrerId: string) {
   const referredCps = await db
     .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
@@ -273,7 +272,7 @@ async function computeCpReferralEarnings(db: Db, referrerId: string, referrerRol
   }
 
   const rate = REFERRAL_INCENTIVE_PERCENT / 100;
-  const bonusAmount = firstTxnBonusFor(referrerRole);
+  const bonusAmount = CP_REFERRAL_BONUS;
   const referredPartners = referredCps.map((c) => {
     const s = stats.get(String(c._id));
     const cpCommission = Math.round(s?.amount ?? 0);
@@ -311,7 +310,7 @@ router.get("/cp-referrals", requireRole("AMBASSADOR"), async (req: AuthedRequest
   const db = getDb();
   const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
-  const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId, me?.role ?? "");
+  const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId);
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredPartners, summary });
 });
 

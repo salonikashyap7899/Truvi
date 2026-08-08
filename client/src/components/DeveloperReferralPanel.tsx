@@ -41,7 +41,7 @@ export default function DeveloperReferralPanel({ className = "" }: { className?:
     api.get("/onboarding/referral").then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, []);
 
-  const bonus = data?.firstTxnBonus ?? 75;
+  const bonus = data?.firstTxnBonus ?? 100;
   const inviteLink = data?.referralCode ? `${window.location.origin}/signup?ref=${data.referralCode}` : "";
   const s = data?.summary ?? { referredCount: 0, active: 0, totalTransactions: 0, totalBonus: 0, totalEarnings: 0 };
   const rows = data?.referredDevelopers ?? [];
