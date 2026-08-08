@@ -17,6 +17,7 @@ import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { BookOpen, Users, Star, Receipt, KanbanSquare, Zap, Activity, FileText } from "lucide-react";
 import type { Project, Unit, Lead, Commission, User } from "@/types";
+import DeveloperReferralPanel from "@/components/DeveloperReferralPanel";
 
 export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: string }) {
   const user = useAuthStore((s) => s.user);
@@ -231,6 +232,9 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
       <p className="mt-4 rounded-lg border border-green-900 bg-green-950/50 p-3 text-sm text-green-400">
         100% of your commission is yours — Truvi never deducts from CP earnings.
       </p>
+
+      {/* Developer Referral — onboard a developer, earn ₹75 first-txn + 2% lifetime. */}
+      <DeveloperReferralPanel className="mt-6" />
 
       {/* AI Recommendations */}
       {projects.length > 0 && (() => {
