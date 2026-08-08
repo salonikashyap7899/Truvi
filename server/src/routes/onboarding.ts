@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { developerReferrals, users, notifications, projects, leads, commissions } from "../db/schema";
+import { developerReferrals, users, notifications, projects, leads, commissions, cpManualCommissions } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitNotification } from "../sockets";
@@ -234,6 +234,85 @@ router.get("/level2", requireRole("AMBASSADOR"), async (req: AuthedRequest, res)
   };
 
   res.json({ level2Percent: LEVEL2_PERCENT, referralCode: code, referredAmbassadors, summary });
+});
+
+/**
+ * The referral earnings from Channel Partners a referrer onboarded: a one-time
+ * first-transaction bonus (₹75 for a partner referrer) + 2% lifetime on each
+ * referred CP's own commission earnings.
+ */
+async function computeCpReferralEarnings(db: Db, referrerId: string, referrerRole: string) {
+  const referredCps = await db
+    .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
+    .from(users)
+    .where(and(eq(users.referredBy, referrerId), eq(users.role, "CP")))
+    .orderBy(desc(users.createdAt));
+
+  const cpIds = referredCps.map((c) => String(c._id));
+  const stats = new Map<string, { amount: number; count: number; last: Date | null }>();
+  const bump = (id: string, amount: number, at: Date) => {
+    const c = stats.get(id) ?? { amount: 0, count: 0, last: null };
+    c.amount += Number(amount || 0);
+    c.count += 1;
+    if (!c.last || at > c.last) c.last = at;
+    stats.set(id, c);
+  };
+
+  if (cpIds.length) {
+    const manual = await db
+      .select({ cpId: cpManualCommissions.cpId, amount: cpManualCommissions.amount, createdAt: cpManualCommissions.createdAt })
+      .from(cpManualCommissions)
+      .where(inArray(cpManualCommissions.cpId, cpIds));
+    for (const m of manual) bump(String(m.cpId), Number(m.amount || 0), new Date(m.createdAt));
+
+    const auto = await db
+      .select({ cpId: commissions.cpId, amount: commissions.cpCommissionAmount, createdAt: commissions.createdAt })
+      .from(commissions)
+      .where(inArray(commissions.cpId, cpIds));
+    for (const a of auto) bump(String(a.cpId), Number(a.amount || 0), new Date(a.createdAt));
+  }
+
+  const rate = REFERRAL_INCENTIVE_PERCENT / 100;
+  const bonusAmount = firstTxnBonusFor(referrerRole);
+  const referredPartners = referredCps.map((c) => {
+    const s = stats.get(String(c._id));
+    const cpCommission = Math.round(s?.amount ?? 0);
+    const txns = s?.count ?? 0;
+    const percentEarned = Math.round(cpCommission * rate);
+    const firstTxnBonus = txns >= 1 ? bonusAmount : 0;
+    return {
+      _id: c._id,
+      name: c.name,
+      email: c.email,
+      createdAt: c.createdAt,
+      status: "ACTIVE" as const,
+      totalTransactions: txns,
+      cpCommission,
+      percentEarned,
+      firstTxnBonus,
+      incentiveEarned: percentEarned + firstTxnBonus,
+      lastTransactionAt: s?.last ? s.last.toISOString() : null,
+    };
+  });
+
+  const summary = {
+    referredCount: referredPartners.length,
+    active: referredPartners.length,
+    totalTransactions: referredPartners.reduce((a, r) => a + r.totalTransactions, 0),
+    totalBonus: referredPartners.reduce((a, r) => a + r.firstTxnBonus, 0),
+    totalEarnings: referredPartners.reduce((a, r) => a + r.incentiveEarned, 0),
+  };
+  return { referredPartners, summary, bonusAmount };
+}
+
+// GET /api/onboarding/cp-referrals — Channel Partners this Ambassador referred,
+// each CP's own commission, and the ambassador's ₹75 + 2% lifetime on it.
+router.get("/cp-referrals", requireRole("AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
+  const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId, me?.role ?? "");
+  res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredPartners, summary });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all,
