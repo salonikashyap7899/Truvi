@@ -36,6 +36,7 @@ import commandFinanceRoutes from "./routes/commandFinance";
 import employerRoutes from "./routes/employers";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
+import investRoutes from "./routes/invest";
 import presentationRoutes from "./routes/presentation";
 import commentRoutes from "./routes/comments";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
@@ -109,6 +110,7 @@ export function createApp() {
   app.use("/api/employers", employerRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
+  app.use("/api/invest", investRoutes);
   app.use("/api/presentation", presentationRoutes);
   app.use("/api/comments", commentRoutes);
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);

@@ -325,6 +325,38 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "cp_manual_commissions_cp_idx" ON "cp_manual_commissions" ("cp_id", "created_at")`,
     // Channel Partner payout / bank details for commission payouts.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payout_details" jsonb`,
+    // Truvi Invest — admin-set investment terms per project + investments.
+    `CREATE TABLE IF NOT EXISTS "project_investment_terms" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "is_open" boolean NOT NULL DEFAULT false,
+       "min_amount" double precision NOT NULL DEFAULT 100000,
+       "max_amount" double precision,
+       "target_annual_return_percent" double precision NOT NULL DEFAULT 0,
+       "tenure_months" integer NOT NULL DEFAULT 12,
+       "monthly_payout_percent" double precision,
+       "notes" text,
+       "updated_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "project_investment_terms_project_unique" ON "project_investment_terms" ("project_id")`,
+    `CREATE TABLE IF NOT EXISTS "project_investments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "investor_id" uuid NOT NULL REFERENCES "users"("id"),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "amount_paise" integer NOT NULL,
+       "target_annual_return_percent" double precision NOT NULL DEFAULT 0,
+       "tenure_months" integer NOT NULL DEFAULT 12,
+       "monthly_payout_percent" double precision,
+       "status" text NOT NULL DEFAULT 'CREATED',
+       "razorpay_order_id" text,
+       "razorpay_payment_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "project_investments_investor_idx" ON "project_investments" ("investor_id")`,
+    `CREATE INDEX IF NOT EXISTS "project_investments_project_idx" ON "project_investments" ("project_id")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

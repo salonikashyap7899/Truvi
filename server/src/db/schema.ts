@@ -1390,6 +1390,55 @@ export const cpManualCommissions = pgTable(
 );
 export type ICpManualCommission = typeof cpManualCommissions.$inferSelect;
 
+/**
+ * Investment terms an admin sets PER PROJECT. Returns are always framed as
+ * "targeted / projected", never guaranteed. `isOpen` gates whether a project
+ * is accepting investments — off by default until the legal/compliance
+ * framework is in place.
+ */
+export const projectInvestmentTerms = pgTable(
+  "project_investment_terms",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    isOpen: boolean("is_open").notNull().default(false),
+    minAmount: doublePrecision("min_amount").notNull().default(100000),
+    maxAmount: doublePrecision("max_amount"),
+    targetAnnualReturnPercent: doublePrecision("target_annual_return_percent").notNull().default(0),
+    tenureMonths: integer("tenure_months").notNull().default(12),
+    monthlyPayoutPercent: doublePrecision("monthly_payout_percent"),
+    notes: text("notes"),
+    updatedById: uuid("updated_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("project_investment_terms_project_unique").on(t.projectId)]
+);
+export type IProjectInvestmentTerms = typeof projectInvestmentTerms.$inferSelect;
+
+export type ProjectInvestmentStatus = "CREATED" | "PAID" | "CANCELLED";
+/** A single investment made by a user into a project. Money in paise. The
+ *  terms (target return, tenure, monthly payout) are snapshotted at purchase. */
+export const projectInvestments = pgTable(
+  "project_investments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    investorId: uuid("investor_id").notNull().references(() => users._id),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    amountPaise: integer("amount_paise").notNull(),
+    targetAnnualReturnPercent: doublePrecision("target_annual_return_percent").notNull().default(0),
+    tenureMonths: integer("tenure_months").notNull().default(12),
+    monthlyPayoutPercent: doublePrecision("monthly_payout_percent"),
+    status: text("status").$type<ProjectInvestmentStatus>().notNull().default("CREATED"),
+    razorpayOrderId: text("razorpay_order_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("investments_investor_idx").on(t.investorId), index("investments_project_idx").on(t.projectId)]
+);
+export type IProjectInvestment = typeof projectInvestments.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;
