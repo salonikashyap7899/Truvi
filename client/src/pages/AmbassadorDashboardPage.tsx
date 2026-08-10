@@ -106,6 +106,8 @@ export default function AmbassadorDashboardPage() {
         </div>
       </div>
 
+      <AmbassadorKnowledgeHub />
+
       <DeveloperReferralPanel className="mt-8" />
 
       <CpReferralPanel className="mt-8" />
@@ -113,8 +115,6 @@ export default function AmbassadorDashboardPage() {
       <Level2ReferralSection />
 
       <AmbassadorCommissionSection />
-
-      <AmbassadorKnowledgeHub />
 
       <div className="mt-8 space-y-8">
           {/* My active / completed tasks */}
