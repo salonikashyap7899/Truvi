@@ -357,6 +357,34 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "project_investments_investor_idx" ON "project_investments" ("investor_id")`,
     `CREATE INDEX IF NOT EXISTS "project_investments_project_idx" ON "project_investments" ("project_id")`,
+    // Ambassador Knowledge Hub — admin-managed training content.
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_topics" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "description" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_knowledge_topics_sort_idx" ON "ambassador_knowledge_topics" ("sort_order")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_materials" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "topic_id" uuid NOT NULL REFERENCES "ambassador_knowledge_topics"("id"),
+       "kind" text NOT NULL DEFAULT 'VIDEO',
+       "title" text NOT NULL,
+       "url" text NOT NULL,
+       "file_name" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_knowledge_materials_topic_idx" ON "ambassador_knowledge_materials" ("topic_id", "sort_order")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_config" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "help_contact" text,
+       "help_text" text,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

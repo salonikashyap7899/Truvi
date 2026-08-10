@@ -1439,6 +1439,52 @@ export const projectInvestments = pgTable(
 );
 export type IProjectInvestment = typeof projectInvestments.$inferSelect;
 
+/**
+ * Ambassador Knowledge Hub — a training area ONLY for Ambassadors, fully
+ * managed from the admin panel. Separate from the CP/Developer Learning
+ * Academy (`academy_content`). Topics hold multiple materials (videos + docs).
+ */
+export type AmbassadorMaterialKind = "VIDEO" | "DOC";
+export const ambassadorKnowledgeTopics = pgTable(
+  "ambassador_knowledge_topics",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    description: text("description"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_knowledge_topics_sort_idx").on(t.sortOrder)]
+);
+export type IAmbassadorKnowledgeTopic = typeof ambassadorKnowledgeTopics.$inferSelect;
+
+export const ambassadorKnowledgeMaterials = pgTable(
+  "ambassador_knowledge_materials",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    topicId: uuid("topic_id").notNull().references(() => ambassadorKnowledgeTopics._id),
+    kind: text("kind").$type<AmbassadorMaterialKind>().notNull().default("VIDEO"),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    fileName: text("file_name"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_knowledge_materials_topic_idx").on(t.topicId, t.sortOrder)]
+);
+export type IAmbassadorKnowledgeMaterial = typeof ambassadorKnowledgeMaterials.$inferSelect;
+
+/** Single-row config for the Knowledge Hub (admin-editable help contact). */
+export const ambassadorKnowledgeConfig = pgTable("ambassador_knowledge_config", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  helpContact: text("help_contact"),
+  helpText: text("help_text"),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+export type IAmbassadorKnowledgeConfig = typeof ambassadorKnowledgeConfig.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;
