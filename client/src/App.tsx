@@ -25,6 +25,8 @@ import VerifyEmailPage from "@/pages/VerifyEmailPage";
 import UnauthorizedPage from "@/pages/UnauthorizedPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 import LegalPage from "@/pages/LegalPage";
+import TruviInvestPage from "@/pages/TruviInvestPage";
+import InvestFab from "@/components/InvestFab";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
@@ -142,12 +144,14 @@ export default function App() {
       <WelcomeGate />
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
+      <InvestFab />
       <PageTransition>
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/home" element={<HomePage />} />
+        <Route path="/invest" element={<TruviInvestPage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/legal" element={<LegalPage />} />
