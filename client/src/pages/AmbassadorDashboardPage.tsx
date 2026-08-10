@@ -16,6 +16,7 @@ import type { AmbassadorTask } from "@/types";
 import UserMenu from "@/components/UserMenu";
 import DeveloperReferralPanel from "@/components/DeveloperReferralPanel";
 import CpReferralPanel from "@/components/CpReferralPanel";
+import AmbassadorKnowledgeHub from "@/components/AmbassadorKnowledgeHub";
 
 function statusBadge(status: AmbassadorTask["status"]) {
   // SOP colour logic: GREEN = Available, YELLOW = Locked (in-progress), RED = Completed
@@ -112,6 +113,8 @@ export default function AmbassadorDashboardPage() {
       <Level2ReferralSection />
 
       <AmbassadorCommissionSection />
+
+      <AmbassadorKnowledgeHub />
 
       <div className="mt-8 space-y-8">
           {/* My active / completed tasks */}

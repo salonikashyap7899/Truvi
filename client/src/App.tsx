@@ -85,6 +85,7 @@ import AdminDocumentsPage from "@/pages/admin/AdminDocumentsPage";
 import AdminFinancePage from "@/pages/admin/AdminFinancePage";
 import AdminCommissionsPage from "@/pages/admin/AdminCommissionsPage";
 import AdminInvestmentsPage from "@/pages/admin/AdminInvestmentsPage";
+import AdminAmbassadorKnowledgePage from "@/pages/admin/AdminAmbassadorKnowledgePage";
 import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
@@ -199,6 +200,7 @@ export default function App() {
         <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
         <Route path="/admin/commissions" element={<ProtectedRoute roles={["ADMIN"]}><AdminCommissionsPage /></ProtectedRoute>} />
         <Route path="/admin/investments" element={<ProtectedRoute roles={["ADMIN"]}><AdminInvestmentsPage /></ProtectedRoute>} />
+        <Route path="/admin/ambassador-knowledge" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorKnowledgePage /></ProtectedRoute>} />
         <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
         <Route path="/admin/audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
