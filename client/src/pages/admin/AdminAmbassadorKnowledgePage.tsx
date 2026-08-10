@@ -6,6 +6,10 @@ import { GraduationCap, Plus, Trash2, Loader2, PlayCircle, FileText, Save, Uploa
 interface Material { _id: string; kind: "VIDEO" | "DOC"; title: string; url: string; fileName: string | null }
 interface Topic { _id: string; title: string; description: string | null; materials: Material[] }
 
+// Keep direct uploads under the server (200MB multer) and proxy limits; larger
+// videos should use the "Link" option (YouTube / Google Drive).
+const MAX_UPLOAD_MB = 190;
+
 export default function AdminAmbassadorKnowledgePage() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [help, setHelp] = useState<{ contact: string; text: string }>({ contact: "", text: "" });
@@ -135,15 +139,34 @@ function MaterialColumn({ topicId, kind, label, icon, items, onDelete, onReload,
     } else {
       const f = fileRef.current?.files?.[0];
       if (!f) { toast.error("Choose a file to upload"); return; }
+      // Guard the direct upload so big videos fail clearly (with a nudge to the
+      // Link option) instead of silently timing out or hitting the proxy limit.
+      const sizeMb = f.size / (1024 * 1024);
+      if (sizeMb > MAX_UPLOAD_MB) {
+        toast.error(`This file is ${Math.round(sizeMb)} MB. Max direct upload is ${MAX_UPLOAD_MB} MB — for large videos use the "Link" option (upload to YouTube/Google Drive and paste the link).`);
+        return;
+      }
       fd.append("file", f);
     }
     setUploading(true);
     try {
-      await api.post(`/ambassador-knowledge/admin/topics/${topicId}/materials`, fd);
+      // No timeout: large uploads over a slow connection can take minutes.
+      await api.post(`/ambassador-knowledge/admin/topics/${topicId}/materials`, fd, { timeout: 0 });
       setTitle(""); setUrl(""); if (fileRef.current) fileRef.current.value = "";
       onReload();
       toast.success(`${label} added`);
-    } catch (e: any) { toast.error(e?.response?.data?.error || "Upload failed"); } finally { setUploading(false); }
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const serverMsg = e?.response?.data?.error;
+      let msg = serverMsg || "Upload failed";
+      if (!serverMsg) {
+        if (status === 413) msg = `File too large for the server. Use the "Link" option for large videos.`;
+        else if (status === 401) msg = "Session expired — please log in again and retry.";
+        else if (status === 502 || status === 504) msg = `Server timed out on the upload (file may be too large). Try a smaller file or use the "Link" option.`;
+        else if (e?.code === "ECONNABORTED") msg = `Upload timed out. Try a smaller video or use the "Link" option.`;
+      }
+      toast.error(msg);
+    } finally { setUploading(false); }
   }
 
   const field = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-indigo-400/50";
@@ -165,9 +188,15 @@ function MaterialColumn({ topicId, kind, label, icon, items, onDelete, onReload,
           <button onClick={() => setMode("file")} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 ${mode === "file" ? "bg-indigo-500 text-white" : "border border-white/10 text-white/60"}`}><Upload size={11} /> Upload</button>
         </div>
         {mode === "url" ? (
-          <input className={field} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtube.com/… or file link" />
+          <>
+            <input className={field} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtube.com/… or file link" />
+            {kind === "VIDEO" && <p className="text-[10px] text-muted-foreground">Best for videos — paste a YouTube (unlisted) or Google Drive link. No size limit.</p>}
+          </>
         ) : (
-          <input ref={fileRef} type="file" accept={kind === "VIDEO" ? "video/*" : ".pdf,.ppt,.pptx,.doc,.docx"} className="block w-full text-xs text-white/70 file:mr-2 file:rounded file:border-0 file:bg-white/10 file:px-2 file:py-1 file:text-white" />
+          <>
+            <input ref={fileRef} type="file" accept={kind === "VIDEO" ? "video/*" : ".pdf,.ppt,.pptx,.doc,.docx"} className="block w-full text-xs text-white/70 file:mr-2 file:rounded file:border-0 file:bg-white/10 file:px-2 file:py-1 file:text-white" />
+            <p className="text-[10px] text-muted-foreground">Direct upload up to {MAX_UPLOAD_MB} MB. For bigger videos, use the “Link” option.</p>
+          </>
         )}
         <button onClick={add} disabled={uploading} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-400 disabled:opacity-60">{uploading ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add {label}</button>
       </div>
