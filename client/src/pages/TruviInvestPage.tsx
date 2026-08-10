@@ -1,12 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR } from "@/lib/utils";
+import { useAuthStore } from "@/store/authStore";
+import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
 import {
   TrendingUp, ShieldCheck, MapPin, Landmark, Building2, Trees, Store, Home,
-  Calculator, Sparkles, Wallet, Crown, ArrowRight, BadgeCheck, Loader2, Info, LineChart,
+  Calculator, Sparkles, Wallet, Crown, ArrowRight, BadgeCheck, Loader2, Info, LineChart, X, Clock,
 } from "lucide-react";
+
+interface Investable {
+  projectId: string;
+  name: string;
+  city: string | null;
+  location: string | null;
+  developer: string | null;
+  isVerified: boolean;
+  reraNumber: string | null;
+  coverImageUrl: string | null;
+  minAmount: number;
+  maxAmount: number | null;
+  targetAnnualReturnPercent: number;
+  tenureMonths: number;
+  monthlyPayoutPercent: number | null;
+  notes: string | null;
+}
+interface PortfolioItem {
+  _id: string; projectName: string; city: string | null; amount: number;
+  targetAnnualReturnPercent: number; tenureMonths: number; monthlyPayout: number; maturityValue: number; projectedGain: number; createdAt: string;
+}
 
 interface Opportunity {
   _id: string;
@@ -43,12 +66,22 @@ const CATEGORIES = [
 ];
 
 export default function TruviInvestPage() {
+  const user = useAuthStore((s) => s.user);
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [stats, setStats] = useState<{ verifiedProjects: number; liveProjects: number; cities: number } | null>(null);
+  const [investables, setInvestables] = useState<Investable[]>([]);
+  const [portfolio, setPortfolio] = useState<{ items: PortfolioItem[]; summary: { count: number; totalInvested: number; totalMaturity: number; projectedGain: number } } | null>(null);
+  const [investTarget, setInvestTarget] = useState<Investable | null>(null);
+
+  function loadPortfolio() {
+    if (useAuthStore.getState().user) api.get("/invest/portfolio").then((r) => setPortfolio(r.data)).catch(() => setPortfolio(null));
+  }
 
   useEffect(() => {
     api.get("/public/projects", { params: { limit: 12 } }).then((r) => setOpps(r.data.projects ?? [])).catch(() => setOpps([]));
     api.get("/public/stats").then((r) => setStats(r.data)).catch(() => setStats(null));
+    api.get("/invest/opportunities").then((r) => setInvestables(r.data.opportunities ?? [])).catch(() => setInvestables([]));
+    loadPortfolio();
   }, []);
 
   function goToClub(prefill?: string) {
@@ -89,6 +122,33 @@ export default function TruviInvestPage() {
           )}
         </div>
       </section>
+
+      {/* ------------------------------------------------ Open for investment */}
+      {investables.length > 0 && (
+        <Section title="Open for Investment" sub="Verified projects currently accepting investment, with admin-set targeted terms. Returns are targeted, not guaranteed.">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {investables.map((o) => (
+              <div key={o.projectId} className="overflow-hidden rounded-2xl border border-emerald-500/25 bg-emerald-950/10">
+                <div className="relative h-36 bg-gradient-to-br from-white/5 to-white/[0.02]">
+                  {o.coverImageUrl ? <img src={o.coverImageUrl} alt={o.name} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-white/20"><Building2 size={36} /></div>}
+                  <span className="absolute right-3 top-3 rounded-full bg-emerald-500/90 px-2.5 py-1 text-xs font-bold text-white">{o.targetAnnualReturnPercent}% p.a. target</span>
+                </div>
+                <div className="p-4">
+                  <p className="font-semibold">{o.name}</p>
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={11} /> {[o.location, o.city].filter(Boolean).join(", ") || "—"}</p>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    <MiniTerm label="Target/yr" value={`${o.targetAnnualReturnPercent}%`} />
+                    <MiniTerm label="Tenure" value={`${o.tenureMonths} mo`} />
+                    <MiniTerm label="Monthly" value={o.monthlyPayoutPercent ? `${o.monthlyPayoutPercent}%` : "—"} />
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Min {formatINR(o.minAmount)}{o.maxAmount ? ` · Max ${formatINR(o.maxAmount)}` : ""}</p>
+                  <button onClick={() => setInvestTarget(o)} className="mt-3 w-full rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-2 text-sm font-semibold text-white hover:opacity-90">Invest now</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* --------------------------------------------------- Opportunity types */}
       <Section title="What you can invest in" sub="Four verified, asset-backed opportunity types on Truvi.">
@@ -187,14 +247,47 @@ export default function TruviInvestPage() {
       </Section>
 
       {/* ------------------------------------------------- Portfolio dashboard */}
-      <Section title="Your Portfolio Dashboard" sub="Once you invest, track everything in one place — this is a preview.">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <PortfolioTile icon={<Wallet size={16} />} label="Total Invested" value="—" />
-          <PortfolioTile icon={<TrendingUp size={16} />} label="Current Est. Value" value="—" />
-          <PortfolioTile icon={<LineChart size={16} />} label="Profit / Loss" value="—" />
-          <PortfolioTile icon={<ShieldCheck size={16} />} label="Documents & Reports" value="—" />
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">Live invested value, current estimate, P/L, title documents, construction &amp; drone updates and exit estimates appear here after your first investment.</p>
+      <Section title="Your Portfolio Dashboard" sub={portfolio && portfolio.items.length > 0 ? "Your investments, projected value and monthly payouts." : "Once you invest, track everything in one place."}>
+        {portfolio && portfolio.items.length > 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <PortfolioTile icon={<Wallet size={16} />} label="Total Invested" value={formatINR(portfolio.summary.totalInvested)} live />
+              <PortfolioTile icon={<TrendingUp size={16} />} label="Projected Maturity" value={formatINR(portfolio.summary.totalMaturity)} live />
+              <PortfolioTile icon={<LineChart size={16} />} label="Projected Gain" value={formatINR(portfolio.summary.projectedGain)} live />
+              <PortfolioTile icon={<ShieldCheck size={16} />} label="Investments" value={String(portfolio.summary.count)} live />
+            </div>
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr><th className="px-4 py-3">Project</th><th className="px-4 py-3 text-right">Invested</th><th className="px-4 py-3 text-right">Target/yr</th><th className="px-4 py-3 text-right">Tenure</th><th className="px-4 py-3 text-right">Monthly payout</th><th className="px-4 py-3 text-right">Projected maturity</th></tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {portfolio.items.map((p) => (
+                    <tr key={p._id}>
+                      <td className="px-4 py-3"><p className="font-medium">{p.projectName}</p><p className="text-[11px] text-muted-foreground">{p.city ?? ""}</p></td>
+                      <td className="px-4 py-3 text-right tabular-nums">{formatINR(p.amount)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-emerald-300">{p.targetAnnualReturnPercent}%</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{p.tenureMonths} mo</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{p.monthlyPayout ? formatINR(p.monthlyPayout) : "—"}</td>
+                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-300">{formatINR(p.maturityValue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">Projected figures are illustrative targets, not guaranteed. Title documents, construction updates and exit estimates are added by the Truvi team.</p>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+              <PortfolioTile icon={<Wallet size={16} />} label="Total Invested" value="—" />
+              <PortfolioTile icon={<TrendingUp size={16} />} label="Projected Maturity" value="—" />
+              <PortfolioTile icon={<LineChart size={16} />} label="Projected Gain" value="—" />
+              <PortfolioTile icon={<ShieldCheck size={16} />} label="Documents & Reports" value="—" />
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">Invested value, projected maturity, monthly payouts, title documents and updates appear here after your first investment.</p>
+          </>
+        )}
       </Section>
 
       {/* ---------------------------------------------------- Investor Club */}
@@ -218,8 +311,117 @@ export default function TruviInvestPage() {
           </p>
         </div>
       </section>
+
+      {investTarget && (
+        <InvestModal
+          opp={investTarget}
+          isLoggedIn={!!user}
+          onClose={() => setInvestTarget(null)}
+          onInvested={() => { setInvestTarget(null); loadPortfolio(); toast.success("Investment successful — see your portfolio below."); }}
+        />
+      )}
     </main>
   );
+}
+
+/* --------------------------------------------------------------- Invest flow */
+function InvestModal({ opp, isLoggedIn, onClose, onInvested }: { opp: Investable; isLoggedIn: boolean; onClose: () => void; onInvested: () => void }) {
+  const navigate = useNavigate();
+  const [amount, setAmount] = useState(String(opp.minAmount));
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const proj = useMemo(() => {
+    const P = Math.max(0, Number(amount) || 0);
+    const years = opp.tenureMonths / 12;
+    const maturity = Math.round(P * Math.pow(1 + opp.targetAnnualReturnPercent / 100, years));
+    const monthly = opp.monthlyPayoutPercent ? Math.round((P * opp.monthlyPayoutPercent) / 100) : 0;
+    return { maturity, monthly, gain: maturity - P };
+  }, [amount, opp]);
+
+  async function invest() {
+    if (!isLoggedIn) { toast.info("Please sign in to invest"); navigate("/login"); return; }
+    const amt = Number(amount);
+    if (amt < opp.minAmount) { toast.error(`Minimum investment is ${formatINR(opp.minAmount)}`); return; }
+    if (opp.maxAmount && amt > opp.maxAmount) { toast.error(`Maximum investment is ${formatINR(opp.maxAmount)}`); return; }
+    if (!agree) { toast.error("Please accept the risk disclosure to continue"); return; }
+    setBusy(true);
+    try {
+      const ok = await loadRazorpay();
+      if (!ok) { toast.error("Could not load the payment gateway. Please try again."); setBusy(false); return; }
+      const { data } = await api.post("/invest/create-order", { projectId: opp.projectId, amount: amt });
+      const me = useAuthStore.getState().user;
+      openRazorpayCheckout({
+        keyId: data.keyId,
+        orderId: data.orderId,
+        amount: data.amount,
+        name: "Truvi Invest",
+        description: `Investment · ${opp.name}`,
+        prefill: { name: me?.name ?? "", email: me?.email ?? "", contact: (me as any)?.phone ?? "" },
+        onSuccess: async (r) => {
+          try {
+            await api.post("/invest/verify", r);
+            onInvested();
+          } catch {
+            toast.error("Payment done but confirmation failed — our team will verify it.");
+          } finally { setBusy(false); }
+        },
+        onDismiss: () => setBusy(false),
+      });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not start the investment");
+      setBusy(false);
+    }
+  }
+
+  const field = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400/50";
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14] text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Invest · {opp.name}</h2>
+            <p className="text-xs text-muted-foreground">{[opp.location, opp.city].filter(Boolean).join(", ")}</p>
+          </div>
+          <button onClick={onClose} className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white"><X size={18} /></button>
+        </div>
+        <div className="overflow-y-auto px-5 py-4">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <MiniTerm label="Target return" value={`${opp.targetAnnualReturnPercent}% p.a.`} />
+            <MiniTerm label="Tenure" value={`${opp.tenureMonths} mo`} />
+            <MiniTerm label="Monthly payout" value={opp.monthlyPayoutPercent ? `${opp.monthlyPayoutPercent}%` : "—"} />
+          </div>
+          <label className="mt-4 block"><span className="mb-1 block text-xs text-muted-foreground">Investment amount (₹) · min {formatINR(opp.minAmount)}</span>
+            <input type="number" className={field} value={amount} onChange={(e) => setAmount(e.target.value)} min={opp.minAmount} />
+          </label>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <ProjOut label="Est. maturity" value={formatINR(proj.maturity)} />
+            <ProjOut label="Projected gain" value={formatINR(proj.gain)} />
+            <ProjOut label="Monthly payout" value={proj.monthly ? formatINR(proj.monthly) : "—"} />
+          </div>
+          <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
+            <span>I understand this is a real-estate investment carrying risk (including loss of capital). Returns shown are <b>targeted / projected, not guaranteed</b>, and I have reviewed the project's disclosures.</span>
+          </label>
+          <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-2 text-[11px] text-amber-200/90">
+            <Clock size={13} /> Payments are processed securely via Razorpay. This is an asset-backed opportunity, not an assured-return deposit.
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
+          <button onClick={onClose} className="rounded-full border border-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/10">Cancel</button>
+          <button onClick={invest} disabled={busy} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60">
+            {busy && <Loader2 size={15} className="animate-spin" />} {isLoggedIn ? "Invest & Pay" : "Sign in to invest"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function MiniTerm({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-semibold">{value}</p></div>;
+}
+function ProjOut({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-2 text-center"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-0.5 text-sm font-semibold text-emerald-300">{value}</p></div>;
 }
 
 /* ------------------------------------------------------------ ROI calculator */
@@ -379,11 +581,11 @@ function InsightCard({ icon, title, desc }: { icon: React.ReactNode; title: stri
     </div>
   );
 }
-function PortfolioTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function PortfolioTile({ icon, label, value, live }: { icon: React.ReactNode; label: string; value: string; live?: boolean }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{icon} {label}</p>
-      <p className="mt-1 font-display text-xl font-semibold text-white/50">{value}</p>
+      <p className={`mt-1 font-display text-xl font-semibold ${live ? "text-white" : "text-white/50"}`}>{value}</p>
     </div>
   );
 }
