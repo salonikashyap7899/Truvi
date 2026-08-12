@@ -22,6 +22,9 @@ interface Partner {
   role: string;
   developerCommission: number;
   saleCommission: number;
+  referralCommission: number;
+  referredDevelopers: number;
+  referredChannelPartners: number;
   total: number;
   paid: number;
   pending: number;
@@ -29,12 +32,47 @@ interface Partner {
   payoutDetails: PayoutDetails | null;
 }
 
+interface DeveloperReferralRow {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  totalTransactions: number;
+  totalSalesValue: number;
+  percentEarned: number;
+  firstTxnBonus: number;
+  incentiveEarned: number;
+  lastTransactionAt: string | null;
+}
+interface CpReferralRow {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  totalTransactions: number;
+  cpCommission: number;
+  percentEarned: number;
+  firstTxnBonus: number;
+  incentiveEarned: number;
+  lastTransactionAt: string | null;
+}
+interface ReferralBreakdown {
+  counts: { developers: number; channelPartners: number; others: number; total: number };
+  developerReferral: number;
+  cpReferral: number;
+  totalReferralEarnings: number;
+  developers: DeveloperReferralRow[];
+  channelPartners: CpReferralRow[];
+}
+
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
+type PartnerFilter = "ALL" | "AMBASSADOR" | "CP" | "PENDING" | "PAID";
 
 export default function AdminCommissionsPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<PartnerFilter>("ALL");
   const [manageId, setManageId] = useState<string | null>(null);
 
   async function load() {
@@ -57,44 +95,60 @@ export default function AdminCommissionsPage() {
       (acc, p) => ({
         developer: acc.developer + p.developerCommission,
         sale: acc.sale + p.saleCommission,
+        referral: acc.referral + p.referralCommission,
         total: acc.total + p.total,
         paid: acc.paid + p.paid,
         pending: acc.pending + p.pending,
       }),
-      { developer: 0, sale: 0, total: 0, paid: 0, pending: 0 },
+      { developer: 0, sale: 0, referral: 0, total: 0, paid: 0, pending: 0 },
     );
   }, [partners]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return partners;
-    return partners.filter((p) => [p.name, p.email, p.role].some((f) => f?.toLowerCase().includes(q)));
-  }, [partners, query]);
+    return partners.filter((p) => {
+      if (filter === "AMBASSADOR" && p.role !== "AMBASSADOR") return false;
+      if (filter === "CP" && p.role !== "CP") return false;
+      if (filter === "PENDING" && p.pending <= 0) return false;
+      if (filter === "PAID" && p.paid <= 0) return false;
+      if (q && ![p.name, p.email, p.role].some((f) => f?.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [partners, query, filter]);
+
+  const FILTERS: { key: PartnerFilter; label: string }[] = [
+    { key: "ALL", label: "All" },
+    { key: "AMBASSADOR", label: "Ambassadors" },
+    { key: "CP", label: "Channel Partners" },
+    { key: "PENDING", label: "Pending Payment" },
+    { key: "PAID", label: "Paid" },
+  ];
 
   return (
     <main className="min-h-screen bg-background p-6 text-white md:p-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 font-display text-2xl font-semibold">
-            <Wallet size={22} className="text-emerald-400" /> Channel Partner Commissions
+            <Wallet size={22} className="text-emerald-400" /> Partner &amp; Ambassador Commissions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Developer onboarding (2% recurring) + property-sale commission, in one ledger. Pay out and pending updates instantly.
+            Developer 2% (subscription) + referral 2% on sales &amp; bonuses + property-sale commission, in one ledger. Same numbers the partner sees. Pay out and pending update instantly.
           </p>
         </div>
       </div>
 
       {/* KPI strip */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Kpi icon={<Building2 size={16} />} label="Developer Commission" value={formatINR(totals.developer)} tone="sky" />
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <Kpi icon={<Building2 size={16} />} label="Developer 2%" value={formatINR(totals.developer)} tone="sky" />
+        <Kpi icon={<Users2 size={16} />} label="Referral 2% + Bonus" value={formatINR(totals.referral)} tone="sky" />
         <Kpi icon={<Handshake size={16} />} label="Sale Commission" value={formatINR(totals.sale)} tone="violet" />
         <Kpi icon={<Wallet size={16} />} label="Total Earned" value={formatINR(totals.total)} tone="emerald" />
         <Kpi icon={<CheckCircle2 size={16} />} label="Paid Out" value={formatINR(totals.paid)} tone="emerald" />
         <Kpi icon={<Clock size={16} />} label="Pending" value={formatINR(totals.pending)} tone="amber" />
       </div>
 
-      {/* Search */}
-      <div className="mt-6 flex items-center gap-2">
+      {/* Search + filters */}
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
           <input
@@ -103,6 +157,17 @@ export default function AdminCommissionsPage() {
             placeholder="Search partner name, email…"
             className="w-72 rounded-full border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-xs text-white outline-none focus:border-emerald-400/50"
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${filter === f.key ? "bg-emerald-500 text-white" : "border border-white/10 text-white/60 hover:bg-white/10"}`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
         <span className="ml-auto text-xs text-muted-foreground">{filtered.length} partner{filtered.length === 1 ? "" : "s"}</span>
       </div>
@@ -113,6 +178,7 @@ export default function AdminCommissionsPage() {
             <tr>
               <th className="p-3 text-left">Partner</th>
               <th className="p-3 text-right">Developer (2%)</th>
+              <th className="p-3 text-right">Referral (2%)</th>
               <th className="p-3 text-right">Sale</th>
               <th className="p-3 text-right">Total</th>
               <th className="p-3 text-right">Paid</th>
@@ -123,17 +189,21 @@ export default function AdminCommissionsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No channel partners found.</td></tr>
+              <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">No partners found.</td></tr>
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="border-t border-white/10 transition hover:bg-white/[0.03]">
                   <td className="p-3">
                     <div className="font-medium text-white">{p.name}</div>
                     <div className="text-xs text-muted-foreground">{p.email} · {p.role}</div>
+                    {(p.referredDevelopers > 0 || p.referredChannelPartners > 0) && (
+                      <div className="mt-0.5 text-[11px] text-sky-300/80">{p.referredDevelopers} dev · {p.referredChannelPartners} CP referred</div>
+                    )}
                   </td>
                   <td className="p-3 text-right tabular-nums text-sky-300">{formatINR(p.developerCommission)}</td>
+                  <td className="p-3 text-right tabular-nums text-sky-300">{formatINR(p.referralCommission)}</td>
                   <td className="p-3 text-right tabular-nums text-violet-300">{formatINR(p.saleCommission)}</td>
                   <td className="p-3 text-right font-medium tabular-nums">{formatINR(p.total)}</td>
                   <td className="p-3 text-right tabular-nums text-emerald-300">{formatINR(p.paid)}</td>
@@ -243,7 +313,18 @@ interface PartnerDetail {
   role: string;
   payoutDetails: PayoutDetails | null;
   stats: { totalLeads: number; siteVisits: number; bookings: number };
-  wallet: { developerCommission: number; saleCommission: number; totalEarnings: number; paid: number; pending: number; nextPayable: number };
+  wallet: {
+    developerCommission: number;
+    saleCommission: number;
+    developerReferralCommission: number;
+    cpReferralCommission: number;
+    referralCommission: number;
+    totalEarnings: number;
+    paid: number;
+    pending: number;
+    nextPayable: number;
+    referral: ReferralBreakdown;
+  };
   manualCommissions: ManualCommission[];
 }
 
@@ -370,14 +451,19 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             </div>
 
             {/* Wallet totals */}
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MiniStat label="Developer 2%" value={formatINR(d.wallet.developerCommission)} />
+              <MiniStat label="Referral 2% + Bonus" value={formatINR(d.wallet.referralCommission)} />
               <MiniStat label="Sale Commission" value={formatINR(d.wallet.saleCommission)} />
               <MiniStat label="Total Earned" value={formatINR(d.wallet.totalEarnings)} />
               <MiniStat label="Paid" value={formatINR(d.wallet.paid)} tone="emerald" />
               <MiniStat label="Pending" value={formatINR(d.wallet.pending)} tone="amber" />
               <MiniStat label="Next Payable" value={formatINR(d.wallet.nextPayable)} tone="amber" />
             </div>
+
+            {/* Referral breakdown — the Referral → Transaction → Commission chain,
+                identical to what the ambassador sees on their own dashboard. */}
+            <ReferralBreakdownBlock referral={d.wallet.referral} />
 
             {/* Bank details */}
             <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
@@ -471,6 +557,86 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** The full Referral → Transaction → Commission drill-down for one partner —
+ *  the same data the ambassador sees, so Admin / Founder / Ambassador agree. */
+function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
+  if (!referral) return null;
+  const { counts, developers, channelPartners } = referral;
+  if (counts.total === 0) return null;
+  return (
+    <div className="mt-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Referrals</h3>
+        <span className="text-xs text-muted-foreground">
+          {counts.developers} Developers · {counts.channelPartners} Channel Partners{counts.others > 0 ? ` · ${counts.others} Others` : ""}
+        </span>
+      </div>
+
+      {developers.length > 0 && (
+        <div className="mt-2">
+          <p className="mb-1 text-xs font-semibold text-sky-300/90">Referred Developers</p>
+          <div className="overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[620px] text-left text-xs">
+              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Developer</th>
+                  <th className="px-3 py-2 text-right">Txns</th>
+                  <th className="px-3 py-2 text-right">Sales value</th>
+                  <th className="px-3 py-2 text-right">2% earned</th>
+                  <th className="px-3 py-2 text-right">Bonus</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {developers.map((r) => (
+                  <tr key={r._id}>
+                    <td className="px-3 py-2"><span className="font-medium text-white/90">{r.name}</span></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.totalTransactions}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{formatINR(r.percentEarned)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-amber-300">{r.firstTxnBonus > 0 ? formatINR(r.firstTxnBonus) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatINR(r.incentiveEarned)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {channelPartners.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-semibold text-violet-300/90">Referred Channel Partners</p>
+          <div className="overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[560px] text-left text-xs">
+              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Channel Partner</th>
+                  <th className="px-3 py-2 text-right">Their commission</th>
+                  <th className="px-3 py-2 text-right">2% earned</th>
+                  <th className="px-3 py-2 text-right">Bonus</th>
+                  <th className="px-3 py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {channelPartners.map((r) => (
+                  <tr key={r._id}>
+                    <td className="px-3 py-2"><span className="font-medium text-white/90">{r.name}</span></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.cpCommission)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{formatINR(r.percentEarned)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-amber-300">{r.firstTxnBonus > 0 ? formatINR(r.firstTxnBonus) : "—"}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatINR(r.incentiveEarned)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

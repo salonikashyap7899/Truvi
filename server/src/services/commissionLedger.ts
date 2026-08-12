@@ -11,6 +11,7 @@ import {
   siteVisits,
   PayoutDetails,
 } from "../db/schema";
+import { getReferralBreakdown, ReferralBreakdown } from "./referralEarnings";
 
 /** Developer-onboarding commission rate — 2% of the referred developer's
  *  monthly subscription, every month. */
@@ -80,13 +81,22 @@ export async function accrueDeveloperCommissions(monthKey: string = monthKeyOf()
 export interface CpWallet {
   developerCommission: number;
   saleCommission: number;
+  /** Payable 2% + first-transaction bonus on the developers this partner
+   *  referred (sales GMV based). */
+  developerReferralCommission: number;
+  /** Payable 2% + bonus on the Channel Partners this partner referred. */
+  cpReferralCommission: number;
+  /** developerReferralCommission + cpReferralCommission. */
+  referralCommission: number;
   totalEarnings: number;
   paid: number;
   pending: number;
   nextPayable: number;
+  /** The full referral breakdown (counts + per-developer / per-CP rows). */
+  referral: ReferralBreakdown;
   history: {
     _id: string;
-    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE";
+    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE" | "DEVELOPER_REFERRAL" | "CP_REFERRAL";
     amount: number;
     date: Date;
     description: string;
@@ -133,17 +143,45 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
     devs.forEach((d) => devNames.set(String(d._id), d.name));
   }
 
+  // Referral earnings (developer sales-GMV 2% + bonus, and CP-referral 2% +
+  // bonus) computed from the SAME source the referral panels use, so the
+  // Ambassador, Admin and Founder dashboards always agree.
+  const referral = await getReferralBreakdown(db, cpId);
+  const developerReferralCommission = round2(referral.developerReferral);
+  const cpReferralCommission = round2(referral.cpReferral);
+  const referralCommission = round2(developerReferralCommission + cpReferralCommission);
+
   // Property-sale commission = legacy auto commissions + admin-added manual ones.
   const saleCommission = round2(
     saleRows.reduce((s, r) => s + Number(r.amount || 0), 0) +
     manualRows.reduce((s, r) => s + Number(r.amount || 0), 0),
   );
   const developerCommission = round2(accrualRows.reduce((s, r) => s + Number(r.amount || 0), 0));
-  const totalEarnings = round2(saleCommission + developerCommission);
+  const totalEarnings = round2(saleCommission + developerCommission + referralCommission);
   const paid = round2(payRows.reduce((s, r) => s + Number(r.amount || 0), 0));
   const pending = round2(totalEarnings - paid);
 
   const history = [
+    ...referral.developers
+      .filter((d) => d.incentiveEarned > 0)
+      .map((d) => ({
+        _id: `devref-${d._id}`,
+        type: "DEVELOPER_REFERRAL" as const,
+        amount: round2(d.incentiveEarned),
+        date: d.lastTransactionAt ? new Date(d.lastTransactionAt) : d.createdAt,
+        description: `Developer referral — 2% on ₹${d.totalSalesValue.toLocaleString("en-IN")} sales${d.firstTxnBonus > 0 ? " + bonus" : ""} (${d.name})`,
+        status: "ACCRUED",
+      })),
+    ...referral.channelPartners
+      .filter((c) => c.incentiveEarned > 0)
+      .map((c) => ({
+        _id: `cpref-${c._id}`,
+        type: "CP_REFERRAL" as const,
+        amount: round2(c.incentiveEarned),
+        date: c.lastTransactionAt ? new Date(c.lastTransactionAt) : c.createdAt,
+        description: `Channel Partner referral — 2% on ₹${c.cpCommission.toLocaleString("en-IN")} earnings${c.firstTxnBonus > 0 ? " + bonus" : ""} (${c.name})`,
+        status: "ACCRUED",
+      })),
     ...saleRows.map((r) => ({
       _id: String(r._id),
       type: "PROPERTY_SALE" as const,
@@ -175,7 +213,20 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
     .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
 
   // "Next payable" is simply the outstanding balance the CP is owed right now.
-  return { developerCommission, saleCommission, totalEarnings, paid, pending, nextPayable: pending, history, payments };
+  return {
+    developerCommission,
+    saleCommission,
+    developerReferralCommission,
+    cpReferralCommission,
+    referralCommission,
+    totalEarnings,
+    paid,
+    pending,
+    nextPayable: pending,
+    referral,
+    history,
+    payments,
+  };
 }
 
 export interface PartnerSummary {
@@ -185,6 +236,10 @@ export interface PartnerSummary {
   role: string;
   developerCommission: number;
   saleCommission: number;
+  referralCommission: number;
+  /** How many people this partner referred, by type. */
+  referredDevelopers: number;
+  referredChannelPartners: number;
   total: number;
   paid: number;
   pending: number;
@@ -213,11 +268,18 @@ export async function getPartnersSummary(): Promise<PartnerSummary[]> {
   const dev = sumBy(accrualRows as any);
   const paidM = sumBy(payRows as any);
 
+  // Referral earnings are computed live from the shared source (same numbers the
+  // partner sees on their own dashboard). One breakdown per partner.
+  const breakdowns = await Promise.all(cps.map((c) => getReferralBreakdown(db, String(c._id))));
+  const referralById = new Map(cps.map((c, i) => [String(c._id), breakdowns[i]]));
+
   return cps
     .map((c) => {
+      const ref = referralById.get(String(c._id));
+      const referralCommission = round2(ref?.totalReferralEarnings ?? 0);
       const saleCommission = round2((sale.get(String(c._id)) ?? 0) + (manual.get(String(c._id)) ?? 0));
       const developerCommission = round2(dev.get(String(c._id)) ?? 0);
-      const total = round2(saleCommission + developerCommission);
+      const total = round2(saleCommission + developerCommission + referralCommission);
       const paid = round2(paidM.get(String(c._id)) ?? 0);
       const pending = round2(total - paid);
       return {
@@ -227,6 +289,9 @@ export async function getPartnersSummary(): Promise<PartnerSummary[]> {
         role: c.role,
         developerCommission,
         saleCommission,
+        referralCommission,
+        referredDevelopers: ref?.counts.developers ?? 0,
+        referredChannelPartners: ref?.counts.channelPartners ?? 0,
         total,
         paid,
         pending,
