@@ -720,6 +720,7 @@ function L2Stat({ icon, tone, label, value }: { icon: React.ReactNode; tone: str
 interface AmbWallet {
   developerCommission: number;
   saleCommission: number;
+  referralCommission: number;
   totalEarnings: number;
   paid: number;
   pending: number;
@@ -748,9 +749,10 @@ function AmbassadorCommissionSection() {
       </p>
 
       {/* Wallet tiles */}
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
         <AmbTile icon={<Wallet size={15} />} label="Total Earnings" value={loading ? "…" : formatINR(w?.totalEarnings ?? 0)} />
         <AmbTile icon={<Building2 size={15} />} label="Developer 2%" value={loading ? "…" : formatINR(w?.developerCommission ?? 0)} />
+        <AmbTile icon={<Users size={15} />} label="Referral 2% + Bonus" value={loading ? "…" : formatINR(w?.referralCommission ?? 0)} />
         <AmbTile icon={<Handshake size={15} />} label="Sale / Bonus" value={loading ? "…" : formatINR(w?.saleCommission ?? 0)} />
         <AmbTile icon={<Clock size={15} />} label="Pending" value={loading ? "…" : formatINR(w?.pending ?? 0)} tone="text-amber-300" />
         <AmbTile icon={<CheckCircle2 size={15} />} label="Paid" value={loading ? "…" : formatINR(w?.paid ?? 0)} tone="text-emerald-300" />

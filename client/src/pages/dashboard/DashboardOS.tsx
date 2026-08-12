@@ -1056,14 +1056,18 @@ type CommMode = "BANK_TRANSFER" | "UPI" | "CASH" | "CHEQUE" | "OTHER";
 interface CommPayoutDetails { accountHolderName?: string; accountNumber?: string; ifsc?: string; bankName?: string; upiId?: string; method?: "BANK_TRANSFER" | "UPI"; updatedAt?: string; }
 interface CommPartner {
   id: string; name: string; email: string; role: string;
-  developerCommission: number; saleCommission: number; total: number; paid: number; pending: number; nextPayable: number;
+  developerCommission: number; saleCommission: number; referralCommission: number;
+  referredDevelopers: number; referredChannelPartners: number;
+  total: number; paid: number; pending: number; nextPayable: number;
   payoutDetails: CommPayoutDetails | null;
 }
+type CommFilter = "ALL" | "AMBASSADOR" | "CP" | "PENDING" | "PAID";
 
 function CommissionsPage() {
   const [partners, setPartners] = useState<CommPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [payTarget, setPayTarget] = useState<CommPartner | null>(null);
+  const [filter, setFilter] = useState<CommFilter>("ALL");
 
   useEffect(() => {
     api.get("/admin/commissions/partners")
@@ -1073,31 +1077,50 @@ function CommissionsPage() {
   }, []);
 
   const t = partners.reduce(
-    (a, p) => ({ dev: a.dev + p.developerCommission, sale: a.sale + p.saleCommission, total: a.total + p.total, paid: a.paid + p.paid, pending: a.pending + p.pending }),
-    { dev: 0, sale: 0, total: 0, paid: 0, pending: 0 },
+    (a, p) => ({ dev: a.dev + p.developerCommission, ref: a.ref + p.referralCommission, sale: a.sale + p.saleCommission, total: a.total + p.total, paid: a.paid + p.paid, pending: a.pending + p.pending }),
+    { dev: 0, ref: 0, sale: 0, total: 0, paid: 0, pending: 0 },
   );
+
+  const shown = partners.filter((p) => {
+    if (filter === "AMBASSADOR") return p.role === "AMBASSADOR";
+    if (filter === "CP") return p.role === "CP";
+    if (filter === "PENDING") return p.pending > 0;
+    if (filter === "PAID") return p.paid > 0;
+    return true;
+  });
+  const FILTERS: { key: CommFilter; label: string }[] = [
+    { key: "ALL", label: "All" }, { key: "AMBASSADOR", label: "Ambassadors" }, { key: "CP", label: "Channel Partners" },
+    { key: "PENDING", label: "Pending Payment" }, { key: "PAID", label: "Paid" },
+  ];
 
   if (loading) return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading commissions…</p></section>;
   return (
     <section className="page">
       <div className="page-header">
-        <div><div className="page-title">Channel Partner Commissions</div><div className="page-sub">Developer onboarding (2% recurring) + property-sale commission · pay out &amp; track pending</div></div>
+        <div><div className="page-title">Partner &amp; Ambassador Commissions</div><div className="page-sub">Developer 2% + referral 2% on sales &amp; bonuses + property-sale commission · one ledger, same numbers the partner sees</div></div>
       </div>
       <div className="kpi-grid">
         <Kpi icon="building" tone="blue" label="Developer (2%)" value={formatINR(t.dev)} />
+        <Kpi icon="users" tone="blue" label="Referral (2%+Bonus)" value={formatINR(t.ref)} />
         <Kpi icon="chart" tone="blue" label="Sale Commission" value={formatINR(t.sale)} />
         <Kpi icon="wallet" tone="green" label="Total Earned" value={formatINR(t.total)} />
         <Kpi icon="target" tone="green" label="Paid Out" value={formatINR(t.paid)} />
         <Kpi icon="bell" tone={t.pending ? "amber" : "green"} label="Pending" value={formatINR(t.pending)} />
       </div>
-      <Panel title="Partner payouts" sub="Developer + sale commission, paid, pending &amp; bank / UPI details" icon="wallet" iconTone="green">
-        {partners.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No channel partners yet.</p> :
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "0 0 12px" }}>
+        {FILTERS.map((f) => (
+          <button key={f.key} className={`btn ${filter === f.key ? "btn-primary" : ""}`} style={{ fontSize: 12, padding: "6px 12px" }} onClick={() => setFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
+      <Panel title="Partner payouts" sub="Developer + referral + sale commission, paid, pending &amp; bank / UPI details · click a partner for the full referral breakdown" icon="wallet" iconTone="green">
+        {shown.length === 0 ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No partners match this filter.</p> :
           <div className="table-wrap"><table>
-            <thead><tr><th>Partner</th><th>Developer</th><th>Sale</th><th>Total</th><th>Paid</th><th>Pending</th><th>Payout To</th><th></th></tr></thead>
-            <tbody>{partners.map((p) => (
-              <tr key={p.id}>
-                <td><div className="name-cell"><div className="mini-avatar">{initials(p.name)}</div><div>{p.name}<div style={{ fontSize: 11, color: "var(--ink-500)" }}>{p.email}</div></div></div></td>
+            <thead><tr><th>Partner</th><th>Developer</th><th>Referral</th><th>Sale</th><th>Total</th><th>Paid</th><th>Pending</th><th>Payout To</th><th></th></tr></thead>
+            <tbody>{shown.map((p) => (
+              <tr key={p.id} style={{ cursor: "pointer" }} onClick={() => setPayTarget(p)}>
+                <td><div className="name-cell"><div className="mini-avatar">{initials(p.name)}</div><div>{p.name}<div style={{ fontSize: 11, color: "var(--ink-500)" }}>{p.email} · {p.role}{(p.referredDevelopers > 0 || p.referredChannelPartners > 0) ? ` · ${p.referredDevelopers} dev / ${p.referredChannelPartners} CP referred` : ""}</div></div></div></td>
                 <td>{formatINR(p.developerCommission)}</td>
+                <td>{formatINR(p.referralCommission)}</td>
                 <td>{formatINR(p.saleCommission)}</td>
                 <td><b>{formatINR(p.total)}</b></td>
                 <td>{formatINR(p.paid)}</td>
@@ -1105,7 +1128,7 @@ function CommissionsPage() {
                 <td>{p.payoutDetails && (p.payoutDetails.accountNumber || p.payoutDetails.upiId)
                   ? <span style={{ fontSize: 11.5 }}>{p.payoutDetails.method === "UPI" ? p.payoutDetails.upiId : `••••${(p.payoutDetails.accountNumber || "").slice(-4)}`}</span>
                   : <span className="badge amber">Not added</span>}</td>
-                <td><button className="btn btn-primary" disabled={p.pending <= 0} onClick={() => setPayTarget(p)}><Ic n="wallet" /> Mark Paid</button></td>
+                <td><button className="btn btn-primary" disabled={p.pending <= 0} onClick={(e) => { e.stopPropagation(); setPayTarget(p); }}><Ic n="wallet" /> Mark Paid</button></td>
               </tr>
             ))}</tbody>
           </table></div>}
@@ -1115,6 +1138,9 @@ function CommissionsPage() {
   );
 }
 
+interface CommReferralRow { _id: string; name: string; totalTransactions?: number; totalSalesValue?: number; cpCommission?: number; percentEarned: number; firstTxnBonus: number; incentiveEarned: number; }
+interface CommReferral { counts: { developers: number; channelPartners: number; others: number; total: number }; developers: CommReferralRow[]; channelPartners: CommReferralRow[]; }
+
 function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner; onClose: () => void; onPaid: (p: CommPartner) => void }) {
   const [amount, setAmount] = useState(String(partner.pending || ""));
   const [mode, setMode] = useState<CommMode>(partner.payoutDetails?.method ?? "BANK_TRANSFER");
@@ -1122,7 +1148,14 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [referral, setReferral] = useState<CommReferral | null>(null);
   const pd = partner.payoutDetails;
+
+  useEffect(() => {
+    api.get(`/admin/commissions/partners/${partner.id}`)
+      .then((r) => setReferral(r.data.detail?.wallet?.referral ?? null))
+      .catch(() => setReferral(null));
+  }, [partner.id]);
 
   async function submit() {
     const amt = Number(amount);
@@ -1133,7 +1166,7 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
       const res = await api.post("/admin/commissions/pay", { cpId: partner.id, amount: amt, mode, transactionId: transactionId.trim() || undefined, paymentDate, notes: notes.trim() || undefined });
       const w = res.data.wallet;
       toast.success(`Recorded ${formatINR(amt)} payout to ${partner.name}`);
-      onPaid({ ...partner, paid: w.paid, pending: w.pending, nextPayable: w.nextPayable, total: w.totalEarnings, developerCommission: w.developerCommission, saleCommission: w.saleCommission });
+      onPaid({ ...partner, paid: w.paid, pending: w.pending, nextPayable: w.nextPayable, total: w.totalEarnings, developerCommission: w.developerCommission, saleCommission: w.saleCommission, referralCommission: w.referralCommission ?? partner.referralCommission });
     } catch (e: any) {
       toast.error(e?.response?.data?.error || "Failed to record payout");
     } finally { setSaving(false); }
@@ -1165,6 +1198,29 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
             </div>
           ) : <div style={{ fontSize: 12, color: "#E0A73B" }}>This partner hasn't added bank / UPI details yet.</div>}
         </div>
+        {referral && referral.counts.total > 0 && (
+          <div className="card" style={{ padding: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--ink-500)", marginBottom: 6 }}>
+              Referrals · {referral.counts.developers} Developers · {referral.counts.channelPartners} Channel Partners{referral.counts.others > 0 ? ` · ${referral.counts.others} Others` : ""}
+            </div>
+            {referral.developers.length > 0 && (
+              <div className="table-wrap" style={{ marginTop: 4 }}><table style={{ fontSize: 12 }}>
+                <thead><tr><th>Developer</th><th>Txns</th><th>Sales value</th><th>2% + bonus</th></tr></thead>
+                <tbody>{referral.developers.map((r) => (
+                  <tr key={r._id}><td>{r.name}</td><td>{r.totalTransactions ?? 0}</td><td>{formatINR(r.totalSalesValue ?? 0)}</td><td><b>{formatINR(r.incentiveEarned)}</b></td></tr>
+                ))}</tbody>
+              </table></div>
+            )}
+            {referral.channelPartners.length > 0 && (
+              <div className="table-wrap" style={{ marginTop: 8 }}><table style={{ fontSize: 12 }}>
+                <thead><tr><th>Channel Partner</th><th>Their commission</th><th>2% + bonus</th></tr></thead>
+                <tbody>{referral.channelPartners.map((r) => (
+                  <tr key={r._id}><td>{r.name}</td><td>{formatINR(r.cpCommission ?? 0)}</td><td><b>{formatINR(r.incentiveEarned)}</b></td></tr>
+                ))}</tbody>
+              </table></div>
+            )}
+          </div>
+        )}
         <div className="ps-field"><label>Amount (₹)</label><input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
         <div className="ps-field"><label>Payment Mode</label>
           <select value={mode} onChange={(e) => setMode(e.target.value as CommMode)} style={selStyle}>
