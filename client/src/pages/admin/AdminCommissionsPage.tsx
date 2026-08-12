@@ -66,7 +66,7 @@ interface ReferralBreakdown {
 }
 
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
-type PartnerFilter = "ALL" | "AMBASSADOR" | "CP" | "PENDING" | "PAID";
+type PartnerFilter = "ALL" | "AMBASSADOR" | "CP" | "ACTIVE" | "TOP" | "PENDING" | "PAID";
 
 export default function AdminCommissionsPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -106,20 +106,26 @@ export default function AdminCommissionsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return partners.filter((p) => {
+    const isActive = (p: Partner) => p.total > 0 || p.referredDevelopers > 0 || p.referredChannelPartners > 0;
+    let rows = partners.filter((p) => {
       if (filter === "AMBASSADOR" && p.role !== "AMBASSADOR") return false;
       if (filter === "CP" && p.role !== "CP") return false;
+      if (filter === "ACTIVE" && !isActive(p)) return false;
       if (filter === "PENDING" && p.pending <= 0) return false;
       if (filter === "PAID" && p.paid <= 0) return false;
       if (q && ![p.name, p.email, p.role].some((f) => f?.toLowerCase().includes(q))) return false;
       return true;
     });
+    if (filter === "TOP") rows = [...rows].sort((a, b) => b.total - a.total).slice(0, 5);
+    return rows;
   }, [partners, query, filter]);
 
   const FILTERS: { key: PartnerFilter; label: string }[] = [
     { key: "ALL", label: "All" },
     { key: "AMBASSADOR", label: "Ambassadors" },
     { key: "CP", label: "Channel Partners" },
+    { key: "ACTIVE", label: "Active" },
+    { key: "TOP", label: "Top Performing" },
     { key: "PENDING", label: "Pending Payment" },
     { key: "PAID", label: "Paid" },
   ];
@@ -324,6 +330,7 @@ interface PartnerDetail {
     pending: number;
     nextPayable: number;
     referral: ReferralBreakdown;
+    payments: { _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[];
   };
   manualCommissions: ManualCommission[];
 }
@@ -443,8 +450,22 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             </div>
             <div className="overflow-y-auto px-6 py-5">
 
+            {/* Performance overview — referrals + transactions */}
+            {(() => {
+              const r = d.wallet.referral;
+              const totalTxns = (r?.developers ?? []).reduce((a, x) => a + x.totalTransactions, 0) + (r?.channelPartners ?? []).reduce((a, x) => a + x.totalTransactions, 0);
+              return (
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <MiniStat label="Developers Referred" value={String(r?.counts.developers ?? 0)} />
+                  <MiniStat label="Channel Partners Referred" value={String(r?.counts.channelPartners ?? 0)} />
+                  <MiniStat label="Other Referrals" value={String(r?.counts.others ?? 0)} />
+                  <MiniStat label="Total Transactions" value={String(totalTxns)} />
+                </div>
+              );
+            })()}
+
             {/* CRM stats */}
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-2 grid grid-cols-3 gap-3">
               <StatBox icon={<Users2 size={15} />} label="Total Leads" value={String(d.stats.totalLeads)} />
               <StatBox icon={<MapPin size={15} />} label="Site Visits" value={String(d.stats.siteVisits)} />
               <StatBox icon={<CalendarCheck2 size={15} />} label="Bookings" value={String(d.stats.bookings)} />
@@ -464,6 +485,40 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             {/* Referral breakdown — the Referral → Transaction → Commission chain,
                 identical to what the ambassador sees on their own dashboard. */}
             <ReferralBreakdownBlock referral={d.wallet.referral} />
+
+            {/* Payment history */}
+            {d.wallet.payments.length > 0 && (
+              <div className="mt-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Payment History</h3>
+                  <span className="text-xs text-muted-foreground">Last payment: {formatDate(d.wallet.payments[0].paymentDate)}</span>
+                </div>
+                <div className="mt-2 overflow-x-auto rounded-lg border border-white/10">
+                  <table className="w-full min-w-[560px] text-left text-xs">
+                    <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                        <th className="px-3 py-2">Mode</th>
+                        <th className="px-3 py-2">Transaction ID</th>
+                        <th className="px-3 py-2">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {d.wallet.payments.map((p) => (
+                        <tr key={p._id}>
+                          <td className="px-3 py-2 text-muted-foreground">{formatDate(p.paymentDate)}</td>
+                          <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-300">{formatINR(p.amount)}</td>
+                          <td className="px-3 py-2">{p.mode.replace(/_/g, " ")}</td>
+                          <td className="px-3 py-2 font-mono text-muted-foreground">{p.transactionId || "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{p.notes || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Bank details */}
             <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.03] p-3">
@@ -586,6 +641,7 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
                   <th className="px-3 py-2">Developer</th>
                   <th className="px-3 py-2 text-right">Txns</th>
                   <th className="px-3 py-2 text-right">Sales value</th>
+                  <th className="px-3 py-2 text-right">Comm %</th>
                   <th className="px-3 py-2 text-right">2% earned</th>
                   <th className="px-3 py-2 text-right">Bonus</th>
                   <th className="px-3 py-2 text-right">Total</th>
@@ -597,6 +653,7 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
                     <td className="px-3 py-2"><span className="font-medium text-white/90">{r.name}</span></td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.totalTransactions}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">2%</td>
                     <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{formatINR(r.percentEarned)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-amber-300">{r.firstTxnBonus > 0 ? formatINR(r.firstTxnBonus) : "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatINR(r.incentiveEarned)}</td>

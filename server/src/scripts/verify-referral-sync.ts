@@ -11,7 +11,7 @@ import { connectDB, getDb, disconnectDB } from "../config/db";
 import { users, projects, leads, commissions } from "../db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { getCpWallet, getPartnersSummary, getPartnerDetail } from "../services/commissionLedger";
-import { getReferralBreakdown } from "../services/referralEarnings";
+import { getReferralBreakdown, rangeForPeriod } from "../services/referralEarnings";
 
 const TAG = "reftest_" + Date.now();
 function assert(cond: boolean, msg: string) {
@@ -80,6 +80,13 @@ async function main() {
     detail!.wallet.referralCommission === breakdown.totalReferralEarnings,
     "Ambassador wallet == Admin summary == Admin detail == shared source",
   );
+
+  // 6. Period filter (This Month / Last Month) — the booking is dated now.
+  const thisMonth = await getReferralBreakdown(db, ambId, rangeForPeriod("this_month"));
+  const lastMonth = await getReferralBreakdown(db, ambId, rangeForPeriod("last_month"));
+  console.log("Period filter (date range):");
+  assert(thisMonth.totalReferralEarnings === EXPECTED, `this_month = ${thisMonth.totalReferralEarnings} (includes the txn + bonus)`);
+  assert(lastMonth.totalReferralEarnings === 0, `last_month = ${lastMonth.totalReferralEarnings} (no txn, no double-counted bonus)`);
 
   // --- Cleanup
   await db.delete(commissions).where(eq(commissions.leadId, lead._id));

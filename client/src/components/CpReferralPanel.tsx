@@ -31,13 +31,22 @@ interface CpRefData {
   summary: { referredCount: number; active: number; totalTransactions: number; totalBonus: number; totalEarnings: number };
 }
 
+type Period = "all" | "this_month" | "last_month";
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "this_month", label: "This Month" },
+  { key: "last_month", label: "Last Month" },
+  { key: "all", label: "All Time" },
+];
+
 export default function CpReferralPanel({ className = "" }: { className?: string }) {
   const [data, setData] = useState<CpRefData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>("all");
 
   useEffect(() => {
-    api.get("/onboarding/cp-referrals").then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    api.get(`/onboarding/cp-referrals?period=${period}`).then((r) => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
+  }, [period]);
 
   const bonus = data?.firstTxnBonus ?? 75;
   const inviteLink = data?.referralCode ? `${window.location.origin}/signup?ref=${data.referralCode}` : "";
@@ -86,8 +95,21 @@ export default function CpReferralPanel({ className = "" }: { className?: string
         <Button onClick={shareLink} className="shrink-0 gap-2"><Share2 size={15} /> Refer a Channel Partner</Button>
       </div>
 
+      {/* Period filter */}
+      <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        {PERIODS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${period === p.key ? "bg-violet-500 text-white" : "border border-white/10 text-white/60 hover:bg-white/10"}`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       {/* Summary */}
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <PanelTile icon={<Users size={15} />} label="Referred CPs" value={String(s.referredCount)} />
         <PanelTile icon={<Handshake size={15} />} label="Active" value={String(s.active)} tone="text-emerald-300" />
         <PanelTile icon={<Activity size={15} />} label="Transactions" value={String(s.totalTransactions)} />
