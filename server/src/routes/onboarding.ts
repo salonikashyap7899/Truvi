@@ -10,6 +10,7 @@ import {
   REFERRAL_INCENTIVE_PERCENT,
   computeDeveloperReferralEarnings,
   computeCpReferralEarnings,
+  rangeForPeriod,
 } from "../services/referralEarnings";
 
 /**
@@ -96,7 +97,8 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
   const db = getDb();
   const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
-  const { referredDevelopers, summary, bonusAmount } = await computeDeveloperReferralEarnings(db, req.user!.userId);
+  const range = rangeForPeriod(typeof req.query.period === "string" ? req.query.period : null);
+  const { referredDevelopers, summary, bonusAmount } = await computeDeveloperReferralEarnings(db, req.user!.userId, range);
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredDevelopers, summary });
 });
 
@@ -151,7 +153,8 @@ router.get("/cp-referrals", requireRole("AMBASSADOR"), async (req: AuthedRequest
   const db = getDb();
   const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
-  const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId);
+  const range = rangeForPeriod(typeof req.query.period === "string" ? req.query.period : null);
+  const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId, range);
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredPartners, summary });
 });
 

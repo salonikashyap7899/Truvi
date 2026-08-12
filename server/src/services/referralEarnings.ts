@@ -14,6 +14,23 @@ export const REFERRAL_INCENTIVE_PERCENT = 2;
 export const DEVELOPER_REFERRAL_BONUS = 100;
 export const CP_REFERRAL_BONUS = 75;
 
+/** A half-open date window [from, to) used to scope referral earnings to a
+ *  period (e.g. This Month / Last Month). Omit for lifetime totals. */
+export interface DateRange { from: Date; to: Date }
+const inRange = (d: Date, range?: DateRange) => !range || (d >= range.from && d < range.to);
+
+/** Resolve a period keyword to a concrete [from, to) window. */
+export function rangeForPeriod(period?: string | null): DateRange | undefined {
+  const now = new Date();
+  if (period === "this_month") {
+    return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+  }
+  if (period === "last_month") {
+    return { from: new Date(now.getFullYear(), now.getMonth() - 1, 1), to: new Date(now.getFullYear(), now.getMonth(), 1) };
+  }
+  return undefined; // "all" or unknown → lifetime
+}
+
 export interface DeveloperReferralRow {
   _id: string;
   name: string;
@@ -39,7 +56,7 @@ export interface DeveloperReferralRow {
  * (services/commissionLedger.ts), so the numbers always match across the
  * Ambassador, Admin and Founder dashboards.
  */
-export async function computeDeveloperReferralEarnings(db: Db, referrerId: string) {
+export async function computeDeveloperReferralEarnings(db: Db, referrerId: string, range?: DateRange) {
   const referred = await db
     .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
@@ -47,7 +64,11 @@ export async function computeDeveloperReferralEarnings(db: Db, referrerId: strin
     .orderBy(desc(users.createdAt));
 
   const devIds = referred.map((r) => String(r._id));
-  const stats = new Map<string, { count: number; sales: number; last: Date | null; properties: number }>();
+  // `first` is the developer's FIRST-EVER transaction date (used to award the
+  // one-time bonus in the period it happened); count/sales/last are scoped to
+  // `range` when one is given, else lifetime.
+  const stats = new Map<string, { count: number; sales: number; last: Date | null; first: Date | null; properties: number }>();
+  const blank = () => ({ count: 0, sales: 0, last: null as Date | null, first: null as Date | null, properties: 0 });
 
   if (devIds.length) {
     const devProjects = await db
@@ -56,7 +77,7 @@ export async function computeDeveloperReferralEarnings(db: Db, referrerId: strin
       .where(inArray(projects.developerId, devIds));
     const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
     for (const p of devProjects) {
-      const cur = stats.get(String(p.developerId)) ?? { count: 0, sales: 0, last: null, properties: 0 };
+      const cur = stats.get(String(p.developerId)) ?? blank();
       cur.properties += 1;
       stats.set(String(p.developerId), cur);
     }
@@ -78,11 +99,14 @@ export async function computeDeveloperReferralEarnings(db: Db, referrerId: strin
         for (const t of txns) {
           const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
           if (!devId) continue;
-          const cur = stats.get(devId) ?? { count: 0, sales: 0, last: null, properties: 0 };
-          cur.count += 1;
-          cur.sales += Number(t.bookingValue || 0);
+          const cur = stats.get(devId) ?? blank();
           const at = new Date(t.createdAt);
-          if (!cur.last || at > cur.last) cur.last = at;
+          if (!cur.first || at < cur.first) cur.first = at; // first-ever, ignores range
+          if (inRange(at, range)) {
+            cur.count += 1;
+            cur.sales += Number(t.bookingValue || 0);
+            if (!cur.last || at > cur.last) cur.last = at;
+          }
           stats.set(devId, cur);
         }
       }
@@ -95,7 +119,8 @@ export async function computeDeveloperReferralEarnings(db: Db, referrerId: strin
     const s = stats.get(String(r._id));
     const txns = s?.count ?? 0;
     const percentEarned = Math.round((s?.sales ?? 0) * rate);
-    const firstTxnBonus = txns >= 1 ? bonusAmount : 0;
+    // One-time bonus counts in the period that contains the first-ever txn.
+    const firstTxnBonus = s?.first && inRange(s.first, range) ? bonusAmount : 0;
     return {
       _id: String(r._id),
       name: r.name,
@@ -141,7 +166,7 @@ export interface CpReferralRow {
  * first-transaction bonus (₹75 for a partner referrer) + 2% lifetime on each
  * referred CP's own commission earnings.
  */
-export async function computeCpReferralEarnings(db: Db, referrerId: string) {
+export async function computeCpReferralEarnings(db: Db, referrerId: string, range?: DateRange) {
   const referredCps = await db
     .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
     .from(users)
@@ -149,12 +174,15 @@ export async function computeCpReferralEarnings(db: Db, referrerId: string) {
     .orderBy(desc(users.createdAt));
 
   const cpIds = referredCps.map((c) => String(c._id));
-  const stats = new Map<string, { amount: number; count: number; last: Date | null }>();
+  const stats = new Map<string, { amount: number; count: number; last: Date | null; first: Date | null }>();
   const bump = (id: string, amount: number, at: Date) => {
-    const c = stats.get(id) ?? { amount: 0, count: 0, last: null };
-    c.amount += Number(amount || 0);
-    c.count += 1;
-    if (!c.last || at > c.last) c.last = at;
+    const c = stats.get(id) ?? { amount: 0, count: 0, last: null, first: null };
+    if (!c.first || at < c.first) c.first = at; // first-ever, ignores range
+    if (inRange(at, range)) {
+      c.amount += Number(amount || 0);
+      c.count += 1;
+      if (!c.last || at > c.last) c.last = at;
+    }
     stats.set(id, c);
   };
 
@@ -179,7 +207,7 @@ export async function computeCpReferralEarnings(db: Db, referrerId: string) {
     const cpCommission = Math.round(s?.amount ?? 0);
     const txns = s?.count ?? 0;
     const percentEarned = Math.round(cpCommission * rate);
-    const firstTxnBonus = txns >= 1 ? bonusAmount : 0;
+    const firstTxnBonus = s?.first && inRange(s.first, range) ? bonusAmount : 0;
     return {
       _id: String(c._id),
       name: c.name,
@@ -219,11 +247,11 @@ export interface ReferralBreakdown {
  * and the payable 2%+bonus each stream has generated. Used by the Ambassador,
  * Admin and Founder dashboards so all three see identical figures.
  */
-export async function getReferralBreakdown(db: Db, referrerId: string): Promise<ReferralBreakdown> {
+export async function getReferralBreakdown(db: Db, referrerId: string, range?: DateRange): Promise<ReferralBreakdown> {
   const [referred, dev, cp] = await Promise.all([
     db.select({ role: users.role }).from(users).where(eq(users.referredBy, referrerId)),
-    computeDeveloperReferralEarnings(db, referrerId),
-    computeCpReferralEarnings(db, referrerId),
+    computeDeveloperReferralEarnings(db, referrerId, range),
+    computeCpReferralEarnings(db, referrerId, range),
   ]);
 
   let developers = 0;

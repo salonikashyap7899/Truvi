@@ -1061,7 +1061,7 @@ interface CommPartner {
   total: number; paid: number; pending: number; nextPayable: number;
   payoutDetails: CommPayoutDetails | null;
 }
-type CommFilter = "ALL" | "AMBASSADOR" | "CP" | "PENDING" | "PAID";
+type CommFilter = "ALL" | "AMBASSADOR" | "CP" | "ACTIVE" | "TOP" | "PENDING" | "PAID";
 
 function CommissionsPage() {
   const [partners, setPartners] = useState<CommPartner[]>([]);
@@ -1081,15 +1081,19 @@ function CommissionsPage() {
     { dev: 0, ref: 0, sale: 0, total: 0, paid: 0, pending: 0 },
   );
 
-  const shown = partners.filter((p) => {
+  const isActive = (p: CommPartner) => p.total > 0 || p.referredDevelopers > 0 || p.referredChannelPartners > 0;
+  let shown = partners.filter((p) => {
     if (filter === "AMBASSADOR") return p.role === "AMBASSADOR";
     if (filter === "CP") return p.role === "CP";
+    if (filter === "ACTIVE") return isActive(p);
     if (filter === "PENDING") return p.pending > 0;
     if (filter === "PAID") return p.paid > 0;
     return true;
   });
+  if (filter === "TOP") shown = [...shown].sort((a, b) => b.total - a.total).slice(0, 5);
   const FILTERS: { key: CommFilter; label: string }[] = [
     { key: "ALL", label: "All" }, { key: "AMBASSADOR", label: "Ambassadors" }, { key: "CP", label: "Channel Partners" },
+    { key: "ACTIVE", label: "Active" }, { key: "TOP", label: "Top Performing" },
     { key: "PENDING", label: "Pending Payment" }, { key: "PAID", label: "Paid" },
   ];
 
@@ -1149,12 +1153,13 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [referral, setReferral] = useState<CommReferral | null>(null);
+  const [payments, setPayments] = useState<{ _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[]>([]);
   const pd = partner.payoutDetails;
 
   useEffect(() => {
     api.get(`/admin/commissions/partners/${partner.id}`)
-      .then((r) => setReferral(r.data.detail?.wallet?.referral ?? null))
-      .catch(() => setReferral(null));
+      .then((r) => { setReferral(r.data.detail?.wallet?.referral ?? null); setPayments(r.data.detail?.wallet?.payments ?? []); })
+      .catch(() => { setReferral(null); setPayments([]); });
   }, [partner.id]);
 
   async function submit() {
@@ -1219,6 +1224,19 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
                 ))}</tbody>
               </table></div>
             )}
+          </div>
+        )}
+        {payments.length > 0 && (
+          <div className="card" style={{ padding: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--ink-500)", marginBottom: 6 }}>
+              Payment History · last {formatDate(payments[0].paymentDate)}
+            </div>
+            <div className="table-wrap"><table style={{ fontSize: 12 }}>
+              <thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Ref</th></tr></thead>
+              <tbody>{payments.map((p) => (
+                <tr key={p._id}><td>{formatDate(p.paymentDate)}</td><td><b>{formatINR(p.amount)}</b></td><td>{p.mode.replace(/_/g, " ")}</td><td>{p.transactionId || "—"}</td></tr>
+              ))}</tbody>
+            </table></div>
           </div>
         )}
         <div className="ps-field"><label>Amount (₹)</label><input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>

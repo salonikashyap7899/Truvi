@@ -725,6 +725,11 @@ interface AmbWallet {
   paid: number;
   pending: number;
   nextPayable: number;
+  referral?: {
+    counts: { developers: number; channelPartners: number; others: number; total: number };
+    developers: { totalTransactions: number }[];
+    channelPartners: { totalTransactions: number }[];
+  };
   payments: { _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[];
 }
 interface AmbPayoutDetails {
@@ -757,6 +762,22 @@ function AmbassadorCommissionSection() {
         <AmbTile icon={<Clock size={15} />} label="Pending" value={loading ? "…" : formatINR(w?.pending ?? 0)} tone="text-amber-300" />
         <AmbTile icon={<CheckCircle2 size={15} />} label="Paid" value={loading ? "…" : formatINR(w?.paid ?? 0)} tone="text-emerald-300" />
       </div>
+
+      {/* My Referrals overview — Developers / Channel Partners / Others + transactions */}
+      {w?.referral && (
+        <div className="mt-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">My Referrals</h3>
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <AmbTile icon={<Building2 size={15} />} label="Developers" value={String(w.referral.counts.developers)} />
+            <AmbTile icon={<Handshake size={15} />} label="Channel Partners" value={String(w.referral.counts.channelPartners)} />
+            <AmbTile icon={<Users size={15} />} label="Other Referrals" value={String(w.referral.counts.others)} />
+            <AmbTile icon={<TrendingUp size={15} />} label="Total Transactions" value={String(
+              w.referral.developers.reduce((a, d) => a + d.totalTransactions, 0) +
+              w.referral.channelPartners.reduce((a, c) => a + c.totalTransactions, 0)
+            )} />
+          </div>
+        </div>
+      )}
 
       <AmbassadorPayoutForm />
 
