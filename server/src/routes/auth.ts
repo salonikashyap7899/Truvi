@@ -866,12 +866,18 @@ router.post(
       return res.status(403).json({ error: "Identity verification is only required for Channel Partners and Ambassadors." });
     }
 
+    // PAN is optional for Ambassadors — many are students without a PAN card.
+    // Channel Partners still require Aadhaar + PAN + selfie.
+    const isAmbassador = req.user!.role === "AMBASSADOR";
+
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const aadhaarFile = files?.aadhaar?.[0];
     const panFile = files?.pan?.[0];
     const selfieFile = files?.selfie?.[0];
-    if (!aadhaarFile || !panFile || !selfieFile) {
-      return res.status(400).json({ error: "Aadhaar, PAN and a selfie are all required" });
+    if (!aadhaarFile || !selfieFile || (!isAmbassador && !panFile)) {
+      return res.status(400).json({
+        error: isAmbassador ? "Aadhaar and a live selfie are required" : "Aadhaar, PAN and a selfie are all required",
+      });
     }
 
     const aadhaarNumber = String(req.body?.aadhaarNumber || "").replace(/\s/g, "");
@@ -879,7 +885,8 @@ router.post(
     if (!isValidAadhaar(aadhaarNumber)) {
       return res.status(400).json({ error: "Enter a valid 12-digit Aadhaar number" });
     }
-    if (!isValidPan(panNumber)) {
+    // Validate PAN only when it applies (CP always; Ambassador only if supplied).
+    if ((!isAmbassador || panNumber) && !isValidPan(panNumber)) {
       return res.status(400).json({ error: "Enter a valid PAN (e.g. ABCDE1234F)" });
     }
 
@@ -891,14 +898,14 @@ router.post(
     // route. On the user we keep just lightweight presence markers + mime.
     const kycFiles = {
       aadhaar: { mime: aadhaarFile.mimetype },
-      pan: { mime: panFile.mimetype },
+      ...(panFile ? { pan: { mime: panFile.mimetype } } : {}),
       selfie: { mime: selfieFile.mimetype },
     };
 
     const sqlc = getSqlClient();
     await sqlc`
       INSERT INTO kyc_documents (user_id, aadhaar_data, aadhaar_mime, pan_data, pan_mime, selfie_data, selfie_mime, updated_at)
-      VALUES (${userId}, ${aadhaarFile.buffer}, ${aadhaarFile.mimetype}, ${panFile.buffer}, ${panFile.mimetype}, ${selfieFile.buffer}, ${selfieFile.mimetype}, now())
+      VALUES (${userId}, ${aadhaarFile.buffer}, ${aadhaarFile.mimetype}, ${panFile?.buffer ?? null}, ${panFile?.mimetype ?? null}, ${selfieFile.buffer}, ${selfieFile.mimetype}, now())
       ON CONFLICT (user_id) DO UPDATE SET
         aadhaar_data = EXCLUDED.aadhaar_data, aadhaar_mime = EXCLUDED.aadhaar_mime,
         pan_data = EXCLUDED.pan_data, pan_mime = EXCLUDED.pan_mime,
@@ -934,7 +941,7 @@ router.post(
     const verification: UserVerification = {
       ...(user.verification ?? {}),
       kycFiles,
-      panNumberMasked: maskPan(panNumber),
+      ...(panNumber ? { panNumberMasked: maskPan(panNumber) } : {}),
       kycSubmittedAt: new Date().toISOString(),
       ...(approved ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),
     };
