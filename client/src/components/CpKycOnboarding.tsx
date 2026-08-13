@@ -16,11 +16,12 @@ export function CpKycOnboarding() {
   const user = useAuthStore((s) => s.user);
   const status = user?.onboardingChecks?.kycStatus;
   const rejectionReason = user?.onboardingChecks?.kycRejectionReason;
-  // Same KYC flow for Channel Partners and Ambassadors — just role-aware copy.
-  const intro =
-    user?.role === "AMBASSADOR"
-      ? "Ambassadors must verify their identity before accessing tasks and earnings. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification."
-      : "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.";
+  // PAN is NOT required for Ambassadors (many are students without one) — they
+  // verify with Aadhaar + a live selfie only. Channel Partners still need PAN.
+  const isAmbassador = user?.role === "AMBASSADOR";
+  const intro = isAmbassador
+    ? "Ambassadors must verify their identity before accessing tasks and earnings. Upload your Aadhaar and take a live selfie. Your documents are stored securely for verification."
+    : "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.";
 
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [panNumber, setPanNumber] = useState("");
@@ -119,21 +120,23 @@ export function CpKycOnboarding() {
 
   const panValid = PAN_RE.test(panNumber.trim().toUpperCase());
   const aadhaarValid = /^\d{12}$/.test(aadhaarNumber.replace(/\s/g, ""));
+  // Ambassadors: Aadhaar + selfie only. Channel Partners: also PAN.
+  const panReady = isAmbassador ? true : panValid && !!panFile;
   const ready = useMemo(
-    () => aadhaarValid && panValid && !!aadhaarFile && !!panFile && !!selfie,
-    [aadhaarValid, panValid, aadhaarFile, panFile, selfie],
+    () => aadhaarValid && panReady && !!aadhaarFile && !!selfie,
+    [aadhaarValid, panReady, aadhaarFile, selfie],
   );
 
   async function submit() {
-    if (!ready || !aadhaarFile || !panFile || !selfie || !user) return;
+    if (!ready || !aadhaarFile || !selfie || !user) return;
     setSubmitting(true);
     try {
       const form = new FormData();
       form.append("aadhaar", aadhaarFile);
-      form.append("pan", panFile);
+      if (panFile) form.append("pan", panFile);
       form.append("selfie", new File([selfie], "selfie.jpg", { type: "image/jpeg" }));
       form.append("aadhaarNumber", aadhaarNumber.replace(/\s/g, ""));
-      form.append("panNumber", panNumber.trim().toUpperCase());
+      if (panNumber.trim()) form.append("panNumber", panNumber.trim().toUpperCase());
       const res = await api.post("/auth/submit-kyc", form, { headers: { "Content-Type": "multipart/form-data" } });
       // Auto-approved server-side. Show a brief "verifying…" beat (~2s), then
       // apply the result so the workspace unlocks — no admin review needed.
@@ -179,7 +182,7 @@ export function CpKycOnboarding() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Verifying your identity…</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Checking your Aadhaar, PAN and selfie. This only takes a couple of seconds — your workspace
+            Checking your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie. This only takes a couple of seconds — your workspace
             will unlock automatically.
           </p>
         </div>
@@ -240,19 +243,21 @@ export function CpKycOnboarding() {
             <FileField label="Aadhaar card (front)" file={aadhaarFile} onFile={setAadhaarFile} />
           </div>
 
-          {/* PAN */}
-          <div>
-            <label className="text-sm font-medium">PAN number</label>
-            <input
-              maxLength={10}
-              value={panNumber}
-              onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-              placeholder="ABCDE1234F"
-              className="mt-1 h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm uppercase tracking-wider text-white placeholder:text-white/30 outline-none focus:border-[var(--trust)]/50 focus:ring-2 focus:ring-[var(--trust)]/20"
-            />
-            {panNumber && !panValid && <p className="mt-1 text-xs text-red-400">Format: 5 letters, 4 digits, 1 letter.</p>}
-            <FileField label="PAN card" file={panFile} onFile={setPanFile} />
-          </div>
+          {/* PAN — Channel Partners only (not required for Ambassadors) */}
+          {!isAmbassador && (
+            <div>
+              <label className="text-sm font-medium">PAN number</label>
+              <input
+                maxLength={10}
+                value={panNumber}
+                onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
+                placeholder="ABCDE1234F"
+                className="mt-1 h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm uppercase tracking-wider text-white placeholder:text-white/30 outline-none focus:border-[var(--trust)]/50 focus:ring-2 focus:ring-[var(--trust)]/20"
+              />
+              {panNumber && !panValid && <p className="mt-1 text-xs text-red-400">Format: 5 letters, 4 digits, 1 letter.</p>}
+              <FileField label="PAN card" file={panFile} onFile={setPanFile} />
+            </div>
+          )}
 
           {/* Live selfie */}
           <div>

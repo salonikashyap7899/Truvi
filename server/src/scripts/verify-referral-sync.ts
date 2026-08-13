@@ -37,9 +37,22 @@ async function main() {
     cpCommissionAmount: 30000, platformFeeAmount: 0, tdsAmount: 0, status: "PENDING",
   });
 
-  // Expected: 2% of ₹10,00,000 = ₹20,000, + ₹100 first-transaction bonus.
-  const EXPECTED = Math.round(BOOKING * 0.02) + 100; // 20100
-  console.log(`\nExpected ambassador referral earnings = ₹${EXPECTED}\n`);
+  // Buyer referred by the ambassador books ₹20,00,000 in a NON-referred dev's
+  // project (3% commission) → Truvi sale commission ₹60,000 → ambassador 35% = ₹21,000.
+  const [dev2] = await db.insert(users).values({ name: "Dev2 " + TAG, email: `${TAG}_dev2@t.dev`, password: "x", role: "DEVELOPER" }).returning();
+  const [proj2] = await db.insert(projects).values({ developerId: dev2._id, name: "Proj2 " + TAG, description: "d", city: "Pune", location: "x", commissionPercent: 3 }).returning();
+  const [buyer] = await db.insert(users).values({ name: "Buyer " + TAG, email: `${TAG}_buyer@t.dev`, password: "x", role: "BUYER", phone: "9998887777", referredBy: amb._id }).returning();
+  const [lead2] = await db.insert(leads).values({ projectId: proj2._id, submittedById: seller._id, assignedToId: seller._id, clientName: "Buyer", clientPhone: "9998887777", source: "TEST", stage: "BOOKING" }).returning();
+  const BUYER_BOOKING = 2_000_000;
+  await db.insert(commissions).values({
+    leadId: lead2._id, cpId: seller._id, bookingValue: BUYER_BOOKING, commissionPercent: 3,
+    cpCommissionAmount: 60000, platformFeeAmount: 0, tdsAmount: 0, status: "PENDING",
+  });
+
+  const EXPECTED_DEV = Math.round(BOOKING * 0.02) + 100; // 20100 (2% + bonus)
+  const EXPECTED_BUYER = Math.round((BUYER_BOOKING * 0.03) * 0.35); // 21000 (35% of sale commission)
+  const EXPECTED = EXPECTED_DEV + EXPECTED_BUYER; // 41100 total referral
+  console.log(`\nExpected: developer ₹${EXPECTED_DEV} + buyer ₹${EXPECTED_BUYER} = ₹${EXPECTED} total\n`);
 
   const ambId = String(amb._id);
 
@@ -48,13 +61,16 @@ async function main() {
   console.log("getReferralBreakdown:");
   assert(breakdown.totalReferralEarnings === EXPECTED, `breakdown.totalReferralEarnings = ${breakdown.totalReferralEarnings}`);
   assert(breakdown.counts.developers === 1, `counts.developers = ${breakdown.counts.developers}`);
-  assert(breakdown.developers[0]?.incentiveEarned === EXPECTED, `developer row incentive = ${breakdown.developers[0]?.incentiveEarned}`);
+  assert(breakdown.counts.buyers === 1, `counts.buyers = ${breakdown.counts.buyers}`);
+  assert(breakdown.developers[0]?.incentiveEarned === EXPECTED_DEV, `developer row incentive = ${breakdown.developers[0]?.incentiveEarned}`);
+  assert(breakdown.buyers[0]?.incentiveEarned === EXPECTED_BUYER, `buyer row incentive = ${breakdown.buyers[0]?.incentiveEarned}`);
+  assert(breakdown.buyerRatePercent === 35, `buyerRatePercent = ${breakdown.buyerRatePercent}`);
 
   // 2. Ambassador wallet
   const wallet = await getCpWallet(ambId);
   console.log("getCpWallet (Ambassador dashboard):");
   assert(wallet.referralCommission === EXPECTED, `wallet.referralCommission = ${wallet.referralCommission}`);
-  assert(wallet.totalEarnings >= EXPECTED, `wallet.totalEarnings includes referral (${wallet.totalEarnings})`);
+  assert(wallet.buyerReferralCommission === EXPECTED_BUYER, `wallet.buyerReferralCommission = ${wallet.buyerReferralCommission}`);
   assert(wallet.pending === wallet.totalEarnings - wallet.paid, `pending = total - paid`);
 
   // 3. Admin partner summary
@@ -63,14 +79,14 @@ async function main() {
   console.log("getPartnersSummary (Admin/Founder list):");
   assert(!!row, "ambassador appears in partner summary");
   assert(row!.referralCommission === EXPECTED, `summary.referralCommission = ${row!.referralCommission}`);
-  assert(row!.referredDevelopers === 1, `summary.referredDevelopers = ${row!.referredDevelopers}`);
+  assert(row!.referredBuyers === 1, `summary.referredBuyers = ${row!.referredBuyers}`);
 
   // 4. Admin partner detail
   const detail = await getPartnerDetail(ambId);
   console.log("getPartnerDetail (Admin/Founder drill-down):");
   assert(!!detail, "detail loads");
   assert(detail!.wallet.referralCommission === EXPECTED, `detail.wallet.referralCommission = ${detail!.wallet.referralCommission}`);
-  assert(detail!.wallet.referral.developers[0]?.incentiveEarned === EXPECTED, `detail developer row = ${detail!.wallet.referral.developers[0]?.incentiveEarned}`);
+  assert(detail!.wallet.referral.buyers[0]?.incentiveEarned === EXPECTED_BUYER, `detail buyer row = ${detail!.wallet.referral.buyers[0]?.incentiveEarned}`);
 
   // 5. All three agree
   console.log("Cross-check (all three surfaces must match):");
@@ -89,10 +105,10 @@ async function main() {
   assert(lastMonth.totalReferralEarnings === 0, `last_month = ${lastMonth.totalReferralEarnings} (no txn, no double-counted bonus)`);
 
   // --- Cleanup
-  await db.delete(commissions).where(eq(commissions.leadId, lead._id));
-  await db.delete(leads).where(eq(leads._id, lead._id));
-  await db.delete(projects).where(eq(projects._id, proj._id));
-  await db.delete(users).where(inArray(users._id, [amb._id, seller._id, dev._id]));
+  await db.delete(commissions).where(inArray(commissions.leadId, [lead._id, lead2._id]));
+  await db.delete(leads).where(inArray(leads._id, [lead._id, lead2._id]));
+  await db.delete(projects).where(inArray(projects._id, [proj._id, proj2._id]));
+  await db.delete(users).where(inArray(users._id, [amb._id, seller._id, dev._id, dev2._id, buyer._id]));
 
   console.log("\n✅ ALL CHECKS PASSED — numbers are synchronized across all three dashboards.\n");
   await disconnectDB();

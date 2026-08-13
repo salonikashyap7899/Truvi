@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Building2, BadgePercent, ShieldCheck, Users, TrendingUp, IndianRupee, Activity, Share2, Copy } from "lucide-react";
 import { formatINR, formatCompactINR, formatDate } from "@/lib/utils";
+import BuyerReferralPanel from "@/components/BuyerReferralPanel";
 
 interface ReferredDev {
   _id: string;
@@ -233,6 +234,8 @@ export default function OnboardDevelopersPage() {
           </div>
         </form>
       </Card>
+
+      {isCp && <BuyerReferralPanel className="mt-8" />}
     </main>
   );
 }
