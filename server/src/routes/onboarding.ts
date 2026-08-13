@@ -10,6 +10,8 @@ import {
   REFERRAL_INCENTIVE_PERCENT,
   computeDeveloperReferralEarnings,
   computeCpReferralEarnings,
+  computeBuyerReferralEarnings,
+  buyerReferralRateForRole,
   rangeForPeriod,
 } from "../services/referralEarnings";
 
@@ -156,6 +158,18 @@ router.get("/cp-referrals", requireRole("AMBASSADOR"), async (req: AuthedRequest
   const range = rangeForPeriod(typeof req.query.period === "string" ? req.query.period : null);
   const { referredPartners, summary, bonusAmount } = await computeCpReferralEarnings(db, req.user!.userId, range);
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredPartners, summary });
+});
+
+// GET /api/onboarding/buyer-referrals — buyers this CP/Ambassador referred and
+// their revenue share (35% Ambassador / 45% CP) of Truvi's sale commission.
+router.get("/buyer-referrals", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
+  const range = rangeForPeriod(typeof req.query.period === "string" ? req.query.period : null);
+  const rate = buyerReferralRateForRole(req.user!.role);
+  const { referredBuyers, summary } = await computeBuyerReferralEarnings(db, req.user!.userId, rate, range);
+  res.json({ referralCode: code, ratePercent: Math.round(rate * 100), referredBuyers, summary });
 });
 
 // GET /api/onboarding/developers — the CP's own referrals (admins see all,

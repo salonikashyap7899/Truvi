@@ -16,6 +16,7 @@ import type { AmbassadorTask } from "@/types";
 import UserMenu from "@/components/UserMenu";
 import DeveloperReferralPanel from "@/components/DeveloperReferralPanel";
 import CpReferralPanel from "@/components/CpReferralPanel";
+import BuyerReferralPanel from "@/components/BuyerReferralPanel";
 import AmbassadorKnowledgeHub from "@/components/AmbassadorKnowledgeHub";
 
 function statusBadge(status: AmbassadorTask["status"]) {
@@ -111,6 +112,8 @@ export default function AmbassadorDashboardPage() {
       <DeveloperReferralPanel className="mt-8" />
 
       <CpReferralPanel className="mt-8" />
+
+      <BuyerReferralPanel className="mt-8" />
 
       <Level2ReferralSection />
 
@@ -726,9 +729,10 @@ interface AmbWallet {
   pending: number;
   nextPayable: number;
   referral?: {
-    counts: { developers: number; channelPartners: number; others: number; total: number };
+    counts: { developers: number; channelPartners: number; buyers: number; others: number; total: number };
     developers: { totalTransactions: number }[];
     channelPartners: { totalTransactions: number }[];
+    buyers: { totalTransactions: number }[];
   };
   payments: { _id: string; amount: number; mode: string; transactionId: string | null; paymentDate: string; notes: string | null }[];
 }
@@ -767,13 +771,15 @@ function AmbassadorCommissionSection() {
       {w?.referral && (
         <div className="mt-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">My Referrals</h3>
-          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
             <AmbTile icon={<Building2 size={15} />} label="Developers" value={String(w.referral.counts.developers)} />
             <AmbTile icon={<Handshake size={15} />} label="Channel Partners" value={String(w.referral.counts.channelPartners)} />
-            <AmbTile icon={<Users size={15} />} label="Other Referrals" value={String(w.referral.counts.others)} />
+            <AmbTile icon={<Users size={15} />} label="Buyers" value={String(w.referral.counts.buyers)} />
+            <AmbTile icon={<Users size={15} />} label="Others" value={String(w.referral.counts.others)} />
             <AmbTile icon={<TrendingUp size={15} />} label="Total Transactions" value={String(
               w.referral.developers.reduce((a, d) => a + d.totalTransactions, 0) +
-              w.referral.channelPartners.reduce((a, c) => a + c.totalTransactions, 0)
+              w.referral.channelPartners.reduce((a, c) => a + c.totalTransactions, 0) +
+              w.referral.buyers.reduce((a, b) => a + b.totalTransactions, 0)
             )} />
           </div>
         </div>

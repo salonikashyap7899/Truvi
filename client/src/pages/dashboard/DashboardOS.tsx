@@ -1142,8 +1142,8 @@ function CommissionsPage() {
   );
 }
 
-interface CommReferralRow { _id: string; name: string; totalTransactions?: number; totalSalesValue?: number; cpCommission?: number; percentEarned: number; firstTxnBonus: number; incentiveEarned: number; }
-interface CommReferral { counts: { developers: number; channelPartners: number; others: number; total: number }; developers: CommReferralRow[]; channelPartners: CommReferralRow[]; }
+interface CommReferralRow { _id: string; name: string; totalTransactions?: number; totalSalesValue?: number; cpCommission?: number; saleCommission?: number; percentEarned: number; firstTxnBonus?: number; incentiveEarned: number; }
+interface CommReferral { counts: { developers: number; channelPartners: number; buyers: number; others: number; total: number }; buyerRatePercent?: number; developers: CommReferralRow[]; channelPartners: CommReferralRow[]; buyers: CommReferralRow[]; }
 
 function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner; onClose: () => void; onPaid: (p: CommPartner) => void }) {
   const [amount, setAmount] = useState(String(partner.pending || ""));
@@ -1206,7 +1206,7 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
         {referral && referral.counts.total > 0 && (
           <div className="card" style={{ padding: 12, marginBottom: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--ink-500)", marginBottom: 6 }}>
-              Referrals · {referral.counts.developers} Developers · {referral.counts.channelPartners} Channel Partners{referral.counts.others > 0 ? ` · ${referral.counts.others} Others` : ""}
+              Referrals · {referral.counts.developers} Developers · {referral.counts.channelPartners} Channel Partners · {referral.counts.buyers} Buyers{referral.counts.others > 0 ? ` · ${referral.counts.others} Others` : ""}
             </div>
             {referral.developers.length > 0 && (
               <div className="table-wrap" style={{ marginTop: 4 }}><table style={{ fontSize: 12 }}>
@@ -1221,6 +1221,14 @@ function CommissionPayModal({ partner, onClose, onPaid }: { partner: CommPartner
                 <thead><tr><th>Channel Partner</th><th>Their commission</th><th>2% + bonus</th></tr></thead>
                 <tbody>{referral.channelPartners.map((r) => (
                   <tr key={r._id}><td>{r.name}</td><td>{formatINR(r.cpCommission ?? 0)}</td><td><b>{formatINR(r.incentiveEarned)}</b></td></tr>
+                ))}</tbody>
+              </table></div>
+            )}
+            {referral.buyers.length > 0 && (
+              <div className="table-wrap" style={{ marginTop: 8 }}><table style={{ fontSize: 12 }}>
+                <thead><tr><th>Buyer</th><th>Bookings</th><th>Sale commission</th><th>{referral.buyerRatePercent ?? 35}% earned</th></tr></thead>
+                <tbody>{referral.buyers.map((r) => (
+                  <tr key={r._id}><td>{r.name}</td><td>{r.totalTransactions ?? 0}</td><td>{formatINR(r.saleCommission ?? 0)}</td><td><b>{formatINR(r.incentiveEarned)}</b></td></tr>
                 ))}</tbody>
               </table></div>
             )}

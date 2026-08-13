@@ -86,7 +86,10 @@ export interface CpWallet {
   developerReferralCommission: number;
   /** Payable 2% + bonus on the Channel Partners this partner referred. */
   cpReferralCommission: number;
-  /** developerReferralCommission + cpReferralCommission. */
+  /** Payable share (35% Ambassador / 45% CP) of Truvi's sale commission on
+   *  bookings by buyers this partner referred. */
+  buyerReferralCommission: number;
+  /** developerReferralCommission + cpReferralCommission + buyerReferralCommission. */
   referralCommission: number;
   totalEarnings: number;
   paid: number;
@@ -96,7 +99,7 @@ export interface CpWallet {
   referral: ReferralBreakdown;
   history: {
     _id: string;
-    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE" | "DEVELOPER_REFERRAL" | "CP_REFERRAL";
+    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE" | "DEVELOPER_REFERRAL" | "CP_REFERRAL" | "BUYER_REFERRAL";
     amount: number;
     date: Date;
     description: string;
@@ -149,7 +152,8 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
   const referral = await getReferralBreakdown(db, cpId);
   const developerReferralCommission = round2(referral.developerReferral);
   const cpReferralCommission = round2(referral.cpReferral);
-  const referralCommission = round2(developerReferralCommission + cpReferralCommission);
+  const buyerReferralCommission = round2(referral.buyerReferral);
+  const referralCommission = round2(developerReferralCommission + cpReferralCommission + buyerReferralCommission);
 
   // Property-sale commission = legacy auto commissions + admin-added manual ones.
   const saleCommission = round2(
@@ -180,6 +184,16 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
         amount: round2(c.incentiveEarned),
         date: c.lastTransactionAt ? new Date(c.lastTransactionAt) : c.createdAt,
         description: `Channel Partner referral — 2% on ₹${c.cpCommission.toLocaleString("en-IN")} earnings${c.firstTxnBonus > 0 ? " + bonus" : ""} (${c.name})`,
+        status: "ACCRUED",
+      })),
+    ...referral.buyers
+      .filter((b) => b.incentiveEarned > 0)
+      .map((b) => ({
+        _id: `buyerref-${b._id}`,
+        type: "BUYER_REFERRAL" as const,
+        amount: round2(b.incentiveEarned),
+        date: b.lastTransactionAt ? new Date(b.lastTransactionAt) : b.createdAt,
+        description: `Buyer referral — ${referral.buyerRatePercent}% of ₹${b.saleCommission.toLocaleString("en-IN")} sale commission (${b.name})`,
         status: "ACCRUED",
       })),
     ...saleRows.map((r) => ({
@@ -218,6 +232,7 @@ export async function getCpWallet(cpId: string): Promise<CpWallet> {
     saleCommission,
     developerReferralCommission,
     cpReferralCommission,
+    buyerReferralCommission,
     referralCommission,
     totalEarnings,
     paid,
@@ -240,6 +255,7 @@ export interface PartnerSummary {
   /** How many people this partner referred, by type. */
   referredDevelopers: number;
   referredChannelPartners: number;
+  referredBuyers: number;
   total: number;
   paid: number;
   pending: number;
@@ -292,6 +308,7 @@ export async function getPartnersSummary(): Promise<PartnerSummary[]> {
         referralCommission,
         referredDevelopers: ref?.counts.developers ?? 0,
         referredChannelPartners: ref?.counts.channelPartners ?? 0,
+        referredBuyers: ref?.counts.buyers ?? 0,
         total,
         paid,
         pending,

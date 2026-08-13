@@ -56,13 +56,28 @@ interface CpReferralRow {
   incentiveEarned: number;
   lastTransactionAt: string | null;
 }
+interface BuyerReferralRow {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  totalTransactions: number;
+  totalSalesValue: number;
+  saleCommission: number;
+  percentEarned: number;
+  incentiveEarned: number;
+  lastTransactionAt: string | null;
+}
 interface ReferralBreakdown {
-  counts: { developers: number; channelPartners: number; others: number; total: number };
+  counts: { developers: number; channelPartners: number; buyers: number; others: number; total: number };
   developerReferral: number;
   cpReferral: number;
+  buyerReferral: number;
+  buyerRatePercent: number;
   totalReferralEarnings: number;
   developers: DeveloperReferralRow[];
   channelPartners: CpReferralRow[];
+  buyers: BuyerReferralRow[];
 }
 
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
@@ -453,11 +468,15 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             {/* Performance overview — referrals + transactions */}
             {(() => {
               const r = d.wallet.referral;
-              const totalTxns = (r?.developers ?? []).reduce((a, x) => a + x.totalTransactions, 0) + (r?.channelPartners ?? []).reduce((a, x) => a + x.totalTransactions, 0);
+              const totalTxns =
+                (r?.developers ?? []).reduce((a, x) => a + x.totalTransactions, 0) +
+                (r?.channelPartners ?? []).reduce((a, x) => a + x.totalTransactions, 0) +
+                (r?.buyers ?? []).reduce((a, x) => a + x.totalTransactions, 0);
               return (
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
                   <MiniStat label="Developers Referred" value={String(r?.counts.developers ?? 0)} />
-                  <MiniStat label="Channel Partners Referred" value={String(r?.counts.channelPartners ?? 0)} />
+                  <MiniStat label="Channel Partners" value={String(r?.counts.channelPartners ?? 0)} />
+                  <MiniStat label="Buyers Referred" value={String(r?.counts.buyers ?? 0)} />
                   <MiniStat label="Other Referrals" value={String(r?.counts.others ?? 0)} />
                   <MiniStat label="Total Transactions" value={String(totalTxns)} />
                 </div>
@@ -620,14 +639,14 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
  *  the same data the ambassador sees, so Admin / Founder / Ambassador agree. */
 function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
   if (!referral) return null;
-  const { counts, developers, channelPartners } = referral;
+  const { counts, developers, channelPartners, buyers } = referral;
   if (counts.total === 0) return null;
   return (
     <div className="mt-5">
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Referrals</h3>
         <span className="text-xs text-muted-foreground">
-          {counts.developers} Developers · {counts.channelPartners} Channel Partners{counts.others > 0 ? ` · ${counts.others} Others` : ""}
+          {counts.developers} Developers · {counts.channelPartners} Channel Partners · {counts.buyers} Buyers{counts.others > 0 ? ` · ${counts.others} Others` : ""}
         </span>
       </div>
 
@@ -687,6 +706,36 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
                     <td className="px-3 py-2 text-right tabular-nums text-emerald-300">{formatINR(r.percentEarned)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-amber-300">{r.firstTxnBonus > 0 ? formatINR(r.firstTxnBonus) : "—"}</td>
                     <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatINR(r.incentiveEarned)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {buyers.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-semibold text-amber-300/90">Referred Buyers ({referral.buyerRatePercent}% of sale commission)</p>
+          <div className="overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[560px] text-left text-xs">
+              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Buyer</th>
+                  <th className="px-3 py-2 text-right">Bookings</th>
+                  <th className="px-3 py-2 text-right">Booking value</th>
+                  <th className="px-3 py-2 text-right">Sale commission</th>
+                  <th className="px-3 py-2 text-right">{referral.buyerRatePercent}% earned</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {buyers.map((r) => (
+                  <tr key={r._id}>
+                    <td className="px-3 py-2"><span className="font-medium text-white/90">{r.name}</span></td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.totalTransactions}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.totalSalesValue)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.saleCommission)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-emerald-300">{formatINR(r.incentiveEarned)}</td>
                   </tr>
                 ))}
               </tbody>
