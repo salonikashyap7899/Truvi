@@ -90,10 +90,6 @@ export default function AmbassadorDashboardPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold">Ambassador Dashboard</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Accept a site-verification task, complete the on-site checklist, upload proof, and earn{" "}
-            <span className="text-emerald-300">₹500</span> per completed task.
-          </p>
         </div>
         <div className="space-y-1 text-right">
           <div className="flex justify-end"><UserMenu /></div>
@@ -138,6 +134,10 @@ export default function AmbassadorDashboardPage() {
               <h2 className="text-xl font-semibold">Available tasks</h2>
               <span className="text-sm text-muted-foreground">{available.length} open</span>
             </div>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Accept a site-verification task, complete the on-site checklist, upload proof, and earn{" "}
+              <span className="text-emerald-300">₹500</span> per completed task.
+            </p>
 
             {loading ? (
               <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-muted-foreground">
