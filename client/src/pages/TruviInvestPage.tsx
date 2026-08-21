@@ -427,54 +427,76 @@ export default function TruviInvestPage() {
 
 /* ------------------------------------------------- Investment example (illustrative) */
 function InvestmentExample() {
+  // Reconciled, pool-based example: one investor's ₹25L is a share of a ₹1 Cr
+  // investor pool, which is deployed into a ₹5 Cr project. Deployment percentages
+  // are of the ₹1 Cr POOL, and the rupee amounts add up exactly — so nothing is
+  // confusing or unexplained.
+  const POOL = 1_00_00_000; // ₹1 Cr
+  const YOU = 25_00_000; // ₹25 L
   const alloc = [
-    { label: "Land acquisition", tone: "bg-emerald-400" },
-    { label: "Development", tone: "bg-teal-400" },
-    { label: "Infrastructure", tone: "bg-sky-400" },
-    { label: "Project expenses", tone: "bg-violet-400" },
+    { label: "Land / Acquisition", pct: 40, tone: "bg-emerald-400" },
+    { label: "Development", pct: 35, tone: "bg-teal-400" },
+    { label: "Infrastructure", pct: 15, tone: "bg-sky-400" },
+    { label: "Project costs", pct: 10, tone: "bg-violet-400" },
   ];
-  // A clean top-to-bottom flow: how one investor's ₹25L participates in a much
-  // larger project through the pool / project vehicle. No confusing figures —
-  // the point is the JOURNEY of the money, not fixed numbers.
-  const steps: { label: string; sub?: string; icon: React.ReactNode; body?: React.ReactNode }[] = [
-    { label: "Investor Capital", sub: "e.g. ₹25,00,000", icon: <Wallet size={16} /> },
-    { label: "Truvi Investment Pool / Project Vehicle", sub: "Your capital joins the structured vehicle for the deal", icon: <Layers size={16} /> },
-    { label: "Selected Project", sub: "A verified, evaluated real-estate opportunity", icon: <Building2 size={16} /> },
-    {
-      label: "Capital Deployment", icon: <Coins size={16} />,
-      body: (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {alloc.map((a) => (
-            <span key={a.label} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/80">
-              <span className={`size-2 rounded-full ${a.tone}`} /> {a.label}
-            </span>
-          ))}
-        </div>
-      ),
-    },
-    { label: "Project Revenue / Exit", sub: "Value from sale, appreciation, rental income or exit", icon: <TrendingUp size={16} /> },
-    { label: "Investor Distribution", sub: "Returns shared per the agreed investment structure", icon: <PieChart size={16} /> },
-  ];
+  const sharePct = Math.round((YOU / POOL) * 100);
   return (
-    <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="space-y-1">
-        {steps.map((s, i) => (
-          <div key={s.label}>
-            <div className={`rounded-xl border p-3.5 ${i === 0 ? "border-emerald-500/30 bg-emerald-500/[0.06]" : i === steps.length - 1 ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-white/10 bg-white/[0.03]"}`}>
-              <div className="flex items-center gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-300">{s.icon}</span>
-                <div>
-                  <p className="text-sm font-semibold">{s.label}</p>
-                  {s.sub && <p className="text-[11px] text-muted-foreground">{s.sub}</p>}
-                </div>
-              </div>
-              {s.body}
-            </div>
-            {i < steps.length - 1 && <p className="py-0.5 text-center text-white/25">↓</p>}
-          </div>
-        ))}
+    <div className="mx-auto max-w-3xl space-y-4">
+      {/* Top-line: your ticket vs the pool vs the project */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4">
+          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground"><Wallet size={13} /> Your Investment</p>
+          <p className="mt-1 font-display text-xl font-bold text-emerald-300">{formatINR(YOU)}</p>
+          <p className="text-[11px] text-muted-foreground">{sharePct}% of the investor pool</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground"><Layers size={13} /> Total Investor Pool</p>
+          <p className="mt-1 font-display text-xl font-bold">{formatINR(POOL)}</p>
+          <p className="text-[11px] text-muted-foreground">Capital from all investors in this deal</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground"><Building2 size={13} /> Selected Project</p>
+          <p className="mt-1 font-display text-xl font-bold">₹5 Cr</p>
+          <p className="text-[11px] text-muted-foreground">Verified, evaluated opportunity</p>
+        </div>
       </div>
-      <p className="mt-4 text-[11px] text-muted-foreground">Illustrative only — it shows how a single investor&apos;s capital participates in a larger project. Actual pooling, allocation, exit value and profit-sharing are defined per project in the investment agreement, under the applicable legal structure — no fixed promise.</p>
+
+      {/* Deployment of the ₹1 Cr pool — %s and ₹ that add up to the pool */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deployment of the {formatINR(POOL)} investor pool</p>
+        <div className="mt-3 flex h-3 overflow-hidden rounded-full">
+          {alloc.map((a) => <div key={a.label} className={a.tone} style={{ width: `${a.pct}%` }} />)}
+        </div>
+        <div className="mt-3 divide-y divide-white/5">
+          {alloc.map((a) => (
+            <div key={a.label} className="flex items-center justify-between py-2 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground"><span className={`size-2.5 rounded-full ${a.tone}`} /> {a.label}</span>
+              <span className="flex items-center gap-3">
+                <span className="w-10 text-right tabular-nums text-muted-foreground">{a.pct}%</span>
+                <span className="w-20 text-right font-semibold tabular-nums">{formatINR((POOL * a.pct) / 100)}</span>
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between py-2 text-sm font-semibold">
+            <span>Total deployed</span>
+            <span className="tabular-nums text-emerald-300">{formatINR(POOL)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Then: revenue → distribution, pro-rata to your share */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground"><TrendingUp size={13} /> Project Revenue / Exit</p>
+          <p className="mt-1 text-sm text-white/90">Value from sale, appreciation, rental income or project exit.</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-4">
+          <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground"><PieChart size={13} /> Investor Distribution</p>
+          <p className="mt-1 text-sm text-white/90">Returns shared per the agreed structure — pro-rata to your <b className="text-emerald-300">{formatINR(YOU)}</b> ({sharePct}%) share of the pool.</p>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">Illustrative example with round numbers. Actual pool size, allocation %, exit value and profit-sharing are defined per project in the investment agreement, under the applicable legal structure — no fixed promise.</p>
     </div>
   );
 }
