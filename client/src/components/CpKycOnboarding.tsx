@@ -81,12 +81,26 @@ export function CpKycOnboarding() {
   }, [user?.onboardingVerified]);
 
   async function startCamera() {
+    // In-app browsers (WhatsApp / Instagram / Facebook) and non-HTTPS contexts
+    // often don't expose the camera API — guard it so we show a clear message
+    // instead of throwing. On mobile, opening the site in Chrome / Safari fixes it.
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      toast.error("Camera isn't available in this browser. Please open truviventures.com in Chrome or Safari (not inside another app), then try again.");
+      return;
+    }
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       setStream(s);
       setCameraOn(true);
-    } catch {
-      toast.error("Couldn't access the camera. Allow camera permission and use a device with a front camera.");
+    } catch (err: any) {
+      const name = err?.name || "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        toast.error("Camera permission was blocked. Allow camera access for this site in your browser settings, then try again.");
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        toast.error("No front camera found. Please use a device with a front-facing camera.");
+      } else {
+        toast.error("Couldn't access the camera. Allow camera permission and use Chrome or Safari on your phone.");
+      }
     }
   }
 
