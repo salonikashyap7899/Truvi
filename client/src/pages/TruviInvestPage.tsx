@@ -114,10 +114,10 @@ export default function TruviInvestPage() {
             <TrendingUp size={13} /> Truvi Invest · Capital into verified real estate
           </span>
           <h1 className="mt-5 font-display text-3xl font-semibold leading-tight md:text-5xl">
-            Invest in real estate. <span className="text-gradient-trust">Truvi manages the opportunity.</span>
+            Invest in Real Estate. <span className="text-gradient-trust">Truvi Finds, Verifies &amp; Manages the Opportunity.</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-base">
-            Access professionally evaluated real-estate opportunities selected through Truvi&apos;s verification, market intelligence and investment analysis. Your capital is deployed into selected projects designed to generate returns through development, appreciation, rental income or asset exits.
+            Your capital is allocated to selected real-estate opportunities identified and evaluated by Truvi, with project progress, capital deployment and investment performance tracked through the platform.
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <button onClick={() => goToClub()} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-90">
@@ -383,48 +383,53 @@ export default function TruviInvestPage() {
 /* ------------------------------------------------- Investment example (illustrative) */
 function InvestmentExample() {
   const alloc = [
-    { label: "Land acquisition", pct: 40, tone: "bg-emerald-400" },
-    { label: "Development", pct: 35, tone: "bg-teal-400" },
-    { label: "Infrastructure", pct: 15, tone: "bg-sky-400" },
-    { label: "Project costs", pct: 10, tone: "bg-violet-400" },
+    { label: "Land acquisition", tone: "bg-emerald-400" },
+    { label: "Development", tone: "bg-teal-400" },
+    { label: "Infrastructure", tone: "bg-sky-400" },
+    { label: "Project expenses", tone: "bg-violet-400" },
   ];
-  const flow = [
-    { label: "Investor Capital", value: "₹25,00,000", icon: <Wallet size={15} /> },
-    { label: "Selected Project", value: "₹5 Cr project", icon: <Building2 size={15} /> },
-    { label: "Truvi Capital Allocation", value: "₹1 Cr structured capital", icon: <Coins size={15} /> },
+  // A clean top-to-bottom flow: how one investor's ₹25L participates in a much
+  // larger project through the pool / project vehicle. No confusing figures —
+  // the point is the JOURNEY of the money, not fixed numbers.
+  const steps: { label: string; sub?: string; icon: React.ReactNode; body?: React.ReactNode }[] = [
+    { label: "Investor Capital", sub: "e.g. ₹25,00,000", icon: <Wallet size={16} /> },
+    { label: "Truvi Investment Pool / Project Vehicle", sub: "Your capital joins the structured vehicle for the deal", icon: <Layers size={16} /> },
+    { label: "Selected Project", sub: "A verified, evaluated real-estate opportunity", icon: <Building2 size={16} /> },
+    {
+      label: "Capital Deployment", icon: <Coins size={16} />,
+      body: (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {alloc.map((a) => (
+            <span key={a.label} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/80">
+              <span className={`size-2 rounded-full ${a.tone}`} /> {a.label}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    { label: "Project Revenue / Exit", sub: "Value from sale, appreciation, rental income or exit", icon: <TrendingUp size={16} /> },
+    { label: "Investor Distribution", sub: "Returns shared per the agreed investment structure", icon: <PieChart size={16} /> },
   ];
   return (
-    <div className="grid grid-cols-1 gap-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 lg:grid-cols-2">
-      <div className="space-y-2">
-        {flow.map((f, i) => (
-          <div key={f.label}>
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <span className="grid size-9 place-items-center rounded-lg bg-emerald-500/15 text-emerald-300">{f.icon}</span>
-              <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground">{f.label}</p><p className="text-sm font-semibold">{f.value}</p></div>
+    <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+      <div className="space-y-1">
+        {steps.map((s, i) => (
+          <div key={s.label}>
+            <div className={`rounded-xl border p-3.5 ${i === 0 ? "border-emerald-500/30 bg-emerald-500/[0.06]" : i === steps.length - 1 ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-white/10 bg-white/[0.03]"}`}>
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-500/15 text-emerald-300">{s.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold">{s.label}</p>
+                  {s.sub && <p className="text-[11px] text-muted-foreground">{s.sub}</p>}
+                </div>
+              </div>
+              {s.body}
             </div>
-            {i < flow.length - 1 && <p className="py-0.5 text-center text-white/25">↓</p>}
+            {i < steps.length - 1 && <p className="py-0.5 text-center text-white/25">↓</p>}
           </div>
         ))}
       </div>
-      <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Deployment of allocated capital</p>
-        <div className="mt-3 flex h-3 overflow-hidden rounded-full">
-          {alloc.map((a) => <div key={a.label} className={a.tone} style={{ width: `${a.pct}%` }} />)}
-        </div>
-        <div className="mt-3 space-y-1.5">
-          {alloc.map((a) => (
-            <div key={a.label} className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-muted-foreground"><span className={`size-2.5 rounded-full ${a.tone}`} /> {a.label}</span>
-              <span className="tabular-nums font-medium">{a.pct}%</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Illustrative project exit</p><p className="mt-0.5 font-semibold text-emerald-300">₹1.35 Cr</p></div>
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Investor return</p><p className="mt-0.5 font-semibold">Per agreed waterfall</p></div>
-        </div>
-        <p className="mt-3 text-[11px] text-muted-foreground">Illustrative only. Actual allocation, exit value and profit-sharing are defined per project in the investment agreement — no fixed promise.</p>
-      </div>
+      <p className="mt-4 text-[11px] text-muted-foreground">Illustrative only — it shows how a single investor&apos;s capital participates in a larger project. Actual pooling, allocation, exit value and profit-sharing are defined per project in the investment agreement, under the applicable legal structure — no fixed promise.</p>
     </div>
   );
 }
