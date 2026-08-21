@@ -8,7 +8,7 @@ import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
 import {
   TrendingUp, ShieldCheck, MapPin, Building2, Trees, Store,
   Sparkles, Wallet, Crown, ArrowRight, BadgeCheck, Loader2, Info, LineChart, X, Clock,
-  Layers, Target, FileText, CheckCircle2, PieChart, Coins, Scale, Workflow,
+  Layers, Target, CheckCircle2, PieChart, Coins, Scale, Workflow,
 } from "lucide-react";
 
 interface Investable {
@@ -41,9 +41,21 @@ interface Opportunity {
   isVerified: boolean;
   listingTier: string | null;
   isPrimeListing: boolean;
+  projectType: string | null;
   reraNumber: string | null;
   coverImageUrl: string | null;
   minRate: number | null;
+}
+
+/** A readable investment "type" label + primary return driver from the
+ *  project type — turns a listing into an investment thesis. */
+function investmentThesis(projectType: string | null) {
+  const t = (projectType || "").toUpperCase();
+  if (t.includes("LAND") || t.includes("PLOT")) return { label: "LAND / PLOTTED", driver: "Development + appreciation" };
+  if (t.includes("COMMERCIAL") || t.includes("OFFICE") || t.includes("RETAIL")) return { label: "COMMERCIAL", driver: "Rental income + appreciation" };
+  if (t.includes("VILLA") || t.includes("PLOTTED")) return { label: "DEVELOPMENT", driver: "Development + appreciation" };
+  if (t.includes("APARTMENT") || t.includes("RESIDENTIAL") || t.includes("FLAT")) return { label: "RESIDENTIAL", driver: "Appreciation + rental" };
+  return { label: "REAL ESTATE", driver: "Development + appreciation" };
 }
 
 /** A transparent Truvi Score derived only from REAL verification / listing
@@ -76,6 +88,21 @@ const HOW_STEPS = [
   { n: "04", title: "Project Creates Value", desc: "Capital is used for acquisition, development, construction, leasing or other approved project activities.", icon: <Workflow size={16} /> },
   { n: "05", title: "Exit / Income", desc: "The asset generates value through sale, appreciation, rental income or project exit.", icon: <TrendingUp size={16} /> },
   { n: "06", title: "Investor Receives Return", desc: "Returns are distributed according to the applicable investment agreement and project structure.", icon: <Wallet size={16} /> },
+];
+
+/** The full investor onboarding funnel shown under the Investor Club form. */
+const INVESTOR_FUNNEL = [
+  "Join Investor Club",
+  "Investor Profile",
+  "KYC",
+  "Investor Eligibility / Suitability",
+  "Investment Mandate",
+  "Opportunity Access",
+  "Investment Proposal",
+  "Investor Approval",
+  "Investment Agreement",
+  "Capital Deployment",
+  "Portfolio Dashboard",
 ];
 
 export default function TruviInvestPage() {
@@ -174,6 +201,26 @@ export default function TruviInvestPage() {
         <InvestmentExample />
       </Section>
 
+      {/* ------------------------------------------------- Why investors use Truvi */}
+      <Section title="Why Investors Use Truvi" sub="What you get with Truvi that a traditional property portal doesn't offer.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { icon: <Target size={18} />, t: "Access", d: "Opportunities that may not be available through traditional property portals." },
+            { icon: <ShieldCheck size={18} />, t: "Verification", d: "Title, approvals, location, market, developer and project-level due diligence." },
+            { icon: <Sparkles size={18} />, t: "Intelligence", d: "Infrastructure, demand, comparable transactions and growth drivers." },
+            { icon: <Scale size={18} />, t: "Structure", d: "Investment terms and project economics presented before commitment." },
+            { icon: <PieChart size={18} />, t: "Transparency", d: "Track capital deployment, milestones, project performance and exit progress." },
+            { icon: <Wallet size={18} />, t: "One Portfolio", d: "Multiple real-estate investments tracked from one dashboard." },
+          ].map((c) => (
+            <div key={c.t} className="rounded-2xl border border-emerald-500/20 bg-emerald-950/[0.08] p-5">
+              <span className="grid size-10 place-items-center rounded-xl bg-emerald-500/15 text-emerald-300">{c.icon}</span>
+              <p className="mt-3 font-semibold">{c.t}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{c.d}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
       {/* ------------------------------------------------ Open for investment */}
       {investables.length > 0 && (
         <Section title="Open for Investment" sub="Selected verified projects currently accepting investor capital, with admin-set targeted terms. Returns are targeted / projected, not guaranteed.">
@@ -211,41 +258,40 @@ export default function TruviInvestPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {opps.map((o) => {
               const sc = truviScore(o);
+              const th = investmentThesis(o.projectType);
               return (
-                <div key={o._id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+                <div key={o._id} className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
                   <div className="relative h-40 bg-gradient-to-br from-white/5 to-white/[0.02]">
                     {o.coverImageUrl ? (
                       <img src={o.coverImageUrl} alt={o.name} className="h-full w-full object-cover" />
                     ) : (
                       <div className="grid h-full place-items-center text-white/20"><Building2 size={40} /></div>
                     )}
-                    <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-bold ${sc.risk === "Low" ? "bg-emerald-500/90" : sc.risk === "Medium" ? "bg-amber-500/90" : "bg-rose-500/90"} text-white`}>
-                      {sc.risk} risk
+                    <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
+                      {[o.city, th.label].filter(Boolean).join(" · ")}
                     </span>
+                    <span className="absolute right-3 top-3 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-xs font-bold text-white">Score {sc.overall}</span>
                   </div>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold">{o.name}</p>
-                        <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={11} /> {[o.location, o.city].filter(Boolean).join(", ") || "—"}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-display text-xl font-bold text-emerald-300">{sc.overall}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Truvi Score™</p>
-                      </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <p className="font-semibold">{o.name}</p>
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={11} /> {[o.location, o.city].filter(Boolean).join(", ") || "—"}</p>
+
+                    <div className="mt-3 space-y-1.5 text-sm">
+                      <MemoLine label="Truvi Investment Score™" value={`${sc.overall}/100`} accent />
+                      <MemoLine label="Risk" value={sc.risk} />
+                      <MemoLine label="Primary return driver" value={th.driver} />
+                      {o.developer && <MemoLine label="Developer" value={o.developer} />}
                     </div>
+
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                       {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Verified</span>}
                       {o.reraNumber && <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300"><ShieldCheck size={11} /> RERA</span>}
                       {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Prime</span>}
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{o.minRate ? `From ${formatINR(o.minRate)}/sq ft` : "Price on request"}</span>
-                      <span>{o.developer ?? ""}</span>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <Link to={`/inventory/${o._id}/presentation`} className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-center text-xs font-semibold hover:bg-white/10">Investment memo</Link>
-                      <button onClick={() => goToClub(o.name)} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500">Express interest</button>
+
+                    <div className="mt-4 flex gap-2 pt-1">
+                      <Link to={`/inventory/${o._id}/presentation`} className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-center text-xs font-semibold text-white hover:bg-emerald-500">View Investment Memo →</Link>
+                      <button onClick={() => goToClub(o.name)} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10">Interest</button>
                     </div>
                   </div>
                 </div>
@@ -342,18 +388,17 @@ export default function TruviInvestPage() {
             <p className="mt-2 text-sm text-muted-foreground">Tell us how you invest. After you join, our team completes your investor profile, KYC and mandate — then shares matched, verified opportunities.</p>
           </div>
           <InvestorClubForm />
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-4">
-            {[
-              { icon: <Crown size={15} />, t: "Join Club" },
-              { icon: <ShieldCheck size={15} />, t: "Profile + KYC" },
-              { icon: <FileText size={15} />, t: "Investment Mandate" },
-              { icon: <Target size={15} />, t: "Opportunity Access" },
-            ].map((s, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-muted-foreground">
-                <span className="grid size-7 place-items-center rounded-lg bg-emerald-500/15 text-emerald-300">{s.icon}</span>
-                <span className="font-medium text-white/80">{s.t}</span>
-              </div>
-            ))}
+          <div className="mt-8">
+            <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">The Investor Journey</p>
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {INVESTOR_FUNNEL.map((step, i) => (
+                <div key={step} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                  <span className={`grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ${i === 0 ? "bg-emerald-500 text-white" : "bg-white/10 text-white/70"}`}>{i + 1}</span>
+                  <span className={`text-xs font-medium ${i === 0 ? "text-emerald-300" : "text-white/80"}`}>{step}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">You start at step 1 — the Truvi team guides you through the rest. Capital is deployed only after your approval and the signed investment agreement.</p>
           </div>
         </div>
       </section>
@@ -681,19 +726,32 @@ function ReturnSimulator() {
         </label>
         <p className="text-[11px] text-muted-foreground sm:col-span-2">Fixed / Equity structures are subject to legal structuring and eligibility. Percentages are illustrative modelling assumptions, not offers.</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <RoiOut label="Invested capital" value={formatINR(Math.round(r.P))} />
-        <RoiOut label="Projected exit value" value={formatINR(Math.round(r.exitValue))} />
-        <RoiOut label="Expected investor return" value={formatINR(Math.round(r.investorReturn))} accent />
-        <RoiOut label="Expected profit share" value={formatINR(Math.round(r.investorProfit))} accent />
-        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-[11px] text-muted-foreground">Risk level</p><p className={`mt-0.5 font-display text-lg font-semibold ${r.risk === "Low" ? "text-emerald-300" : r.risk === "Medium" ? "text-amber-300" : "text-rose-300"}`}>{r.risk}</p></div>
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.08] p-3 text-center"><p className="text-[11px] text-muted-foreground">Estimated IRR</p><p className="font-display text-2xl font-bold text-emerald-300">{r.irr.toFixed(1)}%</p></div>
-        <p className="col-span-2 text-[10px] text-muted-foreground">Illustrative projection only. Actual returns depend on project performance and the applicable investment structure.</p>
+      <div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold text-amber-300"><Info size={12} /> Illustrative Scenario</span>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <RoiOut label="Invested capital" value={formatINR(Math.round(r.P))} />
+          <RoiOut label="Projected exit value" value={formatINR(Math.round(r.exitValue))} />
+          <RoiOut label="Illustrative Investor Proceeds" value={formatINR(Math.round(r.investorReturn))} accent />
+          <RoiOut label="Illustrative profit share" value={formatINR(Math.round(r.investorProfit))} accent />
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-[11px] text-muted-foreground">Risk level</p><p className={`mt-0.5 font-display text-lg font-semibold ${r.risk === "Low" ? "text-emerald-300" : r.risk === "Medium" ? "text-amber-300" : "text-rose-300"}`}>{r.risk}</p></div>
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.08] p-3 text-center"><p className="text-[11px] text-muted-foreground">Illustrative IRR</p><p className="font-display text-2xl font-bold text-emerald-300">{r.irr.toFixed(1)}%</p></div>
+        </div>
+        <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] p-2.5 text-[11px] font-medium text-amber-200/90">
+          Not an offer, guarantee or assured return. Actual outcomes depend on project performance, costs, holding period and investment structure.
+        </p>
       </div>
     </div>
   );
 }
 
+function MemoLine({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-right text-sm font-semibold ${accent ? "text-emerald-300" : "text-white/90"}`}>{value}</span>
+    </div>
+  );
+}
 function RoiOut({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
