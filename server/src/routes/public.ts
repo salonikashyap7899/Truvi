@@ -84,6 +84,7 @@ router.get("/projects", async (req, res) => {
       isVerified: p.isVerified,
       listingTier: p.listingTier,
       isPrimeListing: p.isPrimeListing,
+      projectType: p.projectType ?? null,
       reraNumber: p.reraNumber ?? null,
       coverImageUrl: coverMap.get(String(p._id)) ?? null,
       minRate: rateMap.has(String(p._id)) ? Math.round(rateMap.get(String(p._id))!) : null,
