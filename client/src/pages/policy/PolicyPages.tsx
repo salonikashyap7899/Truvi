@@ -5,7 +5,7 @@ import { SiteNav } from "@/components/SiteNav";
 const COMPANY = "Truvi Ventures (Truston Developers Pvt. Ltd.)";
 const CITY = "Lucknow, Uttar Pradesh, India";
 const SUPPORT_EMAIL = "info@truviventures.com";
-const UPDATED = "These are placeholder policies — replace with your finalised legal copy before going live.";
+const UPDATED = "Last updated: August 2026";
 
 function PolicyShell({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -69,15 +69,34 @@ export function RefundPolicyPage() {
 export function PrivacyPolicyPage() {
   return (
     <PolicyShell title="Privacy Policy">
-      <p>{COMPANY} respects your privacy. This policy explains what we collect and why.</p>
-      <h2>1. What we collect</h2>
-      <p>Contact details you provide (name, email, phone), the services you purchase, and payment metadata (order and payment IDs). Card and bank details are handled directly by Razorpay — we never see or store them.</p>
+      <p>{COMPANY} ("Truvi", "we", "us") respects your privacy. This policy explains what we collect, why, and your choices — and applies to our website (truviventures.com) and our Truvi mobile app.</p>
+
+      <h2>1. Information we collect</h2>
+      <p><strong>Account &amp; contact details</strong> you provide — name, email, phone, city, and your role (buyer, channel partner, ambassador, developer).</p>
+      <p><strong>Identity verification (KYC)</strong> — for Channel Partners and Ambassadors, we collect your Aadhaar number and document, PAN (for Channel Partners), and a <strong>live selfie captured using your device camera</strong>. These are used solely to verify your identity and are stored securely; they are never sold or used for advertising.</p>
+      <p><strong>Camera</strong> — the app uses your camera only when you actively take the live selfie during identity verification. It is not used at any other time and no images are captured without your action.</p>
+      <p><strong>Location</strong> — for on-site verification tasks, an ambassador may share their device location to confirm they are physically at the project site. Location is used only for that task and only when you grant permission.</p>
+      <p><strong>Payments</strong> — order and payment IDs for services and investments. Card, UPI and bank details are handled directly by our payment processor, <strong>Razorpay</strong> — we never see or store them.</p>
+      <p><strong>Referrals</strong> — if you join through someone&apos;s referral code, we record that link to attribute referral commissions.</p>
+      <p><strong>Usage &amp; device data</strong> — basic technical logs needed to operate, secure and improve the service.</p>
+
       <h2>2. How we use it</h2>
-      <p>To deliver the services you buy, send confirmations and receipts, provide support, and comply with legal and tax obligations.</p>
+      <p>To create and secure your account, verify identity where required, deliver the services and investments you request, process payments and payouts, attribute referrals, provide support, and comply with legal, tax and regulatory obligations.</p>
+
       <h2>3. Sharing</h2>
-      <p>We share the minimum necessary with our payment processor (Razorpay) and service providers who help us operate the platform. We do not sell your personal data.</p>
-      <h2>4. Your rights</h2>
-      <p>You may request access to, correction of, or deletion of your personal data by emailing <strong>{SUPPORT_EMAIL}</strong>.</p>
+      <p>We share the minimum necessary with our payment processor (Razorpay) and service providers who help us operate the platform, and with authorities where required by law. We do <strong>not</strong> sell your personal data or use your identity documents or camera images for advertising.</p>
+
+      <h2>4. Data retention</h2>
+      <p>We keep personal and KYC data for as long as your account is active and as required by law, then delete or anonymise it. Identity documents are retained only as long as needed for verification and legal compliance.</p>
+
+      <h2>5. Your rights &amp; data deletion</h2>
+      <p>You may request access to, correction of, or <strong>deletion</strong> of your personal data — including your account and KYC documents — by emailing <strong>{SUPPORT_EMAIL}</strong>. We will action verified requests within a reasonable period, subject to legal retention requirements.</p>
+
+      <h2>6. Children</h2>
+      <p>The platform is intended for users aged 18 and over and is not directed at children.</p>
+
+      <h2>7. Contact</h2>
+      <p>Questions or requests: <strong>{SUPPORT_EMAIL}</strong> · {COMPANY}, {CITY}.</p>
     </PolicyShell>
   );
 }
