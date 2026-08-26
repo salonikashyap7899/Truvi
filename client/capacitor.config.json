@@ -13,9 +13,17 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 1200,
+      "launchShowDuration": 800,
+      "launchAutoHide": false,
       "backgroundColor": "#0a0d14",
-      "showSpinner": false
+      "showSpinner": true,
+      "spinnerColor": "#3B82F6",
+      "androidSpinnerStyle": "large"
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#0a0d14"
     }
   }
 }
