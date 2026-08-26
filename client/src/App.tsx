@@ -27,6 +27,7 @@ import NotFoundPage from "@/pages/NotFoundPage";
 import LegalPage from "@/pages/LegalPage";
 import TruviInvestPage from "@/pages/TruviInvestPage";
 import InvestFab from "@/components/InvestFab";
+import NativeShell from "@/components/NativeShell";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
@@ -141,6 +142,7 @@ function PageTransition({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <NativeShell />
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
