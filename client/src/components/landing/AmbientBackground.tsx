@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
+import { IS_TOUCH } from "@/lib/device";
 
 /**
  * Fixed, pointer-transparent 3D backdrop shared by every page except the
@@ -180,26 +181,41 @@ function SlowOrbit() {
 export function AmbientBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
-      {/* Decorative only — devices without WebGL just skip the scene */}
-      <SilentErrorBoundary>
-        <Canvas
-          dpr={[1, 1.5]}
-          gl={{ antialias: false, powerPreference: "high-performance" }}
-          camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
-        >
-          <color attach="background" args={["#050608"]} />
-          <fog attach="fog" args={["#050608", 34, 130]} />
-          <ambientLight intensity={0.3} />
-          <directionalLight position={[20, 40, 10]} intensity={1} color="#9ec5ff" />
-          <pointLight position={[0, 26, 0]} intensity={1.6} color="#3B82F6" distance={110} />
-          <pointLight position={[24, 8, -18]} intensity={1.1} color="#10B981" distance={70} />
-          <Ground />
-          <Plots />
-          <Towers />
-          <Homes />
-          <SlowOrbit />
-        </Canvas>
-      </SilentErrorBoundary>
+      {/* This backdrop rides on EVERY non-landing page (dashboards, inventory).
+          On phones a second always-on 60fps WebGL canvas behind every screen is
+          the biggest cause of lag, so there we skip the 3D scene entirely and
+          keep only the dark gradient below — the working screens stay buttery.
+          The rich landing scene (CityCanvas) is untouched. Desktop keeps the
+          full 3D backdrop. Devices without WebGL also just skip it. */}
+      {!IS_TOUCH && (
+        <SilentErrorBoundary>
+          <Canvas
+            dpr={[1, 1.5]}
+            gl={{ antialias: false, powerPreference: "high-performance" }}
+            camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
+          >
+            <color attach="background" args={["#050608"]} />
+            <fog attach="fog" args={["#050608", 34, 130]} />
+            <ambientLight intensity={0.3} />
+            <directionalLight position={[20, 40, 10]} intensity={1} color="#9ec5ff" />
+            <pointLight position={[0, 26, 0]} intensity={1.6} color="#3B82F6" distance={110} />
+            <pointLight position={[24, 8, -18]} intensity={1.1} color="#10B981" distance={70} />
+            <Ground />
+            <Plots />
+            <Towers />
+            <Homes />
+            <SlowOrbit />
+          </Canvas>
+        </SilentErrorBoundary>
+      )}
+      {/* Phone fallback: a calm base wash so the page isn't pure black behind
+          the gradient vignette. */}
+      {IS_TOUCH && (
+        <div
+          className="absolute inset-0"
+          style={{ background: "radial-gradient(ellipse at 50% 0%, #0b1220 0%, #050608 70%)" }}
+        />
+      )}
       {/* Vignette so content stays readable */}
       <div
         className="pointer-events-none absolute inset-0"

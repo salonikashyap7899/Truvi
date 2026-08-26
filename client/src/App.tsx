@@ -27,6 +27,8 @@ import NotFoundPage from "@/pages/NotFoundPage";
 import LegalPage from "@/pages/LegalPage";
 import TruviInvestPage from "@/pages/TruviInvestPage";
 import InvestFab from "@/components/InvestFab";
+import NativeShell from "@/components/NativeShell";
+import { IS_TOUCH } from "@/lib/device";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
@@ -125,12 +127,16 @@ function Ambience() {
 
 function PageTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  // On phones a 0.5s slide-up on every page (with all its content) reads as
+  // lag on each tap. There we use a quick opacity-only fade with no vertical
+  // travel, so navigation feels instant and native. Desktop keeps the richer
+  // motion.
   return (
     <motion.div
       key={pathname}
-      initial={{ opacity: 0, y: 24 }}
+      initial={{ opacity: 0, y: IS_TOUCH ? 0 : 24 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="relative z-10 min-h-full"
     >
       {children}
@@ -141,6 +147,7 @@ function PageTransition({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <NativeShell />
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />

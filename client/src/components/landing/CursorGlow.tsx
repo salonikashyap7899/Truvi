@@ -1,8 +1,13 @@
 import { useEffect, useRef } from "react";
+import { IS_TOUCH } from "@/lib/device";
 
 export function CursorGlow() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    // The glow follows the mouse and is hidden on phones — but the animation
+    // loop would still run every frame there, wasting battery/CPU. Skip it
+    // entirely on touch devices.
+    if (IS_TOUCH) return;
     const el = ref.current;
     if (!el) return;
     let x = window.innerWidth / 2;
