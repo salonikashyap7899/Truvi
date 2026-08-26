@@ -148,15 +148,24 @@ function Scene() {
       <CameraRig progress={progress} />
       {/* The night HDR comes from a CDN — if that fetch fails (offline,
           blocked network), fall back to the scene's own lights instead of
-          crashing the page. */}
-      <SilentErrorBoundary>
-        <Suspense fallback={null}>
-          <Environment preset="night" />
-        </Suspense>
-      </SilentErrorBoundary>
+          crashing the page. Skipped on phones: image-based lighting is the
+          most GPU-expensive part, and the scene's own lights look great —
+          this keeps the 3D city but makes it smooth on mobile. */}
+      {!IS_MOBILE && (
+        <SilentErrorBoundary>
+          <Suspense fallback={null}>
+            <Environment preset="night" />
+          </Suspense>
+        </SilentErrorBoundary>
+      )}
     </>
   );
 }
+
+/** Phones / touch tablets get a lighter render (lower pixel density, no HDR
+ *  environment) so the 3D city stays but runs smoothly. Computed once. */
+const IS_MOBILE =
+  typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
 /**
  * Drives the scene on demand at a capped frame-rate instead of the default
@@ -190,11 +199,11 @@ export function CityCanvas() {
         <Canvas
           frameloop="demand"
           shadows={false}
-          dpr={[1, 1.5]}
+          dpr={IS_MOBILE ? 1 : [1, 1.5]}
           gl={{ antialias: false, powerPreference: "high-performance" }}
           camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
         >
-          <ThrottledFrames fps={30} />
+          <ThrottledFrames fps={IS_MOBILE ? 24 : 30} />
           <Scene />
         </Canvas>
       </SilentErrorBoundary>

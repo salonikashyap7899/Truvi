@@ -85,7 +85,7 @@ export function UserMenu() {
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.16 }}
             role="menu"
-            className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            className="absolute right-0 top-full z-[70] mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl max-sm:fixed max-sm:inset-x-4 max-sm:top-[68px] max-sm:mt-0 max-sm:w-auto"
           >
             <div className="border-b border-white/10 px-4 py-3">
               <p className="truncate text-sm font-semibold text-white">{user.name}</p>
