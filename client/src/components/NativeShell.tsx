@@ -19,6 +19,12 @@ import { Capacitor } from "@capacitor/core";
  *     its colour to the app's dark theme, so the top nav never hides behind the
  *     clock / battery icons.
  *
+ *  3. Splash screen → the app loads the live site over the network, so there's
+ *     a moment before the page paints. We keep the branded splash up during
+ *     that load (launchAutoHide is false in capacitor.config) and hide it here
+ *     the instant React has mounted — so the app opens onto the splash, not a
+ *     blank white screen, and never feels "stuck" while it loads.
+ *
  * The Capacitor plugins are imported dynamically so they're only pulled in on
  * the native platform and never affect the web bundle's startup.
  */
@@ -27,6 +33,13 @@ export default function NativeShell() {
     if (!Capacitor.isNativePlatform()) return;
 
     let removeBackListener: (() => void) | undefined;
+
+    // Hide the splash now that the web app has actually rendered.
+    import("@capacitor/splash-screen")
+      .then(({ SplashScreen }) => {
+        SplashScreen.hide().catch(() => {});
+      })
+      .catch(() => {});
 
     // Hardware back button
     import("@capacitor/app")
