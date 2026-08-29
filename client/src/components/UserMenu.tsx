@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, LogOut, Home, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { dashboardPath, roleLabel } from "@/lib/rolePaths";
+import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 
 /**
  * Auth-aware account chip for the public site header. Signed-in users see
@@ -90,7 +90,7 @@ export function UserMenu() {
             <div className="border-b border-white/10 px-4 py-3">
               <p className="truncate text-sm font-semibold text-white">{user.name}</p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {roleLabel(user.role)} · {user.email}
+                {roleDisplayLabel(user)} · {user.email}
               </p>
             </div>
             <Link
@@ -100,7 +100,7 @@ export function UserMenu() {
               className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground/90 transition hover:bg-white/5"
             >
               <LayoutDashboard size={14} className="text-[var(--trust)]" />
-              My {roleLabel(user.role)} Dashboard
+              My {roleDisplayLabel(user)} Dashboard
             </Link>
             <Link
               to="/"

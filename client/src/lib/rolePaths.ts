@@ -17,6 +17,18 @@ const FOUNDER_EMAILS = new Set(
     .filter(Boolean),
 );
 
+/**
+ * Is this signed-in user a founder? A founder is an ADMIN flagged by EITHER the
+ * server (`isFounder`) OR the client founder-email allowlist — the same rule
+ * that routes them to the CEO OS in `dashboardPath`.
+ */
+export function isFounderUser(user: Pick<User, "role" | "email" | "isFounder">): boolean {
+  return (
+    user.role === "ADMIN" &&
+    (user.isFounder === true || FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? ""))
+  );
+}
+
 /** The one page each role lands on — used by login, verify, and the nav. */
 export function dashboardPath(user: Pick<User, "role" | "email" | "isFounder">): string {
   switch (user.role) {
@@ -53,4 +65,14 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export function roleLabel(role: Role): string {
   return ROLE_LABELS[role] ?? role;
+}
+
+/**
+ * The label to SHOW for a signed-in user in profile menus / greetings. Same as
+ * the plain role label, except a founder reads "Founder" instead of "Admin" —
+ * so the profile popup matches the dashboard they actually use.
+ */
+export function roleDisplayLabel(user: Pick<User, "role" | "email" | "isFounder">): string {
+  if (isFounderUser(user)) return "Founder";
+  return roleLabel(user.role);
 }
