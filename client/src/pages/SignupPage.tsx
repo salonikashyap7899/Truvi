@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
-import { Input, Label } from "@/components/ui/primitives";
+import { Input, Label, PasswordInput } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
 import { VoiceGuideButton } from "@/components/VoiceGuideButton";
@@ -170,7 +170,7 @@ export default function SignupPage() {
                 </div>
                 <div>
                   <Label>Password</Label>
-                  <Input type="password" {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className={inputCls} />
+                  <PasswordInput {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className={inputCls} />
                   {errors.password ? (
                     <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
                   ) : (

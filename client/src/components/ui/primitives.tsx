@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { HTMLAttributes, InputHTMLAttributes, LabelHTMLAttributes, TextareaHTMLAttributes } from "react";
 
@@ -56,6 +58,37 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * Password field with a show/hide (eye) toggle, so people can check what they
+ * typed — especially useful on phones where a mistyped password is otherwise
+ * invisible. Same look as <Input>; the caller must NOT pass a `type`.
+ */
+export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        {...props}
+        type={show ? "text" : "password"}
+        className={cn(
+          "h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-3 pr-11 text-sm text-foreground outline-none backdrop-blur-sm transition placeholder:text-muted-foreground/60 focus:border-[var(--trust)] focus:ring-1 focus:ring-[var(--trust)]",
+          className
+        )}
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        aria-label={show ? "Hide password" : "Show password"}
+        aria-pressed={show}
+        tabIndex={-1}
+        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground/70 transition hover:text-foreground"
+      >
+        {show ? <EyeOff size={17} /> : <Eye size={17} />}
+      </button>
+    </div>
   );
 }
 

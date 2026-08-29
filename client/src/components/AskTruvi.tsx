@@ -305,6 +305,14 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
     return () => window.removeEventListener("open-ask-truvi", openHandler);
   }, []);
 
+  // While this chat is open (a full-width bottom sheet on phones), flag it on
+  // <body> so the other floating buttons (Invest, AI Copilot) get out of the
+  // way — otherwise they sit on top of the input and hide what you type.
+  useEffect(() => {
+    document.body.classList.toggle("ask-truvi-open", open);
+    return () => document.body.classList.remove("ask-truvi-open");
+  }, [open]);
+
   useEffect(() => {
     try {
       localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
@@ -381,14 +389,15 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Ask Truvi"
+        data-fab="ask"
         className={`
-          fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full
-          bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-900/40
+          fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-full
+          bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-900/40
           transition-all duration-200 hover:bg-blue-500 hover:shadow-blue-800/50
           ${open ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"}
         `}
       >
-        <Sparkles size={16} />
+        <Sparkles size={14} />
         Ask Truvi
       </button>
 

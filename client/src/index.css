@@ -44,6 +44,17 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
+/* When an assistant opens as a full-width bottom sheet (Ask Truvi / AI Copilot),
+   the other floating buttons would sit on top of its input and hide what the
+   user types. Fade them out (and disable them) while a panel is open. */
+body.ask-truvi-open [data-fab="invest"],
+body.ask-truvi-open [data-fab="copilot"],
+body.copilot-open [data-fab="invest"],
+body.copilot-open [data-fab="ask"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Responsive safety net: decorative glows, wide diagrams and animated
    elements must never introduce sideways page scroll on small screens. */
 html, body {
