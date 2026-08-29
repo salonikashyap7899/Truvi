@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, useLocation, Link } from "react-router-do
 import { motion } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
-import { Input, Label } from "@/components/ui/primitives";
+import { Input, Label, PasswordInput } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
 import { Loader2 } from "lucide-react";
@@ -108,8 +108,7 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (notice) setNotice(null); }}
                   required

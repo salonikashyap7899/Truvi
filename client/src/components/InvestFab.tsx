@@ -17,11 +17,12 @@ export default function InvestFab() {
     <Link
       to="/invest"
       aria-label="Explore Truvi Invest"
-      className="group fixed bottom-6 left-5 z-50 flex items-center gap-2"
+      data-fab="invest"
+      className="group fixed bottom-5 left-5 z-50 flex items-center gap-2 transition-opacity"
     >
-      <span className="relative grid size-14 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_10px_30px_rgba(16,185,129,0.45)] transition-transform group-hover:scale-105">
+      <span className="relative grid size-11 place-items-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_10px_30px_rgba(16,185,129,0.45)] transition-transform group-hover:scale-105">
         <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/40" />
-        <TrendingUp size={22} className="relative" />
+        <TrendingUp size={18} className="relative" />
       </span>
       <span className="hidden rounded-full bg-black/70 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur sm:group-hover:inline-block">
         Truvi Invest
