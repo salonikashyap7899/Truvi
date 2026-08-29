@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { dashboardPath, roleLabel } from "@/lib/rolePaths";
+import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
 
@@ -276,7 +276,7 @@ export function SiteNav() {
                     className="flex items-center gap-2 border-b border-white/5 px-5 py-3.5 text-sm font-semibold text-[var(--trust)]"
                   >
                     <LayoutDashboard size={15} />
-                    My {roleLabel(user.role)} Dashboard
+                    My {roleDisplayLabel(user)} Dashboard
                   </Link>
                   <button
                     onClick={async () => {
