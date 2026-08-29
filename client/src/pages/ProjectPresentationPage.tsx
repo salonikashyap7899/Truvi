@@ -353,8 +353,11 @@ export default function ProjectPresentationPage() {
         </section>
       )}
 
-      {/* Possession · Payment plans · Offers · Sales contact (developer-entered) */}
-      {(fmtDate(project.possessionDate) || info?.paymentPlans?.length || info?.offers || project.salesContact?.phone || project.salesContact?.name) && (
+      {/* Possession · Payment plans · Offers.
+          The developer's direct sales contact is intentionally NOT shown here —
+          buyers and channel partners route through Truvi first, so we never
+          expose the developer's phone/email on the public project page. */}
+      {(fmtDate(project.possessionDate) || info?.paymentPlans?.length || info?.offers) && (
         <section className="mt-8 grid gap-4 sm:grid-cols-2">
           {fmtDate(project.possessionDate) && (
             <div className="rounded-2xl border border-white/10 glass p-4">
@@ -376,14 +379,6 @@ export default function ProjectPresentationPage() {
             <div className="rounded-2xl border border-emerald-500/25 bg-emerald-900/10 p-4">
               <p className="text-xs uppercase tracking-widest text-emerald-300">Current Offers</p>
               <p className="mt-1 text-sm text-foreground/90">{info.offers}</p>
-            </div>
-          )}
-          {(project.salesContact?.name || project.salesContact?.phone || project.salesContact?.email) && (
-            <div className="rounded-2xl border border-white/10 glass p-4">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">Sales Contact</p>
-              {project.salesContact?.name && <p className="mt-1 text-sm font-medium text-white">{project.salesContact.name}</p>}
-              {project.salesContact?.phone && <a href={`tel:${project.salesContact.phone}`} className="block text-sm text-sky-300">{project.salesContact.phone}</a>}
-              {project.salesContact?.email && <a href={`mailto:${project.salesContact.email}`} className="block text-sm text-sky-300">{project.salesContact.email}</a>}
             </div>
           )}
         </section>
