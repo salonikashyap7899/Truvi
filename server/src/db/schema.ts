@@ -646,8 +646,45 @@ export const notifications = pgTable(
     message: text("message").notNull(),
     isRead: boolean("is_read").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    // ── Notification engine fields (added; all backward-compatible) ──
+    // A machine-readable event type (e.g. "project_approved", "commission_earned").
+    // Old rows and any un-typed insert default to "general".
+    type: text("type").notNull().default("general"),
+    // Optional bold headline shown above `message`.
+    title: text("title"),
+    // The user who caused the event (null for system events).
+    actorUserId: uuid("actor_user_id").references(() => users._id),
+    // Deep-link + payload, e.g. { "screen": "ProjectDetails", "projectId": "…" }.
+    data: jsonb("data").$type<Record<string, unknown>>(),
+    // "low" | "normal" | "high" | "critical".
+    priority: text("priority").notNull().default("normal"),
+    // When the recipient read it (null while unread).
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    // Optional auto-expiry (e.g. a time-boxed opportunity).
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [index("notifications_user_read_created_idx").on(t.userId, t.isRead, t.createdAt)]
+  (t) => [
+    index("notifications_user_read_created_idx").on(t.userId, t.isRead, t.createdAt),
+    index("notifications_user_created_idx").on(t.userId, t.createdAt),
+    index("notifications_type_idx").on(t.type),
+  ]
+);
+
+/**
+ * Per-user, per-category on/off switches for notifications. A missing row means
+ * "all categories on" (the default), so existing users need no backfill.
+ * Security-critical categories are always delivered regardless of preference.
+ */
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    category: text("category").notNull(), // e.g. "projects", "leads", "marketing"
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("notification_prefs_user_category_idx").on(t.userId, t.category)]
 );
 
 export const posts = pgTable(
