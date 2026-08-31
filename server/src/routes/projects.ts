@@ -7,6 +7,7 @@ import { isValidId } from "../lib/ids";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
+import { notifyRole, NotificationType } from "../services/notificationService";
 
 const router = Router();
 router.use(authenticate);
@@ -302,6 +303,24 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
       approvalStatus: "PENDING",
     })
     .returning();
+
+  // Notify admins/founders when a DEVELOPER submits a project for review. (An
+  // admin creating a project on their own doesn't need to alert admins.)
+  // Never let a notification failure block project creation.
+  if (req.user!.role === "DEVELOPER") {
+    try {
+      const [actor] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
+      await notifyRole("ADMIN", {
+        type: NotificationType.PROJECT_SUBMITTED,
+        title: "New project submitted",
+        message: `${actor?.name ?? "A developer"} submitted "${project.name}" for review.`,
+        actorUserId: req.user!.userId,
+        data: { href: `/admin/listings/${project._id}` },
+      });
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   res.status(201).json({ project });
 });

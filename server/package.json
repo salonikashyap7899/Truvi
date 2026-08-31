@@ -22,6 +22,7 @@
     "seed:verification": "tsx src/seed/verification-seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:notify": "tsx src/scripts/apply-notification-migration.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
