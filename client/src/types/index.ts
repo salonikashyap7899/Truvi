@@ -426,4 +426,12 @@ export interface Notification {
   message: string;
   isRead: boolean;
   createdAt: string;
+  /** Engine fields (optional so old/plain rows still type-check). */
+  type?: string;
+  title?: string | null;
+  actorUserId?: string | null;
+  data?: Record<string, unknown> | null;
+  priority?: "low" | "normal" | "high" | "critical";
+  readAt?: string | null;
+  expiresAt?: string | null;
 }

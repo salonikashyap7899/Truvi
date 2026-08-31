@@ -2,10 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { developerReferrals, users, notifications, projects, leads, commissions, cpManualCommissions } from "../db/schema";
+import { developerReferrals, users, projects, leads, commissions, cpManualCommissions } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
-import { emitNotification } from "../sockets";
+import { notifyRole, NotificationType } from "../services/notificationService";
 import {
   REFERRAL_INCENTIVE_PERCENT,
   computeDeveloperReferralEarnings,
@@ -59,12 +59,16 @@ router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedReq
   // Alert admins there's a new developer to onboard (real-time bell).
   try {
     const [cp] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
-    const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-    if (admins.length) {
-      const message = `New developer onboarding: ${cp?.name ?? "A CP"} referred ${d.developerName}${d.companyName ? ` (${d.companyName})` : ""}.`;
-      const rows = await db.insert(notifications).values(admins.map((a) => ({ userId: a._id, message }))).returning();
-      rows.forEach((n) => emitNotification(String(n.userId), n));
-    }
+    const message = `New developer onboarding: ${cp?.name ?? "A CP"} referred ${d.developerName}${d.companyName ? ` (${d.companyName})` : ""}.`;
+    // Routed through the central engine: typed, deep-linked, real-time to every
+    // admin/founder. (Founders are ADMINs, so they're included.)
+    await notifyRole("ADMIN", {
+      type: NotificationType.DEVELOPER_REFERRED,
+      title: "New developer referral",
+      message,
+      actorUserId: req.user!.userId,
+      data: { href: "/admin/referral-leads" },
+    });
   } catch {
     /* non-fatal */
   }
