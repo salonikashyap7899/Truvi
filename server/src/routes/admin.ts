@@ -45,6 +45,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
+import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
 import { logAudit } from "../services/audit";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
@@ -1345,6 +1346,42 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   await logAudit({ userId: req.user!.userId, action: "project.update", resourceType: "project", resourceId: projectId, metadata: { fields: Object.keys(update), approvalStatus: data.approvalStatus, isVerified: data.isVerified } });
+
+  // Real-time notifications on an approval-status transition. The transition
+  // guard (only when the status actually changes) keeps a double-click from
+  // notifying twice. Never let a notification failure fail the request.
+  if (data.approvalStatus && data.approvalStatus !== existing.approvalStatus) {
+    try {
+      if (data.approvalStatus === "APPROVED") {
+        // Developer: your project is approved & live.
+        await notifyUser(String(project.developerId), {
+          type: NotificationType.PROJECT_APPROVED,
+          title: "Project approved 🎉",
+          message: `Your project "${project.name}" has been approved and is now live on Truvi.`,
+          priority: "high",
+          data: { href: `/developer/projects/${project._id}` },
+        });
+        // Channel Partners + Buyers: a new project just went live.
+        await notifyRole(["CP", "BUYER"], {
+          type: NotificationType.NEW_PROJECT,
+          title: "New project available",
+          message: `A new project "${project.name}"${project.city ? ` in ${project.city}` : ""} is now available on Truvi.`,
+          data: { href: `/inventory/${project._id}/presentation` },
+        });
+      } else if (data.approvalStatus === "REJECTED") {
+        await notifyUser(String(project.developerId), {
+          type: NotificationType.PROJECT_REJECTED,
+          title: "Project needs changes",
+          message: `Your project "${project.name}" needs changes before it can go live. Please review and resubmit.`,
+          priority: "high",
+          data: { href: `/developer/projects/${project._id}` },
+        });
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   res.json({ project });
 });
 
