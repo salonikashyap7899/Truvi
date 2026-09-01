@@ -10,6 +10,7 @@ import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperience
 import { FinancialsPage, FinancialCards, MonthlyCostingPage, useCommandFinance, type FinSection } from "@/pages/dashboard/CommandCenterFinance";
 import { EmployerManagementPage, TotalEmployerCard } from "@/pages/dashboard/EmployerManagement";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
+import { NotificationBell } from "@/components/NotificationBell";
 import "@/styles/founder-os.css";
 
 /* ------------------------------------------------------------------ types */
@@ -215,7 +216,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
               <span className="knob"><Ic n="sun" /></span>
             </button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
-            <button className="icon-btn" title="Notifications"><Ic n="bell" /></button>
+            <NotificationBell />
             <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
             <div className="divider-v" />
             <button className="profile-btn" onClick={() => setSettingsOpen(true)} title="Edit profile">

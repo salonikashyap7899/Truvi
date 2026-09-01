@@ -39,6 +39,7 @@ import {
   Cell,
 } from "recharts";
 import UserMenu from "@/components/UserMenu";
+import { NotificationBell } from "@/components/NotificationBell";
 import type { Project, SiteVisit, SharedDocument, BuyerDocument } from "@/types";
 
 // ─── types & constants ────────────────────────────────────────────────────────
@@ -215,6 +216,7 @@ export default function BuyerDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <UserMenu />
           <Link to="/inventory">
             <Button size="sm">
