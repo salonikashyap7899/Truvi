@@ -28,6 +28,7 @@ import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../ser
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
+import { sendDeveloperWelcome } from "../services/whatsappService";
 import { isFounderEmail } from "../config/env";
 
 const router = Router();
@@ -178,6 +179,11 @@ async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
     })
     .returning();
   await db.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+
+  // One-time WhatsApp welcome for a brand-new developer (dormant unless the
+  // WhatsApp Business API is configured). Fire-and-forget — never blocks signup.
+  if (role === "DEVELOPER") void sendDeveloperWelcome(user.phone, user.name);
+
   return user;
 }
 

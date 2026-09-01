@@ -19,6 +19,7 @@ import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { notifications, notificationPreferences, users } from "../db/schema";
 import { emitNotification } from "../sockets";
+import { isWhatsAppEnabled, dispatchNotificationWhatsApp } from "./whatsappService";
 
 export type NotificationPriority = "low" | "normal" | "high" | "critical";
 
@@ -194,6 +195,29 @@ export async function createNotifications(
     .returning();
 
   for (const row of rows) emitNotification(String(row.userId), row);
+
+  // WhatsApp side-channel — runs ALONGSIDE the in-app notification, never
+  // replaces it. Dormant unless credentials are configured. Developer
+  // recipients also get a WhatsApp copy for eligible event types. Entirely
+  // fire-and-forget so it can never delay or fail the in-app path.
+  if (isWhatsAppEnabled()) {
+    void (async () => {
+      try {
+        const recips = await db
+          .select({ id: users._id, role: users.role, phone: users.phone, name: users.name })
+          .from(users)
+          .where(inArray(users._id, rows.map((r) => String(r.userId))));
+        const byId = new Map(recips.map((u) => [String(u.id), u]));
+        for (const row of rows) {
+          const u = byId.get(String(row.userId));
+          if (u) await dispatchNotificationWhatsApp(u, { type: row.type, title: row.title, message: row.message });
+        }
+      } catch {
+        /* non-fatal */
+      }
+    })();
+  }
+
   return rows;
 }
 
