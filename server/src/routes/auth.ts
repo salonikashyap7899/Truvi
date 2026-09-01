@@ -29,6 +29,7 @@ import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
 import { sendDeveloperWelcome } from "../services/whatsappService";
+import { notifyUser, notifyRole } from "../services/notificationService";
 import { isFounderEmail } from "../config/env";
 
 const router = Router();
@@ -183,6 +184,32 @@ async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
   // One-time WhatsApp welcome for a brand-new developer (dormant unless the
   // WhatsApp Business API is configured). Fire-and-forget — never blocks signup.
   if (role === "DEVELOPER") void sendDeveloperWelcome(user.phone, user.name);
+
+  // In-app notifications on registration: welcome the new user, and alert
+  // admins/founders about the new account. Wrapped so a notification failure
+  // can never break account creation.
+  try {
+    const ROLE_WORDS: Record<string, string> = {
+      DEVELOPER: "developer", CP: "channel partner", BUYER: "buyer",
+      AMBASSADOR: "ambassador", VERIFIER: "verifier", ADMIN: "admin",
+    };
+    const label = ROLE_WORDS[role] ?? "user";
+    await notifyUser(String(user._id), {
+      type: "welcome",
+      title: "Welcome to Truvi 🎉",
+      message: `Your ${label} account is ready. Explore your dashboard to get started.`,
+      priority: "high",
+    });
+    await notifyRole("ADMIN", {
+      type: "user_registered",
+      title: `New ${label} registered`,
+      message: `${user.name} just created a ${label} account on Truvi.`,
+      actorUserId: String(user._id),
+      data: { href: `/admin/users/${user._id}` },
+    });
+  } catch {
+    /* non-fatal */
+  }
 
   return user;
 }
