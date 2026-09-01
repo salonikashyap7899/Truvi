@@ -19,14 +19,18 @@
  *
  * Never throws into the caller — a push failure must not affect the app.
  */
+import { readFileSync } from "fs";
 import type { App } from "firebase-admin/app";
 
 let appPromise: Promise<App | null> | null = null;
 
 function loadServiceAccount(): Record<string, unknown> | null {
+  const file = process.env.FCM_SERVICE_ACCOUNT_FILE;
   const b64 = process.env.FCM_SERVICE_ACCOUNT_BASE64;
   const raw = process.env.FCM_SERVICE_ACCOUNT;
   try {
+    // Easiest: point at a JSON file on the server (no base64 needed).
+    if (file) return JSON.parse(readFileSync(file, "utf8"));
     if (b64) return JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
     if (raw) return JSON.parse(raw);
   } catch (err) {
@@ -35,9 +39,13 @@ function loadServiceAccount(): Record<string, unknown> | null {
   return null;
 }
 
-/** True only when an FCM service account is configured. */
+/** True only when an FCM service account is configured (file, base64 or raw). */
 export function isPushEnabled(): boolean {
-  return Boolean(process.env.FCM_SERVICE_ACCOUNT_BASE64 || process.env.FCM_SERVICE_ACCOUNT);
+  return Boolean(
+    process.env.FCM_SERVICE_ACCOUNT_FILE ||
+      process.env.FCM_SERVICE_ACCOUNT_BASE64 ||
+      process.env.FCM_SERVICE_ACCOUNT,
+  );
 }
 
 /** Lazily initialise the firebase-admin app once. Returns null if not configured. */
