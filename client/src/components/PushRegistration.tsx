@@ -37,6 +37,21 @@ export default function PushRegistration() {
         });
         cleanup = () => { void regHandle.remove(); void tapHandle.remove(); };
 
+        // Android 8+ needs a notification channel or the tray notification is
+        // dropped. Create the one the server targets (channelId "truvi_default").
+        try {
+          await PushNotifications.createChannel({
+            id: "truvi_default",
+            name: "Truvi",
+            description: "Truvi updates",
+            importance: 5,
+            visibility: 1,
+            vibration: true,
+          });
+        } catch {
+          /* iOS / unsupported — ignore */
+        }
+
         // Ask permission (Android 13+ requires it), then register with FCM.
         let perm = await PushNotifications.checkPermissions();
         if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
