@@ -28,6 +28,7 @@ import LegalPage from "@/pages/LegalPage";
 import TruviInvestPage from "@/pages/TruviInvestPage";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
+import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
 
 import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
@@ -148,6 +149,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <NativeShell />
+      <PushRegistration />
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
