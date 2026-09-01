@@ -46,6 +46,17 @@ const statements: string[] = [
      updated_at timestamptz NOT NULL DEFAULT now()
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS notification_prefs_user_category_idx ON notification_preferences (user_id, category)`,
+  `CREATE TABLE IF NOT EXISTS user_push_tokens (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     user_id uuid NOT NULL REFERENCES users(id),
+     token text NOT NULL,
+     platform text NOT NULL DEFAULT 'android',
+     device_id text,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS user_push_tokens_token_idx ON user_push_tokens (token)`,
+  `CREATE INDEX IF NOT EXISTS user_push_tokens_user_idx ON user_push_tokens (user_id)`,
 ];
 
 async function main() {

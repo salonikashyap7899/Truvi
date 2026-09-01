@@ -687,6 +687,28 @@ export const notificationPreferences = pgTable(
   (t) => [uniqueIndex("notification_prefs_user_category_idx").on(t.userId, t.category)]
 );
 
+/**
+ * Device push tokens (FCM) for phone-tray push notifications. One row per
+ * device; a user can have several. The token is unique — re-registering the
+ * same device updates its owner/timestamp rather than duplicating.
+ */
+export const userPushTokens = pgTable(
+  "user_push_tokens",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    token: text("token").notNull(),
+    platform: text("platform").notNull().default("android"), // android | ios | web
+    deviceId: text("device_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("user_push_tokens_token_idx").on(t.token),
+    index("user_push_tokens_user_idx").on(t.userId),
+  ]
+);
+
 export const posts = pgTable(
   "posts",
   {

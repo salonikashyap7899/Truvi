@@ -20,6 +20,7 @@ import { getDb } from "../config/db";
 import { notifications, notificationPreferences, users } from "../db/schema";
 import { emitNotification } from "../sockets";
 import { isWhatsAppEnabled, dispatchNotificationWhatsApp } from "./whatsappService";
+import { isPushEnabled, sendPushToUsers } from "./pushService";
 
 export type NotificationPriority = "low" | "normal" | "high" | "critical";
 
@@ -195,6 +196,17 @@ export async function createNotifications(
     .returning();
 
   for (const row of rows) emitNotification(String(row.userId), row);
+
+  // Phone push side-channel — a tray notification even when the app is closed.
+  // Runs ALONGSIDE the in-app notification; dormant unless FCM is configured.
+  // Fire-and-forget so it never delays or fails the in-app path.
+  if (isPushEnabled()) {
+    void sendPushToUsers(recipients, {
+      title: input.title ?? "Truvi",
+      body: input.message,
+      data: { type: input.type, ...(input.data ?? {}) },
+    });
+  }
 
   // WhatsApp side-channel — runs ALONGSIDE the in-app notification, never
   // replaces it. Dormant unless credentials are configured. Developer
