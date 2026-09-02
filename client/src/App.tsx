@@ -90,6 +90,9 @@ import AdminCommissionsPage from "@/pages/admin/AdminCommissionsPage";
 import AdminInvestmentsPage from "@/pages/admin/AdminInvestmentsPage";
 import AdminAmbassadorKnowledgePage from "@/pages/admin/AdminAmbassadorKnowledgePage";
 import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
+import MarketingManagementPage from "@/pages/admin/MarketingManagementPage";
+import AdminNotificationsPage from "@/pages/admin/AdminNotificationsPage";
+import MarketingDashboardPage from "@/pages/marketing/MarketingDashboardPage";
 import PricingPage from "@/pages/PricingPage";
 import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
 import PaymentFailedPage from "@/pages/PaymentFailedPage";
@@ -179,6 +182,7 @@ export default function App() {
         <Route path="/terms" element={<TermsPage />} />
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -191,6 +195,9 @@ export default function App() {
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
         <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
 
+        {/* Marketing Dashboard — access-gated per-user (server enforces). */}
+        <Route path="/marketing" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MarketingDashboardPage /></ProtectedRoute>} />
+
         {/* Admin */}
         <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
@@ -202,6 +209,8 @@ export default function App() {
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
         <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
+        <Route path="/admin/marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
+        <Route path="/admin/notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
         <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
         <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
         <Route path="/admin/referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
