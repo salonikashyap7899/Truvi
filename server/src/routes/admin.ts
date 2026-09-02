@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { getSqlClient } from "../db/index";
 import {
   users,
+  userPushTokens,
   projects,
   units,
   leads,
@@ -46,6 +47,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
+import { isPushEnabled } from "../services/pushService";
 import { logAudit } from "../services/audit";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
@@ -2240,6 +2242,78 @@ router.delete("/commissions/manual/:id", requireRole("ADMIN"), async (req: Authe
   await logAudit({ userId: req.user!.userId, action: "commission.manual.delete", resourceType: "commission", resourceId: req.params.id });
   const detail = await getPartnerDetail(String(existing.cpId));
   res.json({ ok: true, detail });
+});
+
+// ── Notification / push diagnostics & test tools ───────────────────────────
+// Lets a founder confirm the whole pipeline (bell + real-time + FCM push) is
+// working, and see whether FCM is configured and whether their own device has
+// registered a push token.
+
+// GET /api/admin/notifications/diagnostics — is push configured, and does this
+// admin have any registered device tokens?
+router.get("/notifications/diagnostics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const myTokens = await db
+    .select({ token: userPushTokens.token, platform: userPushTokens.platform, updatedAt: userPushTokens.updatedAt })
+    .from(userPushTokens)
+    .where(eq(userPushTokens.userId, req.user!.userId));
+  const [{ total } = { total: 0 }] = await db
+    .select({ total: sql<number>`COUNT(*)::int` })
+    .from(userPushTokens);
+  res.json({
+    pushEnabled: isPushEnabled(),
+    myDeviceTokens: myTokens.length,
+    totalDeviceTokens: Number(total ?? 0),
+    myTokens: myTokens.map((t) => ({ platform: t.platform, updatedAt: t.updatedAt, tokenPreview: t.token.slice(0, 12) + "…" })),
+  });
+});
+
+// POST /api/admin/notifications/test — send a test notification to a user
+// (defaults to the calling admin). Flows through the bell, the real-time
+// socket toast, AND FCM push if configured.
+const testNotifSchema = z.object({ userId: z.string().optional(), title: z.string().optional(), message: z.string().optional() });
+router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = testNotifSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+  const targetId = parsed.data.userId && isValidId(parsed.data.userId) ? parsed.data.userId : req.user!.userId;
+  const rows = await notifyUser(targetId, {
+    type: NotificationType.SYSTEM_ANNOUNCEMENT,
+    title: parsed.data.title?.trim() || "Test notification 🔔",
+    message: parsed.data.message?.trim() || "If you can see this pop-up, your Truvi notifications are working.",
+    data: { href: "/" },
+    priority: "high",
+  });
+  res.json({ ok: true, delivered: rows.length, pushEnabled: isPushEnabled() });
+});
+
+// POST /api/admin/notifications/broadcast — send an announcement to a role (or
+// everyone). Reaches the bell + real-time toast + FCM push for each recipient.
+const broadcastSchema = z.object({
+  title: z.string().min(1),
+  message: z.string().min(1),
+  target: z.enum(["ALL", "ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]).optional(),
+  href: z.string().optional(),
+});
+router.post("/notifications/broadcast", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = broadcastSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+  const target = parsed.data.target ?? "ALL";
+  const input = {
+    type: NotificationType.SYSTEM_ANNOUNCEMENT,
+    title: parsed.data.title.trim(),
+    message: parsed.data.message.trim(),
+    data: parsed.data.href?.startsWith("/") ? { href: parsed.data.href } : undefined,
+    priority: "high" as const,
+  };
+  const roles = target === "ALL" ? ["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"] : [target];
+  const rows = await notifyRole(roles, input);
+  await logAudit({
+    userId: req.user!.userId,
+    action: "notification.broadcast",
+    resourceType: "notification",
+    metadata: { target, title: input.title, recipients: rows.length },
+  });
+  res.json({ ok: true, recipients: rows.length, pushEnabled: isPushEnabled() });
 });
 
 export default router;
