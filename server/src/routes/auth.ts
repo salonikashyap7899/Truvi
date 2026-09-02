@@ -194,17 +194,65 @@ async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
       AMBASSADOR: "ambassador", VERIFIER: "verifier", ADMIN: "admin",
     };
     const label = ROLE_WORDS[role] ?? "user";
-    await notifyUser(String(user._id), {
+    const uid = String(user._id);
+
+    // 1) Welcome everyone.
+    await notifyUser(uid, {
       type: "welcome",
       title: "Welcome to Truvi 🎉",
       message: `Your ${label} account is ready. Explore your dashboard to get started.`,
       priority: "high",
     });
+
+    // 2) Role-specific "get started" nudge — guides each new user to their work.
+    const START: Record<string, { title: string; message: string; href: string }> = {
+      DEVELOPER: {
+        title: "List your first project 🏗️",
+        message: "Add your project and inventory to reach thousands of buyers and channel partners on Truvi.",
+        href: "/developer/projects/new",
+      },
+      CP: {
+        title: "Start earning 💼",
+        message: "Complete your KYC, then refer developers & buyers and close deals to earn commission.",
+        href: "/cp/dashboard",
+      },
+      AMBASSADOR: {
+        title: "Your first task awaits 📍",
+        message: "Accept a site-verification task, capture live GPS on site, and earn ₹500 per verification.",
+        href: "/ambassador/dashboard",
+      },
+      BUYER: {
+        title: "Explore verified plots 🏡",
+        message: "Browse verified projects with 3D plot views, Truvi Score and site-visit booking.",
+        href: "/inventory",
+      },
+    };
+    const start = START[role];
+    if (start) {
+      await notifyUser(uid, {
+        type: "onboarding",
+        title: start.title,
+        message: start.message,
+        data: { href: start.href },
+      });
+    }
+
+    // 3) Pro upgrade nudge for the roles that can subscribe.
+    if (role === "CP" || role === "DEVELOPER" || role === "BUYER") {
+      await notifyUser(uid, {
+        type: "system_announcement",
+        title: "Upgrade to Truvi Pro ⭐",
+        message: "Unlock premium tools, deeper property intelligence and priority features with Truvi Pro.",
+        data: { href: "/pricing" },
+      });
+    }
+
+    // 4) Alert admins/founders about the new account.
     await notifyRole("ADMIN", {
       type: "user_registered",
       title: `New ${label} registered`,
       message: `${user.name} just created a ${label} account on Truvi.`,
-      actorUserId: String(user._id),
+      actorUserId: uid,
       data: { href: `/admin/users/${user._id}` },
     });
   } catch {

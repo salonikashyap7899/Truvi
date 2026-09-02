@@ -343,6 +343,26 @@ router.post("/verify-subscription", async (req, res) => {
       .set({ status: "ACTIVE", razorpayPaymentId: razorpay_payment_id, updatedAt: new Date() })
       .where(eq(subscriptions._id, row._id));
     void sendPaymentConfirmation(row.customerEmail, row.customerName, `${row.planLabel} (subscription)`, row.basePaise + row.gstPaise, razorpay_payment_id);
+
+    try {
+      if (row.userId) {
+        await notifyUser(String(row.userId), {
+          type: "system_announcement",
+          title: "Truvi Pro is active ⭐",
+          message: `Your ${row.planLabel} subscription is now active. Enjoy your premium features!`,
+          priority: "high",
+          data: { href: "/pricing" },
+        });
+      }
+      await notifyRole("ADMIN", {
+        type: "payment_received",
+        title: "New subscription",
+        message: `${row.customerName} subscribed to ${row.planLabel}.`,
+        data: { href: "/admin/payments" },
+      });
+    } catch {
+      /* non-fatal */
+    }
   }
 
   res.json({
@@ -434,6 +454,28 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
               : null;
           if (next && row.status !== next) {
             await db.update(subscriptions).set({ status: next, updatedAt: new Date() }).where(eq(subscriptions._id, row._id));
+          }
+          // Notify the subscriber on renewal / cancellation (never fail the hook).
+          try {
+            if (row.userId) {
+              if (event.event === "subscription.charged") {
+                await notifyUser(String(row.userId), {
+                  type: "payment_received",
+                  title: "Subscription renewed ✅",
+                  message: `Your ${row.planLabel} subscription has renewed.`,
+                  data: { href: "/pricing" },
+                });
+              } else if (event.event === "subscription.cancelled") {
+                await notifyUser(String(row.userId), {
+                  type: "system_announcement",
+                  title: "Subscription cancelled",
+                  message: `Your ${row.planLabel} subscription was cancelled.`,
+                  data: { href: "/pricing" },
+                });
+              }
+            }
+          } catch {
+            /* non-fatal */
           }
         }
       }
