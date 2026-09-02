@@ -691,6 +691,15 @@ export default function AboutPage() {
               </Link>
             </p>
           </Reveal>
+          <Reveal delay={0.15}>
+            <p className="mt-6 text-center text-xs text-white/40">
+              <Link to="/privacy-policy" className="underline-offset-4 hover:underline" style={{ color: BLUE }}>
+                Privacy Policy
+              </Link>
+              <span className="mx-2 text-white/20">·</span>
+              Your data is secure with us.
+            </p>
+          </Reveal>
         </Section>
 
       </main>
