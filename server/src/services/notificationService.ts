@@ -210,11 +210,19 @@ export async function createNotifications(
   // Runs ALONGSIDE the in-app notification; dormant unless FCM is configured.
   // Fire-and-forget so it never delays or fails the in-app path.
   if (isPushEnabled()) {
-    void sendPushToUsers(recipients, {
-      title: input.title ?? "Truvi",
-      body: input.message,
-      data: { type: input.type, ...(input.data ?? {}) },
-    });
+    // Map each recipient to the row created for them, so rows delivered live are
+    // stamped pushed and never re-sent by the on-registration catch-up.
+    const notifIdByUser: Record<string, string> = {};
+    for (const row of rows) notifIdByUser[String(row.userId)] = String(row._id);
+    void sendPushToUsers(
+      recipients,
+      {
+        title: input.title ?? "Truvi",
+        body: input.message,
+        data: { type: input.type, ...(input.data ?? {}) },
+      },
+      notifIdByUser,
+    );
   }
 
   // WhatsApp side-channel — runs ALONGSIDE the in-app notification, never

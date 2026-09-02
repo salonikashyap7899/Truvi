@@ -662,6 +662,12 @@ export const notifications = pgTable(
     readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
     // Optional auto-expiry (e.g. a time-boxed opportunity).
     expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    // When a phone push for this row was actually delivered to a device. Null
+    // means "never pushed" — e.g. created while the user had no device
+    // registered yet (a fresh signup). Such rows are pushed as a catch-up the
+    // moment the user's device registers, so the welcome/onboarding pop-ups are
+    // never lost. Prevents double-pushing rows already delivered live.
+    pushedAt: timestamp("pushed_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [
     index("notifications_user_read_created_idx").on(t.userId, t.isRead, t.createdAt),
