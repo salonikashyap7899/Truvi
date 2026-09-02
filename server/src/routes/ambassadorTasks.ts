@@ -7,6 +7,7 @@ import { getDb } from "../config/db";
 import { ambassadorTasks, users, AmbassadorTaskChecklist, AmbassadorTaskDocument } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { notifyUser, notifyRole } from "../services/notificationService";
 
 const router = Router();
 
@@ -233,6 +234,20 @@ router.post("/:id/complete", authenticate, requireVerifiedAmbassador, async (req
     .where(eq(ambassadorTasks._id, req.params.id))
     .returning();
 
+  // Alert admins/founders that a site verification was completed.
+  try {
+    const [amb] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
+    await notifyRole("ADMIN", {
+      type: "task_completed",
+      title: "Site verification completed",
+      message: `${amb?.name ?? "An ambassador"} completed the task "${task.title}".`,
+      actorUserId: req.user!.userId,
+      data: { href: "/admin/ambassador-tasks" },
+    });
+  } catch {
+    /* non-fatal */
+  }
+
   res.json({ task });
 });
 
@@ -265,6 +280,18 @@ router.post("/", authenticate, requireRole("ADMIN"), async (req: AuthedRequest, 
     })
     .returning();
 
+  // Announce the new task to every ambassador.
+  try {
+    await notifyRole("AMBASSADOR", {
+      type: "ambassador_task",
+      title: "New task available 📍",
+      message: `New site-visit task: ${task.title} — ₹${task.payoutAmount} payout. First to accept gets it.`,
+      data: { href: "/ambassador/dashboard" },
+    });
+  } catch {
+    /* non-fatal */
+  }
+
   res.status(201).json({ task });
 });
 
@@ -286,6 +313,22 @@ router.patch("/:id/paid", authenticate, requireRole("ADMIN"), async (req: Authed
     .where(and(eq(ambassadorTasks._id, req.params.id), eq(ambassadorTasks.status, "COMPLETED")))
     .returning();
   if (!task) return res.status(400).json({ error: "Task not found or not yet completed" });
+
+  // Tell the ambassador their payout was paid.
+  try {
+    if (task.acceptedById) {
+      await notifyUser(String(task.acceptedById), {
+        type: "commission_earned",
+        title: "Payout paid 💰",
+        message: `Your ₹${task.payoutAmount} payout for "${task.title}" has been paid.`,
+        priority: "high",
+        data: { href: "/ambassador/dashboard" },
+      });
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   res.json({ task });
 });
 

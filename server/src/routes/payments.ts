@@ -9,6 +9,7 @@ import { getEnv, isRazorpayConfigured } from "../config/env";
 import { getPlan, withGst, intervalEnd } from "../config/pricing";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
+import { notifyUser, notifyRole } from "../services/notificationService";
 
 const router = Router();
 
@@ -197,6 +198,27 @@ router.post("/verify", async (req, res) => {
       .where(eq(payments._id, row._id));
 
     void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, row.amountPaise + row.gstPaise, razorpay_payment_id);
+
+    // Bell/push notifications: confirm to the payer + alert admins/founders.
+    try {
+      const amount = ((row.amountPaise + row.gstPaise) / 100).toLocaleString("en-IN");
+      await notifyRole("ADMIN", {
+        type: "payment_received",
+        title: "Payment received",
+        message: `${row.customerName} paid ₹${amount} for ${row.planLabel}.`,
+        data: { href: "/admin/payments" },
+      });
+      if (row.userId) {
+        await notifyUser(String(row.userId), {
+          type: "payment_received",
+          title: "Payment successful ✅",
+          message: `Your payment of ₹${amount} for ${row.planLabel} was received.`,
+          priority: "high",
+        });
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   res.json({

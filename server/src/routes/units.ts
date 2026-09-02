@@ -8,6 +8,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
 import { emitUnitUpdate } from "../sockets";
 import { UNIT_LOCK_MINUTES } from "../config/constants";
+import { notifyUser } from "../services/notificationService";
 
 const router = Router();
 router.use(authenticate);
@@ -108,6 +109,26 @@ router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
   }
 
   emitUnitUpdate(String(unit.projectId), unit);
+
+  // Let the project's developer know a CP just locked a unit (booking intent).
+  try {
+    const [project] = await db
+      .select({ _id: projects._id, name: projects.name, developerId: projects.developerId })
+      .from(projects)
+      .where(eq(projects._id, unit.projectId));
+    if (project) {
+      await notifyUser(String(project.developerId), {
+        type: "unit_locked",
+        title: "Unit locked by a channel partner",
+        message: `A CP locked unit ${unit.unitNumber ?? ""} in "${project.name}" — a booking may be on the way.`,
+        actorUserId: req.user!.userId,
+        data: { href: `/developer/projects/${project._id}` },
+      });
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   res.json({ unit });
 });
 
