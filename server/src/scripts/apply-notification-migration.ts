@@ -36,6 +36,7 @@ const statements: string[] = [
   `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS priority text NOT NULL DEFAULT 'normal'`,
   `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at timestamptz`,
   `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS expires_at timestamptz`,
+  `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS pushed_at timestamptz`,
   `CREATE INDEX IF NOT EXISTS notifications_user_created_idx ON notifications (user_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS notifications_type_idx ON notifications (type)`,
   `CREATE TABLE IF NOT EXISTS notification_preferences (

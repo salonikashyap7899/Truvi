@@ -3,6 +3,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { notifications, userPushTokens } from "../db/schema";
 import { authenticate, AuthedRequest } from "../middleware/auth";
+import { catchUpPushForUser } from "../services/pushService";
 
 const router = Router();
 router.use(authenticate);
@@ -84,6 +85,12 @@ router.post("/push-token", async (req: AuthedRequest, res) => {
       target: userPushTokens.token,
       set: { userId: req.user!.userId, platform, deviceId, updatedAt: new Date() },
     });
+
+  // Now that this user has a device, deliver as push any notifications created
+  // while they had none (e.g. the welcome + role onboarding made at signup,
+  // before they first opened the app). Fire-and-forget; never blocks the response.
+  void catchUpPushForUser(req.user!.userId);
+
   res.json({ ok: true });
 });
 

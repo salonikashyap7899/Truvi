@@ -81,7 +81,17 @@ export interface PushPayload {
  * sends via FCM, and prunes tokens FCM reports as permanently invalid. Entirely
  * fire-and-forget safe — never throws.
  */
-export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<void> {
+export async function sendPushToUsers(
+  userIds: string[],
+  payload: PushPayload,
+  /**
+   * Optional map of userId → the notification row id created for that user in
+   * this batch. After a successful send, the rows for users who actually had a
+   * device are stamped `pushed_at`, so the catch-up path (on device
+   * registration) never re-pushes an already-delivered notification.
+   */
+  notifIdByUser?: Record<string, string>,
+): Promise<void> {
   if (!isPushEnabled()) return;
   const ids = Array.from(new Set(userIds.filter(Boolean)));
   if (ids.length === 0) return;
@@ -92,16 +102,27 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
 
     // Imported here (not at top) so the DB layer isn't pulled in when push is off.
     const { getDb } = await import("../config/db");
-    const { userPushTokens } = await import("../db/schema");
+    const { userPushTokens, notifications } = await import("../db/schema");
     const { inArray } = await import("drizzle-orm");
     const { getMessaging } = await import("firebase-admin/messaging");
 
     const db = getDb();
     const rows = await db
-      .select({ token: userPushTokens.token })
+      .select({ token: userPushTokens.token, userId: userPushTokens.userId })
       .from(userPushTokens)
       .where(inArray(userPushTokens.userId, ids));
     const tokens = rows.map((r) => r.token).filter(Boolean);
+
+    // Mark the rows of users who had at least one device as pushed, regardless
+    // of per-token success, so we don't re-push them on the next registration.
+    if (notifIdByUser) {
+      const usersWithDevice = new Set(rows.map((r) => String(r.userId)));
+      const notifIds = [...usersWithDevice].map((u) => notifIdByUser[u]).filter(Boolean) as string[];
+      if (notifIds.length) {
+        await db.update(notifications).set({ pushedAt: new Date() }).where(inArray(notifications._id, notifIds));
+      }
+    }
+
     if (tokens.length === 0) return;
 
     const data: Record<string, string> = {};
@@ -127,5 +148,69 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
     }
   } catch (err) {
     console.warn("[push] send error:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
+ * Deliver, as phone push, any of a user's notifications that were created while
+ * they had no device registered (so were never pushed) — e.g. the welcome +
+ * role-based onboarding notifications made at signup, before the app first ran.
+ * Called when a device registers its token (first sign-in on the app). Marks
+ * each pushed so it is delivered exactly once. Safe no-op when push is off.
+ */
+export async function catchUpPushForUser(userId: string): Promise<void> {
+  if (!isPushEnabled() || !userId) return;
+  try {
+    const app = await getApp();
+    if (!app) return;
+
+    const { getDb } = await import("../config/db");
+    const { userPushTokens, notifications } = await import("../db/schema");
+    const { and, eq, gt, inArray, isNull } = await import("drizzle-orm");
+    const { getMessaging } = await import("firebase-admin/messaging");
+
+    const db = getDb();
+    const tokenRows = await db
+      .select({ token: userPushTokens.token })
+      .from(userPushTokens)
+      .where(eq(userPushTokens.userId, userId));
+    const tokens = tokenRows.map((r) => r.token).filter(Boolean);
+    if (tokens.length === 0) return;
+
+    // Recent (7-day), still-unread, never-pushed rows — oldest first so the
+    // welcome lands before later onboarding nudges.
+    const since = new Date(Date.now() - 1000 * 60 * 60 * 24 * 7);
+    const pending = await db
+      .select({ id: notifications._id, title: notifications.title, message: notifications.message, type: notifications.type, data: notifications.data })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.isRead, false),
+          isNull(notifications.pushedAt),
+          gt(notifications.createdAt, since),
+        ),
+      )
+      .orderBy(notifications.createdAt)
+      .limit(10);
+    if (pending.length === 0) return;
+
+    const messaging = getMessaging(app);
+    for (const n of pending) {
+      const data: Record<string, string> = { type: String(n.type) };
+      for (const [k, v] of Object.entries((n.data as Record<string, unknown>) ?? {})) data[k] = String(v);
+      await messaging.sendEachForMulticast({
+        tokens,
+        notification: { title: n.title ?? "Truvi", body: n.message },
+        data,
+        android: { priority: "high", notification: { channelId: "truvi_default" } },
+      });
+    }
+    await db
+      .update(notifications)
+      .set({ pushedAt: new Date() })
+      .where(inArray(notifications._id, pending.map((p) => p.id)));
+  } catch (err) {
+    console.warn("[push] catch-up error:", err instanceof Error ? err.message : err);
   }
 }
