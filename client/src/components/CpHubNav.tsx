@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, Bot, Building2, CalendarCheck2, FolderLock, GraduationCap, KanbanSquare, LayoutDashboard, Trophy, Users, Wallet } from "lucide-react";
+import { BarChart3, Bot, Building2, CalendarCheck2, FolderLock, GraduationCap, KanbanSquare, LayoutDashboard, LineChart, Trophy, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMarketingAccess } from "@/lib/useMarketingAccess";
 
 /**
  * The 6-hub information architecture for the CP workspace:
@@ -23,9 +24,13 @@ const HUBS: { to: string; label: string; icon: typeof LayoutDashboard; pro?: boo
 
 export function CpHubNav() {
   const { pathname } = useLocation();
+  const { hasAccess } = useMarketingAccess();
+  const hubs = hasAccess
+    ? [...HUBS, { to: "/marketing", label: "Marketing Hub", icon: LineChart }]
+    : HUBS;
   return (
     <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="CP hubs">
-      {HUBS.map(({ to, label, icon: Icon, pro, tooltip }) => {
+      {hubs.map(({ to, label, icon: Icon, pro, tooltip }) => {
         const active = pathname === to;
         return (
           <Link

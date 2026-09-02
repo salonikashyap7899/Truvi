@@ -16,6 +16,7 @@ import siteVisitRoutes from "./routes/siteVisits";
 import commissionRoutes from "./routes/commissions";
 import marketplaceRoutes from "./routes/marketplace";
 import premiumRoutes from "./routes/premium";
+import marketingRoutes, { adminRouter as marketingAdminRoutes } from "./routes/marketing";
 import crmRoutes from "./routes/crm";
 import developerRoutes from "./routes/developer";
 import uploadRoutes from "./routes/uploads";
@@ -119,6 +120,8 @@ export function createApp() {
   app.use("/api/legal", legalRoutes);
   app.use("/api/payments", paymentRoutes);
   app.use("/api/finance", financeRoutes);
+  app.use("/api/marketing", marketingRoutes);
+  app.use("/api/admin/marketing", marketingAdminRoutes);
   app.use("/api", verificationRoutes); // /api/verify/:id, /api/verification/:id, /api/property/:id
   app.use("/api/ingest", ingestRoutes);
   app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs

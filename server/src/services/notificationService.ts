@@ -68,6 +68,11 @@ export const NotificationType = {
   INVESTMENT_OPPORTUNITY: "investment_opportunity",
   SYSTEM_ANNOUNCEMENT: "system_announcement",
   SECURITY_ALERT: "security_alert",
+  // Marketing module
+  MARKETING_ACCESS_GRANTED: "marketing_access_granted",
+  MARKETING_ACCESS_REVOKED: "marketing_access_revoked",
+  MARKETING_PAYMENT_RECORDED: "marketing_payment_recorded",
+  MARKETING_LEAD: "marketing_lead",
   GENERAL: "general",
 } as const;
 
@@ -106,6 +111,10 @@ const TYPE_CATEGORY: Record<string, string> = {
   meeting_cancelled: "meetings",
   investment_opportunity: "investment",
   system_announcement: "announcements",
+  marketing_access_granted: "marketing",
+  marketing_access_revoked: "marketing",
+  marketing_payment_recorded: "marketing",
+  marketing_lead: "marketing",
 };
 
 export interface NotificationInput {

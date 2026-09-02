@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Boxes, CalendarCheck2, FolderLock, KanbanSquare, BrainCircuit, Megaphone, BadgePercent } from "lucide-react";
+import { LayoutDashboard, Boxes, CalendarCheck2, FolderLock, KanbanSquare, BrainCircuit, Megaphone, BadgePercent, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMarketingAccess } from "@/lib/useMarketingAccess";
 
 /**
  * The developer workspace information architecture — one home + four hubs that
@@ -22,9 +23,15 @@ const HUBS = [
 
 export function DevHubNav() {
   const { pathname } = useLocation();
+  const { hasAccess } = useMarketingAccess();
+  // The access-gated Marketing Dashboard hub appears only for authorized
+  // partners (distinct from the "/developer/campaigns" pricing feature).
+  const hubs = hasAccess
+    ? [...HUBS, { to: "/marketing", label: "Marketing Hub", icon: LineChart }]
+    : HUBS;
   return (
     <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Developer hubs">
-      {HUBS.map(({ to, label, icon: Icon, badge }) => {
+      {hubs.map(({ to, label, icon: Icon, badge }: { to: string; label: string; icon: typeof LineChart; badge?: string }) => {
         const active = pathname === to;
         return (
           <Link

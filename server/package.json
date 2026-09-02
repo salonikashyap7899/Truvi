@@ -23,6 +23,7 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:notify": "tsx src/scripts/apply-notification-migration.ts",
+    "db:marketing": "tsx src/scripts/apply-marketing-migration.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

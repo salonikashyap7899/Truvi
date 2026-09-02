@@ -1544,6 +1544,134 @@ export const ambassadorKnowledgeConfig = pgTable("ambassador_knowledge_config", 
 });
 export type IAmbassadorKnowledgeConfig = typeof ambassadorKnowledgeConfig.$inferSelect;
 
+// ─────────────────────────────────────────────────────────────────────────
+// MARKETING MODULE — a self-contained access / purchase / dashboard feature,
+// fully separate from the Developer pricing plans. An admin/founder grants
+// "Marketing Access" to a partner (usually a Developer or CP), records the
+// direct/offline payment (GST charged, never bypassed), sets a spendable
+// budget + validity window, and can activate / deactivate / revoke at any
+// time — the effect is immediate because access is re-checked on every
+// request. Authorized users get a Marketing Dashboard (spend / used /
+// remaining budget, lead + campaign tracking). Nothing here touches the
+// existing `payments` / `subscriptions` tables or the pricing catalog, so
+// Developer pricing is undisturbed.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One row per partner granted marketing access (unique per user). ACTIVE and
+ *  within [validFrom, validUntil] = usable; INACTIVE = suspended but kept for
+ *  history; revoke deletes the row. */
+export const marketingAccess = pgTable(
+  "marketing_access",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    status: text("status").$type<"ACTIVE" | "INACTIVE">().notNull().default("ACTIVE"),
+    packageName: text("package_name").notNull().default("Marketing Access"),
+    // Spendable marketing budget the partner has purchased, in paise (base,
+    // excl. GST — GST lives on the payment record, it is not spendable budget).
+    budgetPaise: integer("budget_paise").notNull().default(0),
+    validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    validUntil: timestamp("valid_until", { withTimezone: true, mode: "date" }),
+    grantedById: uuid("granted_by_id").references(() => users._id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("marketing_access_user_idx").on(t.userId)]
+);
+export type IMarketingAccess = typeof marketingAccess.$inferSelect;
+
+/** Direct / offline marketing payments recorded by an admin. GST is charged on
+ *  top of the base amount and recorded explicitly — never avoided. */
+export const marketingPayments = pgTable(
+  "marketing_payments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    partnerName: text("partner_name").notNull(),
+    partnerEmail: text("partner_email"),
+    partnerPhone: text("partner_phone"),
+    packageName: text("package_name").notNull().default("Marketing Access"),
+    // Money — all paise. total = amount + gst.
+    amountPaise: integer("amount_paise").notNull().default(0),
+    gstPercent: doublePrecision("gst_percent").notNull().default(18),
+    gstPaise: integer("gst_paise").notNull().default(0),
+    totalPaise: integer("total_paise").notNull().default(0),
+    method: text("method").$type<"CASH" | "BANK_TRANSFER" | "UPI" | "CHEQUE" | "CARD" | "OTHER">().notNull().default("OTHER"),
+    reference: text("reference"),
+    status: text("status").$type<"PENDING" | "VERIFIED" | "FAILED" | "REFUNDED">().notNull().default("VERIFIED"),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    verifiedById: uuid("verified_by_id").references(() => users._id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("marketing_payments_user_idx").on(t.userId, t.createdAt)]
+);
+export type IMarketingPayment = typeof marketingPayments.$inferSelect;
+
+/** Admin-tracked marketing spend/activity for a partner (drives "Total Amount
+ *  Used" and "Remaining Budget"). */
+export const marketingExpenses = pgTable(
+  "marketing_expenses",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    activity: text("activity").notNull(),
+    amountPaise: integer("amount_paise").notNull().default(0),
+    status: text("status").$type<"PLANNED" | "ACTIVE" | "COMPLETED">().notNull().default("ACTIVE"),
+    spentAt: timestamp("spent_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("marketing_expenses_user_idx").on(t.userId, t.spentAt)]
+);
+export type IMarketingExpense = typeof marketingExpenses.$inferSelect;
+
+/** Leads attributed to a partner's marketing (drives the lead cards:
+ *  Today's / Total / Qualified / Converted / Pending). */
+export const marketingLeads = pgTable(
+  "marketing_leads",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    email: text("email"),
+    source: text("source").notNull().default("Marketing"),
+    status: text("status").$type<"NEW" | "QUALIFIED" | "CONVERTED" | "PENDING">().notNull().default("NEW"),
+    valuePaise: integer("value_paise").notNull().default(0),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("marketing_leads_user_idx").on(t.userId, t.createdAt),
+    index("marketing_leads_status_idx").on(t.status),
+  ]
+);
+export type IMarketingLead = typeof marketingLeads.$inferSelect;
+
+/** Per-partner marketing campaigns (drives the "Marketing Campaigns" card).
+ *  Distinct from the founder-module global `marketing_campaigns` table. */
+export const marketingPartnerCampaigns = pgTable(
+  "marketing_partner_campaigns",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    name: text("name").notNull(),
+    channel: text("channel").notNull().default("Other"),
+    status: text("status").$type<"ACTIVE" | "PAUSED" | "COMPLETED">().notNull().default("ACTIVE"),
+    spendPaise: integer("spend_paise").notNull().default(0),
+    leadsCount: integer("leads_count").notNull().default(0),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("marketing_partner_campaigns_user_idx").on(t.userId)]
+);
+export type IMarketingPartnerCampaign = typeof marketingPartnerCampaigns.$inferSelect;
+
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
 export type IVerificationDetails = VerificationDetails;

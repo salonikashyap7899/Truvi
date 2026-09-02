@@ -103,6 +103,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Revenue", icon: "wallet", path: "/admin/revenue" },
   { label: "Finance", icon: "chart", path: "/admin/finance" },
   { label: "Payments", icon: "target", path: "/admin/payments" },
+  { label: "Marketing", icon: "spark", path: "/admin/marketing" },
   { label: "Commissions", icon: "wallet", path: "/admin/commissions" },
   { label: "Investments", icon: "chart", path: "/admin/investments" },
   { label: "Ambassador Tasks", icon: "trophy", path: "/admin/ambassador-tasks" },
