@@ -8,6 +8,7 @@ import { getDb } from "../config/db";
 import { enquiries } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { notifyRole } from "../services/notificationService";
 import { emitToRole } from "../sockets";
 import { getEnv } from "../config/env";
 
@@ -97,6 +98,19 @@ router.post("/", enquiryUpload.single("file"), async (req, res) => {
     projectName,
     createdAt: enquiry.createdAt,
   });
+
+  // Persist a bell/push notification for admins/founders (the socket emit above
+  // is transient and lost if they're offline). Never fail the enquiry on it.
+  try {
+    await notifyRole("ADMIN", {
+      type: "new_enquiry",
+      title: "New enquiry",
+      message: `${name || "Someone"} sent an enquiry${projectName ? ` about ${projectName}` : ""}.`,
+      data: { href: "/admin/enquiries" },
+    });
+  } catch {
+    /* non-fatal */
+  }
 
   return res.status(201).json({ ok: true, enquiryId: enquiry._id });
 });
