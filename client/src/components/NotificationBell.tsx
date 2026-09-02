@@ -10,6 +10,28 @@ import type { Notification } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 
+/** Per-session guard so a notification is toasted at most once (survives the
+ *  real-time emit AND the on-load catch-up without double-popping). */
+const TOASTED_KEY = "truvi_toasted_notifs";
+function wasToasted(id: string): boolean {
+  try {
+    return (JSON.parse(sessionStorage.getItem(TOASTED_KEY) || "[]") as string[]).includes(id);
+  } catch {
+    return false;
+  }
+}
+function markToasted(id: string): void {
+  try {
+    const arr = JSON.parse(sessionStorage.getItem(TOASTED_KEY) || "[]") as string[];
+    if (!arr.includes(id)) {
+      arr.push(id);
+      sessionStorage.setItem(TOASTED_KEY, JSON.stringify(arr.slice(-100)));
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Pick an icon + accent for a notification from its `type`. */
 function iconFor(type?: string): { Icon: LucideIcon; cls: string } {
   const t = type ?? "general";
@@ -39,7 +61,30 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    api.get("/notifications").then((res) => setNotifications(res.data.notifications)).catch(() => {});
+    api
+      .get("/notifications")
+      .then((res) => {
+        const list: Notification[] = res.data.notifications ?? [];
+        setNotifications(list);
+        // Pop up notifications that arrived while we were offline — e.g. the
+        // welcome + onboarding notifications created at signup, BEFORE this
+        // user's socket connected (so the real-time emit was missed). Only
+        // fresh (<10 min), unread, and shown once per browser session.
+        try {
+          const cutoff = Date.now() - 10 * 60 * 1000;
+          const fresh = list
+            .filter((n) => !n.isRead && new Date(n.createdAt).getTime() > cutoff && !wasToasted(n._id))
+            .slice(0, 3)
+            .reverse();
+          for (const n of fresh) {
+            toast.info(n.title || n.message);
+            markToasted(n._id);
+          }
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {});
     api.get("/notifications/unread-count").then((res) => setUnread(res.data.count ?? 0)).catch(() => {});
   }, []);
 
@@ -47,7 +92,10 @@ export function NotificationBell() {
   useSocketEvent<Notification>("notification:new", (n) => {
     setNotifications((prev) => (prev.some((p) => p._id === n._id) ? prev : [n, ...prev]));
     setUnread((c) => c + 1);
-    toast.info(n.title || n.message);
+    if (!wasToasted(n._id)) {
+      toast.info(n.title || n.message);
+      markToasted(n._id);
+    }
   });
 
   async function markRead(n: Notification) {
