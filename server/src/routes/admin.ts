@@ -1382,6 +1382,20 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     }
   }
 
+  // Truvi-Verified badge just granted → congratulate the developer.
+  if (data.isVerified === true && existing.isVerified !== true) {
+    try {
+      await notifyUser(String(project.developerId), {
+        type: "project_approved",
+        title: "Project verified ✅",
+        message: `Your project "${project.name}" is now Truvi-Verified — buyers trust verified listings more.`,
+        data: { href: `/developer/projects/${project._id}` },
+      });
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   res.json({ project });
 });
 

@@ -8,6 +8,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
 import { emitUnitUpdate } from "../sockets";
 import { UNIT_LOCK_MINUTES } from "../config/constants";
+import { notifyUser, notifyRole } from "../services/notificationService";
 
 const router = Router();
 router.use(authenticate);
@@ -53,6 +54,24 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
       priceHistory: [{ price: parsed.data.price, changedAt: new Date().toISOString() }],
     })
     .returning();
+
+  // New inventory: tell CPs and buyers there are fresh plots to explore. Deduped
+  // to once per project per day so adding many units at once doesn't spam. Only
+  // for live (approved) projects — pending ones aren't public yet.
+  try {
+    if (project.approvalStatus === "APPROVED") {
+      const day = new Date().toISOString().slice(0, 10);
+      await notifyRole(["CP", "BUYER"], {
+        type: "new_property",
+        title: "New inventory available 🏘️",
+        message: `New plots/units were just added in "${project.name}". Explore the latest inventory.`,
+        data: { href: `/inventory/${project._id}/presentation` },
+        dedupeKey: `inventory:${project._id}:${day}`,
+      });
+    }
+  } catch {
+    /* non-fatal */
+  }
 
   res.status(201).json({ unit });
 });
@@ -108,6 +127,26 @@ router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
   }
 
   emitUnitUpdate(String(unit.projectId), unit);
+
+  // Let the project's developer know a CP just locked a unit (booking intent).
+  try {
+    const [project] = await db
+      .select({ _id: projects._id, name: projects.name, developerId: projects.developerId })
+      .from(projects)
+      .where(eq(projects._id, unit.projectId));
+    if (project) {
+      await notifyUser(String(project.developerId), {
+        type: "unit_locked",
+        title: "Unit locked by a channel partner",
+        message: `A CP locked unit ${unit.unitNumber ?? ""} in "${project.name}" — a booking may be on the way.`,
+        actorUserId: req.user!.userId,
+        data: { href: `/developer/projects/${project._id}` },
+      });
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   res.json({ unit });
 });
 

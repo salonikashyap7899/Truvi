@@ -8,6 +8,7 @@ import { createLeadSchema, updateLeadStageSchema } from "../lib/validations/lead
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { emitLeadUpdate } from "../sockets";
 import { logAudit } from "../services/audit";
+import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 
 const router = Router();
@@ -101,6 +102,34 @@ router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
     .returning();
 
   emitLeadUpdate(lead);
+
+  // Notify the project's developer (and admins/founders) about the new lead.
+  // Never let a notification failure fail lead creation.
+  try {
+    const [project] = await db
+      .select({ name: projects.name, developerId: projects.developerId })
+      .from(projects)
+      .where(eq(projects._id, projectId));
+    if (project) {
+      await notifyUser(String(project.developerId), {
+        type: NotificationType.NEW_LEAD,
+        title: "New lead",
+        message: `A new lead came in for "${project.name}".`,
+        actorUserId: req.user!.userId,
+        data: { href: "/crm/pipeline" },
+      });
+      await notifyRole("ADMIN", {
+        type: NotificationType.NEW_LEAD,
+        title: "New lead",
+        message: `A new lead was submitted for "${project.name}".`,
+        actorUserId: req.user!.userId,
+        data: { href: "/admin/referral-leads" },
+      });
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   res.status(201).json({ lead });
 });
 
@@ -172,6 +201,47 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
 
   await logAudit({ userId: user.userId, action: "lead.stage.update", resourceType: "lead", resourceId: String(lead._id), metadata: { from: lead.stage, to: newStage, client: lead.clientName } });
   emitLeadUpdate(updated);
+
+  // Notify on a real stage change. Never fail the move on a notification.
+  try {
+    if (newStage !== lead.stage) {
+      // Tell the assigned CP if someone else moved their lead.
+      if (lead.assignedToId && String(lead.assignedToId) !== user.userId) {
+        await notifyUser(String(lead.assignedToId), {
+          type: "lead_updated",
+          title: "Lead updated",
+          message: `Lead "${lead.clientName ?? "—"}" moved to ${newStage}.`,
+          actorUserId: user.userId,
+          data: { href: "/crm/pipeline" },
+        });
+      }
+      // A booking is a milestone — alert the developer and admins/founders.
+      if (newStage === "BOOKING") {
+        const [project] = await db
+          .select({ name: projects.name, developerId: projects.developerId })
+          .from(projects)
+          .where(eq(projects._id, lead.projectId));
+        if (project) {
+          await notifyUser(String(project.developerId), {
+            type: "lead_converted",
+            title: "Booking! 🎉",
+            message: `A lead just booked in "${project.name}".`,
+            priority: "high",
+            data: { href: "/crm/pipeline" },
+          });
+          await notifyRole("ADMIN", {
+            type: "lead_converted",
+            title: "New booking 🎉",
+            message: `A lead booked in "${project.name}".`,
+            data: { href: "/bookings" },
+          });
+        }
+      }
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   res.json({ lead: updated });
 });
 
