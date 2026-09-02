@@ -107,6 +107,19 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function doDelete(u: User) {
+    setBusyId(u._id);
+    try {
+      const res = await api.delete(`/admin/users/${u._id}`);
+      setUsers((prev) => prev.filter((x) => x._id !== u._id));
+      toast.success(`Permanently deleted ${res.data.deleted || u.name}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Delete failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // Each action opens the in-app dialog describing that specific action.
   function askApprove(u: User) {
     setPending({
@@ -133,6 +146,16 @@ export default function AdminUsersPage() {
       confirmLabel: "Remove",
       tone: "danger",
       run: () => doSetDisabled(u, true),
+    });
+  }
+  function askDelete(u: User) {
+    setPending({
+      title: `Permanently delete ${u.name}?`,
+      message:
+        "This CANNOT be undone. It erases the account and ALL their data — projects, leads, commissions, documents and history. Use 'Remove' instead if you only want to block login.",
+      confirmLabel: "Delete forever",
+      tone: "danger",
+      run: () => doDelete(u),
     });
   }
   function askRestore(u: User) {
@@ -401,6 +424,15 @@ export default function AdminUsersPage() {
                         Remove
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy}
+                      onClick={() => askDelete(u)}
+                      className="border border-red-500/50 bg-red-600/20 text-red-200 hover:bg-red-600/40"
+                    >
+                      Delete forever
+                    </Button>
                   </>
                 )}
               </div>

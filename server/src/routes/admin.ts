@@ -974,6 +974,116 @@ router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
   res.json({ user: safeUser });
 });
 
+// DELETE /api/admin/users/:id — PERMANENTLY delete a user and every record tied
+// to them. This is irreversible and destroys their projects, leads, commissions,
+// documents, payments links, etc. Gated to ADMIN (founders are admins). The
+// whole thing runs in ONE transaction: if any linked record can't be removed,
+// nothing is deleted (clean rollback), so the account is never left half-broken.
+router.delete("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (userId === req.user!.userId) {
+    return res.status(400).json({ error: "You cannot delete your own account." });
+  }
+
+  const db = getDb();
+  const [target] = await db
+    .select({ _id: users._id, name: users.name, email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const sqlc = getSqlClient();
+  try {
+    await sqlc.begin(async (tx) => {
+      const U = userId;
+      // 1) Detach nullable references — these rows survive, just lose the link.
+      await tx`UPDATE units SET locked_by_cp_id = NULL WHERE locked_by_cp_id = ${U}`;
+      await tx`UPDATE leads SET assigned_to_id = NULL WHERE assigned_to_id = ${U}`;
+      await tx`UPDATE site_visits SET cp_id = NULL WHERE cp_id = ${U}`;
+      await tx`UPDATE site_visits SET buyer_id = NULL WHERE buyer_id = ${U}`;
+      await tx`UPDATE notifications SET actor_user_id = NULL WHERE actor_user_id = ${U}`;
+      await tx`UPDATE legal_documents SET verified_by_id = NULL WHERE verified_by_id = ${U}`;
+      await tx`UPDATE academy_content SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE ambassador_tasks SET accepted_by_id = NULL WHERE accepted_by_id = ${U}`;
+      await tx`UPDATE employee_payments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE customer_feedback SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE command_investments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE command_revenues SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE recurring_expenses SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE payments SET user_id = NULL WHERE user_id = ${U}`;
+      await tx`UPDATE subscriptions SET user_id = NULL WHERE user_id = ${U}`;
+      await tx`UPDATE cp_commission_payments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE cp_manual_commissions SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE project_investment_terms SET updated_by_id = NULL WHERE updated_by_id = ${U}`;
+      await tx`UPDATE ambassador_knowledge_materials SET created_by_id = NULL WHERE created_by_id = ${U}`;
+
+      // 2) Children of leads on the user's projects OR submitted by the user.
+      await tx`DELETE FROM commissions    WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM site_visits     WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM lead_activities WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM lead_follow_ups WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM crm_tasks       WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+
+      // 3) CRM/commission rows the user owns directly (cp_id).
+      await tx`DELETE FROM commissions    WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_activities WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_follow_ups WHERE cp_id = ${U}`;
+      await tx`DELETE FROM crm_tasks       WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_purchases  WHERE cp_id = ${U}`;
+
+      // 4) The leads themselves.
+      await tx`DELETE FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U}`;
+
+      // 5) Children of the user's projects, then the projects.
+      await tx`DELETE FROM site_visits             WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM units                   WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_assets           WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM shared_documents         WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM enquiries                WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM legal_documents          WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM finance_entries          WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_comments         WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_investments      WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_investment_terms WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM projects WHERE developer_id = ${U}`;
+
+      // 6) Everything else the user owns directly (NOT NULL FKs → must delete).
+      await tx`DELETE FROM developer_referrals           WHERE cp_id = ${U}`;
+      await tx`DELETE FROM developer_commission_accruals WHERE cp_id = ${U} OR developer_id = ${U}`;
+      await tx`DELETE FROM cp_commission_payments        WHERE cp_id = ${U}`;
+      await tx`DELETE FROM cp_manual_commissions         WHERE cp_id = ${U}`;
+      await tx`DELETE FROM project_investments           WHERE investor_id = ${U}`;
+      await tx`DELETE FROM project_comments              WHERE user_id = ${U}`;
+      await tx`DELETE FROM buyer_documents               WHERE buyer_id = ${U}`;
+      await tx`DELETE FROM shared_documents              WHERE uploaded_by_id = ${U}`;
+      await tx`DELETE FROM project_assets                WHERE uploaded_by = ${U}`;
+      await tx`DELETE FROM legal_documents               WHERE uploaded_by_id = ${U}`;
+      await tx`DELETE FROM ambassador_tasks              WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM finance_entries               WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM loans                         WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM loan_checks                   WHERE user_id = ${U}`;
+      await tx`DELETE FROM investments                   WHERE user_id = ${U}`;
+      await tx`DELETE FROM posts                         WHERE author_id = ${U}`;
+      await tx`DELETE FROM course_progress               WHERE user_id = ${U}`;
+      await tx`DELETE FROM notification_preferences      WHERE user_id = ${U}`;
+      await tx`DELETE FROM user_push_tokens              WHERE user_id = ${U}`;
+      await tx`DELETE FROM notifications                 WHERE user_id = ${U}`;
+
+      // 7) Finally the account (kyc_data / kyc_documents cascade automatically).
+      await tx`DELETE FROM users WHERE id = ${U}`;
+    });
+  } catch (err) {
+    console.error("Failed to permanently delete user", userId, err);
+    return res.status(500).json({
+      error: "Could not delete this user — they have linked records that failed to remove. No changes were made.",
+    });
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "user.delete", resourceType: "user", resourceId: userId, metadata: { name: target.name, email: target.email, role: target.role } });
+  res.json({ ok: true, deleted: target.name || target.email });
+});
+
 // POST /api/admin/users/:id/cancel-subscription — cancel a user's paid plan.
 // Marks their active/pending subscription rows CANCELLED and clears the
 // premium flags (CP premium + tier). Truthful state only — no fake numbers.
