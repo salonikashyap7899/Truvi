@@ -113,38 +113,47 @@ export async function sendPushToUsers(
       .where(inArray(userPushTokens.userId, ids));
     const tokens = rows.map((r) => r.token).filter(Boolean);
 
-    // Mark the rows of users who had at least one device as pushed, regardless
-    // of per-token success, so we don't re-push them on the next registration.
-    if (notifIdByUser) {
-      const usersWithDevice = new Set(rows.map((r) => String(r.userId)));
-      const notifIds = [...usersWithDevice].map((u) => notifIdByUser[u]).filter(Boolean) as string[];
-      if (notifIds.length) {
-        await db.update(notifications).set({ pushedAt: new Date() }).where(inArray(notifications._id, notifIds));
+    // Send the push FIRST — delivery must never depend on any bookkeeping that
+    // could fail (e.g. the pushed_at column not migrated yet). Only then do the
+    // best-effort marking, isolated so it can never suppress a notification.
+    if (tokens.length > 0) {
+      const data: Record<string, string> = {};
+      for (const [k, v] of Object.entries(payload.data ?? {})) data[k] = String(v);
+
+      const res = await getMessaging(app).sendEachForMulticast({
+        tokens,
+        notification: { title: payload.title, body: payload.body },
+        data,
+        android: { priority: "high", notification: { channelId: "truvi_default" } },
+      });
+
+      // Prune tokens FCM says are dead so we don't keep trying them.
+      const dead: string[] = [];
+      res.responses.forEach((r, i) => {
+        const code = r.error?.code;
+        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+          dead.push(tokens[i]!);
+        }
+      });
+      if (dead.length) {
+        await db.delete(userPushTokens).where(inArray(userPushTokens.token, dead));
       }
     }
 
-    if (tokens.length === 0) return;
-
-    const data: Record<string, string> = {};
-    for (const [k, v] of Object.entries(payload.data ?? {})) data[k] = String(v);
-
-    const res = await getMessaging(app).sendEachForMulticast({
-      tokens,
-      notification: { title: payload.title, body: payload.body },
-      data,
-      android: { priority: "high", notification: { channelId: "truvi_default" } },
-    });
-
-    // Prune tokens FCM says are dead so we don't keep trying them.
-    const dead: string[] = [];
-    res.responses.forEach((r, i) => {
-      const code = r.error?.code;
-      if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
-        dead.push(tokens[i]!);
+    // Mark the rows of users who had at least one device as pushed, so we don't
+    // re-push them on the next registration. Best-effort and fully isolated: if
+    // the pushed_at column isn't migrated yet, this is skipped without ever
+    // affecting delivery above.
+    if (notifIdByUser) {
+      try {
+        const usersWithDevice = new Set(rows.map((r) => String(r.userId)));
+        const notifIds = [...usersWithDevice].map((u) => notifIdByUser[u]).filter(Boolean) as string[];
+        if (notifIds.length) {
+          await db.update(notifications).set({ pushedAt: new Date() }).where(inArray(notifications._id, notifIds));
+        }
+      } catch (err) {
+        console.warn("[push] pushed_at mark skipped (run db:notify):", err instanceof Error ? err.message : err);
       }
-    });
-    if (dead.length) {
-      await db.delete(userPushTokens).where(inArray(userPushTokens.token, dead));
     }
   } catch (err) {
     console.warn("[push] send error:", err instanceof Error ? err.message : err);
