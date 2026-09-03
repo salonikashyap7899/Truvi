@@ -2271,11 +2271,46 @@ router.get("/notifications/diagnostics", requireRole("ADMIN"), async (req: Authe
 // POST /api/admin/notifications/test — send a test notification to a user
 // (defaults to the calling admin). Flows through the bell, the real-time
 // socket toast, AND FCM push if configured.
-const testNotifSchema = z.object({ userId: z.string().optional(), title: z.string().optional(), message: z.string().optional() });
+const testNotifSchema = z.object({
+  userId: z.string().optional(),
+  email: z.string().optional(),
+  title: z.string().optional(),
+  message: z.string().optional(),
+});
 router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = testNotifSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
-  const targetId = parsed.data.userId && isValidId(parsed.data.userId) ? parsed.data.userId : req.user!.userId;
+  const db = getDb();
+
+  // Resolve the target: explicit userId, else by email, else the caller.
+  let targetId = req.user!.userId;
+  let target: { _id: string; name: string; email: string } | undefined;
+  if (parsed.data.userId && isValidId(parsed.data.userId)) {
+    targetId = parsed.data.userId;
+  } else if (parsed.data.email?.trim()) {
+    const [u] = await db
+      .select({ _id: users._id, name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.email, parsed.data.email.trim().toLowerCase()))
+      .limit(1);
+    if (!u) return res.status(404).json({ error: "No user with that email" });
+    targetId = String(u._id);
+    target = { _id: String(u._id), name: u.name, email: u.email };
+  }
+  if (!target) {
+    const [u] = await db.select({ _id: users._id, name: users.name, email: users.email }).from(users).where(eq(users._id, targetId)).limit(1);
+    if (u) target = { _id: String(u._id), name: u.name, email: u.email };
+  }
+
+  // How many devices does the target have registered? This is the key signal —
+  // 0 devices means FCM has nothing to push to (the user hasn't opened the
+  // installed app / granted notification permission on a device).
+  const [{ n } = { n: 0 }] = await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(userPushTokens)
+    .where(eq(userPushTokens.userId, targetId));
+  const targetDeviceTokens = Number(n ?? 0);
+
   const rows = await notifyUser(targetId, {
     type: NotificationType.SYSTEM_ANNOUNCEMENT,
     title: parsed.data.title?.trim() || "Test notification 🔔",
@@ -2283,7 +2318,14 @@ router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedReque
     data: { href: "/" },
     priority: "high",
   });
-  res.json({ ok: true, delivered: rows.length, pushEnabled: isPushEnabled() });
+  res.json({
+    ok: true,
+    delivered: rows.length,
+    pushEnabled: isPushEnabled(),
+    targetName: target?.name ?? null,
+    targetEmail: target?.email ?? null,
+    targetDeviceTokens,
+  });
 });
 
 // POST /api/admin/notifications/broadcast — send an announcement to a role (or

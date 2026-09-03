@@ -21,6 +21,9 @@ export default function AdminNotificationsPage() {
   const [target, setTarget] = useState<(typeof TARGETS)[number]>("ALL");
   const [href, setHref] = useState("");
   const [broadcasting, setBroadcasting] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [userTest, setUserTest] = useState<{ name: string | null; email: string | null; devices: number; pushEnabled: boolean } | null>(null);
+  const [testingUser, setTestingUser] = useState(false);
 
   function loadDiag() {
     api.get("/admin/notifications/diagnostics").then((r) => setDiag(r.data)).catch(() => {});
@@ -33,6 +36,25 @@ export default function AdminNotificationsPage() {
       const r = await api.post("/admin/notifications/test", {});
       toast.success(r.data.pushEnabled ? "Test sent — check your bell and phone tray" : "Test sent to your bell (FCM push not configured yet)");
     } catch { toast.error("Failed to send test"); } finally { setSendingTest(false); }
+  }
+
+  async function testUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testEmail.trim()) return toast.error("Enter the user's email");
+    setTestingUser(true);
+    setUserTest(null);
+    try {
+      const r = await api.post("/admin/notifications/test", { email: testEmail.trim() });
+      setUserTest({ name: r.data.targetName, email: r.data.targetEmail, devices: r.data.targetDeviceTokens ?? 0, pushEnabled: r.data.pushEnabled });
+      if ((r.data.targetDeviceTokens ?? 0) === 0) {
+        toast.error("That user has 0 registered devices — they won't get tray push. See the result below.");
+      } else {
+        toast.success(`Test push sent to ${r.data.targetName || testEmail} (${r.data.targetDeviceTokens} device(s))`);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      toast.error(msg || "Failed — check the email");
+    } finally { setTestingUser(false); }
   }
 
   async function broadcast(e: React.FormEvent) {
@@ -71,6 +93,30 @@ export default function AdminNotificationsPage() {
           <button onClick={sendTest} disabled={sendingTest} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-60">
             <Send size={15} /> {sendingTest ? "Sending…" : "Send myself a test"}
           </button>
+        </Card>
+
+        {/* Test a specific user — the key tool for "new user gets no tray push".
+            Shows how many devices that user has registered. 0 = FCM has nothing
+            to push to (they haven't opened the installed app on a phone). */}
+        <Card className="mt-6 p-4">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white/80"><Smartphone size={16} /> Test a specific user's phone</h2>
+          <p className="mb-3 text-xs text-white/50">Enter a user's email to send them a test push and see how many phones they have registered. If it shows <b>0 devices</b>, that user hasn't opened the installed app on a phone (or denied notification permission), so FCM can't reach them — that's why they only see in-app banners, not tray pop-ups.</p>
+          <form onSubmit={testUser} className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px]"><Label>User email</Label><Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="newuser@example.com" /></div>
+            <button disabled={testingUser} className="inline-flex items-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-400 disabled:opacity-60">
+              <Send size={15} /> {testingUser ? "Sending…" : "Send test push"}
+            </button>
+          </form>
+          {userTest && (
+            <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${userTest.devices > 0 ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200" : "border-amber-500/20 bg-amber-500/10 text-amber-200"}`}>
+              <div className="font-semibold">{userTest.name || userTest.email}</div>
+              <div className="mt-0.5">
+                {userTest.devices > 0
+                  ? `${userTest.devices} registered device(s) — a test push was sent. It should appear in their phone tray. If it doesn't, notifications are muted for the app on that phone.`
+                  : "0 registered devices — this user has never registered a phone for push. They must open the INSTALLED app on a phone, log in, and allow notifications. Viewing in a browser does not register a device."}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Broadcast */}
