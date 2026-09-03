@@ -89,6 +89,9 @@ export default function PushRegistration() {
                 id: now % 2_000_000_000,
                 title, body,
                 channelId: "truvi_default",
+                // Truvi monochrome notification icon (add via Android Studio →
+                // Image Asset → Notification Icons, named `ic_stat_truvi`).
+                smallIcon: "ic_stat_truvi",
                 extra: data,
               }],
             }).catch(() => {});
