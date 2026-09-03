@@ -385,6 +385,118 @@ async function ensureSchema(db: Db): Promise<void> {
        "help_text" text,
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    // ── Notification engine columns + push tables (auto-applied on boot so a
+    // plain restart is enough — no separate `npm run db:notify` needed). The
+    // `pushed_at` column in particular is what lets a new user's welcome /
+    // role-onboarding notifications be delivered to their phone tray once
+    // their device registers; without it, tray push for new users fails. ──
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "type" text NOT NULL DEFAULT 'general'`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "title" text`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "actor_user_id" uuid REFERENCES users(id)`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "data" jsonb`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "priority" text NOT NULL DEFAULT 'normal'`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" timestamptz`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "expires_at" timestamptz`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "pushed_at" timestamptz`,
+    `CREATE INDEX IF NOT EXISTS "notifications_user_created_idx" ON "notifications" ("user_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "notifications_type_idx" ON "notifications" ("type")`,
+    `CREATE TABLE IF NOT EXISTS "notification_preferences" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "category" text NOT NULL,
+       "enabled" boolean NOT NULL DEFAULT true,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "notification_prefs_user_category_idx" ON "notification_preferences" ("user_id", "category")`,
+    `CREATE TABLE IF NOT EXISTS "user_push_tokens" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "token" text NOT NULL,
+       "platform" text NOT NULL DEFAULT 'android',
+       "device_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "user_push_tokens_token_idx" ON "user_push_tokens" ("token")`,
+    `CREATE INDEX IF NOT EXISTS "user_push_tokens_user_idx" ON "user_push_tokens" ("user_id")`,
+
+    // ── Marketing module tables (auto-applied on boot; same rationale as above
+    // — a plain restart is enough, no separate `npm run db:marketing`). ──
+    `CREATE TABLE IF NOT EXISTS "marketing_access" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "package_name" text NOT NULL DEFAULT 'Marketing Access',
+       "budget_paise" integer NOT NULL DEFAULT 0,
+       "valid_from" timestamptz NOT NULL DEFAULT now(),
+       "valid_until" timestamptz,
+       "granted_by_id" uuid REFERENCES users(id),
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "marketing_access_user_idx" ON "marketing_access" ("user_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "partner_name" text NOT NULL,
+       "partner_email" text,
+       "partner_phone" text,
+       "package_name" text NOT NULL DEFAULT 'Marketing Access',
+       "amount_paise" integer NOT NULL DEFAULT 0,
+       "gst_percent" double precision NOT NULL DEFAULT 18,
+       "gst_paise" integer NOT NULL DEFAULT 0,
+       "total_paise" integer NOT NULL DEFAULT 0,
+       "method" text NOT NULL DEFAULT 'OTHER',
+       "reference" text,
+       "status" text NOT NULL DEFAULT 'VERIFIED',
+       "paid_at" timestamptz NOT NULL DEFAULT now(),
+       "verified_by_id" uuid REFERENCES users(id),
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_payments_user_idx" ON "marketing_payments" ("user_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_expenses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "activity" text NOT NULL,
+       "amount_paise" integer NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spent_at" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_expenses_user_idx" ON "marketing_expenses" ("user_id", "spent_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_leads" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "name" text NOT NULL,
+       "phone" text,
+       "email" text,
+       "source" text NOT NULL DEFAULT 'Marketing',
+       "status" text NOT NULL DEFAULT 'NEW',
+       "value_paise" integer NOT NULL DEFAULT 0,
+       "notes" text,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_leads_user_idx" ON "marketing_leads" ("user_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "marketing_leads_status_idx" ON "marketing_leads" ("status")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_partner_campaigns" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "name" text NOT NULL,
+       "channel" text NOT NULL DEFAULT 'Other',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spend_paise" integer NOT NULL DEFAULT 0,
+       "leads_count" integer NOT NULL DEFAULT 0,
+       "started_at" timestamptz,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_campaigns_user_idx" ON "marketing_partner_campaigns" ("user_id")`,
+
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
