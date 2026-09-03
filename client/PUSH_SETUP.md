@@ -31,17 +31,22 @@ so these edits are done on your machine, not committed to the repo.
    client/android/app/google-services.json
    ```
 
-3. **Add the Google Services Gradle plugin** (Capacitor doesn't do this for you):
+3. **Add the Google Services Gradle classpath** — ONE line, in ONE file.
 
-   - In `client/android/build.gradle` (the **project-level** one), inside
-     `buildscript { dependencies { … } }`:
-     ```gradle
-     classpath 'com.google.gms:google-services:4.4.2'
-     ```
-   - At the **bottom** of `client/android/app/build.gradle`:
-     ```gradle
-     apply plugin: 'com.google.gms.google-services'
-     ```
+   In `client/android/build.gradle` (the **project-level** one), inside
+   `buildscript { dependencies { … } }`, add this line **once**:
+   ```gradle
+   classpath 'com.google.gms:google-services:4.4.2'
+   ```
+
+   > ⚠️ Do **NOT** add `apply plugin: 'com.google.gms.google-services'` to
+   > `app/build.gradle` yourself. Capacitor's generated `app/build.gradle`
+   > already applies it automatically at the bottom, inside a
+   > `try { … file('google-services.json') … apply plugin … }` block — so it
+   > kicks in as soon as `google-services.json` is present. Adding it again by
+   > hand (especially inside the `defaultConfig { }` block) breaks the build.
+   > Likewise add the classpath above only **once** — a duplicate line fails
+   > the build too.
 
 4. **Rebuild the APK**
    ```bash
