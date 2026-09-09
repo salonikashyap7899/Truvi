@@ -158,6 +158,36 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // Upload the project's 2D site plan / master layout — it becomes the 3D map
+  // shown to buyers on the project's 3D view (each plot is overlaid live from
+  // the units below, green = available, red = booked).
+  const [uploadingMap, setUploadingMap] = useState(false);
+  async function uploadMasterPlan(file: File) {
+    setUploadingMap(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await api.post("/uploads", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      await api.patch(`/projects/${id}`, { masterPlanUrl: uploadRes.data.url });
+      toast.success("Layout uploaded — it's now the 3D map for this project");
+      load();
+    } catch {
+      toast.error("Layout upload failed");
+    } finally {
+      setUploadingMap(false);
+    }
+  }
+  async function removeMasterPlan() {
+    if (!confirm("Remove the uploaded layout? The 3D map will fall back to the auto-generated plot view.")) return;
+    try {
+      await api.patch(`/projects/${id}`, { masterPlanUrl: "" });
+      toast.success("Layout removed");
+      load();
+    } catch {
+      toast.error("Failed to remove layout");
+    }
+  }
+
   if (!project) return <div className="min-h-screen p-10 text-white">Loading…</div>;
 
   const trustScore = project.trustScore ?? null;
@@ -233,6 +263,44 @@ export default function ProjectDetailPage() {
             onChange={(e) => e.target.files?.[0] && uploadBrochure(e.target.files[0])}
           />
         </label>
+      </section>
+
+      {/* 3D map / project layout upload — feeds the buyer-facing 3D view. */}
+      <section className="mt-8">
+        <h2 className="text-lg font-medium">3D map / project layout</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upload your site plan or master layout (image or PDF). Buyers see it as the project's 3D map, with each plot's
+          live status overlaid from your units below — <span className="text-emerald-400">green = available</span>,{" "}
+          <span className="text-red-400">red = booked</span>. If you don't upload one, the 3D view auto-generates a plot map from your units.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 glass px-4 py-2 text-sm hover:border-blue-600">
+            {uploadingMap ? "Uploading…" : project.masterPlanUrl ? "Replace layout" : "Upload layout / map"}
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              disabled={uploadingMap}
+              onChange={(e) => e.target.files?.[0] && uploadMasterPlan(e.target.files[0])}
+            />
+          </label>
+          {project.masterPlanUrl && (
+            <>
+              <a
+                href={`/inventory/${project._id}/3d`}
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-600/40 bg-blue-600/10 px-4 py-2 text-sm text-blue-300 hover:bg-blue-600/20"
+              >
+                Preview 3D map
+              </a>
+              <button onClick={removeMasterPlan} className="text-sm text-red-300 hover:text-red-200">Remove</button>
+            </>
+          )}
+        </div>
+        {project.masterPlanUrl && (
+          <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
+            <img src={project.masterPlanUrl} alt="Project layout" className="max-h-72 w-full object-contain bg-black/30" />
+          </div>
+        )}
       </section>
 
       <PresentationManager project={project} onProjectUpdated={setProject} />
