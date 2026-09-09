@@ -16,6 +16,7 @@ import type { PlotHoverInfo } from "@/components/PrimeEstateScene";
 // The three.js scenes are their own chunks so the page shell paints instantly.
 const Property3DScene = lazy(() => import("@/components/Property3DScene"));
 const PrimeEstateScene = lazy(() => import("@/components/PrimeEstateScene"));
+const PlotLayoutMap = lazy(() => import("@/components/PlotLayoutMap"));
 
 const WA_NUMBER = "919196366358";
 
@@ -281,6 +282,22 @@ export default function ThreeDViewPage() {
               )}
             </AnimatePresence>
           </>
+        ) : project.masterPlanUrl && units.some((u) => u.mapX != null && u.mapY != null) ? (
+          // Uploaded layout WITH placed plots → interactive tap-to-book overlay.
+          <div className="absolute inset-0 overflow-auto p-3 pt-16 sm:p-6 sm:pt-16">
+            <Suspense fallback={<CenterNote><Loader2 size={24} className="animate-spin text-sky-300" /></CenterNote>}>
+              <PlotLayoutMap
+                imageUrl={project.masterPlanUrl}
+                units={units}
+                formatPrice={formatINR}
+                onSelect={(u) => {
+                  const su = units.find((x) => x._id === u._id);
+                  if (su) setSelected({ unit: su, facing: "—" });
+                }}
+                className="mx-auto max-w-4xl"
+              />
+            </Suspense>
+          </div>
         ) : project.masterPlanUrl ? (
           // Exact official master plan — pixel-perfect, deep zoom + pan
           <MasterPlanViewer url={project.masterPlanUrl} name={project.name} />
@@ -397,14 +414,17 @@ export default function ThreeDViewPage() {
               </p>
             </motion.div>
 
-            {/* Plot detail panel — side card on desktop, bottom sheet on mobile */}
-            <AnimatePresence>
-              {selected && project && (
-                <PlotPanel selection={selected} project={project} onClose={() => setSelected(null)} />
-              )}
-            </AnimatePresence>
           </>
         )}
+
+        {/* Plot detail panel — side card on desktop, bottom sheet on mobile.
+            Shared across all modes (3D scene, layout map) so tap-to-book works
+            on the uploaded-layout overlay too. */}
+        <AnimatePresence>
+          {selected && project && (
+            <PlotPanel selection={selected} project={project} onClose={() => setSelected(null)} />
+          )}
+        </AnimatePresence>
       </div>
     </main>
   );

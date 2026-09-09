@@ -14,6 +14,9 @@ export interface SceneUnit {
   areaSqft: number;
   price: number;
   status: string;
+  // Optional marker position on an uploaded layout (0–1), for the map overlay.
+  mapX?: number | null;
+  mapY?: number | null;
 }
 
 export interface PlotSelection {

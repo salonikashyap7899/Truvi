@@ -42,6 +42,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "ai_score" double precision`,
     // Optional plot size / dimensions per unit (e.g. "30x40 ft", "200 sq.yd").
     `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "map_x" double precision`,
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "map_y" double precision`,
     // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
     // Founder analytics: lost-deal reason + first-response time on leads.
