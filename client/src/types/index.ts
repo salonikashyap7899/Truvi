@@ -243,6 +243,9 @@ export interface Unit {
   lockedByCPId?: string | null;
   lockExpiresAt?: string | null;
   priceHistory: PriceHistoryEntry[];
+  // Marker position on the project's uploaded layout (0–1 of width/height).
+  mapX?: number | null;
+  mapY?: number | null;
 }
 
 export interface Lead {

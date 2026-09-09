@@ -279,6 +279,26 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     return res.json({ unit: updated });
   }
 
+  // Plot-on-layout position: developer drags the marker onto the uploaded
+  // master plan. mapX/mapY are fractions 0–1 of the image; null clears it.
+  if (req.body?.mapX !== undefined || req.body?.mapY !== undefined) {
+    const clamp = (v: unknown): number | null => {
+      if (v === null) return null;
+      const n = Number(v);
+      if (!Number.isFinite(n)) return null;
+      return Math.min(1, Math.max(0, n));
+    };
+    const mapX = clamp(req.body.mapX);
+    const mapY = clamp(req.body.mapY);
+    const [updated] = await db
+      .update(units)
+      .set({ mapX, mapY })
+      .where(eq(units._id, unit._id))
+      .returning();
+    emitUnitUpdate(String(updated.projectId), updated);
+    return res.json({ unit: updated });
+  }
+
   res.status(400).json({ error: "No valid update provided" });
 });
 

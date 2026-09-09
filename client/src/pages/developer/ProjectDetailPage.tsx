@@ -16,6 +16,7 @@ import FutureAppreciationCard from "@/components/FutureAppreciationCard";
 import OwnerHistoryCard from "@/components/OwnerHistoryCard";
 import ReraDetailsCard from "@/components/ReraDetailsCard";
 import PresentationManager from "@/components/PresentationManager";
+import PlotLayoutMap from "@/components/PlotLayoutMap";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
 import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import LegalDocsManager from "@/components/LegalDocsManager";
@@ -177,6 +178,17 @@ export default function ProjectDetailPage() {
       setUploadingMap(false);
     }
   }
+  // Save a plot marker's position on the layout (fractions 0–1). Optimistic.
+  async function savePlotPosition(unitId: string, x: number, y: number) {
+    setUnits((prev) => prev.map((u) => (u._id === unitId ? { ...u, mapX: x, mapY: y } : u)));
+    try {
+      await api.patch(`/units/${unitId}`, { mapX: x, mapY: y });
+    } catch {
+      toast.error("Couldn't save plot position");
+      load();
+    }
+  }
+
   async function removeMasterPlan() {
     if (!confirm("Remove the uploaded layout? The 3D map will fall back to the auto-generated plot view.")) return;
     try {
@@ -297,8 +309,18 @@ export default function ProjectDetailPage() {
           )}
         </div>
         {project.masterPlanUrl && (
-          <div className="mt-3 overflow-hidden rounded-xl border border-white/10">
-            <img src={project.masterPlanUrl} alt="Project layout" className="max-h-72 w-full object-contain bg-black/30" />
+          <div className="mt-4">
+            <h3 className="mb-1 text-sm font-medium text-white">Place plots on the layout</h3>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Drop each plot onto its spot — buyers can then tap it on the map to see the price and book. Positions save automatically.
+            </p>
+            <PlotLayoutMap
+              imageUrl={project.masterPlanUrl}
+              units={units}
+              editable
+              onMove={savePlotPosition}
+              formatPrice={formatINR}
+            />
           </div>
         )}
       </section>

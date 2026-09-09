@@ -485,6 +485,12 @@ export const units = pgTable(
     lockedByCPId: uuid("locked_by_cp_id").references(() => users._id),
     lockExpiresAt: timestamp("lock_expires_at", { withTimezone: true, mode: "date" }),
     priceHistory: jsonb("price_history").$type<PriceHistoryEntry[]>().notNull().default([]),
+    // Position of this plot's marker on the project's uploaded layout/master
+    // plan, as fractions (0–1) of the image width/height. Null until a
+    // developer places it. Powers the interactive "tap a plot on the map"
+    // overlay (green = available, red = booked) on the buyer 3D/map view.
+    mapX: doublePrecision("map_x"),
+    mapY: doublePrecision("map_y"),
   },
   (t) => [
     index("units_project_status_idx").on(t.projectId, t.status),
