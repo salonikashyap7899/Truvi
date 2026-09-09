@@ -158,6 +158,9 @@ const updateProjectSchema = z.object({
   reraValidityDate: z.string().datetime().or(z.literal("")).nullable().optional(),
   brochureUrl: z.string().url().optional(),
   priceListUrl: z.string().url().optional(),
+  // Uploaded 2D site plan / master layout image (or PDF) shown as the project's
+  // 3D master-plan map. Accepts a relative /uploads path or a full URL.
+  masterPlanUrl: z.string().max(500).or(z.literal("")).nullable().optional(),
   description: z.string().min(10).optional(),
   commissionPercent: z.number().min(0).max(20).optional(),
   projectType: z.enum(PROJECT_TYPE_VALUES).optional(),
@@ -235,6 +238,8 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     if (d[k] !== undefined) update[k] = d[k];
   }
   if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;
+  // Developer-uploaded master-plan / layout map (empty string clears it).
+  if (d.masterPlanUrl !== undefined) update.masterPlanUrl = d.masterPlanUrl || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
   if (d.lat !== undefined) update.lat = d.lat;
