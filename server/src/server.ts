@@ -6,6 +6,7 @@ import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 import { startLifecycleReminderScheduler } from "./services/lifecycleEmails";
 import { startNotificationReminderScheduler } from "./services/notificationReminders";
+import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
 
 // Last-line safety net: a single stray async error (an unawaited promise, a
 // driver-level throw) must never take the whole API process down — that is what
@@ -36,6 +37,12 @@ async function main() {
 
   httpServer.listen(PORT, HOST, () => {
     console.log(`Truvi API listening on ${HOST}:${PORT}`);
+    // One-line WhatsApp status so a misconfigured .env is obvious at boot:
+    // "AiSensy" means AISENSY_API_KEY loaded, "Meta Cloud API" means the
+    // WHATSAPP_* creds loaded, "disabled" means neither — so no WhatsApp
+    // messages will send until the env is fixed and the process restarted.
+    const waMode = isAiSensyEnabled() ? "AiSensy" : isWhatsAppEnabled() ? "Meta Cloud API" : "disabled";
+    console.log(`[whatsapp] provider: ${waMode}`);
   });
 
   // Daily sweep that emails onboarding reminders (verify account / complete
