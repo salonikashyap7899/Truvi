@@ -28,7 +28,7 @@ import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../ser
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
-import { sendDeveloperWelcome } from "../services/whatsappService";
+import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsappService";
 import { notifyUser, notifyRole } from "../services/notificationService";
 import { isFounderEmail } from "../config/env";
 
@@ -196,13 +196,15 @@ async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
     const label = ROLE_WORDS[role] ?? "user";
     const uid = String(user._id);
 
-    // 1) Welcome everyone.
+    // 1) Welcome everyone — in-app + WhatsApp (WhatsApp is dormant until a
+    //    provider is configured; AiSensy or Meta template).
     await notifyUser(uid, {
       type: "welcome",
       title: "Welcome to Truvi 🎉",
       message: `Your ${label} account is ready. Explore your dashboard to get started.`,
       priority: "high",
     });
+    void sendWhatsAppCampaign("WELCOME", user.phone, user.name);
 
     // 2) Role-specific "get started" nudge — guides each new user to their work.
     const START: Record<string, { title: string; message: string; href: string }> = {

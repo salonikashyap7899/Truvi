@@ -11,6 +11,7 @@ import { and, eq, lte } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { leadFollowUps, leads, users, projects, subscriptions } from "../db/schema";
 import { notifyUser } from "./notificationService";
+import { sendWhatsAppCampaign } from "./whatsappService";
 
 /** Remind CPs about follow-ups due within the next 2 hours (or overdue). */
 export async function runFollowUpReminders(): Promise<{ scanned: number; sent: number }> {
@@ -67,7 +68,7 @@ export async function runRoleCompletionReminders(): Promise<{ sent: number }> {
   let sent = 0;
 
   const everyone = await db
-    .select({ id: users._id, role: users.role, onboardingVerified: users.onboardingVerified, cpProfile: users.cpProfile })
+    .select({ id: users._id, name: users.name, phone: users.phone, role: users.role, onboardingVerified: users.onboardingVerified, cpProfile: users.cpProfile })
     .from(users)
     .where(eq(users.disabled, false));
 
@@ -91,7 +92,9 @@ export async function runRoleCompletionReminders(): Promise<{ sent: number }> {
         data: { href: role === "CP" ? "/cp/dashboard" : "/ambassador/dashboard" },
         dedupeKey: `remind-kyc:${bucket}`,
       });
-      if (r.length) sent++;
+      // Only fire WhatsApp when a NEW reminder was created (the 3-day dedupe
+      // bucket throttles it), so users aren't spammed.
+      if (r.length) { sent++; void sendWhatsAppCampaign("REMINDER_KYC", u.phone, u.name); }
     }
 
     // 2) Developer hasn't listed any project yet.
@@ -103,7 +106,7 @@ export async function runRoleCompletionReminders(): Promise<{ sent: number }> {
         data: { href: "/developer/projects/new" },
         dedupeKey: `remind-listproject:${bucket}`,
       });
-      if (r.length) sent++;
+      if (r.length) { sent++; void sendWhatsAppCampaign("REMINDER_LISTPROJECT", u.phone, u.name); }
     }
 
     // 3) Not on Pro yet → upgrade nudge (muteable via the announcements pref).
@@ -116,7 +119,7 @@ export async function runRoleCompletionReminders(): Promise<{ sent: number }> {
         data: { href: "/pricing" },
         dedupeKey: `remind-pro:${bucket}`,
       });
-      if (r.length) sent++;
+      if (r.length) { sent++; void sendWhatsAppCampaign("REMINDER_PRO", u.phone, u.name); }
     }
   }
   return { sent };

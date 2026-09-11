@@ -32,6 +32,18 @@ const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
 const DEFAULT_LANG = process.env.WHATSAPP_DEFAULT_LANG || "en";
 
+// ── AiSensy (WhatsApp Business API provider) ────────────────────────────────
+// If you run WhatsApp through AiSensy (aisensy.com) instead of the raw Meta
+// Cloud API, set AISENSY_API_KEY and a campaign name per message key. AiSensy's
+// campaign API sends an approved template you designed in their dashboard.
+const AISENSY_API_URL = process.env.AISENSY_API_URL || "https://backend.aisensy.com/campaign/t1/api/v2";
+const AISENSY_API_KEY = process.env.AISENSY_API_KEY || "";
+
+/** True when WhatsApp is wired through AiSensy. */
+export function isAiSensyEnabled(): boolean {
+  return Boolean(AISENSY_API_KEY);
+}
+
 /** Event types that ALSO go to WhatsApp (for developer recipients). Overridable
  *  via WHATSAPP_EVENTS (comma-separated), so admins can tune it without code. */
 const DEFAULT_EVENTS = [
@@ -173,4 +185,75 @@ export async function dispatchNotificationWhatsApp(
   } catch {
     /* non-fatal */
   }
+}
+
+/** Send an approved AiSensy campaign to one number. `params` fill the
+ *  template's {{1}}, {{2}}… variables (typically just the user's name). */
+export async function sendAiSensyCampaign(
+  phone: string | null | undefined,
+  campaignName: string,
+  userName?: string | null,
+  params: string[] = [],
+): Promise<boolean> {
+  if (!isAiSensyEnabled() || !campaignName) return false;
+  const num = normalizePhone(phone);
+  if (!num) return false;
+  try {
+    const res = await fetch(AISENSY_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        apiKey: AISENSY_API_KEY,
+        campaignName,
+        destination: num,
+        userName: userName || "Truvi user",
+        templateParams: params,
+        source: "truvi-app",
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.warn(`[aisensy] send failed ${res.status}: ${detail.slice(0, 300)}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("[aisensy] send error:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+/**
+ * High-level, provider-agnostic "send this WhatsApp message" for a logical
+ * message KEY (WELCOME, REMINDER_KYC, REMINDER_LISTPROJECT, REMINDER_PRO, …).
+ *
+ * Routing:
+ *  - AiSensy configured  → sends the campaign named by env `AISENSY_CAMPAIGN_<KEY>`
+ *    (falls back to `AISENSY_CAMPAIGN_DEFAULT`). Personalised with the user's name.
+ *  - else Meta Cloud API → sends the approved template named by env
+ *    `WHATSAPP_TPL_<KEY>` with the name as the first parameter.
+ *
+ * Fully dormant until the relevant env is set. Fire-and-forget; never throws.
+ */
+export async function sendWhatsAppCampaign(
+  key: string,
+  phone?: string | null,
+  name?: string | null,
+): Promise<boolean> {
+  const K = key.toUpperCase();
+  try {
+    if (isAiSensyEnabled()) {
+      const campaign = process.env[`AISENSY_CAMPAIGN_${K}`] || process.env.AISENSY_CAMPAIGN_DEFAULT;
+      if (!campaign) return false;
+      return await sendAiSensyCampaign(phone, campaign, name, name ? [name] : []);
+    }
+    if (isWhatsAppEnabled()) {
+      const template = process.env[`WHATSAPP_TPL_${K}`];
+      if (!template) return false;
+      return await sendWhatsAppTemplate(phone ?? "", template, name ? [name] : []);
+    }
+  } catch {
+    /* non-fatal */
+  }
+  return false;
 }
