@@ -197,7 +197,12 @@ export async function sendAiSensyCampaign(
 ): Promise<boolean> {
   if (!isAiSensyEnabled() || !campaignName) return false;
   const num = normalizePhone(phone);
-  if (!num) return false;
+  if (!num) {
+    // A missing/badly-formatted phone is the most common silent failure —
+    // log it so a signup that "sent nothing" is explainable from the logs.
+    console.warn(`[aisensy] skipped campaign=${campaignName}: no valid phone (got ${JSON.stringify(phone)})`);
+    return false;
+  }
   try {
     const res = await fetch(AISENSY_API_URL, {
       method: "POST",
@@ -216,6 +221,10 @@ export async function sendAiSensyCampaign(
       console.warn(`[aisensy] send failed ${res.status}: ${detail.slice(0, 300)}`);
       return false;
     }
+    // Log success too, so we can confirm from the logs that a signup / reminder
+    // actually dispatched (previously success was silent and indistinguishable
+    // from "never fired").
+    console.log(`[aisensy] sent campaign=${campaignName} to=${num}`);
     return true;
   } catch (err) {
     console.warn("[aisensy] send error:", err instanceof Error ? err.message : err);
@@ -244,7 +253,10 @@ export async function sendWhatsAppCampaign(
   try {
     if (isAiSensyEnabled()) {
       const campaign = process.env[`AISENSY_CAMPAIGN_${K}`] || process.env.AISENSY_CAMPAIGN_DEFAULT;
-      if (!campaign) return false;
+      if (!campaign) {
+        console.warn(`[aisensy] no campaign configured for key ${K} (set AISENSY_CAMPAIGN_${K} in .env)`);
+        return false;
+      }
       return await sendAiSensyCampaign(phone, campaign, name, name ? [name] : []);
     }
     if (isWhatsAppEnabled()) {
