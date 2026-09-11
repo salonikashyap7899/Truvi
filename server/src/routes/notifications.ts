@@ -78,13 +78,21 @@ router.post("/push-token", async (req: AuthedRequest, res) => {
   const deviceId = typeof req.body?.deviceId === "string" ? req.body.deviceId : null;
 
   const db = getDb();
-  await db
-    .insert(userPushTokens)
-    .values({ userId: req.user!.userId, token, platform, deviceId })
-    .onConflictDoUpdate({
-      target: userPushTokens.token,
-      set: { userId: req.user!.userId, platform, deviceId, updatedAt: new Date() },
-    });
+  // Best-effort: a stale device whose account was deleted can still POST its
+  // old token here, which would violate the user_id foreign key. Swallow it so
+  // it never becomes an unhandled error — token registration is non-critical.
+  try {
+    await db
+      .insert(userPushTokens)
+      .values({ userId: req.user!.userId, token, platform, deviceId })
+      .onConflictDoUpdate({
+        target: userPushTokens.token,
+        set: { userId: req.user!.userId, platform, deviceId, updatedAt: new Date() },
+      });
+  } catch (err) {
+    console.warn("[push-token] register skipped:", err instanceof Error ? err.message : err);
+    return res.json({ ok: false });
+  }
 
   // Now that this user has a device, deliver as push any notifications created
   // while they had none (e.g. the welcome + role onboarding made at signup,
