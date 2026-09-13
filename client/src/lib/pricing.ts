@@ -62,7 +62,7 @@ export const PRICING_TABS: PriceTab[] = [
     items: [
       { title: "Registration & Inventory Listing", desc: "List your projects and inventory.", price: "Free", offer: "Launch offer", cta: "free" },
       { planId: "dev_verified_badge", title: "Verified Developer Badge", desc: "Prime listing with the verified badge.", price: "₹999", strike: "₹4,999", cta: "buy" },
-      { planId: "dev_3d_mapping", title: "3D Mapping", desc: "Interactive 3D master plan for your project.", price: "₹99", strike: "₹999", cta: "buy" },
+      { planId: "dev_3d_mapping", title: "3D Mapping", desc: "Interactive 3D master plan for your project.", price: "₹99", unit: "/project", strike: "₹999", cta: "buy" },
       { planId: "dev_crm", title: "Developer CRM", desc: "Manage leads and sales.", price: "₹49", unit: "/month", strike: "₹449", cta: "buy" },
       { planId: "dev_ai_analytics", title: "AI Analytics Dashboard", desc: "AI-powered project analytics.", price: "₹999", strike: "₹4,999", cta: "buy" },
       { planId: "dev_marketing_campaign", title: "Marketing Campaign", desc: "Full managed marketing campaign.", price: "₹1,00,000", strike: "₹2,00,000", cta: "buy" },
