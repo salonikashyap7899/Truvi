@@ -196,8 +196,11 @@
 .founder-os .funnel-label{width:110px; font-size:12px; font-weight:700; color:var(--ink-700); flex-shrink:0;}
 .founder-os .funnel-track{flex:1; height:26px; border-radius:8px; background:var(--bg); overflow:hidden; position:relative;}
 .founder-os .funnel-fill{height:100%; border-radius:8px; display:flex; align-items:center; justify-content:flex-end; padding-right:10px; color:#fff; font-size:11px; font-weight:800; min-width:34px;}
-.founder-os .list-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border);}
+.founder-os .list-row{display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:10px 0; border-bottom:1px solid var(--border);}
 .founder-os .list-row:last-child{border-bottom:none;}
+/* Action buttons on a list row (e.g. Edit / Approve / Reject) stay grouped and
+   drop to their own line on narrow screens instead of overflowing off-screen. */
+.founder-os .row-actions{display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-left:auto;}
 .founder-os .rank{width:24px; height:24px; border-radius:7px; background:var(--bg); border:1px solid var(--border); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; color:var(--ink-500); flex-shrink:0;}
 .founder-os .ring-wrap{display:flex; align-items:center; gap:16px;}
 .founder-os .ring{position:relative; width:96px; height:96px; flex-shrink:0;}
@@ -268,7 +271,9 @@
 }
 @media (max-width:640px){
   .founder-os .grid-3{grid-template-columns:1fr;}
-  .founder-os .content{padding:16px;}
+  /* Keep bottom clearance so the last cards aren't hidden under the floating
+     Ask Truvi / AI Copilot buttons on mobile. */
+  .founder-os .content{padding:16px 16px 120px;}
   .founder-os .kpi-grid{grid-template-columns:repeat(2,1fr);}
   .founder-os .search-wrap{display:none;}
   .founder-os .copilot-panel{right:12px; left:12px; width:auto;}

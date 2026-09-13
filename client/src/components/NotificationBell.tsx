@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, CheckCheck, Building2, Home, Wallet, Users, CalendarClock,
-  TrendingUp, Megaphone, ShieldAlert, ListChecks, type LucideIcon,
+  TrendingUp, Megaphone, ShieldAlert, ListChecks, X, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useSocketEvent } from "@/lib/socket";
@@ -131,14 +131,27 @@ export function NotificationBell() {
         )}
       </button>
       {open && (
-        <div className="fixed inset-x-3 top-16 z-50 w-auto rounded-2xl border border-white/10 bg-[#0a0d14]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
-          <div className="flex items-center justify-between px-2 py-1">
+        <>
+          {/* Tap-outside backdrop to dismiss (mobile especially, where the panel
+              covers most of the screen and the bell can be hard to reach). */}
+          <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setOpen(false)} aria-hidden />
+          <div className="fixed inset-x-3 top-16 z-50 w-auto rounded-2xl border border-white/10 bg-[#0a0d14]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
+          <div className="flex items-center justify-between gap-2 px-2 py-1">
             <p className="text-xs font-medium text-muted-foreground">Notifications</p>
-            {unread > 0 && (
-              <button onClick={markAllRead} className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-300 hover:text-sky-200">
-                <CheckCheck size={12} /> Mark all read
+            <div className="flex items-center gap-2">
+              {unread > 0 && (
+                <button onClick={markAllRead} className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-300 hover:text-sky-200">
+                  <CheckCheck size={12} /> Mark all read
+                </button>
+              )}
+              <button
+                onClick={() => setOpen(false)}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-white/10 hover:text-white"
+                aria-label="Close notifications"
+              >
+                <X size={14} />
               </button>
-            )}
+            </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 && <p className="p-3 text-sm text-muted-foreground">No notifications yet.</p>}
@@ -162,7 +175,8 @@ export function NotificationBell() {
               );
             })}
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

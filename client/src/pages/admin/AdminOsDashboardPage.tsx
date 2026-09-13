@@ -259,13 +259,15 @@ export default function AdminOsDashboardPage() {
                 : pendingProjects.map((p) => (
                     <div className="list-row" key={p._id}>
                       <div className="mini-avatar">{initials(p.name)}</div>
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 140 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{p.name}</div>
                         <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>{p.city} · by {nameOf(p.developerId)}</div>
                       </div>
-                      <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
-                      <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
-                      <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
+                      <div className="row-actions">
+                        <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
+                        <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
+                        <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
+                      </div>
                     </div>
                   ))}
             </Panel>

@@ -134,7 +134,7 @@ export default function AdminUserProfilePage() {
   const showReferrals = ["CP", "AMBASSADOR", "DEVELOPER"].includes(p.role) || s.referrals.registered > 0 || s.referrals.enrolled > 0;
 
   return (
-    <main className="min-h-screen p-6 text-white md:p-10">
+    <main className="min-h-screen p-6 pb-28 text-white md:p-10 md:pb-28">
       <Link to="/admin/users" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white">
         <ArrowLeft size={15} /> Back to users
       </Link>
@@ -158,8 +158,8 @@ export default function AdminUserProfilePage() {
                 {p.disabled && <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-medium text-red-300">Deactivated</span>}
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><Mail size={13} /> {p.email}</span>
-                {p.phone && <span className="inline-flex items-center gap-1"><Phone size={13} /> {p.phone}</span>}
+                <span className="inline-flex min-w-0 max-w-full items-center gap-1"><Mail size={13} className="shrink-0" /> <span className="break-all">{p.email}</span></span>
+                {p.phone && <span className="inline-flex items-center gap-1"><Phone size={13} className="shrink-0" /> {p.phone}</span>}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">User ID: <span className="font-mono">{p._id}</span></p>
             </div>

@@ -88,7 +88,7 @@ export default function AdminFinancePage() {
   const gstCollected = entries.filter((e) => e.direction === "INFLOW").reduce((s, e) => s + e.gstPaise, 0);
 
   return (
-    <main className="min-h-screen p-4 text-white md:p-8">
+    <main className="min-h-screen p-4 pb-28 text-white md:p-8 md:pb-28">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-widest text-violet-300/70">Truvi · Finance</p>
