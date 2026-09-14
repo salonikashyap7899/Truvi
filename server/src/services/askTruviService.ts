@@ -1,6 +1,7 @@
 import { and, count, eq, ilike, inArray, lte, or, sql, desc, SQL } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, users, siteVisits, IProject } from "../db/schema";
+import { CATEGORY_TABLES } from "../db/verificationSchema";
 
 /* ============================================================
    Ask Truvi AI — Decision Intelligence data layer
@@ -185,6 +186,34 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
     brochureAvailable: { value: Boolean(project.brochureUrl), source: "BUILDER_SUBMITTED" },
     priceListAvailable: { value: Boolean(project.priceListUrl), source: "BUILDER_SUBMITTED" },
   };
+
+  // Merge in any ADMIN-INGESTED verification data for this project (the RAG
+  // category tables: government_legal / RERA / infrastructure / …). This is the
+  // same data admins upload via Verification → Ingest Data, so the public
+  // assistant surfaces HMDA/RERA/etc. with each fact's VERIFIED/UNVERIFIED
+  // state and source. Non-fatal: a project with no ingested rows is unchanged.
+  try {
+    const clip = (s: string) => (s.length > 300 ? s.slice(0, 300) + "…" : s);
+    let ingested = 0;
+    for (const [cat, table] of Object.entries(CATEGORY_TABLES)) {
+      if (ingested >= 15) break; // cap to keep the prompt lean
+      const rows = await db.select().from(table as any).where(eq((table as any).projectId, project._id));
+      for (const r of rows as any[]) {
+        if (ingested >= 15) break;
+        const detail = clip(JSON.stringify(r.rawData ?? {}));
+        facts[`${cat}:${r.dataKey}`] = {
+          value:
+            `${r.label} — ${r.verified ? "VERIFIED" : "UNVERIFIED"}` +
+            `${r.sourceType ? ` (source: ${r.sourceType})` : ""}: ${detail}`,
+          source: r.verified ? "TRUVI_VERIFIED" : "PUBLIC_RECORD",
+          lastUpdated: fmtDate(r.sourceDate) ?? fmtDate(r.updatedAt),
+        };
+        ingested++;
+      }
+    }
+  } catch (err) {
+    console.error("Ask Truvi: ingested-data merge failed:", err instanceof Error ? err.message : err);
+  }
 
   return { id: String(project._id), name: project.name, facts };
 }
