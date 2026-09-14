@@ -48,7 +48,7 @@ export default function PropertyProfile({ projectId }: { projectId: string }) {
       {cats.map(([category, rows]) => (
         <section key={category} className="rounded-2xl border border-white/10 glass p-5">
           <h3 className="font-display text-base font-semibold">{CATEGORY_LABELS[category] ?? category}</h3>
-          <div className="mt-3 grid items-start gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid items-stretch gap-2 sm:grid-cols-2">
             {rows.map((r) => (
               <div key={r._id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -60,7 +60,9 @@ export default function PropertyProfile({ projectId }: { projectId: string }) {
                   )}
                 </div>
                 {r.sourceType && <p className="mt-0.5 text-[11px] text-muted-foreground">Source: {r.sourceType}</p>}
-                <dl className="mt-2 space-y-1.5">
+                {/* Cap the data area so a long note/discrepancy scrolls inside the
+                    card instead of stretching it — keeps every card the same size. */}
+                <dl className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
                   {Object.entries(r.rawData ?? {}).slice(0, 10).map(([k, v]) => {
                     const val = String(v);
                     const key = k.replace(/_/g, " ");
