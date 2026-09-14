@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/primitives";
 import { toast } from "sonner";
 import { Play, Loader2 } from "lucide-react";
 import ChecksManager from "@/components/admin/verification/ChecksManager";
+import DataIngestPanel from "@/components/admin/verification/DataIngestPanel";
 import FraudRulesManager from "@/components/admin/verification/FraudRulesManager";
 import PromptEditor from "@/components/admin/verification/PromptEditor";
 import ThresholdSettings from "@/components/admin/verification/ThresholdSettings";
@@ -13,7 +14,7 @@ import VerificationPanel from "@/components/verification/VerificationPanel";
 import PropertyProfile from "@/components/verification/PropertyProfile";
 import TruviAskAI from "@/components/verification/TruviAskAI";
 
-const TABS = ["Run & Inspect", "Checks", "Fraud Rules", "AI Prompt", "Thresholds", "Audit Log"] as const;
+const TABS = ["Run & Inspect", "Ingest Data", "Checks", "Fraud Rules", "AI Prompt", "Thresholds", "Audit Log"] as const;
 
 /** Admin console for the dynamic verification engine. */
 export default function AdminVerificationPage() {
@@ -32,11 +33,12 @@ export default function AdminVerificationPage() {
 
       <div className="mt-6">
         {tab === 0 && <RunInspect />}
-        {tab === 1 && <ChecksManager />}
-        {tab === 2 && <FraudRulesManager />}
-        {tab === 3 && <PromptEditor />}
-        {tab === 4 && <ThresholdSettings />}
-        {tab === 5 && <AuditLogViewer />}
+        {tab === 1 && <DataIngestPanel />}
+        {tab === 2 && <ChecksManager />}
+        {tab === 3 && <FraudRulesManager />}
+        {tab === 4 && <PromptEditor />}
+        {tab === 5 && <ThresholdSettings />}
+        {tab === 6 && <AuditLogViewer />}
       </div>
     </main>
   );
