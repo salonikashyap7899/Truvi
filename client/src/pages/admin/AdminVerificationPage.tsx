@@ -76,12 +76,15 @@ function RunInspect() {
       </div>
 
       {active && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <div className="space-y-6">
+        <div className="mt-6 space-y-6">
+          {/* Verification summary + the Ask-Truvi chat sit side by side… */}
+          <div className="grid items-start gap-6 lg:grid-cols-2">
             <VerificationPanel projectId={active} reloadKey={reloadKey} />
-            <PropertyProfile projectId={active} />
+            <TruviAskAI projectId={active} />
           </div>
-          <TruviAskAI projectId={active} />
+          {/* …and the ingested property data spans the full width below, so its
+              cards use the whole page instead of leaving a big empty column. */}
+          <PropertyProfile projectId={active} />
         </div>
       )}
     </div>
