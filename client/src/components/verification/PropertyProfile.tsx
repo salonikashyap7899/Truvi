@@ -48,7 +48,7 @@ export default function PropertyProfile({ projectId }: { projectId: string }) {
       {cats.map(([category, rows]) => (
         <section key={category} className="rounded-2xl border border-white/10 glass p-5">
           <h3 className="font-display text-base font-semibold">{CATEGORY_LABELS[category] ?? category}</h3>
-          <div className="mt-3 grid items-stretch gap-2 sm:grid-cols-2">
+          <div className="mt-3 grid items-stretch gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {rows.map((r) => (
               <div key={r._id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
                 <div className="flex items-start justify-between gap-2">
