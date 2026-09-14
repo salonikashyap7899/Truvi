@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { X, Sparkles, Copy, Check, RefreshCw, MessageCircle, Target, Shield, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -19,6 +20,7 @@ const COMMON_OBJECTIONS = [
 export default function AISalesCopilot() {
   const user = useAuthStore((s) => s.user);
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open); // lock the page behind the copilot panel while it's open
   const [mode, setMode] = useState<CopilotMode>("whatsapp");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);

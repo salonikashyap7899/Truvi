@@ -121,14 +121,15 @@
 .founder-os .kpi-open{width:22px; height:22px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:var(--ink-400); background:var(--surface-2, transparent); opacity:0; transition:opacity .12s ease;}
 .founder-os .kpi-open svg{width:14px; height:14px;}
 .founder-os .kpi-clickable:hover .kpi-open{opacity:1;}
-.founder-os .kpi-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.founder-os .kpi-top{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;}
+.founder-os .kpi-icon{flex-shrink:0;}
 .founder-os .kpi-icon{width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; position:relative; z-index:1;}
 .founder-os .kpi-icon svg{width:17px; height:17px;}
 .founder-os .kpi-icon.blue{background:var(--blue-100); color:var(--blue-600);}
 .founder-os .kpi-icon.green{background:var(--green-100); color:var(--green-600);}
 .founder-os .kpi-icon.amber{background:rgba(245,165,36,.14); color:var(--amber-500);}
 .founder-os .kpi-icon.red{background:var(--red-100); color:var(--red-500);}
-.founder-os .kpi-trend{font-size:11px; font-weight:700; display:flex; align-items:center; gap:3px; padding:3px 7px; border-radius:20px;}
+.founder-os .kpi-trend{font-size:11px; font-weight:700; display:flex; align-items:center; gap:3px; padding:3px 7px; border-radius:20px; white-space:nowrap; flex-shrink:0;}
 .founder-os .kpi-trend.up{color:var(--green-600); background:var(--green-100);}
 .founder-os .kpi-trend.flat{color:var(--ink-500); background:var(--bg);}
 .founder-os .kpi-label{font-size:11.5px; color:var(--ink-500); font-weight:600; margin-bottom:5px; text-transform:uppercase; letter-spacing:.03em; position:relative; z-index:1;}
