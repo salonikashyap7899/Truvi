@@ -76,15 +76,14 @@ function RunInspect() {
       </div>
 
       {active && (
+        // Single full-width column, stacked top to bottom. Side-by-side columns
+        // of different heights (a short score card next to a tall chat) always
+        // leave a dead gap under the shorter one, so everything is stacked:
+        // score → property data → Ask-Truvi chat.
         <div className="mt-6 space-y-6">
-          {/* Verification summary + the Ask-Truvi chat sit side by side… */}
-          <div className="grid items-start gap-6 lg:grid-cols-2">
-            <VerificationPanel projectId={active} reloadKey={reloadKey} />
-            <TruviAskAI projectId={active} />
-          </div>
-          {/* …and the ingested property data spans the full width below, so its
-              cards use the whole page instead of leaving a big empty column. */}
+          <VerificationPanel projectId={active} reloadKey={reloadKey} />
           <PropertyProfile projectId={active} />
+          <TruviAskAI projectId={active} />
         </div>
       )}
     </div>
