@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import {
   X, Send, Bot, User, Sparkles, SlidersHorizontal, ChevronRight,
   Search, Scale, Building2, MapPin, Wallet, ShieldCheck, Star, TrendingUp,
@@ -273,6 +274,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const role = useAuthStore((s) => s.user?.role);
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open); // lock the page behind the chat panel while it's open
   const [messages, setMessages] = useState<Message[]>([
     {
       id: uid(),

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { roleLabel } from "@/lib/rolePaths";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const svg = (d: string) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -27,6 +28,7 @@ export default function ProfileSettingsModal({ open, onClose }: { open: boolean;
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  useBodyScrollLock(open); // don't scroll the page behind the modal
 
   useEffect(() => {
     if (open) {

@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useSocketEvent } from "@/lib/socket";
 import type { Notification } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { toast } from "sonner";
 
 /** Per-session guard so a notification is toasted at most once (survives the
@@ -59,6 +60,9 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  // On mobile the dropdown is a near-full-screen overlay — lock the page behind
+  // it. On desktop it's a small popover, so leave page scrolling alone.
+  useBodyScrollLock(open && typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches);
 
   useEffect(() => {
     api

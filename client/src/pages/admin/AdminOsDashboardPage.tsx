@@ -51,7 +51,7 @@ interface KpiTrends {
 /** Growth badge for a KPI card ("↑ 27% this month"), or flat when no growth. */
 function trendBadge(pct?: number): { text: string; up?: boolean } | undefined {
   if (pct === undefined) return undefined;
-  return pct > 0 ? { text: `↑ ${pct}% this month`, up: true } : { text: "flat this month", up: false };
+  return pct > 0 ? { text: `↑ ${pct}%`, up: true } : { text: "Flat", up: false };
 }
 
 const paise = (p: number) => formatINR(Math.round(p / 100));
