@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/primitives";
 import { toast } from "sonner";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, ArrowLeft } from "lucide-react";
 import ChecksManager from "@/components/admin/verification/ChecksManager";
 import DataIngestPanel from "@/components/admin/verification/DataIngestPanel";
 import FraudRulesManager from "@/components/admin/verification/FraudRulesManager";
@@ -22,6 +23,9 @@ export default function AdminVerificationPage() {
 
   return (
     <main className="min-h-screen bg-background p-6 text-white md:p-10">
+      <Link to="/admin/dashboard" className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+        <ArrowLeft size={14} /> Back to dashboard
+      </Link>
       <h1 className="font-display text-2xl font-semibold">Verification Engine</h1>
       <p className="mt-1 text-sm text-muted-foreground">Manage checks, fraud rules, the AI prompt and thresholds — changes take effect immediately, no redeploy.</p>
 
