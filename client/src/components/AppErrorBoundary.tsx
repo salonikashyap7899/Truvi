@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { isStaleBundleError, reloadForStaleBuild } from "@/lib/staleReload";
 
 /**
  * App-level error boundary. Without one, ANY uncaught render error unmounts the
@@ -13,20 +14,6 @@ import { Component, type ReactNode } from "react";
  *  - otherwise shows a visible, recoverable fallback (Reload + the message) so
  *    a crash is never an unexplained blank screen.
  */
-const RELOAD_FLAG = "truvi_eb_reloaded";
-
-function isStaleBundleError(err: unknown): boolean {
-  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
-  return (
-    msg.includes("loading chunk") ||
-    msg.includes("loading css chunk") ||
-    msg.includes("dynamically imported module") ||
-    msg.includes("importing a module script failed") ||
-    msg.includes("failed to fetch dynamically imported module") ||
-    msg.includes("unexpected token '<'") // old index cached, server returned HTML for a missing asset
-  );
-}
-
 export class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean; message: string }> {
   state = { failed: false, message: "" };
 
@@ -35,19 +22,11 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
   }
 
   componentDidCatch(err: unknown) {
-    // A stale-bundle error means the browser is holding an old build. Reload
-    // once to pull the current one — this is the common "blank on my phone but
-    // fine on desktop" fix. sessionStorage prevents an infinite reload loop.
-    if (isStaleBundleError(err)) {
-      try {
-        if (!sessionStorage.getItem(RELOAD_FLAG)) {
-          sessionStorage.setItem(RELOAD_FLAG, "1");
-          window.location.reload();
-        }
-      } catch {
-        /* sessionStorage blocked (private mode) — fall through to the fallback UI */
-      }
-    }
+    // A stale-bundle error means the browser is holding an old build (a chunk
+    // the new index.html replaced fails to load). Reload once to pull the
+    // current build — the common "error on my phone but fine on desktop" fix.
+    // reloadForStaleBuild is time-guarded so it can never loop.
+    if (isStaleBundleError(err)) reloadForStaleBuild();
     // Best-effort telemetry hook; never throws.
     try { console.error("App crashed:", err); } catch { /* ignore */ }
   }
@@ -63,7 +42,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
             The page hit an unexpected error. This is usually fixed by reloading — your phone may be showing an older version of the app.
           </p>
           <button
-            onClick={() => { try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* ignore */ } window.location.reload(); }}
+            onClick={() => { try { sessionStorage.removeItem("truvi_stale_reload_at"); } catch { /* ignore */ } window.location.reload(); }}
             style={{ borderRadius: 999, border: "none", background: "linear-gradient(90deg,#10b981,#0d9488)", color: "#fff", fontSize: 14, fontWeight: 600, padding: "10px 24px", cursor: "pointer" }}
           >
             Reload the page

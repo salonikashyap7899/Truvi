@@ -128,8 +128,24 @@ export function createApp() {
   app.use("/api", askRoutes); // /api/ask, /api/chat/:sessionId
 
   if (fs.existsSync(clientDistDir)) {
-    app.use(express.static(clientDistDir));
+    // Content-hashed build assets never change for a given URL → cache hard.
+    app.use(
+      "/assets",
+      express.static(path.join(clientDistDir, "assets"), { immutable: true, maxAge: "365d" }),
+    );
+    // index.html (and other root files) must NOT be cached, or a phone keeps a
+    // stale index that points at chunk files a new deploy has replaced — which
+    // surfaces as "Unable to preload CSS / failed to load chunk". Revalidating
+    // index.html means every load gets the current chunk names.
+    app.use(
+      express.static(clientDistDir, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-cache");
+        },
+      }),
+    );
     app.get(/^\/(?!api|uploads|health).*/, (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(clientDistDir, "index.html"));
     });
   }
