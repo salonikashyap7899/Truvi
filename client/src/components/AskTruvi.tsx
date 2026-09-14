@@ -413,9 +413,8 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         className={`
           fixed z-50 flex flex-col bg-card shadow-2xl shadow-black/60
           transition-all duration-300 ease-out
-          bottom-0 left-0 right-0 rounded-t-2xl border-t border-x border-white/10
-          sm:bottom-6 sm:right-6 sm:left-auto sm:w-[420px] sm:h-[580px]
-          sm:rounded-2xl sm:border sm:border-white/10
+          bottom-3 inset-x-3 h-[62vh] max-h-[500px] rounded-2xl border border-white/10
+          sm:bottom-6 sm:right-6 sm:left-auto sm:inset-x-auto sm:w-[420px] sm:h-[580px] sm:max-h-none
           ${open ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
         style={{ maxHeight: "85vh" }}

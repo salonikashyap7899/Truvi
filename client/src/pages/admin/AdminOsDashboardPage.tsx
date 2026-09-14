@@ -117,6 +117,9 @@ export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [allUsers, setAllUsers] = useState<Array<{ _id: string; name: string; email?: string; phone?: string; role?: string }>>([]);
+  const [q, setQ] = useState("");
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
@@ -133,9 +136,9 @@ export default function AdminOsDashboardPage() {
     api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
       .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
     api.get("/admin/users")
-      .then((res) => setStats((s) => ({ ...s, totalUsers: res.data.users.length }))).catch(() => {});
+      .then((res) => { setStats((s) => ({ ...s, totalUsers: res.data.users.length })); setAllUsers(res.data.users ?? []); }).catch(() => {});
     api.get("/admin/projects")
-      .then((res) => setStats((s) => ({ ...s, totalProjects: res.data.projects.length }))).catch(() => {});
+      .then((res) => { setStats((s) => ({ ...s, totalProjects: res.data.projects.length })); setAllProjects(res.data.projects ?? []); }).catch(() => {});
     api.get("/revenue")
       .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
     api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
@@ -157,6 +160,22 @@ export default function AdminOsDashboardPage() {
 
   function doLogout() { clearAuth(); navigate("/login"); }
   function goto(path: string) { setNavOpen(false); navigate(path); }
+
+  // Live search over the loaded projects + users; results deep-link to the
+  // right admin page. Needs ≥2 chars so it doesn't flash on a single keystroke.
+  const query = q.trim().toLowerCase();
+  const results = query.length >= 2
+    ? [
+        ...allProjects
+          .filter((p) => `${p.name} ${p.city ?? ""} ${p.location ?? ""}`.toLowerCase().includes(query))
+          .slice(0, 5)
+          .map((p) => ({ key: `p${p._id}`, kind: "Project", title: p.name, sub: [p.city, p.location].filter(Boolean).join(", "), href: `/admin/listings/${p._id}` })),
+        ...allUsers
+          .filter((u) => `${u.name} ${u.email ?? ""} ${u.phone ?? ""}`.toLowerCase().includes(query))
+          .slice(0, 5)
+          .map((u) => ({ key: `u${u._id}`, kind: u.role ? u.role.charAt(0) + u.role.slice(1).toLowerCase() : "User", title: u.name, sub: [u.email, u.phone].filter(Boolean).join(" · "), href: `/admin/users/${u._id}` })),
+      ].slice(0, 8)
+    : [];
 
   return (
     <div className={`founder-os ${light ? "light" : ""}`}>
@@ -191,7 +210,25 @@ export default function AdminOsDashboardPage() {
       <div className="os-main">
         <header className="topbar">
           <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
-          <div className="search-wrap"><Ic n="search" /><input placeholder="Search projects, CPs, leads…" /></div>
+          <div className="search-wrap">
+            <Ic n="search" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search projects, users…"
+              onKeyDown={(e) => { if (e.key === "Enter" && results[0]) { setQ(""); navigate(results[0].href); } }}
+            />
+            {results.length > 0 && (
+              <div className="search-results">
+                {results.map((r) => (
+                  <button key={r.key} className="search-result" onMouseDown={() => { setQ(""); navigate(r.href); }}>
+                    <span className="sr-title">{r.title}</span>
+                    <span className="sr-sub">{r.kind}{r.sub ? ` · ${r.sub}` : ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="top-actions">
             <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
