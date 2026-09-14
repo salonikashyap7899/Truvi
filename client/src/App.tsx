@@ -13,93 +13,105 @@ const AmbientBackground = lazy(() =>
   import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
 );
 
+// Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
-import IntelligencePage from "@/pages/IntelligencePage";
-import HomePage from "@/pages/HomePage";
-import JoinPage from "@/pages/JoinPage";
-import AboutPage from "@/pages/AboutPage";
-import LoginPage from "@/pages/LoginPage";
-import SignupPage from "@/pages/SignupPage";
-import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
-import VerifyEmailPage from "@/pages/VerifyEmailPage";
-import UnauthorizedPage from "@/pages/UnauthorizedPage";
-import NotFoundPage from "@/pages/NotFoundPage";
-import LegalPage from "@/pages/LegalPage";
-import TruviInvestPage from "@/pages/TruviInvestPage";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
 import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
-
-import AdminOsDashboardPage from "@/pages/admin/AdminOsDashboardPage";
-import AdminUsersPage from "@/pages/admin/AdminUsersPage";
-import AdminUserProfilePage from "@/pages/admin/AdminUserProfilePage";
-import AdminListingsPage from "@/pages/admin/AdminListingsPage";
-import AdminProjectManagePage from "@/pages/admin/AdminProjectManagePage";
-import AdminRevenuePage from "@/pages/admin/AdminRevenuePage";
-import AdminSettingsPage from "@/pages/admin/AdminSettingsPage";
-import FounderDashboardPage from "@/pages/FounderDashboardPage";
-import AmbassadorSignupPage from "@/pages/AmbassadorSignupPage";
-import AmbassadorLoginPage from "@/AmbassadorLoginPage";
-import AmbassadorDashboardPage from "@/pages/AmbassadorDashboardPage";
-
-import DeveloperDashboardPage from "@/pages/developer/DeveloperDashboardPage";
-import DeveloperInventoryPage from "@/pages/developer/DeveloperInventoryPage";
-import DeveloperSalesPage from "@/pages/developer/DeveloperSalesPage";
-import DeveloperAnalyticsPage from "@/pages/developer/DeveloperAnalyticsPage";
-import DeveloperMarketingPage from "@/pages/developer/DeveloperMarketingPage";
-import NewProjectPage from "@/pages/developer/NewProjectPage";
-import DeveloperGuidePage from "@/pages/developer/DeveloperGuidePage";
-import CpGuidePage from "@/pages/cp/CpGuidePage";
-import ProjectDetailPage from "@/pages/developer/ProjectDetailPage";
-
-import CPDashboardPage from "@/pages/cp/CPDashboardPage";
-import CpCommissionsPage from "@/pages/cp/CpCommissionsPage";
-import MarketplacePage from "@/pages/cp/MarketplacePage";
-import LearningAcademyPage from "@/pages/cp/LearningAcademyPage";
-import TruviConnectPage from "@/pages/cp/TruviConnectPage";
-import SalesHubPage from "@/pages/cp/SalesHubPage";
-import AIHubPage from "@/pages/cp/AIHubPage";
-import BusinessHubPage from "@/pages/cp/BusinessHubPage";
-import GrowthHubPage from "@/pages/cp/GrowthHubPage";
-import OnboardDevelopersPage from "@/pages/cp/OnboardDevelopersPage";
-import BuyerDashboardPage from "@/pages/buyer/BuyerDashboardPage";
-import BuyerProjectsPage from "@/pages/buyer/BuyerProjectsPage";
-import ComparePage from "@/pages/buyer/ComparePage";
-import InventoryPage from "@/pages/InventoryPage";
-import ProjectPresentationPage from "@/pages/ProjectPresentationPage";
-import PipelinePage from "@/pages/crm/PipelinePage";
-import BookingsPage from "@/pages/crm/BookingsPage";
-import AdminAuditLogsPage from "@/pages/admin/AdminAuditLogsPage";
-import VaultPage from "@/pages/VaultPage";
-
-// Lazy — Leaflet only loads when someone opens the map.
-const ProjectsMapPage = lazy(() => import("@/pages/ProjectsMapPage"));
-
-// Lazy-loaded so the 3D viewer never weighs down the main bundle.
-const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
-import AdminEnquiriesPage from "@/pages/admin/AdminEnquiriesPage";
-import AdminAmbassadorTasksPage from "@/pages/admin/AdminAmbassadorTasksPage";
-import AdminPaymentsPage from "@/pages/admin/AdminPaymentsPage";
-import AdminVerificationPage from "@/pages/admin/AdminVerificationPage";
-import AdminKycPage from "@/pages/admin/AdminKycPage";
-import AdminReferralLeadsPage from "@/pages/admin/AdminReferralLeadsPage";
-import AdminDocumentsPage from "@/pages/admin/AdminDocumentsPage";
-import AdminFinancePage from "@/pages/admin/AdminFinancePage";
-import AdminCommissionsPage from "@/pages/admin/AdminCommissionsPage";
-import AdminInvestmentsPage from "@/pages/admin/AdminInvestmentsPage";
-import AdminAmbassadorKnowledgePage from "@/pages/admin/AdminAmbassadorKnowledgePage";
-import AdminAcademyPage from "@/pages/admin/AdminAcademyPage";
-import MarketingManagementPage from "@/pages/admin/MarketingManagementPage";
-import AdminNotificationsPage from "@/pages/admin/AdminNotificationsPage";
-import MarketingDashboardPage from "@/pages/marketing/MarketingDashboardPage";
-import PricingPage from "@/pages/PricingPage";
-import PaymentSuccessPage from "@/pages/PaymentSuccessPage";
-import PaymentFailedPage from "@/pages/PaymentFailedPage";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
+
+// Every other route page is lazy-loaded, so the initial download is tiny and
+// the app opens fast; each page's code is fetched only when its route opens.
+const IntelligencePage = lazy(() => import("@/pages/IntelligencePage"));
+const HomePage = lazy(() => import("@/pages/HomePage"));
+const JoinPage = lazy(() => import("@/pages/JoinPage"));
+const AboutPage = lazy(() => import("@/pages/AboutPage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const SignupPage = lazy(() => import("@/pages/SignupPage"));
+const ForgotPasswordPage = lazy(() => import("@/pages/ForgotPasswordPage"));
+const VerifyEmailPage = lazy(() => import("@/pages/VerifyEmailPage"));
+const UnauthorizedPage = lazy(() => import("@/pages/UnauthorizedPage"));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
+const LegalPage = lazy(() => import("@/pages/LegalPage"));
+const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
+
+const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
+const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
+const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePage"));
+const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
+const AdminProjectManagePage = lazy(() => import("@/pages/admin/AdminProjectManagePage"));
+const AdminRevenuePage = lazy(() => import("@/pages/admin/AdminRevenuePage"));
+const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
+const FounderDashboardPage = lazy(() => import("@/pages/FounderDashboardPage"));
+const AmbassadorSignupPage = lazy(() => import("@/pages/AmbassadorSignupPage"));
+const AmbassadorLoginPage = lazy(() => import("@/AmbassadorLoginPage"));
+const AmbassadorDashboardPage = lazy(() => import("@/pages/AmbassadorDashboardPage"));
+
+const DeveloperDashboardPage = lazy(() => import("@/pages/developer/DeveloperDashboardPage"));
+const DeveloperInventoryPage = lazy(() => import("@/pages/developer/DeveloperInventoryPage"));
+const DeveloperSalesPage = lazy(() => import("@/pages/developer/DeveloperSalesPage"));
+const DeveloperAnalyticsPage = lazy(() => import("@/pages/developer/DeveloperAnalyticsPage"));
+const DeveloperMarketingPage = lazy(() => import("@/pages/developer/DeveloperMarketingPage"));
+const NewProjectPage = lazy(() => import("@/pages/developer/NewProjectPage"));
+const DeveloperGuidePage = lazy(() => import("@/pages/developer/DeveloperGuidePage"));
+const CpGuidePage = lazy(() => import("@/pages/cp/CpGuidePage"));
+const ProjectDetailPage = lazy(() => import("@/pages/developer/ProjectDetailPage"));
+
+const CPDashboardPage = lazy(() => import("@/pages/cp/CPDashboardPage"));
+const CpCommissionsPage = lazy(() => import("@/pages/cp/CpCommissionsPage"));
+const MarketplacePage = lazy(() => import("@/pages/cp/MarketplacePage"));
+const LearningAcademyPage = lazy(() => import("@/pages/cp/LearningAcademyPage"));
+const TruviConnectPage = lazy(() => import("@/pages/cp/TruviConnectPage"));
+const SalesHubPage = lazy(() => import("@/pages/cp/SalesHubPage"));
+const AIHubPage = lazy(() => import("@/pages/cp/AIHubPage"));
+const BusinessHubPage = lazy(() => import("@/pages/cp/BusinessHubPage"));
+const GrowthHubPage = lazy(() => import("@/pages/cp/GrowthHubPage"));
+const OnboardDevelopersPage = lazy(() => import("@/pages/cp/OnboardDevelopersPage"));
+const BuyerDashboardPage = lazy(() => import("@/pages/buyer/BuyerDashboardPage"));
+const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
+const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
+const InventoryPage = lazy(() => import("@/pages/InventoryPage"));
+const ProjectPresentationPage = lazy(() => import("@/pages/ProjectPresentationPage"));
+const PipelinePage = lazy(() => import("@/pages/crm/PipelinePage"));
+const BookingsPage = lazy(() => import("@/pages/crm/BookingsPage"));
+const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage"));
+const VaultPage = lazy(() => import("@/pages/VaultPage"));
+
+// Leaflet only loads when someone opens the map; the 3D viewer is its own chunk.
+const ProjectsMapPage = lazy(() => import("@/pages/ProjectsMapPage"));
+const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
+
+const AdminEnquiriesPage = lazy(() => import("@/pages/admin/AdminEnquiriesPage"));
+const AdminAmbassadorTasksPage = lazy(() => import("@/pages/admin/AdminAmbassadorTasksPage"));
+const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage"));
+const AdminVerificationPage = lazy(() => import("@/pages/admin/AdminVerificationPage"));
+const AdminKycPage = lazy(() => import("@/pages/admin/AdminKycPage"));
+const AdminReferralLeadsPage = lazy(() => import("@/pages/admin/AdminReferralLeadsPage"));
+const AdminDocumentsPage = lazy(() => import("@/pages/admin/AdminDocumentsPage"));
+const AdminFinancePage = lazy(() => import("@/pages/admin/AdminFinancePage"));
+const AdminCommissionsPage = lazy(() => import("@/pages/admin/AdminCommissionsPage"));
+const AdminInvestmentsPage = lazy(() => import("@/pages/admin/AdminInvestmentsPage"));
+const AdminAmbassadorKnowledgePage = lazy(() => import("@/pages/admin/AdminAmbassadorKnowledgePage"));
+const AdminAcademyPage = lazy(() => import("@/pages/admin/AdminAcademyPage"));
+const MarketingManagementPage = lazy(() => import("@/pages/admin/MarketingManagementPage"));
+const AdminNotificationsPage = lazy(() => import("@/pages/admin/AdminNotificationsPage"));
+const MarketingDashboardPage = lazy(() => import("@/pages/marketing/MarketingDashboardPage"));
+const PricingPage = lazy(() => import("@/pages/PricingPage"));
+const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
+const PaymentFailedPage = lazy(() => import("@/pages/PaymentFailedPage"));
 
 // The Founder Dashboard ships its own AI Copilot FAB, so suppress the global
 // floating assistants there to avoid two overlapping buttons.
+/** Tiny centered spinner shown while a lazy route chunk is loading. */
+function RouteFallback() {
+  return (
+    <div className="grid min-h-screen place-items-center bg-[#06090f]">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+    </div>
+  );
+}
+
 function FloatingAssistants() {
   const { pathname } = useLocation();
   // The Founder Dashboard ships its own Copilot; the Admin OS dashboard uses
@@ -160,6 +172,7 @@ export default function App() {
       <FloatingAssistants />
       <InvestFab />
       <PageTransition>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
@@ -261,6 +274,7 @@ export default function App() {
         {/* 404 — catch-all, must stay last */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
       </PageTransition>
     </BrowserRouter>
   );
