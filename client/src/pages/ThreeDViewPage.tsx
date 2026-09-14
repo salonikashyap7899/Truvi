@@ -241,7 +241,7 @@ export default function ThreeDViewPage() {
             </AnimatePresence>
 
             {/* Tour controls */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-28 sm:pb-4">
               <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-black/60 p-1.5 backdrop-blur">
                 {tourPlaying ? (
                   <button
@@ -362,7 +362,7 @@ export default function ThreeDViewPage() {
               initial={{ opacity: 0, y: 28 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-4"
+              className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 pb-28 sm:pb-4"
             >
               <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-white/15 bg-black/55 p-1.5 backdrop-blur">
                 {!walk &&

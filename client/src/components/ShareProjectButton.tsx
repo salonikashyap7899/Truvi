@@ -73,11 +73,17 @@ export async function shareProject(project: Project) {
       if ((err as Error)?.name === "AbortError") return;
     }
   }
+  // No Web Share API (e.g. the in-app WebView) → open WhatsApp directly with
+  // the listing pre-filled, rather than silently copying to the clipboard.
   try {
-    await navigator.clipboard.writeText(buildProjectShareText(project));
-    toast.success("Property details copied — paste to share anywhere");
-  } catch {
     shareProjectOnWhatsApp(project);
+  } catch {
+    try {
+      await navigator.clipboard.writeText(buildProjectShareText(project));
+      toast.success("Property details copied — paste to share anywhere");
+    } catch {
+      /* nothing else we can do */
+    }
   }
 }
 
