@@ -144,13 +144,15 @@ export default function ThreeDViewPage() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {isPrime && project?.masterPlanUrl && (
+          {project?.masterPlanUrl && (
             <button
               onClick={() => setView2D((v) => !v)}
               className="inline-flex items-center gap-2 rounded-full border border-[#e8c877]/40 bg-[#e8c877]/10 px-4 py-2 text-xs font-medium text-[#e8c877] transition hover:bg-[#e8c877]/20"
             >
-              <MapIcon size={13} />
-              <span className="hidden sm:inline">{view2D ? "3D Tour" : "2D Plan"}</span>
+              {view2D ? <Box size={13} /> : <MapIcon size={13} />}
+              <span className="hidden sm:inline">
+                {view2D ? (isPrime ? "3D Tour" : "3D View") : "2D Plan"}
+              </span>
             </button>
           )}
           {project?.threeDModelUrl && (
@@ -282,8 +284,9 @@ export default function ThreeDViewPage() {
               )}
             </AnimatePresence>
           </>
-        ) : project.masterPlanUrl && units.some((u) => u.mapX != null && u.mapY != null) ? (
-          // Uploaded layout WITH placed plots → interactive tap-to-book overlay.
+        ) : project.masterPlanUrl && view2D && units.some((u) => u.mapX != null && u.mapY != null) ? (
+          // "2D Plan" toggle: uploaded layout WITH placed plots → interactive
+          // tap-to-book overlay on the developer's own image.
           <div className="absolute inset-0 overflow-auto p-3 pt-16 sm:p-6 sm:pt-16">
             <Suspense fallback={<CenterNote><Loader2 size={24} className="animate-spin text-sky-300" /></CenterNote>}>
               <PlotLayoutMap
@@ -298,8 +301,8 @@ export default function ThreeDViewPage() {
               />
             </Suspense>
           </div>
-        ) : project.masterPlanUrl ? (
-          // Exact official master plan — pixel-perfect, deep zoom + pan
+        ) : project.masterPlanUrl && view2D ? (
+          // "2D Plan" toggle: exact official image — pixel-perfect, deep zoom + pan
           <MasterPlanViewer url={project.masterPlanUrl} name={project.name} />
         ) : (
           <>
@@ -335,7 +338,7 @@ export default function ThreeDViewPage() {
             >
               <div className="space-y-2 rounded-[19px] bg-black/70 px-4 py-3 text-xs backdrop-blur">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#e8c877]">Master plan</p>
-                {project.masterPlanUrl ? (
+                {project.masterPlanUrl && units.length === 0 ? (
                   <p className="max-w-[190px] text-[11px] leading-snug text-white/70">
                     Official layout of <span className="text-white">{project.name}</span>. Drag to rotate · scroll to zoom · right-drag to pan.
                   </p>
