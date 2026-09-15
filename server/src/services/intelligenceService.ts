@@ -317,15 +317,18 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     fraudSignals.push("Ownership documents not yet cross-verified against registry records.");
   }
 
-  // Confidence: share of verified data points, with a boost for
-  // admin-confirmed core verifications and a penalty per risk flag.
-  let confidence = Math.round((verified / allItems.length) * 100);
-  if (vd) {
-    const coreChecks = [vd.reraVerified, vd.titleClearance, vd.encumbranceFree, vd.constructionApproval, vd.portfolioVerified];
-    confidence += coreChecks.filter(Boolean).length * 2;
-  }
+  // Confidence = the real share of actually-verified data points, weighted so
+  // that a physical site visit by the Truvi team is worth a fixed 20 points.
+  // Until that visit happens the 20 stays locked, so an un-visited listing can
+  // never read higher than 80 — the score only climbs the last 20 points, up
+  // to a true 100, once the site has actually been visited. No fabricated
+  // floor, no artificial ceiling, and no "core-check" bonus: the number never
+  // reads higher than the data (and the visit) actually support.
+  const dataRatio = allItems.length ? verified / allItems.length : 0;
+  const siteVisited = project.teamSiteVisited === true;
+  let confidence = Math.round(dataRatio * 80 + (siteVisited ? 20 : 0));
   confidence -= riskFlags.length * 4;
-  confidence = Math.max(5, Math.min(99, confidence));
+  confidence = Math.max(0, Math.min(100, confidence));
 
   const overallStatus: IntelStatus =
     project.isVerified || confidence >= 75 ? "VERIFIED" : pending > 0 ? "PENDING" : "UNAVAILABLE";
@@ -346,7 +349,9 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     categories,
     ai: {
       crossVerifiedSources: new Set(allItems.filter((i) => i.status === "VERIFIED").map((i) => i.source)).size,
-      evidenceCount: verified + pending,
+      // Only actually-verified data points count as evidence collected — a
+      // pending item is not evidence until its verification is complete.
+      evidenceCount: verified,
       riskFlags,
       fraudSignals,
       confidenceScore: confidence,
