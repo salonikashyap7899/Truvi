@@ -176,6 +176,9 @@ const updateProjectSchema = z.object({
     })
     .nullable()
     .optional(),
+  // Set once the Truvi team physically visited the site (ADMIN only). Adds +20
+  // to the Trust Score via the seeded physical-site-visit verification check.
+  teamSiteVisited: z.boolean().optional(),
   // Truvi-verified risk assessment (ADMIN only; ignored for developers).
   // `null` clears an assessment back to "not assessed".
   legalRiskLevel: z.enum(["LOW", "MEDIUM", "HIGH"]).nullable().optional(),
@@ -263,6 +266,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     for (const k of ["legalRiskLevel", "floodRiskLevel", "crimeIndexLevel"] as const) {
       if (d[k] !== undefined) update[k] = d[k];
     }
+    if (d.teamSiteVisited !== undefined) update.teamSiteVisited = d.teamSiteVisited;
     if (d.ownerHistory !== undefined) update.ownerHistory = d.ownerHistory && d.ownerHistory.length ? d.ownerHistory : null;
     if (d.appreciationForecast !== undefined) update.appreciationForecast = d.appreciationForecast;
   }

@@ -53,7 +53,9 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
   });
   const [connectivity, setConnectivity] = useState(project.presentationInfo?.connectivityNotes ?? "");
   const [progressNote, setProgressNote] = useState(project.presentationInfo?.constructionProgressNote ?? "");
-  const [paymentPlans, setPaymentPlans] = useState((project.presentationInfo?.paymentPlans ?? []).join(", "));
+  // One plan per LINE (not comma-separated): Indian prices contain commas
+  // (₹1,499 / ₹14,999) which would otherwise split a single plan into two.
+  const [paymentPlans, setPaymentPlans] = useState((project.presentationInfo?.paymentPlans ?? []).join("\n"));
   const [offers, setOffers] = useState(project.presentationInfo?.offers ?? "");
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
       const payload: Record<string, unknown> = {
         connectivityNotes: connectivity,
         constructionProgressNote: progressNote,
-        paymentPlans: paymentPlans.split(",").map((s) => s.trim()).filter(Boolean),
+        paymentPlans: paymentPlans.split("\n").map((s) => s.trim()).filter(Boolean),
         offers,
       };
       if (projectType) payload.projectType = projectType;
@@ -205,12 +207,13 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
             />
           </div>
           <div>
-            <Label className="text-foreground/90">Payment Plans <span className="text-muted-foreground">(comma-separated)</span></Label>
-            <Input
-              placeholder="10:80:10, Subvention scheme, 30:40:30 construction-linked…"
+            <Label className="text-foreground/90">Payment Plans <span className="text-muted-foreground">(one per line)</span></Label>
+            <textarea
+              rows={4}
+              placeholder={"A: (Within 60 Days) — ₹1,499/sq.yd\nB: (Within 90 Days) — ₹1,599/sq.yd\nC: (Within 120 Days) — ₹1,699/sq.yd"}
               value={paymentPlans}
               onChange={(e) => setPaymentPlans(e.target.value)}
-              className="border-white/15 bg-card text-white"
+              className="w-full rounded-lg border border-white/15 bg-card px-3 py-2 text-sm text-white outline-none focus:border-violet-500"
             />
           </div>
           <div>

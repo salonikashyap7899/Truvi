@@ -37,6 +37,16 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "construction_status" text`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "construction_progress" integer`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "milestones" jsonb`,
+    // Admin marks this once the Truvi team has physically visited the site;
+    // feeds a +20 verification check into the Trust Score (seeded just below).
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "team_site_visited" boolean NOT NULL DEFAULT false`,
+    // Seed the physical-site-visit Trust Score check once (weight 20). Idempotent
+    // via NOT EXISTS so it is never duplicated; admins can edit its weight later.
+    `INSERT INTO verification_checks (name, category, weight, enabled, sql_query, description)
+     SELECT 'Physical Site Visit (Truvi Team)', 'physical', 20, true,
+            'SELECT coalesce((SELECT team_site_visited FROM projects WHERE id=$1), false) AS passed',
+            'The Truvi team has physically visited and inspected the site.'
+     WHERE NOT EXISTS (SELECT 1 FROM verification_checks WHERE name = 'Physical Site Visit (Truvi Team)')`,
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
     // AI visual-quality score (0–100) for gallery images → automatic best-cover.
     `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "ai_score" double precision`,

@@ -203,6 +203,7 @@ export interface Project {
   crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
   reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
   reraValidityDate?: string;
+  teamSiteVisited?: boolean;
   isVerified?: boolean;
   verifiedAt?: string;
   isPrimeListing?: boolean;

@@ -67,6 +67,30 @@ export default function AdminProjectManagePage() {
       {/* Editable core details: name, location, RERA, possession, contact, plans */}
       <ProjectDetailsEditor project={project} onUpdated={setProject} />
 
+      {/* Physical site-visit toggle (admin-only) — adds +20 to the Trust Score */}
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 glass p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Physical site visit by Truvi team</p>
+          <p className="text-xs text-muted-foreground">Confirms the team visited &amp; inspected the site — adds <b>+20</b> to the Truvi Trust Score.</p>
+        </div>
+        <button
+          onClick={async () => {
+            const next = !project.teamSiteVisited;
+            try {
+              await api.patch(`/projects/${project._id}`, { teamSiteVisited: next });
+              await api.post(`/verify/${project._id}`).catch(() => {});
+              setProject({ ...project, teamSiteVisited: next });
+              toast.success(next ? "Marked as site-visited — Trust Score updated" : "Site visit removed");
+            } catch (e: any) {
+              toast.error(e?.response?.data?.error || "Failed to update");
+            }
+          }}
+          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${project.teamSiteVisited ? "border border-emerald-400/40 bg-emerald-500/20 text-emerald-300" : "border border-white/15 text-white/70 hover:bg-white/10"}`}
+        >
+          {project.teamSiteVisited ? "✓ Visited" : "Mark as visited"}
+        </button>
+      </div>
+
       {/* Truvi-verified risk levels (admin-only) shown on the intelligence cards */}
       <RiskAssessmentEditor project={project} onUpdated={setProject} />
 
