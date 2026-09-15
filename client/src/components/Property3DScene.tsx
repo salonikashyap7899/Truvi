@@ -385,7 +385,67 @@ const COLS_PER_SIDE = 4;
 const PER_ROW = COLS_PER_SIDE * 2;
 const MAX_PLOTS = 64;
 
+/* Placed-layout mode: when the developer has pinned plots on their uploaded
+   layout image, we honour those exact positions instead of the generic grid —
+   so the 3D scene mirrors the real structure of the uploaded plan. */
+const PLACED_SPREAD_X = 104; // world width the layout is mapped across (walls ±66)
+const PLACED_SPREAD_Z = 88; // world depth
+const PLACED_FRONT_Z = 34; // front edge of the plots, just behind the roundabout
+const PLACED_PLOT_W = 7;
+const PLACED_PLOT_D = 8;
+
+/**
+ * Arrange plot blocks at their real normalized (mapX, mapY) positions from the
+ * uploaded layout. Image space (Y grows downward, bottom = entrance side) is
+ * mapped so the bottom of the plan sits at the front of the 3D estate.
+ */
+function buildPlacedLayout(placed: SceneUnit[]) {
+  const shown = placed.slice(0, MAX_PLOTS);
+  const centerZ = PLACED_FRONT_Z - PLACED_SPREAD_Z / 2;
+
+  const plots: PlotSpec[] = shown.map((unit) => {
+    const mx = Math.min(1, Math.max(0, unit.mapX ?? 0.5));
+    const my = Math.min(1, Math.max(0, unit.mapY ?? 0.5));
+    const x = (mx - 0.5) * PLACED_SPREAD_X;
+    // my = 1 (bottom of image) → front (high z); my = 0 (top) → back (low z)
+    const z = PLACED_FRONT_Z - (1 - my) * PLACED_SPREAD_Z;
+    const dz = z - centerZ;
+    const facing =
+      Math.abs(x) >= Math.abs(dz) ? (x > 0 ? "West" : "East") : dz > 0 ? "South" : "North";
+    return { unit, x, z, w: PLACED_PLOT_W, d: PLACED_PLOT_D, facing };
+  });
+
+  const backZ = Math.min(-50, PLACED_FRONT_Z - PLACED_SPREAD_Z - 6);
+  const baseDepth = 50 - backZ;
+  const baseCenterZ = (50 + backZ) / 2;
+
+  const rand = mulberry32(1234567);
+  const trees: TreeSpec[] = [];
+  for (let i = 0; i < 22; i++) {
+    const alongX = rand() < 0.5;
+    trees.push({
+      x: alongX ? -60 + rand() * 120 : (rand() < 0.5 ? -61 : 61) + (rand() - 0.5) * 4,
+      z: alongX ? (rand() < 0.5 ? backZ + 3 : 46) + (rand() - 0.5) * 4 : backZ + 6 + rand() * (baseDepth - 12),
+      s: 0.8 + rand() * 0.8,
+    });
+  }
+
+  return {
+    plots,
+    crossRoadZs: [] as number[],
+    towers: [] as TowerSpec[],
+    trees,
+    backZ,
+    baseDepth,
+    baseCenterZ,
+  };
+}
+
 function buildLayout(project: Project, units: SceneUnit[]) {
+  // Honour pinned plot positions from the uploaded layout when enough exist.
+  const placed = units.filter((u) => u.mapX != null && u.mapY != null);
+  if (placed.length >= 3) return buildPlacedLayout(placed);
+
   const rand = mulberry32(hashSeed(project._id));
 
   const shown = units.slice(0, MAX_PLOTS);
