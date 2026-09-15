@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/primitives";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { Upload, Trash2, FileText, Loader2, ExternalLink, Save, ShieldCheck, Clock } from "lucide-react";
+import { Upload, Trash2, FileText, Loader2, ExternalLink, Save, ShieldCheck, Clock, Map as MapIcon } from "lucide-react";
 import { ASSET_SECTIONS, ALL_CATEGORIES, categoryLabel } from "@/lib/assetCategories";
 import { PROJECT_TYPE_OPTIONS } from "@/lib/projectTypes";
 import type { Project, ProjectAsset } from "@/types";
@@ -35,6 +35,22 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
   const [savingInfo, setSavingInfo] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [planningId, setPlanningId] = useState<string | null>(null);
+
+  // Make an uploaded image the project's Master Plan → "View in 3D" then shows
+  // the real layout as an interactive board instead of the generated township.
+  async function setAsMasterPlan(asset: ProjectAsset) {
+    setPlanningId(asset._id);
+    try {
+      await api.patch(`/projects/${project._id}`, { masterPlanUrl: asset.fileUrl });
+      onProjectUpdated({ ...project, masterPlanUrl: asset.fileUrl });
+      toast.success("Set as Master Plan — 'View in 3D' now uses this layout");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not set master plan");
+    } finally {
+      setPlanningId(null);
+    }
+  }
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Upload form
@@ -336,6 +352,24 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
               >
                 {verifyingId === asset._id ? "…" : asset.verified ? "Unverify" : "Verify"}
               </Button>
+            )}
+            {asset.mimeType.startsWith("image/") && (
+              project.masterPlanUrl === asset.fileUrl ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/15 px-2.5 py-1 text-[11px] font-medium text-violet-300" title="This image is the 3D master plan">
+                  <MapIcon size={11} /> Master Plan
+                </span>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={planningId === asset._id}
+                  onClick={() => setAsMasterPlan(asset)}
+                  className="shrink-0"
+                  title="Use this layout image as the interactive 3D master plan"
+                >
+                  {planningId === asset._id ? "…" : <><MapIcon size={12} className="mr-1" /> Set as Master Plan</>}
+                </Button>
+              )
             )}
             <a href={asset.fileUrl} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white shrink-0" title="Open">
               <ExternalLink size={14} />
