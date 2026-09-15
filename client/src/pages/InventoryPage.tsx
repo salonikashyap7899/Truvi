@@ -98,8 +98,12 @@ export default function InventoryPage() {
           <p className="mt-16 text-center text-sm text-muted-foreground">No listings found.</p>
         ) : (
           <div className="mx-auto mt-12 grid max-w-7xl gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {sorted.map((project, idx) => (
-              <ListingCard key={project._id} project={project} isPrime={project.isPrimeListing || idx === 0} />
+            {sorted.map((project) => (
+              // Prime is a PAID/admin-granted status — only show the Prime frame
+              // & ribbon when the listing is actually flagged prime. (Previously
+              // the first card was always styled Prime, which made every new
+              // top listing look automatically Prime.)
+              <ListingCard key={project._id} project={project} isPrime={!!project.isPrimeListing} />
             ))}
           </div>
         )}
