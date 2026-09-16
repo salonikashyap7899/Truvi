@@ -1,18 +1,27 @@
 # Truvi Android App — build & Play Store guide
 
-The Truvi Android app is built with **Capacitor**. It wraps the **live website**
-(`https://truviventures.com`) in a native Android shell — so:
+The Truvi Android app is built with **Capacitor**. It **bundles the web app**
+(the React code in `client/`) inside a native Android shell — so:
 
-- You reuse the exact same website code (no separate app to maintain).
-- Most changes you make to the website go live in the app **automatically**,
-  with **no need to rebuild or re-upload** the app (because the app loads the
-  live site). You only rebuild the app for *native* changes (icon, permissions,
-  Capacitor version, app name).
-- Camera (KYC selfie), Razorpay payments and login all work exactly as they do
-  in the mobile browser, because the app's origin is `truviventures.com`.
+- You reuse the exact same website code (**no separate app to maintain**).
+- The app **opens instantly** from the phone (the UI is shipped inside the app,
+  not downloaded from the network on every launch).
+- The app **keeps working offline**: its screens load from the device, and only
+  live data needs the internet. When the connection drops it shows a small
+  "You're offline" banner instead of going blank.
+- Camera (KYC selfie), Razorpay payments and login all work as they do in the
+  mobile browser. Login is remembered on the device, so users stay signed in.
 
-Config lives in `client/capacitor.config.json` (appId `com.truviventures.app`,
-appName **Truvi**).
+> **Trade-off vs the old setup:** the app used to load the live site, so website
+> changes appeared in the app automatically. Now the app is self-contained, so
+> **any change to the app's UI or features needs a new APK/AAB build and upload**
+> (steps 4–5 below). The website still updates on its own.
+
+Config lives in **`client/capacitor.config.json`** (appId `com.truviventures.app`,
+appName **Truvi**). There is deliberately no `server.url` — that's what makes the
+app bundle its UI locally. Native builds call the API at
+`https://truviventures.com` automatically (see `client/src/lib/api.ts`), and the
+server already allows the app's origin (`https://localhost`) through CORS.
 
 ---
 
@@ -30,9 +39,9 @@ From the repo:
 ```bash
 cd client
 npm install                 # installs Capacitor (already in package.json)
-npm run build               # produces client/dist (Capacitor needs a webDir)
+npm run build               # produces client/dist (the UI the app bundles)
 npx cap add android         # creates client/android (the native project)
-npx cap sync android        # copies config into the native project
+npx cap sync android        # copies the build + config into the native project
 ```
 
 This creates a `client/android/` folder — the native Android Studio project.
@@ -59,13 +68,19 @@ Open `client/android/app/src/main/AndroidManifest.xml` and add these inside the
 
 ## 4. Build a release AAB (what Play Store wants)
 
-1. Open the `client/android` folder in **Android Studio** (`npm run cap:open`
+1. **Rebuild the web + sync first** (do this every time you have new changes):
+   ```bash
+   cd client
+   npm run build
+   npx cap sync android
+   ```
+2. Open the `client/android` folder in **Android Studio** (`npm run cap:open`
    from `client/` also opens it).
-2. **Build → Generate Signed Bundle / APK → Android App Bundle (.aab)**.
-3. **Create a new keystore** the first time (a `.jks` file + passwords).
+3. **Build → Generate Signed Bundle / APK → Android App Bundle (.aab)**.
+4. **Create a new keystore** the first time (a `.jks` file + passwords).
    ⚠️ **Keep this keystore file and passwords safe forever** — you need the same
    one for every future update; losing it means you can't update the app.
-4. Choose **release**, finish → you get an `app-release.aab`.
+5. Choose **release**, finish → you get an `app-release.aab`.
 
 ## 5. Publish on Google Play
 
@@ -89,20 +104,21 @@ Open `client/android/app/src/main/AndroidManifest.xml` and add these inside the
 
 ## 6. Updating later
 
-- **Website / feature changes:** just deploy the website as usual — the app
-  shows them automatically. **No app rebuild, no Play resubmission.**
-- **Native changes** (icon, name, new permission, Capacitor upgrade): run
-  `npm run build && npx cap sync android`, bump `versionCode`/`versionName` in
-  `client/android/app/build.gradle`, rebuild the signed AAB, and upload a new
-  release in Play Console.
+Because the app now bundles its UI, an update is always a **rebuild + reupload**:
+
+1. Deploy your website/server changes as usual (for the web + the API).
+2. `cd client && npm run build && npx cap sync android`.
+3. Bump `versionCode`/`versionName` in `client/android/app/build.gradle`.
+4. Rebuild the signed AAB (step 4 above) and upload a new release in Play
+   Console.
+
+> If you ever want the app to also auto-update its UI without a Play resubmission,
+> that's a separate feature (Capacitor **Live Updates / OTA**) that can be added
+> on top of this setup.
 
 ## Notes / alternatives
 
-- This setup loads the live site. If you later want an **offline-capable** app
-  that ships the UI inside the app, remove the `server.url` block from
-  `capacitor.config.json` and build with `VITE_API_URL=https://truviventures.com`
-  so the bundled app still reaches your API — but then every UI change needs an
-  app rebuild + resubmission, and cross-origin auth cookies need extra care.
-  The current (live-site) setup avoids all of that.
+- **Push notifications** (phone-tray pop-ups when the app is closed) are optional
+  and configured separately — see `client/PUSH_SETUP.md`.
 - **iOS** later: `npx cap add ios` + an Apple Developer account (US$99/yr) and a
   Mac with Xcode. The same web code powers it.
