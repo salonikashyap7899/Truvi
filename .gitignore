@@ -5,3 +5,7 @@ dist/
 *.local
 *.log
 .DS_Store
+
+# Replit scratch / paste folder (dev artifacts)
+attached_assets/
+.replit_integration_files/
