@@ -17,6 +17,7 @@ const AmbientBackground = lazy(() =>
 import LandingPage from "@/pages/LandingPage";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
+import OfflineBanner from "@/components/OfflineBanner";
 import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
@@ -164,6 +165,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <NativeShell />
+      <OfflineBanner />
       <PushRegistration />
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />

@@ -3,8 +3,6 @@
   "appName": "Truvi",
   "webDir": "dist",
   "server": {
-    "url": "https://truviventures.com",
-    "cleartext": false,
     "androidScheme": "https"
   },
   "android": {
@@ -13,7 +11,7 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 800,
+      "launchShowDuration": 500,
       "launchAutoHide": false,
       "backgroundColor": "#0a0d14",
       "showSpinner": true,
