@@ -15,14 +15,13 @@ const AmbientBackground = lazy(() =>
 
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
-import MobileHome from "@/pages/mobile/MobileHome";
 import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
 import OfflineBanner from "@/components/OfflineBanner";
 import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
-import { IS_NATIVE, showsTabBar } from "@/lib/native";
+import { showsTabBar } from "@/lib/native";
 import "@/styles/mobile-app.css";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
@@ -185,9 +184,8 @@ export default function App() {
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <Routes>
-        {/* Public marketing pages. In the installed app, "/" is the native
-            app home (bottom-tab shell) instead of the marketing landing. */}
-        <Route path="/" element={IS_NATIVE ? <MobileHome /> : <LandingPage />} />
+        {/* Public marketing pages */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
