@@ -1,20 +1,22 @@
 /* App-only tweaks for the installed Capacitor build (html.native-app).
-   The web is never affected, and no functionality is removed — these only
-   restyle the app so it stops looking like a website in a wrapper. */
+   The web is never affected, and nothing is removed — the app keeps every
+   page, heading, video, footer and option exactly as the website. */
 
-/* This is an app, not a website: hide the marketing footer and the top-bar
-   hamburger menu in the installed app. Navigation is handled by the bottom
-   tab bar, so the website chrome isn't needed here. */
+/* This is an app, not a website: hide the marketing footer in the app. */
 html.native-app footer {
   display: none !important;
 }
+
+/* The hamburger menu is moved to the bottom in the app (see MobileTabBar), so
+   hide the old top-bar hamburger button here. Everything it opened is now in
+   the bottom "Menu". */
 html.native-app [aria-label="Open menu"],
 html.native-app [aria-label="Close menu"] {
   display: none !important;
 }
 
-/* Keep the floating action buttons (Invest, Ask Truvi, AI Copilot) — nothing
-   is removed — but lift them above the bottom tab bar so they never overlap. */
+/* Lift the floating action buttons (Invest, Ask Truvi, AI Copilot) above the
+   bottom bar so they never overlap it. Nothing is removed. */
 html.native-app [aria-label="Ask Truvi"],
 html.native-app [aria-label="AI Sales Copilot"],
 html.native-app [aria-label="Explore Truvi Invest"] {

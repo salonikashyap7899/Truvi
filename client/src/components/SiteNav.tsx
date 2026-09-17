@@ -53,7 +53,7 @@ function WhatsAppNavIcon() {
 
 /** Nav links. Hash links live on the landing page — from other routes they
  *  navigate back to "/" with the hash (the landing page scrolls to it). */
-type NavLink = { label: string; to?: string; hash?: string };
+export type NavLink = { label: string; to?: string; hash?: string };
 
 // Pricing is intentionally NOT here — it's gated behind sign-in and only shown
 // to authenticated roles (see navLinksForRole).
@@ -77,7 +77,7 @@ const NAV_LINKS: NavLink[] = [
  *  - Admin / Verifier → Dashboard + Inventory + Intelligence
  *  - Signed-out visitors → full marketing nav
  */
-function navLinksForRole(user?: Pick<User, "role" | "email"> | null): NavLink[] {
+export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): NavLink[] {
   if (!user) return NAV_LINKS; // guests get the marketing nav
 
   const dash = (label: string): NavLink => ({ label, to: dashboardPath(user) });
