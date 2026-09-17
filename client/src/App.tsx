@@ -124,11 +124,11 @@ function FloatingAssistants() {
   if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
-      {/* AskTruvi stays mounted in the app too — the bottom "Ask Truvi" tab opens
-          it via the open-ask-truvi event (its floating button is hidden by CSS
-          in the app). The sales copilot FAB is web-only to keep the app clean. */}
+      {/* All assistants stay available in the app too. The bottom "Ask Truvi"
+          tab also opens AskTruvi via the open-ask-truvi event; in the app the
+          floating buttons are lifted above the tab bar (see mobile-app.css). */}
       <AskTruvi />
-      {!IS_NATIVE && <AISalesCopilot />}
+      <AISalesCopilot />
     </>
   );
 }
@@ -181,7 +181,7 @@ export default function App() {
       <WelcomeGate />
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
-      {!IS_NATIVE && <InvestFab />}
+      <InvestFab />
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <Routes>
