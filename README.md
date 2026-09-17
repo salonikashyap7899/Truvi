@@ -70,13 +70,7 @@ Visit `http://localhost:5173`.
 
 All seeded users share the password: **`Password123!`**
 
-| Role | Email | Notes |
-|---|---|---|
-| Admin | `admin@truvi.app` | Full platform access |
-| Developer | `dev1@truvi.app` | Approved, has live projects |
-| Developer | `dev4@truvi.app` | Pending — test the admin approval flow |
-| Channel Partner | `cp1@truvi.app` | Approved, Silver tier |
-| Channel Partner | `cp7@truvi.app` | Approved, Diamond tier |
+
 
 - Real-time inventory synchronization
 - Live notifications
