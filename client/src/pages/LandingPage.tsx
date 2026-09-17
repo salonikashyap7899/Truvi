@@ -5,6 +5,8 @@ import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
+import AppHomeTop from "@/components/mobile/AppHomeTop";
+import { IS_NATIVE } from "@/lib/native";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
@@ -895,6 +897,10 @@ export default function LandingPage() {
       <SmoothScroll />
       <CursorGlow />
       <SiteNav />
+
+      {/* Installed app only: a search-first marketplace section at the very top.
+          The website is unaffected, and all the landing content stays below. */}
+      {IS_NATIVE && <AppHomeTop />}
 
       <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
 
