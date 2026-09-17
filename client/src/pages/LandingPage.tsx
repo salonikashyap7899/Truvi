@@ -907,7 +907,7 @@ export default function LandingPage() {
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="min-h-screen items-center !justify-start pt-32 md:pt-36 pb-16 text-center">
+      <Section className={`items-center !justify-start pb-16 text-center ${IS_NATIVE ? "pt-6" : "min-h-screen pt-32 md:pt-36"}`}>
         {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
             Shown to every signed-in user except Admin/Founder. */}
         {showEnrollBanner && (

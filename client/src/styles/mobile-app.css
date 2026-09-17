@@ -15,6 +15,12 @@ html.native-app [aria-label="Close menu"] {
   display: none !important;
 }
 
+/* While the Ask Truvi chat sheet is open, hide the bottom tab bar so it never
+   covers the chat's input box (the sheet is full-screen on phones). */
+html.native-app body.ask-truvi-open [aria-label="Primary"] {
+  display: none !important;
+}
+
 /* Lift the floating action buttons (Invest, Ask Truvi, AI Copilot) above the
    bottom bar so they never overlap it. Nothing is removed. */
 html.native-app [aria-label="Ask Truvi"],
