@@ -268,7 +268,7 @@ function ListingCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative rounded-[22px] p-px transition-transform duration-300 hover:-translate-y-1"
+      className="group relative min-w-0 rounded-[22px] p-px transition-transform duration-300 hover:-translate-y-1"
       style={{ background: frame }}
     >
       <div className="overflow-hidden rounded-[21px] bg-[#0a0d14]">
@@ -329,16 +329,16 @@ function ListingCard({
           {/* Body */}
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="truncate font-display text-base font-semibold text-white">{project.name}</h3>
+              <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
               {typeof project.trustScore === "number" && (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
                   <Star size={9} /> {project.trustScore}
                 </span>
               )}
             </div>
-            <p className="mt-1 flex items-center gap-1.5 truncate text-xs text-white/65">
+            <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/65">
               <MapPin size={12} className="shrink-0" />
-              <span className="truncate">{project.location}, {project.city}{devName ? ` · ${devName}` : ""}</span>
+              <span className="min-w-0 truncate">{project.location}, {project.city}{devName ? ` · ${devName}` : ""}</span>
             </p>
 
             {/* Meta chips */}
