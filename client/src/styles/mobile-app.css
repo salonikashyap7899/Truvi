@@ -1,0 +1,8 @@
+/* App-only tweaks for the installed Capacitor build (html.native-app).
+   The web is never affected. */
+
+/* Ask Truvi lives in the bottom tab bar inside the app, so hide its floating
+   button to avoid a duplicate control overlapping the tab bar. */
+html.native-app [aria-label="Ask Truvi"] {
+  display: none !important;
+}

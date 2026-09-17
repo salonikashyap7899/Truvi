@@ -15,11 +15,15 @@ const AmbientBackground = lazy(() =>
 
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
+import MobileHome from "@/pages/mobile/MobileHome";
+import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
 import OfflineBanner from "@/components/OfflineBanner";
 import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
+import { IS_NATIVE, showsTabBar } from "@/lib/native";
+import "@/styles/mobile-app.css";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
 // Every other route page is lazy-loaded, so the initial download is tiny and
@@ -120,8 +124,11 @@ function FloatingAssistants() {
   if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
+      {/* AskTruvi stays mounted in the app too — the bottom "Ask Truvi" tab opens
+          it via the open-ask-truvi event (its floating button is hidden by CSS
+          in the app). The sales copilot FAB is web-only to keep the app clean. */}
       <AskTruvi />
-      <AISalesCopilot />
+      {!IS_NATIVE && <AISalesCopilot />}
     </>
   );
 }
@@ -155,6 +162,8 @@ function PageTransition({ children }: { children: ReactNode }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="relative z-10 min-h-full"
+      // Leave room for the app's bottom tab bar so it never covers content.
+      style={showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : undefined}
     >
       {children}
     </motion.div>
@@ -172,12 +181,13 @@ export default function App() {
       <WelcomeGate />
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
-      <InvestFab />
+      {!IS_NATIVE && <InvestFab />}
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <Routes>
-        {/* Public marketing pages */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Public marketing pages. In the installed app, "/" is the native
+            app home (bottom-tab shell) instead of the marketing landing. */}
+        <Route path="/" element={IS_NATIVE ? <MobileHome /> : <LandingPage />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
@@ -278,6 +288,7 @@ export default function App() {
       </Routes>
       </Suspense>
       </PageTransition>
+      <MobileTabBar />
     </BrowserRouter>
   );
 }
