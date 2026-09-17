@@ -71,7 +71,7 @@ export default function MobileTabBar() {
             >
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">Menu</span>
-                <button onClick={close} aria-label="Close menu" className="grid size-8 place-items-center rounded-full border border-white/15 text-white/80">
+                <button onClick={close} aria-label="Close menu panel" className="grid size-8 place-items-center rounded-full border border-white/15 text-white/80">
                   <X size={16} />
                 </button>
               </div>
