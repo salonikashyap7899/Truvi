@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -65,10 +65,16 @@ function loadShortlist(): Set<string> {
   }
 }
 
+const CATEGORY_KEYS = new Set<CategoryKey>(["ALL", "SAVED", "APARTMENT", "VILLA", "PLOT", "COMMERCIAL", "LAND"]);
+
 export default function InventoryPage() {
+  const [params] = useSearchParams();
+  const initialCat = params.get("cat") as CategoryKey | null;
   const [projects, setProjects] = useState<Project[]>([]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<CategoryKey>("ALL");
+  const [search, setSearch] = useState(() => params.get("q") ?? "");
+  const [category, setCategory] = useState<CategoryKey>(
+    initialCat && CATEGORY_KEYS.has(initialCat) ? initialCat : "ALL",
+  );
   const [sort, setSort] = useState<SortKey>("RECOMMENDED");
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
