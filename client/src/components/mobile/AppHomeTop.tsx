@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Search, Building2, MapPin, Star, ShieldCheck, ArrowRight, Home as HomeIcon,
-  TreePine, Store, Heart, type LucideIcon,
+  Search, Building2, MapPin, Star, ShieldCheck, ArrowRight,
+  TreePine, Heart, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCompactINR } from "@/lib/utils";
@@ -18,8 +18,6 @@ import type { Project } from "@/types";
 const CATEGORY_TILES: { key: string; label: string; Icon: LucideIcon }[] = [
   { key: "ALL", label: "Explore", Icon: Building2 },
   { key: "PLOT", label: "Plots", Icon: TreePine },
-  { key: "APARTMENT", label: "Apartments", Icon: HomeIcon },
-  { key: "COMMERCIAL", label: "Commercial", Icon: Store },
   { key: "SAVED", label: "Saved", Icon: Heart },
 ];
 
@@ -63,17 +61,20 @@ export default function AppHomeTop() {
       </div>
 
       {/* Category tiles */}
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mt-4 flex justify-between gap-3">
         {CATEGORY_TILES.map((c) => (
           <Link
             key={c.key}
             to={`/inventory?cat=${c.key}`}
-            className="flex shrink-0 flex-col items-center gap-1.5"
+            className="flex flex-1 flex-col items-center gap-1.5"
           >
-            <span className="grid size-14 place-items-center rounded-2xl border border-white/10 bg-white/[0.05] text-sky-300">
-              <c.Icon size={22} />
+            <span
+              className="grid h-16 w-full place-items-center rounded-2xl border border-sky-400/25 text-sky-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+              style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.28), rgba(59,130,246,0.10))" }}
+            >
+              <c.Icon size={24} />
             </span>
-            <span className="text-[11px] font-medium text-white/75">{c.label}</span>
+            <span className="text-[12px] font-semibold text-white/85">{c.label}</span>
           </Link>
         ))}
       </div>

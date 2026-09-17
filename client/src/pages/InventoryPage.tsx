@@ -134,7 +134,10 @@ export default function InventoryPage() {
 
       <SiteNav />
 
-      <main className="min-h-screen px-4 pb-28 pt-24 text-white sm:px-6 md:px-10">
+      <main
+        className="min-h-screen px-4 pb-28 text-white sm:px-6 md:px-10"
+        style={{ paddingTop: "calc(7rem + env(safe-area-inset-top, 0px))" }}
+      >
         {/* ── Header + search ── */}
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="font-display text-3xl font-medium tracking-tight md:text-4xl">
