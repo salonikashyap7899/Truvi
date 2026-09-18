@@ -151,7 +151,9 @@ function FeatureBlock({
       {items && items.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {items.map((item) => (
-            <span key={item} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-foreground/90">
+            // rounded-lg (not -full) so a long, sentence-length item reads as a
+            // tidy block instead of ballooning into an ellipse "blob".
+            <span key={item} className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-left text-xs leading-relaxed text-foreground/90">
               {item}
             </span>
           ))}
