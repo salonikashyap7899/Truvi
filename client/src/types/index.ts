@@ -199,6 +199,8 @@ export interface Project {
   isSaved?: boolean;
   isCompared?: boolean;
   trustScore?: number;
+  /** Live Truvi Score (0–100) computed from verification + uploaded data. */
+  truviScore?: number;
   legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
   crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";

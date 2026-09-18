@@ -4,6 +4,7 @@ import { getDb } from "../config/db";
 import { projects, units, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
+import { fetchRagItemsForProject, fetchRagCountsForProjects } from "../services/ragIntel";
 
 const router = Router();
 
@@ -86,8 +87,13 @@ router.get("/", async (_req, res) => {
     });
   }
 
+  // Live Truvi Score per card — computed the same way as the full breakdown, so
+  // the number on the card matches the "Why this score?" panel on the listing.
+  const ragCounts = await fetchRagCountsForProjects(db, projectIds);
+
   const enriched = rows.map(({ project, developer }) => {
     const stats = statsById.get(String(project._id));
+    const profile = buildIntelligenceProfile(project, ragCounts.get(String(project._id)) ?? {});
     return {
       ...project,
       developerId: developer ? { _id: developer._id, name: developer.name } : null,
@@ -97,6 +103,7 @@ router.get("/", async (_req, res) => {
       minRate: stats?.minRate ? Math.round(stats.minRate) : null,
       coverImageUrl: coverMap.get(String(project._id)) ?? null,
       media: mediaMap.get(String(project._id)) ?? [],
+      truviScore: profile.ai.confidenceScore,
     };
   });
 
@@ -124,7 +131,10 @@ router.get("/:id/intelligence", async (req, res) => {
   const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
   if (!project || project.approvalStatus !== "APPROVED") return res.status(404).json({ error: "Listing not found" });
 
-  res.json({ intelligence: buildIntelligenceProfile(project) });
+  // Pull the admin-uploaded data points so the breakdown credits them and shows
+  // each one's source + verification status.
+  const rag = await fetchRagItemsForProject(db, String(project._id));
+  res.json({ intelligence: buildIntelligenceProfile(project, rag) });
 });
 
 export default router;

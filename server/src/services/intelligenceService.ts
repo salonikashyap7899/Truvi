@@ -65,12 +65,27 @@ export interface IntelligenceProfile {
 
 type ItemDef = [label: string, source: string] | [label: string, source: string, override: () => IntelItem | null];
 
+/** One score/intel category key. */
+export type IntelCategoryKey =
+  | "government" | "infrastructure" | "location" | "market" | "environmental" | "gis" | "community";
+
+/** Admin-uploaded (RAG-ingested) data for one category. Either the actual data
+ *  points (shown on the detail panel, each with its real source) or, for the
+ *  lightweight list score, just aggregate counts. */
+export interface RagCategoryInput {
+  items?: IntelItem[];
+  verified?: number;
+  total?: number;
+}
+export type RagInput = Partial<Record<IntelCategoryKey, RagCategoryInput>>;
+
 function buildCategory(
   project: IProject,
   key: string,
   title: string,
   defs: ItemDef[],
   fullyVerified: boolean,
+  extraItems: IntelItem[] = [],
 ): IntelCategory {
   const items: IntelItem[] = defs.map((def) => {
     const [label, source, override] = def;
@@ -93,17 +108,21 @@ function buildCategory(
     // verifies the listing.
     return { label, source, status: "PENDING" };
   });
+  // Append the admin-uploaded (RAG) data points for this category, so the panel
+  // shows exactly what data exists, where it came from, and whether it's verified.
+  const all = [...items, ...extraItems];
   return {
     key,
     title,
-    items,
-    verifiedCount: items.filter((i) => i.status === "VERIFIED").length,
-    totalCount: items.length,
+    items: all,
+    verifiedCount: all.filter((i) => i.status === "VERIFIED").length,
+    totalCount: all.length,
   };
 }
 
-export function buildIntelligenceProfile(project: IProject): IntelligenceProfile {
+export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}): IntelligenceProfile {
   const vd = project.verificationDetails;
+  const ragItems = (key: IntelCategoryKey): IntelItem[] => rag[key]?.items ?? [];
   const reraVerified = !!vd?.reraVerified || project.reraStatus === "REGISTERED";
   const reraSource = project.reraNumber
     ? `UP RERA Portal (Reg. No. ${project.reraNumber})`
@@ -198,7 +217,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ],
     ["Government Notifications", "UP Government Gazette & Notifications"],
     ["Smart City / Urban Planning Data", "Smart City Mission Portal"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("government"));
 
   const infrastructure = buildCategory(project, "infrastructure", "Infrastructure Intelligence", [
     ["Roads", "PWD — Public Works Department"],
@@ -210,7 +229,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Bus Terminals", "UPSRTC — Terminal & Depot Records"],
     ["Future Infrastructure Projects", "State Infrastructure Pipeline Disclosures"],
     ["Government Development Projects", "State Development Authority Announcements"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("infrastructure"));
 
   const location = buildCategory(project, "location", "Location Intelligence", [
     ["Schools", "OpenStreetMap + Field Survey"],
@@ -224,7 +243,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Fire Stations", "UP Fire Services Directory"],
     ["Banks & ATMs", "RBI Branch/ATM Locator"],
     ["Fuel Stations", "OMC (IOCL/BPCL/HPCL) Outlet Registry"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("location"));
 
   const market = buildCategory(project, "market", "Market Intelligence", [
     ["Property Rates", "IGRS Transactions + Truvi Market Index"],
@@ -236,7 +255,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Price Appreciation", "Circle Rate History + IGRS Transactions"],
     ["Resale Trends", "Truvi Resale Listings Analysis"],
     ["Investment Score", "Truvi AI Investment Model"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("market"));
 
   const environmental = buildCategory(project, "environmental", "Environmental Intelligence", [
     [
@@ -267,7 +286,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Noise Pollution", "CPCB Noise Monitoring Network"],
     ["Heat Map", "Satellite Thermal Imaging (Landsat)"],
     ["Disaster Risk", "NDMA — Disaster Risk Assessments"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("environmental"));
 
   const gis = buildCategory(project, "gis", "Satellite & GIS Intelligence", [
     ["Satellite Imagery", "ISRO Bhuvan + Sentinel-2"],
@@ -277,7 +296,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Nearby Amenities", "GIS Amenity Layers + Field Survey"],
     ["Elevation", "SRTM Digital Elevation Model"],
     ["Land Cover", "Sentinel-2 Land Cover Classification"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("gis"));
 
   const community = buildCategory(project, "community", "Community Intelligence", [
     [
@@ -307,7 +326,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     ["Traffic Density", "GPS Probe Data + Field Survey"],
     ["Safety Index", "Truvi Safety Model (Crime + Lighting + Patrols)"],
     ["Livability Score", "Truvi Livability Model (Composite)"],
-  ], fullyAdminVerified);
+  ], fullyAdminVerified, ragItems("community"));
 
   const categories = [government, infrastructure, location, market, environmental, gis, community];
 
@@ -339,11 +358,20 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
   // the share of its category that is actually verified (nothing is inflated).
   const siteVisited = project.teamSiteVisited === true;
   const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
-  const catRatio = (key: string) => {
+  // A category is scored by how many verified data points back it — admin-ticked
+  // structural checks AND admin-uploaded (RAG) data — measured against a modest
+  // coverage target, so a handful of real verified points fully establishes a
+  // category (and uploading data visibly raises the score). Capped at 1.
+  const EXPECTED_PER_CATEGORY = 5;
+  const catRatio = (key: IntelCategoryKey) => {
     const c = categories.find((x) => x.key === key);
-    return c && c.totalCount > 0 ? c.verifiedCount / c.totalCount : 0;
+    const structuralVerified = c ? c.verifiedCount : 0; // includes appended RAG items
+    // For the lightweight list score, RAG data may come as loose counts instead
+    // of appended items — count those too (but not twice).
+    const looseVerified = rag[key]?.items ? 0 : rag[key]?.verified ?? 0;
+    return Math.min((structuralVerified + looseVerified) / EXPECTED_PER_CATEGORY, 1);
   };
-  const fromCategory = (label: string, max: number, key: string, sourceLabel: string): ScoreSignal => {
+  const fromCategory = (label: string, max: number, key: IntelCategoryKey, sourceLabel: string): ScoreSignal => {
     const ratio = catRatio(key);
     const score = Math.round(ratio * max);
     return { label, score, max, sourceLabel, verified: ratio >= 0.6, lastUpdated: ratio > 0 ? verifiedDate : null };

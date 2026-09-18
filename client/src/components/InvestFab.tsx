@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { TrendingUp } from "lucide-react";
+import { IS_NATIVE } from "@/lib/native";
 
 /**
  * Floating "Invest" launcher — a circle pinned to the LEFT edge on the public
@@ -10,6 +11,9 @@ const PUBLIC_PATHS = new Set(["/", "/home", "/about", "/intelligence", "/invento
 
 export default function InvestFab() {
   const { pathname } = useLocation();
+  // In the installed app this launcher moves into the bottom "Menu" (Truvi
+  // Invest), so no floating button clutters the screens.
+  if (IS_NATIVE) return null;
   const show = PUBLIC_PATHS.has(pathname) || pathname.startsWith("/inventory");
   if (!show || pathname === "/invest") return null;
 

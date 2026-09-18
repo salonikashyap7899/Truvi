@@ -19,18 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 
 const WA_NUMBER = "919196366358";
 
-/* ── Category chips (mapped to the project's type) ─────────────────────────── */
+/* ── Category filter (kept for the Saved view + ?cat= deep links) ───────────── */
 type CategoryKey = "ALL" | "SAVED" | "APARTMENT" | "VILLA" | "PLOT" | "COMMERCIAL" | "LAND";
-
-const CATEGORIES: { key: CategoryKey; label: string }[] = [
-  { key: "ALL", label: "All" },
-  { key: "SAVED", label: "Saved" },
-  { key: "APARTMENT", label: "Apartments" },
-  { key: "VILLA", label: "Villas" },
-  { key: "PLOT", label: "Plots" },
-  { key: "COMMERCIAL", label: "Commercial" },
-  { key: "LAND", label: "Land" },
-];
 
 function matchesCategory(type: ProjectType | undefined, cat: CategoryKey): boolean {
   if (cat === "ALL" || cat === "SAVED") return true;
@@ -72,12 +62,12 @@ const CATEGORY_KEYS = new Set<CategoryKey>(["ALL", "SAVED", "APARTMENT", "VILLA"
 
 export default function InventoryPage() {
   const [params] = useSearchParams();
-  const initialCat = params.get("cat") as CategoryKey | null;
+  // Derived from the URL so switching the bottom "Saved" tab (?cat=SAVED) takes
+  // effect even while this page is already mounted.
+  const urlCat = params.get("cat") as CategoryKey | null;
+  const category: CategoryKey = urlCat && CATEGORY_KEYS.has(urlCat) ? urlCat : "ALL";
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState(() => params.get("q") ?? "");
-  const [category, setCategory] = useState<CategoryKey>(
-    initialCat && CATEGORY_KEYS.has(initialCat) ? initialCat : "ALL",
-  );
   const [sort, setSort] = useState<SortKey>("RECOMMENDED");
   const [nearMe, setNearMe] = useState(params.get("near") === "1");
   const [loading, setLoading] = useState(true);
@@ -104,10 +94,16 @@ export default function InventoryPage() {
     }
   }, [user]);
 
-  // Ask for location the moment "Near Me" is switched on (if we don't have it).
-  useEffect(() => {
-    if (nearMe && !coords) requestLocation();
-  }, [nearMe, coords, requestLocation]);
+  // Toggle "Near Me" — when switching on, get a location fix first and tell the
+  // user if it's unavailable, so the button never silently does nothing.
+  async function toggleNearMe() {
+    const next = !nearMe;
+    setNearMe(next);
+    if (next) {
+      const c = coords ?? (await requestLocation());
+      if (!c) toast.error("Turn on location access to sort properties nearest to you.");
+    }
+  }
 
   const toggleSaved = (id: string) => {
     setSaved((prev) => {
@@ -180,61 +176,40 @@ export default function InventoryPage() {
               </button>
             )}
           </div>
+
+          {/* Quick action: Near Me — sort listings by distance from the user. */}
+          <div className="mx-auto mt-3 flex max-w-xl justify-center">
+            <button
+              onClick={toggleNearMe}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                nearMe
+                  ? "border-[var(--trust)]/60 bg-[var(--trust)]/15 text-sky-200"
+                  : "border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+              }`}
+            >
+              <Navigation size={13} className={nearMe && locStatus === "loading" ? "animate-pulse" : ""} />
+              {nearMe ? "Nearest to you" : "Near Me"}
+            </button>
+          </div>
         </div>
 
-        {/* ── Category chips ── */}
+        {/* ── Result count + sort ── */}
         <div className="mx-auto mt-6 max-w-7xl">
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {CATEGORIES.map((c) => {
-              const active = category === c.key;
-              const count = c.key === "SAVED" ? saved.size : undefined;
-              return (
-                <button
-                  key={c.key}
-                  onClick={() => setCategory(c.key)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition ${
-                    active
-                      ? "border-[var(--trust)]/60 bg-[var(--trust)]/15 text-sky-200"
-                      : "border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-                  }`}
-                >
-                  {c.key === "SAVED" && <Heart size={12} className={active ? "fill-sky-300 text-sky-300" : ""} />}
-                  {c.label}
-                  {count !== undefined && count > 0 && <span className="text-white/50">({count})</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Result count + Near Me + sort */}
-          <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              {category === "SAVED" && <span className="mr-2 text-sky-200">Saved · </span>}
               <span className="font-semibold text-white">{results.length}</span> propert{results.length !== 1 ? "ies" : "y"}
             </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setNearMe((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  nearMe
-                    ? "border-[var(--trust)]/60 bg-[var(--trust)]/15 text-sky-200"
-                    : "border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-                }`}
-                title="Sort by distance from your location"
+            <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
+              <SlidersHorizontal size={13} className="text-white/50" />
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
               >
-                <Navigation size={12} className={nearMe && locStatus === "loading" ? "animate-pulse" : ""} />
-                Near Me
-              </button>
-              <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
-                <SlidersHorizontal size={13} className="text-white/50" />
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortKey)}
-                  className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
-                >
-                  {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
-              </label>
-            </div>
+                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </label>
           </div>
         </div>
 
@@ -371,11 +346,20 @@ function ListingCard({
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
-              {typeof project.trustScore === "number" && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  <Star size={9} /> {project.trustScore}
-                </span>
-              )}
+              {(() => {
+                const score = project.truviScore ?? project.trustScore;
+                if (typeof score !== "number") return null;
+                // Tapping the card opens the full "Why this score?" breakdown.
+                return (
+                  <span
+                    className="inline-flex shrink-0 flex-col items-center rounded-xl border border-sky-400/30 bg-sky-500/10 px-2 py-1 leading-none text-sky-200"
+                    title="Truvi Score — tap the card to see why"
+                  >
+                    <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-sky-300/80">Truvi Score</span>
+                    <span className="mt-0.5 font-display text-sm font-bold text-white">{score}</span>
+                  </span>
+                );
+              })()}
             </div>
             <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/65">
               <MapPin size={12} className="shrink-0" />
