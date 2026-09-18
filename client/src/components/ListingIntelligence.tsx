@@ -22,6 +22,15 @@ interface IntelCategory {
   totalCount: number;
 }
 
+interface ScoreSignal {
+  label: string;
+  score: number;
+  max: number;
+  sourceLabel: string;
+  verified: boolean;
+  lastUpdated: string | null;
+}
+
 interface IntelligenceProfile {
   projectId: string;
   projectName: string;
@@ -33,9 +42,23 @@ interface IntelligenceProfile {
     riskFlags: string[];
     fraudSignals: string[];
     confidenceScore: number;
+    scoreBreakdown?: ScoreSignal[];
     overallStatus: IntelStatus;
     decisionSummary: string;
   };
+}
+
+function scoreTier(score: number): { label: string; color: string } {
+  if (score >= 80) return { label: "Excellent", color: "#22c55e" };
+  if (score >= 60) return { label: "Good", color: "#3b82f6" };
+  if (score >= 40) return { label: "Fair", color: "#f59e0b" };
+  return { label: "Needs review", color: "#ef4444" };
+}
+
+function fmtDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -64,16 +87,11 @@ function StatusChip({ status }: { status: IntelStatus }) {
   );
 }
 
-function confidenceColor(score: number) {
-  if (score >= 75) return "bg-green-500";
-  if (score >= 50) return "bg-amber-500";
-  return "bg-red-500";
-}
-
 export default function ListingIntelligence({ projectId }: { projectId: string }) {
   const [profile, setProfile] = useState<IntelligenceProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,19 +128,70 @@ export default function ListingIntelligence({ projectId }: { projectId: string }
           <StatusChip status={ai.overallStatus} />
         </div>
 
-        {/* Confidence score */}
-        <div>
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
-            <span>Confidence Score</span>
-            <span className="text-white font-semibold">{ai.confidenceScore}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${confidenceColor(ai.confidenceScore)}`}
-              style={{ width: `${ai.confidenceScore}%` }}
-            />
-          </div>
-        </div>
+        {/* ── Truvi Score™ + breakdown ── */}
+        {(() => {
+          const tier = scoreTier(ai.confidenceScore);
+          const breakdown = ai.scoreBreakdown ?? [];
+          return (
+            <div>
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#e8c877]">Truvi Score™</p>
+                  <p className="mt-0.5 flex items-baseline gap-1">
+                    <span className="font-display text-3xl font-bold leading-none" style={{ color: tier.color }}>{ai.confidenceScore}</span>
+                    <span className="text-xs text-muted-foreground">/ 100</span>
+                  </p>
+                </div>
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ color: tier.color, background: `${tier.color}22` }}>
+                  {tier.label}
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${ai.confidenceScore}%`, background: tier.color }} />
+              </div>
+
+              {breakdown.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowBreakdown((v) => !v)}
+                    className="mt-2 flex items-center gap-1 text-[11px] font-medium text-sky-300"
+                  >
+                    {showBreakdown ? "Hide breakdown" : "Why this score?"}
+                    {showBreakdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+
+                  {showBreakdown && (
+                    <div className="mt-2 space-y-2.5 border-t border-white/10 pt-2">
+                      {breakdown.map((s) => {
+                        const d = fmtDate(s.lastUpdated);
+                        return (
+                          <div key={s.label}>
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-white/85">{s.label}</span>
+                              <span className="font-semibold text-white">
+                                {s.score}<span className="text-white/40">/{s.max}</span>
+                              </span>
+                            </div>
+                            <div className="mt-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full rounded-full bg-sky-400" style={{ width: `${Math.round((s.score / s.max) * 100)}%` }} />
+                            </div>
+                            <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                              {s.verified
+                                ? <CheckCircle2 size={10} className="shrink-0 text-green-400" />
+                                : <Clock size={10} className="shrink-0 text-amber-400" />}
+                              {s.verified ? "Source verified" : "Not yet verified"} · {s.sourceLabel}
+                              {d ? ` · Updated ${d}` : ""}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-muted-foreground">
           <span>Cross-verified sources: <span className="text-white/80">{ai.crossVerifiedSources}</span></span>

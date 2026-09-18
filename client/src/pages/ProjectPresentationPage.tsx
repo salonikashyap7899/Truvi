@@ -10,6 +10,7 @@ import { LayoutGrid, CalendarClock } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
+import ListingIntelligence from "@/components/ListingIntelligence";
 import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
@@ -322,6 +323,11 @@ export default function ProjectPresentationPage() {
           />
         </div>
       </div>
+
+      {/* Truvi Score & verification intelligence */}
+      <section className="mt-8 max-w-3xl">
+        <ListingIntelligence projectId={project._id} />
+      </section>
 
       {/* Features & facilities */}
       {(info || project.projectType) && (
