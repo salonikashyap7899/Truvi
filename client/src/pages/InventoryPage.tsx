@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  Search, Star, ShieldCheck, MapPin, ArrowRight, Building2, Share2, Heart,
-  MessageCircle, SlidersHorizontal, X, Eye,
+  Search, Star, ShieldCheck, MapPin, ArrowRight, Share2, Heart,
+  MessageCircle, SlidersHorizontal, X, Eye, Navigation,
 } from "lucide-react";
 import VisitorGateModal from "@/components/VisitorGateModal";
+import MediaCarousel from "@/components/MediaCarousel";
 import { shareProject } from "@/components/ShareProjectButton";
 import { SiteNav } from "@/components/SiteNav";
 import { formatCompactINR } from "@/lib/utils";
+import { haversineKm, formatDistance } from "@/lib/geo";
+import { useLocationStore } from "@/store/locationStore";
 import type { Project, ProjectType } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -76,10 +79,14 @@ export default function InventoryPage() {
     initialCat && CATEGORY_KEYS.has(initialCat) ? initialCat : "ALL",
   );
   const [sort, setSort] = useState<SortKey>("RECOMMENDED");
+  const [nearMe, setNearMe] = useState(params.get("near") === "1");
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(loadShortlist);
   const { user } = useAuth();
+  const coords = useLocationStore((s) => s.coords);
+  const locStatus = useLocationStore((s) => s.status);
+  const requestLocation = useLocationStore((s) => s.request);
 
   useEffect(() => {
     document.title = "TRUVI — Inventory";
@@ -97,6 +104,11 @@ export default function InventoryPage() {
     }
   }, [user]);
 
+  // Ask for location the moment "Near Me" is switched on (if we don't have it).
+  useEffect(() => {
+    if (nearMe && !coords) requestLocation();
+  }, [nearMe, coords, requestLocation]);
+
   const toggleSaved = (id: string) => {
     setSaved((prev) => {
       const next = new Set(prev);
@@ -108,6 +120,10 @@ export default function InventoryPage() {
   };
 
   const priceOf = (p: Project) => p.minPrice ?? (p.minRate ? p.minRate * 1000 : Number.POSITIVE_INFINITY);
+  const distOf = (p: Project) =>
+    coords && typeof p.lat === "number" && typeof p.lng === "number"
+      ? haversineKm(coords, { lat: p.lat, lng: p.lng })
+      : Number.POSITIVE_INFINITY;
 
   const results = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -117,6 +133,8 @@ export default function InventoryPage() {
       return matchesCategory(p.projectType, category);
     });
     list = [...list].sort((a, b) => {
+      // "Near Me" overrides other sorting — nearest first (unlocated last).
+      if (nearMe && coords) return distOf(a) - distOf(b);
       if (sort === "PRICE_LOW") return priceOf(a) - priceOf(b);
       if (sort === "PRICE_HIGH") return priceOf(b) - priceOf(a);
       if (sort === "TRUST") return (b.trustScore ?? 0) - (a.trustScore ?? 0);
@@ -126,7 +144,7 @@ export default function InventoryPage() {
       return (b.trustScore ?? 0) - (a.trustScore ?? 0);
     });
     return list;
-  }, [projects, search, category, sort, saved]);
+  }, [projects, search, category, sort, saved, nearMe, coords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -188,21 +206,35 @@ export default function InventoryPage() {
             })}
           </div>
 
-          {/* Result count + sort */}
+          {/* Result count + Near Me + sort */}
           <div className="mt-4 flex items-center justify-between gap-3">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
               <span className="font-semibold text-white">{results.length}</span> propert{results.length !== 1 ? "ies" : "y"}
             </p>
-            <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
-              <SlidersHorizontal size={13} className="text-white/50" />
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setNearMe((v) => !v)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  nearMe
+                    ? "border-[var(--trust)]/60 bg-[var(--trust)]/15 text-sky-200"
+                    : "border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+                }`}
+                title="Sort by distance from your location"
               >
-                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-            </label>
+                <Navigation size={12} className={nearMe && locStatus === "loading" ? "animate-pulse" : ""} />
+                Near Me
+              </button>
+              <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
+                <SlidersHorizontal size={13} className="text-white/50" />
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
+                >
+                  {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -250,6 +282,13 @@ function ListingCard({
   saved: boolean;
   onToggleSaved: () => void;
 }) {
+  const navigate = useNavigate();
+  const coords = useLocationStore((s) => s.coords);
+  const distanceKm =
+    coords && typeof project.lat === "number" && typeof project.lng === "number"
+      ? haversineKm(coords, { lat: project.lat, lng: project.lng })
+      : null;
+
   const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
   const typeLabel = project.projectType ? TYPE_LABEL[project.projectType] : null;
   const possessionYear = project.possessionDate ? new Date(project.possessionDate).getFullYear() : null;
@@ -272,52 +311,52 @@ function ListingCard({
       style={{ background: frame }}
     >
       <div className="overflow-hidden rounded-[21px] bg-[#0a0d14]">
-        {/* Image → details */}
-        <Link to={`/inventory/${project._id}/presentation`} className="block">
-          <div className="relative aspect-[16/11] w-full overflow-hidden">
-            {project.coverImageUrl ? (
-              <img
-                src={project.coverImageUrl}
-                alt={project.name}
-                loading="lazy"
-                className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-              />
-            ) : (
-              <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#0f1830] via-[#0a0d14] to-[#131a2e]">
-                <Building2 size={40} className="text-white/15" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
+        {/* Media carousel (images + videos) → details */}
+        <div className="relative aspect-[16/11] w-full overflow-hidden">
+          <MediaCarousel
+            media={project.media}
+            fallback={project.coverImageUrl}
+            alt={project.name}
+            onOpen={() => navigate(`/inventory/${project._id}/presentation`)}
+            className="absolute inset-0 h-full w-full"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
 
-            {/* Top badges */}
-            <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-              {isPrime && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
-                  <Star size={9} fill="currentColor" /> Prime
-                </span>
-              )}
-              {project.reraNumber && (
-                <span className="inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
-                  RERA
-                </span>
-              )}
-            </div>
-
-            {/* Shortlist heart */}
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSaved(); }}
-              title={saved ? "Remove from shortlist" : "Add to shortlist"}
-              aria-label={saved ? "Remove from shortlist" : "Add to shortlist"}
-              className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full border border-white/20 bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
-            >
-              <Heart size={16} className={saved ? "fill-rose-400 text-rose-400" : ""} />
-            </button>
-
-            {/* Price + verified on the image */}
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
-              <span className="inline-flex items-center rounded-full bg-white/95 px-3 py-1 font-display text-sm font-bold text-[#0a0d14] shadow-lg">
-                {priceBadge(project)}
+          {/* Top badges */}
+          <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
+            {isPrime && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
+                <Star size={9} fill="currentColor" /> Prime
               </span>
+            )}
+            {project.reraNumber && (
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
+                RERA
+              </span>
+            )}
+          </div>
+
+          {/* Shortlist heart */}
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSaved(); }}
+            title={saved ? "Remove from shortlist" : "Add to shortlist"}
+            aria-label={saved ? "Remove from shortlist" : "Add to shortlist"}
+            className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full border border-white/20 bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
+          >
+            <Heart size={16} className={saved ? "fill-rose-400 text-rose-400" : ""} />
+          </button>
+
+          {/* Price + distance + verified on the media */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
+            <span className="inline-flex items-center rounded-full bg-white/95 px-3 py-1 font-display text-sm font-bold text-[#0a0d14] shadow-lg">
+              {priceBadge(project)}
+            </span>
+            <div className="flex flex-col items-end gap-1">
+              {distanceKm != null && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
+                  <Navigation size={10} /> {formatDistance(distanceKm)}
+                </span>
+              )}
               {project.isVerified && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-black/55 px-2.5 py-1 text-[11px] font-medium text-emerald-300 backdrop-blur">
                   <ShieldCheck size={11} /> Verified
@@ -325,8 +364,10 @@ function ListingCard({
               )}
             </div>
           </div>
+        </div>
 
-          {/* Body */}
+        {/* Body → details */}
+        <Link to={`/inventory/${project._id}/presentation`} className="block">
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>

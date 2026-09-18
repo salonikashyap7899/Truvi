@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search, Building2, MapPin, Star, ShieldCheck, ArrowRight,
-  TreePine, Heart, type LucideIcon,
+  TreePine, Heart, Navigation, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCompactINR } from "@/lib/utils";
@@ -15,10 +15,11 @@ import type { Project } from "@/types";
  * while the full landing content (headings, videos, everything) stays below.
  */
 
-const CATEGORY_TILES: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: "ALL", label: "Explore", Icon: Building2 },
-  { key: "PLOT", label: "Plots", Icon: TreePine },
-  { key: "SAVED", label: "Saved", Icon: Heart },
+const CATEGORY_TILES: { label: string; Icon: LucideIcon; to: string }[] = [
+  { label: "Explore", Icon: Building2, to: "/inventory?cat=ALL" },
+  { label: "Near Me", Icon: Navigation, to: "/inventory?near=1" },
+  { label: "Plots", Icon: TreePine, to: "/inventory?cat=PLOT" },
+  { label: "Saved", Icon: Heart, to: "/inventory?cat=SAVED" },
 ];
 
 export default function AppHomeTop() {
@@ -64,8 +65,8 @@ export default function AppHomeTop() {
       <div className="mt-4 flex justify-between gap-3">
         {CATEGORY_TILES.map((c) => (
           <Link
-            key={c.key}
-            to={`/inventory?cat=${c.key}`}
+            key={c.label}
+            to={c.to}
             className="flex flex-1 flex-col items-center gap-1.5"
           >
             <span
