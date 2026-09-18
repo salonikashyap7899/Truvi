@@ -19,6 +19,7 @@ export const createProjectSchema = z.object({
   city: z.string().min(2),
   location: z.string().min(2),
   reraNumber: z.string().optional(),
+  approvalAuthority: z.enum(["RERA", "DISTRICT_PANCHAYAT", "DTCP"]).optional(),
   possessionDate: z.string().optional(),
   salesContact: z
     .object({

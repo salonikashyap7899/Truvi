@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { PROJECT_TYPE_OPTIONS, inventoryTerms } from "@/lib/projectTypes";
+import { APPROVAL_AUTHORITIES, authorityMeta } from "@/lib/approvals";
 
 /** Everything a developer uploads for a complete listing. Step 1 collects the
  *  core details; the rest is added on the project workspace right after. */
 const UPLOAD_CHECKLIST = [
-  "Project details (name, location, RERA, possession date)",
+  "Project details (name, location, approval no., possession date)",
   "Floor plans, master plan & brochure (PDF)",
   "Project photos & videos",
   "Flat inventory (1BHK / 2BHK / 3BHK, sizes, prices)",
@@ -58,6 +59,7 @@ export default function NewProjectPage() {
     city: "",
     location: "",
     projectType: "",
+    approvalAuthority: "RERA" as "RERA" | "DISTRICT_PANCHAYAT" | "DTCP",
     reraNumber: "",
     possessionDate: "",
     salesName: "",
@@ -89,6 +91,7 @@ export default function NewProjectPage() {
         city: form.city,
         location: form.location,
         projectType: form.projectType || undefined,
+        approvalAuthority: form.approvalAuthority,
         reraNumber: form.reraNumber || undefined,
         possessionDate: form.possessionDate || undefined,
         salesContact:
@@ -183,15 +186,34 @@ export default function NewProjectPage() {
               </p>
             </div>
 
+            {/* Approval authority — a project may be cleared by RERA, the
+                District Panchayat or a development authority (DTCP). The number
+                field relabels itself to match, so a non-RERA project can still
+                be listed with its valid approval. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <Label className="text-foreground/90">RERA number</Label>
-                <Input value={form.reraNumber} onChange={(e) => setForm({ ...form, reraNumber: e.target.value })} className="border-white/15 bg-card text-white" />
+                <Label className="text-foreground/90">Approved by</Label>
+                <select
+                  value={form.approvalAuthority}
+                  onChange={(e) => setForm({ ...form, approvalAuthority: e.target.value as typeof form.approvalAuthority })}
+                  className="mt-1 h-10 w-full rounded-md border border-white/15 bg-card px-3 text-sm text-white"
+                >
+                  {APPROVAL_AUTHORITIES.map((a) => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Not RERA-registered? Pick District Panchayat or DTCP — a valid approval from any of these is accepted.
+                </p>
               </div>
               <div>
-                <Label className="text-foreground/90">Possession date</Label>
-                <Input type="date" value={form.possessionDate} onChange={(e) => setForm({ ...form, possessionDate: e.target.value })} className="border-white/15 bg-card text-white" />
+                <Label className="text-foreground/90">{authorityMeta(form.approvalAuthority).numberLabel}</Label>
+                <Input value={form.reraNumber} onChange={(e) => setForm({ ...form, reraNumber: e.target.value })} placeholder={authorityMeta(form.approvalAuthority).placeholder} className="border-white/15 bg-card text-white" />
               </div>
+            </div>
+            <div>
+              <Label className="text-foreground/90">Possession date</Label>
+              <Input type="date" value={form.possessionDate} onChange={(e) => setForm({ ...form, possessionDate: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
 
             <div className="border-t border-white/10 pt-4">

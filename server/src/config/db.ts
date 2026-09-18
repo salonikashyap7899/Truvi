@@ -25,6 +25,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    // Which body approved the project (RERA / District Panchayat / DTCP), so a
+    // non-RERA-registered but validly-approved layout can still be listed.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "approval_authority" text`,
     // GIS map coordinates (pin picker on the project form).
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,

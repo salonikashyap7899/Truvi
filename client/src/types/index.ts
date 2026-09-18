@@ -188,6 +188,7 @@ export interface Project {
   brochureUrl?: string;
   priceListUrl?: string;
   reraNumber?: string;
+  approvalAuthority?: "RERA" | "DISTRICT_PANCHAYAT" | "DTCP";
   approvalStatus: ApprovalStatus;
   listingTier: ListingTier;
   featuredUntil?: string | null;
