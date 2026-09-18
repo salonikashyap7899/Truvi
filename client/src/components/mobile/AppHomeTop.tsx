@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Search, Building2, MapPin, Star, ShieldCheck, ArrowRight,
-  TreePine, Heart, type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCompactINR } from "@/lib/utils";
@@ -11,15 +10,9 @@ import type { Project } from "@/types";
 /**
  * App-only search-first home section, shown at the very top of the landing
  * page inside the installed app (the website is unaffected). Gives the app a
- * property-marketplace feel — search, category tiles and listing carousels —
- * while the full landing content (headings, videos, everything) stays below.
+ * property-marketplace feel — a search bar and listing carousels — while the
+ * full landing content (headings, videos, everything) stays below.
  */
-
-const CATEGORY_TILES: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: "ALL", label: "Explore", Icon: Building2 },
-  { key: "PLOT", label: "Plots", Icon: TreePine },
-  { key: "SAVED", label: "Saved", Icon: Heart },
-];
 
 export default function AppHomeTop() {
   const navigate = useNavigate();
@@ -58,25 +51,6 @@ export default function AppHomeTop() {
           placeholder="Search city, locality or project…"
           className="h-12 w-full rounded-full border border-white/12 bg-white/[0.06] pl-11 pr-4 text-sm text-white placeholder:text-white/35 outline-none backdrop-blur transition focus:border-[var(--trust)]/60"
         />
-      </div>
-
-      {/* Category tiles */}
-      <div className="mt-4 flex justify-between gap-3">
-        {CATEGORY_TILES.map((c) => (
-          <Link
-            key={c.key}
-            to={`/inventory?cat=${c.key}`}
-            className="flex flex-1 flex-col items-center gap-1.5"
-          >
-            <span
-              className="grid h-16 w-full place-items-center rounded-2xl border border-sky-400/25 text-sky-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-              style={{ background: "linear-gradient(160deg, rgba(59,130,246,0.28), rgba(59,130,246,0.10))" }}
-            >
-              <c.Icon size={24} />
-            </span>
-            <span className="text-[12px] font-semibold text-white/85">{c.label}</span>
-          </Link>
-        ))}
       </div>
 
       <Carousel title="Recommended" items={recommended} projects={projects} />

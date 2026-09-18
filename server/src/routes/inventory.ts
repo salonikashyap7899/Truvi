@@ -28,23 +28,46 @@ router.get("/", async (_req, res) => {
   // Auto-select the "featured" cover per project: the AI visual-quality score
   // wins; unscored images fall back to highest-resolution, then newest — so
   // uploading a better photo automatically promotes it to the listing cover.
+  // Verified gallery media (images + videos) for the listing cover and the
+  // swipeable media carousel on each card.
+  const MEDIA_PER_PROJECT = 8;
   const coverRows =
     projectIds.length > 0
       ? await db
-          .select({ projectId: projectAssets.projectId, fileUrl: projectAssets.fileUrl })
+          .select({
+            projectId: projectAssets.projectId,
+            fileUrl: projectAssets.fileUrl,
+            category: projectAssets.category,
+            mimeType: projectAssets.mimeType,
+          })
           .from(projectAssets)
           .where(
             and(
               inArray(projectAssets.projectId, projectIds),
-              eq(projectAssets.category, "GALLERY_IMAGE"),
+              inArray(projectAssets.category, ["GALLERY_IMAGE", "GALLERY_VIDEO"]),
               eq(projectAssets.verified, true),
             ),
           )
           .orderBy(sql`${projectAssets.aiScore} desc nulls last`, desc(projectAssets.sizeBytes), desc(projectAssets.createdAt))
       : [];
   const coverMap = new Map<string, string>();
+  const mediaMap = new Map<string, { url: string; type: "image" | "video" }[]>();
   for (const c of coverRows) {
-    if (!coverMap.has(String(c.projectId))) coverMap.set(String(c.projectId), c.fileUrl);
+    const id = String(c.projectId);
+    const type: "image" | "video" =
+      c.category === "GALLERY_VIDEO" || c.mimeType.startsWith("video/") ? "video" : "image";
+    // First verified image is the cover.
+    if (type === "image" && !coverMap.has(id)) coverMap.set(id, c.fileUrl);
+    // Media carousel: images first (already the primary sort), capped per project.
+    const list = mediaMap.get(id) ?? [];
+    if (list.length < MEDIA_PER_PROJECT) {
+      list.push({ url: c.fileUrl, type });
+      mediaMap.set(id, list);
+    }
+  }
+  // Put images before videos within each project's carousel.
+  for (const [id, list] of mediaMap) {
+    mediaMap.set(id, [...list].sort((a, b) => (a.type === b.type ? 0 : a.type === "image" ? -1 : 1)));
   }
 
   const statsById = new Map<string, { unitCount: number; minPrice: number | null; maxPrice: number | null; minRate: number | null }>();
@@ -73,6 +96,7 @@ router.get("/", async (_req, res) => {
       maxPrice: stats?.maxPrice ?? null,
       minRate: stats?.minRate ? Math.round(stats.minRate) : null,
       coverImageUrl: coverMap.get(String(project._id)) ?? null,
+      media: mediaMap.get(String(project._id)) ?? [],
     };
   });
 

@@ -32,12 +32,25 @@ export interface IntelCategory {
   totalCount: number;
 }
 
+/** One line of the Truvi Score breakdown — what an area scored, out of how
+ *  much, where the evidence comes from, and when it was last confirmed. */
+export interface ScoreSignal {
+  label: string;
+  score: number;
+  max: number;
+  sourceLabel: string;
+  verified: boolean;
+  lastUpdated: string | null;
+}
+
 export interface AIVerification {
   crossVerifiedSources: number;
   evidenceCount: number;
   riskFlags: string[];
   fraudSignals: string[];
   confidenceScore: number;
+  /** The per-signal contributions that add up to the Truvi Score. */
+  scoreBreakdown: ScoreSignal[];
   overallStatus: IntelStatus;
   decisionSummary: string;
 }
@@ -317,17 +330,50 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
     fraudSignals.push("Ownership documents not yet cross-verified against registry records.");
   }
 
-  // Confidence = the real share of actually-verified data points, weighted so
-  // that a physical site visit by the Truvi team is worth a fixed 20 points.
-  // Until that visit happens the 20 stays locked, so an un-visited listing can
-  // never read higher than 80 — the score only climbs the last 20 points, up
-  // to a true 100, once the site has actually been visited. No fabricated
-  // floor, no artificial ceiling, and no "core-check" bonus: the number never
-  // reads higher than the data (and the visit) actually support.
-  const dataRatio = allItems.length ? verified / allItems.length : 0;
+  // ── Truvi Score, made transparent ────────────────────────────────────────
+  // The score is the SUM of six per-signal contributions (max 100), so a user
+  // can see exactly how the number was built. A physical site visit by the
+  // Truvi team is worth a fixed 20 points that stays locked until the visit
+  // happens — so an un-visited listing can never exceed 80, and only reaches a
+  // true 100 once the site has actually been visited. Each signal scores from
+  // the share of its category that is actually verified (nothing is inflated).
   const siteVisited = project.teamSiteVisited === true;
-  let confidence = Math.round(dataRatio * 80 + (siteVisited ? 20 : 0));
-  confidence -= riskFlags.length * 4;
+  const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
+  const catRatio = (key: string) => {
+    const c = categories.find((x) => x.key === key);
+    return c && c.totalCount > 0 ? c.verifiedCount / c.totalCount : 0;
+  };
+  const fromCategory = (label: string, max: number, key: string, sourceLabel: string): ScoreSignal => {
+    const ratio = catRatio(key);
+    const score = Math.round(ratio * max);
+    return { label, score, max, sourceLabel, verified: ratio >= 0.6, lastUpdated: ratio > 0 ? verifiedDate : null };
+  };
+
+  const scoreBreakdown: ScoreSignal[] = [
+    fromCategory("Legal & RERA", 22, "government", "TS/UP RERA · IGRS · eCourts"),
+    fromCategory("Location", 18, "location", "OpenStreetMap · Field survey · Govt directories"),
+    fromCategory("Infrastructure", 15, "infrastructure", "NHAI · Metro · Railways · PWD"),
+    fromCategory("Market & Price", 15, "market", "Comparable listings · IGRS circle rates"),
+    {
+      label: "Developer",
+      score: vd?.portfolioVerified ? 10 : 0,
+      max: 10,
+      sourceLabel: "RERA Developer Registry · MCA",
+      verified: !!vd?.portfolioVerified,
+      lastUpdated: vd?.portfolioVerified ? verifiedDate : null,
+    },
+    {
+      label: "Physical Site Visit",
+      score: siteVisited ? 20 : 0,
+      max: 20,
+      sourceLabel: "Truvi field team",
+      verified: siteVisited,
+      lastUpdated: siteVisited ? verifiedDate : null,
+    },
+  ];
+
+  let confidence = scoreBreakdown.reduce((sum, s) => sum + s.score, 0);
+  confidence -= riskFlags.length * 4; // each open risk flag costs points
   confidence = Math.max(0, Math.min(100, confidence));
 
   const overallStatus: IntelStatus =
@@ -355,6 +401,7 @@ export function buildIntelligenceProfile(project: IProject): IntelligenceProfile
       riskFlags,
       fraudSignals,
       confidenceScore: confidence,
+      scoreBreakdown,
       overallStatus,
       decisionSummary,
     },

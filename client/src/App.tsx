@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
@@ -21,7 +21,8 @@ import NativeShell from "@/components/NativeShell";
 import OfflineBanner from "@/components/OfflineBanner";
 import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
-import { showsTabBar } from "@/lib/native";
+import { IS_NATIVE, showsTabBar } from "@/lib/native";
+import { useLocationStore } from "@/store/locationStore";
 import "@/styles/mobile-app.css";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
@@ -170,6 +171,12 @@ function PageTransition({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  // In the installed app, ask for the user's location on open so "Near Me" and
+  // property distances work right away. On the web we ask only when needed.
+  useEffect(() => {
+    if (IS_NATIVE) useLocationStore.getState().request();
+  }, []);
+
   return (
     <BrowserRouter>
       <NativeShell />

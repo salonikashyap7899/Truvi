@@ -7,9 +7,13 @@ import {
   Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
 import { LayoutGrid, CalendarClock } from "lucide-react";
+import { Navigation } from "lucide-react";
 import { ASSET_SECTIONS, categoryLabel, PROJECT_TYPE_LABELS } from "@/lib/assetCategories";
 import { formatINR } from "@/lib/utils";
+import { haversineKm, formatDistance } from "@/lib/geo";
+import { useLocationStore } from "@/store/locationStore";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
+import ListingIntelligence from "@/components/ListingIntelligence";
 import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
@@ -167,6 +171,11 @@ export default function ProjectPresentationPage() {
   const [unitSummary, setUnitSummary] = useState<UnitSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<{ images: ProjectAsset[]; index: number } | null>(null);
+  const coords = useLocationStore((s) => s.coords);
+  const distanceKm =
+    coords && project && typeof project.lat === "number" && typeof project.lng === "number"
+      ? haversineKm(coords, { lat: project.lat, lng: project.lng })
+      : null;
 
   useEffect(() => {
     api
@@ -297,6 +306,11 @@ export default function ProjectPresentationPage() {
         </div>
         <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin size={13} /> {project.location}, {project.city}
+          {distanceKm != null && (
+            <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-200">
+              <Navigation size={11} /> {formatDistance(distanceKm)}
+            </span>
+          )}
           {devName && <span className="ml-2 inline-flex items-center gap-1.5"><Building2 size={13} /> by {devName}</span>}
           {project.possessionDate && (
             <span className="ml-2 inline-flex items-center gap-1.5 text-emerald-300">
@@ -322,6 +336,11 @@ export default function ProjectPresentationPage() {
           />
         </div>
       </div>
+
+      {/* Truvi Score & verification intelligence */}
+      <section className="mt-8 max-w-3xl">
+        <ListingIntelligence projectId={project._id} />
+      </section>
 
       {/* Features & facilities */}
       {(info || project.projectType) && (

@@ -225,6 +225,8 @@ export interface Project {
   minPrice?: number | null;
   maxPrice?: number | null;
   minRate?: number | null;
+  // Verified gallery media for the card carousel (images first, then videos).
+  media?: { url: string; type: "image" | "video" }[];
 }
 
 export interface PriceHistoryEntry {
