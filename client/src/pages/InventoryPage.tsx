@@ -346,11 +346,20 @@ function ListingCard({
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
               <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
-              {typeof project.trustScore === "number" && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                  <Star size={9} /> {project.trustScore}
-                </span>
-              )}
+              {(() => {
+                const score = project.truviScore ?? project.trustScore;
+                if (typeof score !== "number") return null;
+                // Tapping the card opens the full "Why this score?" breakdown.
+                return (
+                  <span
+                    className="inline-flex shrink-0 flex-col items-center rounded-xl border border-sky-400/30 bg-sky-500/10 px-2 py-1 leading-none text-sky-200"
+                    title="Truvi Score — tap the card to see why"
+                  >
+                    <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-sky-300/80">Truvi Score</span>
+                    <span className="mt-0.5 font-display text-sm font-bold text-white">{score}</span>
+                  </span>
+                );
+              })()}
             </div>
             <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/65">
               <MapPin size={12} className="shrink-0" />
