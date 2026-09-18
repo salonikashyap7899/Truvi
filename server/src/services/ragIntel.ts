@@ -72,8 +72,10 @@ export async function fetchRagCountsForProjects(
       const key = RAG_TO_INTEL[category];
       for (const r of rows) {
         const id = String(r.projectId);
+        const verified = Number(r.verified) || 0;
+        const total = Number(r.total) || 0;
         const entry = byProject.get(id) ?? {};
-        entry[key] = { verified: Number(r.verified) || 0, total: Number(r.total) || 0 };
+        entry[key] = { verified, pending: Math.max(0, total - verified) };
         byProject.set(id, entry);
       }
     }),

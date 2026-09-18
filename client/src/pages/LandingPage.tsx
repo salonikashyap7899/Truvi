@@ -758,9 +758,9 @@ function LiveStatsBand() {
   useEffect(() => { api.get("/public/stats").then((r) => setStats(r.data)).catch(() => {}); }, []);
   if (!stats) return null;
 
+  // "Verified Projects" and "Live Listings" are intentionally omitted until the
+  // numbers are meaningful at scale — the network stats below stay.
   const tiles = [
-    { label: "Verified Projects", value: stats.verifiedProjects, suffix: "+" },
-    { label: "Live Listings", value: stats.liveProjects, suffix: "+" },
     { label: "Developers", value: stats.developers, suffix: "+" },
     { label: "Channel Partners", value: stats.channelPartners, suffix: "+" },
     { label: "Cities", value: stats.cities, suffix: "" },

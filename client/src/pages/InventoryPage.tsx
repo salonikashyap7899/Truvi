@@ -8,6 +8,7 @@ import {
   MessageCircle, SlidersHorizontal, X, Eye, Navigation,
 } from "lucide-react";
 import VisitorGateModal from "@/components/VisitorGateModal";
+import ListingIntelligence from "@/components/ListingIntelligence";
 import MediaCarousel from "@/components/MediaCarousel";
 import { shareProject } from "@/components/ShareProjectButton";
 import { SiteNav } from "@/components/SiteNav";
@@ -73,6 +74,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(loadShortlist);
+  const [scoreProject, setScoreProject] = useState<Project | null>(null);
   const { user } = useAuth();
   const coords = useLocationStore((s) => s.coords);
   const locStatus = useLocationStore((s) => s.status);
@@ -150,19 +152,19 @@ export default function InventoryPage() {
 
       <main
         className="min-h-screen px-4 pb-28 text-white sm:px-6 md:px-10"
-        style={{ paddingTop: "calc(7rem + env(safe-area-inset-top, 0px))" }}
+        style={{ paddingTop: "calc(5rem + env(safe-area-inset-top, 0px))" }}
       >
         {/* ── Header + search ── */}
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="font-display text-3xl font-medium tracking-tight md:text-4xl">
+          <h1 className="font-display text-2xl font-medium tracking-tight md:text-4xl">
             Find your <span className="text-gradient-trust">property</span>
           </h1>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+          <p className="mx-auto mt-1.5 max-w-xl text-sm text-muted-foreground">
             Verified, RERA-checked and trust-scored listings — search, shortlist and connect.
           </p>
 
-          <div className="relative mx-auto mt-6 max-w-xl">
-            <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative mx-auto mt-4 max-w-xl">
+            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-300/80" />
             <input
               type="text"
               placeholder="Search city, locality or project…"
@@ -232,12 +234,53 @@ export default function InventoryPage() {
                 isPrime={!!project.isPrimeListing}
                 saved={saved.has(project._id)}
                 onToggleSaved={() => toggleSaved(project._id)}
+                onOpenScore={() => setScoreProject(project)}
               />
             ))}
           </div>
         )}
       </main>
+
+      {/* Truvi Score breakdown — opens as a popup right on the inventory page. */}
+      {scoreProject && (
+        <ScoreModal project={scoreProject} onClose={() => setScoreProject(null)} />
+      )}
     </>
+  );
+}
+
+/* ── Truvi Score popup (opened from a card's score badge) ──────────────────── */
+function ScoreModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0a0d14]/97 shadow-2xl backdrop-blur-xl sm:rounded-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300/80">Truvi Score</p>
+            <p className="truncate font-display text-sm font-semibold text-white">{project.name}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-white/80 hover:bg-white/10">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-4 py-4">
+          <ListingIntelligence projectId={project._id} />
+          <Link
+            to={`/inventory/${project._id}/presentation`}
+            onClick={onClose}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+          >
+            Open full listing <ArrowRight size={13} />
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -250,12 +293,13 @@ function priceBadge(project: Project): string {
 }
 
 function ListingCard({
-  project, isPrime, saved, onToggleSaved,
+  project, isPrime, saved, onToggleSaved, onOpenScore,
 }: {
   project: Project;
   isPrime: boolean;
   saved: boolean;
   onToggleSaved: () => void;
+  onOpenScore: () => void;
 }) {
   const navigate = useNavigate();
   const coords = useLocationStore((s) => s.coords);
@@ -349,15 +393,17 @@ function ListingCard({
               {(() => {
                 const score = project.truviScore ?? project.trustScore;
                 if (typeof score !== "number") return null;
-                // Tapping the card opens the full "Why this score?" breakdown.
+                // Tapping the badge opens the Truvi Score breakdown popup in place.
                 return (
-                  <span
-                    className="inline-flex shrink-0 flex-col items-center rounded-xl border border-sky-400/30 bg-sky-500/10 px-2 py-1 leading-none text-sky-200"
-                    title="Truvi Score — tap the card to see why"
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenScore(); }}
+                    className="inline-flex shrink-0 flex-col items-center rounded-xl border border-sky-400/30 bg-sky-500/10 px-2 py-1 leading-none text-sky-200 transition hover:bg-sky-500/20"
+                    title="Truvi Score — tap to see why"
                   >
                     <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-sky-300/80">Truvi Score</span>
                     <span className="mt-0.5 font-display text-sm font-bold text-white">{score}</span>
-                  </span>
+                  </button>
                 );
               })()}
             </div>

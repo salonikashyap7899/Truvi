@@ -75,7 +75,7 @@ export type IntelCategoryKey =
 export interface RagCategoryInput {
   items?: IntelItem[];
   verified?: number;
-  total?: number;
+  pending?: number;
 }
 export type RagInput = Partial<Record<IntelCategoryKey, RagCategoryInput>>;
 
@@ -358,18 +358,26 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   // the share of its category that is actually verified (nothing is inflated).
   const siteVisited = project.teamSiteVisited === true;
   const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
-  // A category is scored by how many verified data points back it — admin-ticked
-  // structural checks AND admin-uploaded (RAG) data — measured against a modest
-  // coverage target, so a handful of real verified points fully establishes a
-  // category (and uploading data visibly raises the score). Capped at 1.
+  // A category is scored by how much data backs it, measured against a modest
+  // coverage target (so a handful of points fully establishes a category and
+  // uploading data visibly raises the score). Verified data — admin-ticked
+  // structural checks AND admin-uploaded verified rows — counts in full; data
+  // that's uploaded but not yet verified counts at a reduced weight (it's real
+  // effort, but unconfirmed). Capped at 1.
   const EXPECTED_PER_CATEGORY = 5;
+  const PENDING_WEIGHT = 0.4;
   const catRatio = (key: IntelCategoryKey) => {
     const c = categories.find((x) => x.key === key);
-    const structuralVerified = c ? c.verifiedCount : 0; // includes appended RAG items
-    // For the lightweight list score, RAG data may come as loose counts instead
-    // of appended items — count those too (but not twice).
-    const looseVerified = rag[key]?.items ? 0 : rag[key]?.verified ?? 0;
-    return Math.min((structuralVerified + looseVerified) / EXPECTED_PER_CATEGORY, 1);
+    if (!c) return 0;
+    const r = rag[key];
+    const ragVerified = r?.items ? r.items.filter((i) => i.status === "VERIFIED").length : r?.verified ?? 0;
+    const ragPending = r?.items ? r.items.filter((i) => i.status === "PENDING").length : r?.pending ?? 0;
+    // c.verifiedCount already includes appended RAG verified items (detail mode);
+    // strip them so structural verified isn't double-counted with ragVerified.
+    const appendedVerified = r?.items ? ragVerified : 0;
+    const structuralVerified = c.verifiedCount - appendedVerified;
+    const effective = structuralVerified + ragVerified + PENDING_WEIGHT * ragPending;
+    return Math.min(effective / EXPECTED_PER_CATEGORY, 1);
   };
   const fromCategory = (label: string, max: number, key: IntelCategoryKey, sourceLabel: string): ScoreSignal => {
     const ratio = catRatio(key);
