@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut, MessageCircle,
+  Heart, TrendingUp, Bot,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,10 +23,13 @@ const WA_URL =
  * untouched. Nothing is removed — this just moves the menu to the bottom.
  */
 export default function MobileTabBar() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  // The AI Sales Copilot is offered to signed-in users (not ambassadors),
+  // matching the copilot panel's own visibility rule.
+  const showCopilot = isAuthenticated && !!user && user.role !== "AMBASSADOR";
 
   useBodyScrollLock(menuOpen);
 
@@ -41,9 +45,12 @@ export default function MobileTabBar() {
 
   const linkTarget = (l: NavLink) => l.to ?? `/${l.hash ?? ""}`;
 
+  const savedActive = pathname === "/inventory" && new URLSearchParams(search).get("cat") === "SAVED";
+  const exploreActive = pathname === "/inventory" && !savedActive;
   const bar: { key: string; label: string; Icon: LucideIcon; onPress: () => void; active: boolean }[] = [
     { key: "home", label: "Home", Icon: Home, onPress: () => navigate("/"), active: pathname === "/" },
-    { key: "explore", label: "Explore", Icon: Building2, onPress: () => navigate("/inventory"), active: pathname === "/inventory" },
+    { key: "explore", label: "Explore", Icon: Building2, onPress: () => navigate("/inventory"), active: exploreActive },
+    { key: "saved", label: "Saved", Icon: Heart, onPress: () => navigate("/inventory?cat=SAVED"), active: savedActive },
     { key: "ask", label: "Ask Truvi", Icon: Sparkles, onPress: () => window.dispatchEvent(new Event("open-ask-truvi")), active: false },
     { key: "menu", label: "Menu", Icon: MenuIcon, onPress: () => setMenuOpen(true), active: menuOpen },
   ];
@@ -86,6 +93,20 @@ export default function MobileTabBar() {
                   {l.label}
                 </Link>
               ))}
+
+              {/* Truvi Invest + AI Copilot — moved here from the floating buttons
+                  so the app screens stay clean; the options live in the menu. */}
+              <Link to="/invest" onClick={close} className="flex items-center gap-2 border-b border-white/5 px-5 py-3.5 text-sm font-semibold text-emerald-300">
+                <TrendingUp size={15} /> Truvi Invest
+              </Link>
+              {showCopilot && (
+                <button
+                  onClick={() => { close(); window.dispatchEvent(new Event("open-copilot")); }}
+                  className="flex w-full items-center gap-2 border-b border-white/5 px-5 py-3.5 text-left text-sm font-semibold text-fuchsia-300"
+                >
+                  <Bot size={15} /> AI Sales Copilot
+                </button>
+              )}
 
               {isAuthenticated && user ? (
                 <>

@@ -135,6 +135,12 @@ function FloatingAssistants() {
 
 function Ambience() {
   const { pathname } = useLocation();
+  // On phones / the installed app the decorative WebGL city backdrop is pure
+  // cost — it pulls the heavy three.js chunk and runs a constant animation loop
+  // on data-heavy screens (Explore, dashboards), and CursorGlow needs a mouse
+  // that touch devices don't have. Skip both there so those screens load and
+  // scroll fast; desktop keeps the richer ambience.
+  if (IS_TOUCH) return null;
   // The landing page renders its own richer CityCanvas scene; the Founder
   // Dashboard uses its own light Founder-OS surface.
   if (pathname === "/" || pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;

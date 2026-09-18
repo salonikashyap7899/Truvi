@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, LogOut, Home, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
+import { IS_NATIVE } from "@/lib/native";
 
 /**
  * Auth-aware account chip for the public site header. Signed-in users see
@@ -33,6 +34,10 @@ export function UserMenu() {
     await logout();
     navigate("/");
   }
+
+  // In the installed app the header shows no account pop-up — every account
+  // option (dashboard, logout, sign in, WhatsApp) lives in the bottom "Menu".
+  if (IS_NATIVE) return null;
 
   if (!isAuthenticated || !user) {
     return (
