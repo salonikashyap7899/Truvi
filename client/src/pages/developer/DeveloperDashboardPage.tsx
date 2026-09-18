@@ -99,47 +99,6 @@ export default function DeveloperDashboardPage() {
       {/* Refer a developer & earn 2% — same referral engine as Channel Partners */}
       <ReferralBanner className="mt-5" />
 
-      {/* How-to-use audio guide for developers */}
-      <HowToUseGuide
-        className="mt-5"
-        audioSrc="/media/developer-guide.mp3"
-        storageKey="truvi_developer_guide_dismissed"
-        description="A quick voice guide — how to sign up, log in, list a project, manage inventory and grow on Truvi."
-      />
-
-      {/* Growth-engine banner for developers who haven't unlocked the paid OS */}
-      {entitlement && !entitlement.pro && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {!entitlement.verified && (
-            <UpsellCard
-              icon={ShieldCheck}
-              title="Get Verified — 3x Visibility"
-              body="Verified badge, prime listing & higher buyer trust."
-              cta="₹999"
-              onClick={() => setUpsell({ plan: "verified" })}
-            />
-          )}
-          {!entitlement.crm && (
-            <UpsellCard
-              icon={Zap}
-              title="Close 30% More Sales"
-              body="Developer CRM — pipeline, team, follow-ups & finance."
-              cta="₹49/mo"
-              onClick={() => setUpsell({ plan: "crm" })}
-            />
-          )}
-          {!entitlement.ai && (
-            <UpsellCard
-              icon={BrainCircuit}
-              title="Predict Sales Before They Happen"
-              body="AI demand, pricing, competitor & revenue forecasts."
-              cta="₹999"
-              onClick={() => setUpsell({ plan: "ai" })}
-            />
-          )}
-        </div>
-      )}
-
       {/* Business KPI grid (spec PART 4) */}
       <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         {KPIS.map((k) => (
@@ -172,6 +131,47 @@ export default function DeveloperDashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* How-to-use audio guide — kept below the leads details, not at the top */}
+      <HowToUseGuide
+        className="mt-10"
+        audioSrc="/media/developer-guide.mp3"
+        storageKey="truvi_developer_guide_dismissed"
+        description="A quick voice guide — how to sign up, log in, list a project, manage inventory and grow on Truvi."
+      />
+
+      {/* Premium — shown after the guide, for developers who haven't unlocked the paid OS */}
+      {entitlement && !entitlement.pro && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {!entitlement.verified && (
+            <UpsellCard
+              icon={ShieldCheck}
+              title="Get Verified — 3x Visibility"
+              body="Verified badge, prime listing & higher buyer trust."
+              cta="₹999"
+              onClick={() => setUpsell({ plan: "verified" })}
+            />
+          )}
+          {!entitlement.crm && (
+            <UpsellCard
+              icon={Zap}
+              title="Close 30% More Sales"
+              body="Developer CRM — pipeline, team, follow-ups & finance."
+              cta="₹49/mo"
+              onClick={() => setUpsell({ plan: "crm" })}
+            />
+          )}
+          {!entitlement.ai && (
+            <UpsellCard
+              icon={BrainCircuit}
+              title="Predict Sales Before They Happen"
+              body="AI demand, pricing, competitor & revenue forecasts."
+              cta="₹999"
+              onClick={() => setUpsell({ plan: "ai" })}
+            />
+          )}
+        </div>
+      )}
 
       {/* Inventory heat map (spec PART 5.2) */}
       {heat.length > 0 && (

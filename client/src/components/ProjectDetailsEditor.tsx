@@ -8,6 +8,7 @@ import { lazy, Suspense } from "react";
 import type { PaymentPlan, Project } from "@/types";
 import { geocodeAddress, isGeocodingConfigured, GeocodeError, geocodeErrorMessage } from "@/lib/geocoding";
 import { PROJECT_TYPE_OPTIONS } from "@/lib/projectTypes";
+import { APPROVAL_AUTHORITIES, authorityMeta } from "@/lib/approvals";
 
 // Lazy so Leaflet only downloads when a project editor is actually opened.
 const MapPinPicker = lazy(() => import("@/components/MapPinPicker"));
@@ -30,6 +31,7 @@ export default function ProjectDetailsEditor({
   const [city, setCity] = useState(project.city);
   const [location, setLocation] = useState(project.location);
   const [projectType, setProjectType] = useState<string>(project.projectType ?? "");
+  const [approvalAuthority, setApprovalAuthority] = useState<"RERA" | "DISTRICT_PANCHAYAT" | "DTCP">(project.approvalAuthority ?? "RERA");
   const [reraNumber, setReraNumber] = useState(project.reraNumber ?? "");
   const [reraStatus, setReraStatus] = useState(project.reraStatus ?? "NOT_REGISTERED");
   const [reraValidityDate, setReraValidityDate] = useState(
@@ -107,6 +109,7 @@ export default function ProjectDetailsEditor({
         city: city.trim(),
         location: location.trim(),
         projectType: projectType || undefined,
+        approvalAuthority,
         reraNumber: reraNumber.trim(),
         reraStatus,
         reraValidityDate: reraValidityDate ? new Date(reraValidityDate).toISOString() : null,
@@ -165,8 +168,16 @@ export default function ProjectDetailsEditor({
             </select>
           </div>
           <div>
-            <Label className="text-foreground/90">RERA number</Label>
-            <Input value={reraNumber} onChange={(e) => setReraNumber(e.target.value)} placeholder="UPRERAPRJ…" className={inputCls} />
+            <Label className="text-foreground/90">Approved by</Label>
+            <select value={approvalAuthority} onChange={(e) => setApprovalAuthority(e.target.value as typeof approvalAuthority)} className={`${inputCls} h-10 w-full rounded-md px-3 text-sm`}>
+              {APPROVAL_AUTHORITIES.map((a) => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label className="text-foreground/90">{authorityMeta(approvalAuthority).numberLabel}</Label>
+            <Input value={reraNumber} onChange={(e) => setReraNumber(e.target.value)} placeholder={authorityMeta(approvalAuthority).placeholder} className={inputCls} />
           </div>
           <div>
             <Label className="text-foreground/90">RERA status</Label>
