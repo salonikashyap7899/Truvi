@@ -220,12 +220,14 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   const signalFor = (cat: IntelCategory, label: string): ScoreSignal => {
     const key = cat.key as IntelCategoryKey;
     const max = CATEGORY_WEIGHT[key];
-    const primaryVerified = cat.items[0]?.status === "VERIFIED";
     const { verifiedN, pendingN } = ragOf(key);
+    // Full weight when the category's own field is set OR it has verified
+    // uploaded evidence; otherwise partial credit from pending uploads.
+    const fullyBacked = cat.items[0]?.status === "VERIFIED" || verifiedN > 0;
     let score: number;
-    if (primaryVerified) score = max;
+    if (fullyBacked) score = max;
     else {
-      const cov = Math.min((verifiedN + PENDING_WEIGHT * pendingN) / RAG_TARGET, 1);
+      const cov = Math.min((PENDING_WEIGHT * pendingN) / RAG_TARGET, 1);
       score = Math.round(max * cov);
     }
     return {
@@ -233,8 +235,8 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
       score,
       max,
       sourceLabel: cat.items[0]?.source ?? "",
-      verified: primaryVerified,
-      lastUpdated: primaryVerified || verifiedN > 0 ? verifiedDate : null,
+      verified: fullyBacked,
+      lastUpdated: fullyBacked ? verifiedDate : null,
     };
   };
 
