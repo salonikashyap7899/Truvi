@@ -139,17 +139,12 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     ? `${authorityName} (Reg. No. ${project.reraNumber})`
     : `${authorityName} Portal`;
 
-  // Fully admin-verified = the listing has been marked Verified AND every core
-  // verification check has been ticked by an admin (all documents uploaded and
-  // verified). When true, every intelligence option reads VERIFIED (100%).
-  const coreChecks = [
-    vd?.reraVerified,
-    vd?.titleClearance,
-    vd?.encumbranceFree,
-    vd?.constructionApproval,
-    vd?.portfolioVerified,
-  ];
-  const fullyAdminVerified = project.isVerified === true && coreChecks.every(Boolean);
+  // Fully admin-verified = an admin has marked the whole listing Verified. That
+  // single toggle is the Truvi team's own sign-off, so it flips every
+  // intelligence option to VERIFIED (100% of the category checks) — the
+  // Verified badge and the Truvi Score now agree. Individual document checks
+  // (below) still let an un-Verified listing earn partial, per-signal credit.
+  const fullyAdminVerified = project.isVerified === true;
 
   const government = buildCategory(project, "government", "Government & Legal Data", [
     ["LDA Master Plan", "LDA (Lucknow Development Authority) Master Plan 2031"],
@@ -360,7 +355,7 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   if (project.legalRiskLevel === "MEDIUM") riskFlags.push("Moderate legal risk — some records pending confirmation.");
   if (project.floodRiskLevel === "HIGH") riskFlags.push("Located in or near a flood-prone zone.");
   if (project.crimeIndexLevel === "HIGH") riskFlags.push("Higher-than-average crime index in the locality.");
-  if (!reraVerified) riskFlags.push("RERA registration not yet confirmed.");
+  if (!reraVerified && !project.isVerified) riskFlags.push("RERA registration not yet confirmed.");
 
   const fraudSignals: string[] = [];
   // Cross-verification passed if the core legal documents corroborate each other.
@@ -411,12 +406,14 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     fromCategory("Infrastructure", 15, "infrastructure", "NHAI · Metro · Railways · PWD"),
     fromCategory("Market & Price", 15, "market", "Comparable listings · IGRS circle rates"),
     {
+      // Credited when the developer portfolio is ticked OR the whole listing is
+      // admin-Verified (that sign-off covers the developer too).
       label: "Developer",
-      score: vd?.portfolioVerified ? 10 : 0,
+      score: vd?.portfolioVerified || project.isVerified ? 10 : 0,
       max: 10,
       sourceLabel: "RERA Developer Registry · MCA",
-      verified: !!vd?.portfolioVerified,
-      lastUpdated: vd?.portfolioVerified ? verifiedDate : null,
+      verified: !!vd?.portfolioVerified || !!project.isVerified,
+      lastUpdated: vd?.portfolioVerified || project.isVerified ? verifiedDate : null,
     },
     {
       label: "Physical Site Visit",
