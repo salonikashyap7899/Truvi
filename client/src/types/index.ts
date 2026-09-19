@@ -194,6 +194,8 @@ export interface Project {
   featuredUntil?: string | null;
   commissionPercent: number;
   unitCount?: number;
+  /** Developer-declared total plots/units (shown when per-unit inventory is sparse). */
+  totalUnits?: number | null;
   leadCount?: number;
   coverImageUrl?: string | null;
   isSaved?: boolean;

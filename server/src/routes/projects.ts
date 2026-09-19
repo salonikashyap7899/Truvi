@@ -155,6 +155,7 @@ const updateProjectSchema = z.object({
   location: z.string().min(2).optional(),
   reraNumber: z.string().max(60).or(z.literal("")).optional(),
   approvalAuthority: z.enum(["RERA", "DISTRICT_PANCHAYAT", "DTCP"]).or(z.literal("")).optional(),
+  totalUnits: z.number().int().min(0).max(100000).nullable().optional(),
   reraStatus: z.enum(["REGISTERED", "PENDING", "NOT_REGISTERED"]).optional(),
   reraValidityDate: z.string().datetime().or(z.literal("")).nullable().optional(),
   brochureUrl: z.string().url().optional(),
@@ -243,6 +244,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   }
   if (d.reraNumber !== undefined) update.reraNumber = d.reraNumber || null;
   if (d.approvalAuthority !== undefined) update.approvalAuthority = d.approvalAuthority || null;
+  if (d.totalUnits !== undefined) update.totalUnits = d.totalUnits ?? null;
   // Developer-uploaded master-plan / layout map (empty string clears it).
   if (d.masterPlanUrl !== undefined) update.masterPlanUrl = d.masterPlanUrl || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;

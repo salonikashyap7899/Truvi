@@ -151,8 +151,7 @@ export default function InventoryPage() {
       <SiteNav />
 
       <main
-        className="min-h-screen px-4 pb-28 text-white sm:px-6 md:px-10"
-        style={{ paddingTop: "calc(5rem + env(safe-area-inset-top, 0px))" }}
+        className="min-h-screen px-4 pb-28 pt-[calc(5rem+env(safe-area-inset-top))] text-white sm:px-6 md:px-10 md:pt-32"
       >
         {/* ── Header + search ── */}
         <div className="mx-auto max-w-3xl text-center">
@@ -416,9 +415,15 @@ function ListingCard({
             <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] text-white/70">
               {typeLabel && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{typeLabel}</span>}
               {possessionYear && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">Possession {possessionYear}</span>}
-              {typeof project.unitCount === "number" && project.unitCount > 0 && (
-                <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{project.unitCount} units</span>
-              )}
+              {(() => {
+                // Prefer the developer-declared total (a plotted project may have
+                // many plots but only a sample unit row entered); fall back to the
+                // counted units. Label as "plots" for plotted/land projects.
+                const count = project.totalUnits ?? project.unitCount ?? 0;
+                if (count <= 0) return null;
+                const noun = project.projectType === "PLOTTED" || project.projectType === "LAND" ? "plots" : "units";
+                return <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{count} {noun}</span>;
+              })()}
               {typeof project.viewCount === "number" && project.viewCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5"><Eye size={10} /> {project.viewCount}</span>
               )}

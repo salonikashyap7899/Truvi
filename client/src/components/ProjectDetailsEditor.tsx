@@ -32,6 +32,7 @@ export default function ProjectDetailsEditor({
   const [location, setLocation] = useState(project.location);
   const [projectType, setProjectType] = useState<string>(project.projectType ?? "");
   const [approvalAuthority, setApprovalAuthority] = useState<"RERA" | "DISTRICT_PANCHAYAT" | "DTCP">(project.approvalAuthority ?? "RERA");
+  const [totalUnits, setTotalUnits] = useState(project.totalUnits != null ? String(project.totalUnits) : "");
   const [reraNumber, setReraNumber] = useState(project.reraNumber ?? "");
   const [reraStatus, setReraStatus] = useState(project.reraStatus ?? "NOT_REGISTERED");
   const [reraValidityDate, setReraValidityDate] = useState(
@@ -110,6 +111,7 @@ export default function ProjectDetailsEditor({
         location: location.trim(),
         projectType: projectType || undefined,
         approvalAuthority,
+        totalUnits: totalUnits.trim() ? Number(totalUnits) : null,
         reraNumber: reraNumber.trim(),
         reraStatus,
         reraValidityDate: reraValidityDate ? new Date(reraValidityDate).toISOString() : null,
@@ -194,6 +196,10 @@ export default function ProjectDetailsEditor({
           <div>
             <Label className="text-foreground/90">Possession date</Label>
             <Input type="date" value={possessionDate} onChange={(e) => setPossessionDate(e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <Label className="text-foreground/90">Total plots / units</Label>
+            <Input type="number" min={0} placeholder="e.g. 120" value={totalUnits} onChange={(e) => setTotalUnits(e.target.value)} className={inputCls} />
           </div>
         </div>
 

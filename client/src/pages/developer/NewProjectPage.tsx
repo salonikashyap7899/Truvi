@@ -61,6 +61,7 @@ export default function NewProjectPage() {
     projectType: "",
     approvalAuthority: "RERA" as "RERA" | "DISTRICT_PANCHAYAT" | "DTCP",
     reraNumber: "",
+    totalUnits: "",
     possessionDate: "",
     salesName: "",
     salesPhone: "",
@@ -93,6 +94,7 @@ export default function NewProjectPage() {
         projectType: form.projectType || undefined,
         approvalAuthority: form.approvalAuthority,
         reraNumber: form.reraNumber || undefined,
+        totalUnits: form.totalUnits ? Number(form.totalUnits) : undefined,
         possessionDate: form.possessionDate || undefined,
         salesContact:
           form.salesName || form.salesPhone || form.salesEmail
@@ -211,9 +213,16 @@ export default function NewProjectPage() {
                 <Input value={form.reraNumber} onChange={(e) => setForm({ ...form, reraNumber: e.target.value })} placeholder={authorityMeta(form.approvalAuthority).placeholder} className="border-white/15 bg-card text-white" />
               </div>
             </div>
-            <div>
-              <Label className="text-foreground/90">Possession date</Label>
-              <Input type="date" value={form.possessionDate} onChange={(e) => setForm({ ...form, possessionDate: e.target.value })} className="border-white/15 bg-card text-white" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-foreground/90">Possession date</Label>
+                <Input type="date" value={form.possessionDate} onChange={(e) => setForm({ ...form, possessionDate: e.target.value })} className="border-white/15 bg-card text-white" />
+              </div>
+              <div>
+                <Label className="text-foreground/90">Total plots / units</Label>
+                <Input type="number" min={0} placeholder="e.g. 120" value={form.totalUnits} onChange={(e) => setForm({ ...form, totalUnits: e.target.value })} className="border-white/15 bg-card text-white" />
+                <p className="mt-1 text-xs text-muted-foreground">Shown on the listing until you add each plot/unit individually.</p>
+              </div>
             </div>
 
             <div className="border-t border-white/10 pt-4">
