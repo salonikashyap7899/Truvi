@@ -462,6 +462,10 @@ export const projects = pgTable(
     masterPlanUrl: text("master_plan_url"),
     // Public visit counter shown on listings ("N views").
     viewCount: integer("view_count").notNull().default(0),
+    // Total plots/units in the project as declared by the developer — shown on
+    // the listing when the full per-unit inventory hasn't been entered yet, so a
+    // plotted project reads "120 plots" instead of the 1 sample unit added.
+    totalUnits: integer("total_units"),
     // Developer-managed payment plans (optional; shown publicly).
     paymentPlans: jsonb("payment_plans").$type<PaymentPlan[]>(),
     // Admin-curated, Truvi-verified ownership history + appreciation forecast.

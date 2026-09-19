@@ -123,10 +123,21 @@ function buildCategory(
 export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}): IntelligenceProfile {
   const vd = project.verificationDetails;
   const ragItems = (key: IntelCategoryKey): IntelItem[] => rag[key]?.items ?? [];
-  const reraVerified = !!vd?.reraVerified || project.reraStatus === "REGISTERED";
+  // A project counts as approval-verified when an admin has ticked RERA, when
+  // RERA status is REGISTERED, OR when a valid approving authority + number has
+  // been filled (RERA / District Panchayat / Development Authority). This is the
+  // core legal signal the founder enters per listing.
+  const AUTHORITY_LABEL: Record<string, string> = {
+    RERA: "RERA",
+    DISTRICT_PANCHAYAT: "District Panchayat",
+    DTCP: "Development Authority (DTCP)",
+  };
+  const hasApproval = !!project.approvalAuthority && !!project.reraNumber;
+  const reraVerified = !!vd?.reraVerified || project.reraStatus === "REGISTERED" || hasApproval;
+  const authorityName = project.approvalAuthority ? AUTHORITY_LABEL[project.approvalAuthority] ?? "RERA" : "RERA";
   const reraSource = project.reraNumber
-    ? `UP RERA Portal (Reg. No. ${project.reraNumber})`
-    : "UP RERA Portal";
+    ? `${authorityName} (Reg. No. ${project.reraNumber})`
+    : `${authorityName} Portal`;
 
   // Fully admin-verified = the listing has been marked Verified AND every core
   // verification check has been ticked by an admin (all documents uploaded and
@@ -159,11 +170,11 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
           : null,
     ],
     [
-      "RERA Projects",
+      "Approval / RERA",
       reraSource,
       () =>
         reraVerified
-          ? { label: "RERA Projects", source: reraSource, status: "VERIFIED", detail: "RERA registration confirmed." }
+          ? { label: "Approval / RERA", source: reraSource, status: "VERIFIED", detail: `${authorityName} approval confirmed.` }
           : null,
     ],
     ["Property Tax Records", "Nagar Nigam — Municipal Tax Records"],
@@ -231,7 +242,16 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     ["Government Development Projects", "State Development Authority Announcements"],
   ], fullyAdminVerified, ragItems("infrastructure"));
 
+  const hasCoords = typeof project.lat === "number" && typeof project.lng === "number";
   const location = buildCategory(project, "location", "Location Intelligence", [
+    [
+      "Exact Site Coordinates",
+      "Truvi field GPS capture",
+      () =>
+        hasCoords
+          ? { label: "Exact Site Coordinates", source: `Truvi field GPS (${project.lat!.toFixed(5)}, ${project.lng!.toFixed(5)})`, status: "VERIFIED", detail: "Precise location captured on site." }
+          : null,
+    ],
     ["Schools", "OpenStreetMap + Field Survey"],
     ["Colleges", "UGC / AICTE Registry + Field Survey"],
     ["Hospitals", "State Health Department Directory"],

@@ -28,6 +28,8 @@ async function ensureSchema(db: Db): Promise<void> {
     // Which body approved the project (RERA / District Panchayat / DTCP), so a
     // non-RERA-registered but validly-approved layout can still be listed.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "approval_authority" text`,
+    // Developer-declared total plots/units, shown when per-unit inventory is sparse.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "total_units" integer`,
     // GIS map coordinates (pin picker on the project form).
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,
