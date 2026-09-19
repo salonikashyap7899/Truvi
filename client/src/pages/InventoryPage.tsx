@@ -416,10 +416,9 @@ function ListingCard({
               {typeLabel && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{typeLabel}</span>}
               {possessionYear && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">Possession {possessionYear}</span>}
               {(() => {
-                // Prefer the developer-declared total (a plotted project may have
-                // many plots but only a sample unit row entered); fall back to the
-                // counted units. Label as "plots" for plotted/land projects.
-                const count = project.totalUnits ?? project.unitCount ?? 0;
+                // Server-computed: declared total → largest unit number entered →
+                // counted rows. Label as "plots" for plotted/land projects.
+                const count = project.plotCount ?? project.totalUnits ?? project.unitCount ?? 0;
                 if (count <= 0) return null;
                 const noun = project.projectType === "PLOTTED" || project.projectType === "LAND" ? "plots" : "units";
                 return <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{count} {noun}</span>;

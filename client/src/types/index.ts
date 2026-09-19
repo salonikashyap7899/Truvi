@@ -196,6 +196,8 @@ export interface Project {
   unitCount?: number;
   /** Developer-declared total plots/units (shown when per-unit inventory is sparse). */
   totalUnits?: number | null;
+  /** Plots/units to display: declared total → largest unit number → row count. */
+  plotCount?: number;
   leadCount?: number;
   coverImageUrl?: string | null;
   isSaved?: boolean;

@@ -161,14 +161,24 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .orderBy(asc(units.unitNumber));
   const byType: Record<string, number> = {};
   let available = 0;
+  let maxUnitNo = 0;
   for (const u of unitRows) {
     byType[u.type] = (byType[u.type] ?? 0) + 1;
     if (u.status === "AVAILABLE") available += 1;
+    const m = String(u.unitNumber ?? "").match(/\d+/);
+    const n = m ? parseInt(m[0], 10) : 0;
+    if (n > maxUnitNo) maxUnitNo = n;
   }
-  // Headline total prefers the developer-declared plot/unit count (a plotted
-  // layout may have 120 plots but only a sample unit row entered); falls back to
-  // the number of individual unit rows actually listed.
-  const unitSummary = { total: project.totalUnits ?? unitRows.length, listed: unitRows.length, available, byType };
+  // Headline total prefers the developer-declared plot/unit count, else the
+  // largest numeric unit number entered (developers often put the count there),
+  // else the number of individual unit rows actually listed.
+  const total =
+    typeof project.totalUnits === "number" && project.totalUnits > 0
+      ? project.totalUnits
+      : maxUnitNo > unitRows.length
+        ? maxUnitNo
+        : unitRows.length;
+  const unitSummary = { total, listed: unitRows.length, available, byType };
 
   res.json({
     project: { ...project, developerId: row.developer ?? project.developerId },
