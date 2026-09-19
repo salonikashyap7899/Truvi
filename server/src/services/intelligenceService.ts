@@ -3,16 +3,13 @@ import { IProject } from "../db/schema";
 /**
  * Raw Data Sources & AI Intelligence Engine.
  *
- * Builds a unified intelligence profile for a listing: every data point is
- * attributed to the source it comes from and carries a verification status,
- * so a buyer can open a listing's arrow panel and see exactly where each
- * fact was sourced and whether it has been verified.
- *
- * Statuses are anchored ONLY to the project's real verification fields
- * (verificationDetails, reraStatus, risk levels). Any data point an admin
- * has not actually verified stays PENDING — nothing is ever shown as
- * VERIFIED unless a real admin action backs it (or the whole listing has
- * been fully admin-verified). No simulated / random "verified" statuses.
+ * The Truvi Score is built from SEVEN fields the founder actually fills per
+ * listing — nothing speculative. Each category shows only its real data point(s)
+ * plus any admin-uploaded (RAG) evidence, each attributed to its source and
+ * carrying a verification status. A category contributes its full weight once
+ * its primary field is filled (or the whole listing is admin-Verified); until
+ * then it earns partial credit from uploaded data. Physical site visit is the
+ * one thing only a real Truvi visit can confirm.
  */
 
 export type IntelStatus = "VERIFIED" | "PENDING" | "UNAVAILABLE";
@@ -63,11 +60,9 @@ export interface IntelligenceProfile {
   ai: AIVerification;
 }
 
-type ItemDef = [label: string, source: string] | [label: string, source: string, override: () => IntelItem | null];
-
-/** One score/intel category key. */
+/** One score/intel category key — the seven fields the Truvi Score is built on. */
 export type IntelCategoryKey =
-  | "government" | "infrastructure" | "location" | "market" | "environmental" | "gis" | "community";
+  | "government" | "infrastructure" | "sitevisit" | "market" | "environmental" | "gis" | "community";
 
 /** Admin-uploaded (RAG-ingested) data for one category. Either the actual data
  *  points (shown on the detail panel, each with its real source) or, for the
@@ -79,367 +74,211 @@ export interface RagCategoryInput {
 }
 export type RagInput = Partial<Record<IntelCategoryKey, RagCategoryInput>>;
 
-function buildCategory(
-  project: IProject,
-  key: string,
-  title: string,
-  defs: ItemDef[],
-  fullyVerified: boolean,
-  extraItems: IntelItem[] = [],
-): IntelCategory {
-  const items: IntelItem[] = defs.map((def) => {
-    const [label, source, override] = def;
-    // Once an admin has uploaded and verified every document (see
-    // `fullyAdminVerified` below), every option in every category flips to
-    // VERIFIED — the whole listing reads 100% verified.
-    if (fullyVerified) {
-      const overridden = override?.();
-      return {
-        label,
-        source: overridden?.source ?? source,
-        status: "VERIFIED",
-        detail: overridden?.detail ?? "Document verified by Truvi admin.",
-      };
-    }
-    const overridden = override?.();
-    if (overridden) return overridden;
-    // Not backed by any real admin verification → stays PENDING (never a
-    // fake "verified"). It flips to VERIFIED only once an admin fully
-    // verifies the listing.
-    return { label, source, status: "PENDING" };
-  });
-  // Append the admin-uploaded (RAG) data points for this category, so the panel
-  // shows exactly what data exists, where it came from, and whether it's verified.
-  const all = [...items, ...extraItems];
-  return {
-    key,
-    title,
-    items: all,
-    verifiedCount: all.filter((i) => i.status === "VERIFIED").length,
-    totalCount: all.length,
-  };
-}
+/** Per-category weight — the seven founder-filled fields, summing to 100.
+ *  Physical site visit is worth 20 and stays locked until a real visit, so an
+ *  un-visited listing caps at 80. */
+const CATEGORY_WEIGHT: Record<IntelCategoryKey, number> = {
+  government: 20,
+  infrastructure: 15,
+  sitevisit: 20,
+  market: 15,
+  environmental: 10,
+  gis: 10,
+  community: 10,
+};
+
+const AUTHORITY_LABEL: Record<string, string> = {
+  RERA: "RERA",
+  DISTRICT_PANCHAYAT: "District Panchayat",
+  DTCP: "Development Authority (DTCP)",
+};
 
 export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}): IntelligenceProfile {
   const vd = project.verificationDetails;
-  const ragItems = (key: IntelCategoryKey): IntelItem[] => rag[key]?.items ?? [];
-  // A project counts as approval-verified when an admin has ticked RERA, when
-  // RERA status is REGISTERED, OR when a valid approving authority + number has
-  // been filled (RERA / District Panchayat / Development Authority). This is the
-  // core legal signal the founder enters per listing.
-  const AUTHORITY_LABEL: Record<string, string> = {
-    RERA: "RERA",
-    DISTRICT_PANCHAYAT: "District Panchayat",
-    DTCP: "Development Authority (DTCP)",
-  };
+  const isVerified = project.isVerified === true;
+  const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
+
+  // 1) Government & Legal — the approving authority + number the founder fills.
   const hasApproval = !!project.approvalAuthority && !!project.reraNumber;
-  const reraVerified = !!vd?.reraVerified || project.reraStatus === "REGISTERED" || hasApproval;
+  const reraOk = !!vd?.reraVerified || project.reraStatus === "REGISTERED" || hasApproval;
   const authorityName = project.approvalAuthority ? AUTHORITY_LABEL[project.approvalAuthority] ?? "RERA" : "RERA";
-  const reraSource = project.reraNumber
-    ? `${authorityName} (Reg. No. ${project.reraNumber})`
-    : `${authorityName} Portal`;
+  const approvalSource = project.reraNumber ? `${authorityName} · Reg. No. ${project.reraNumber}` : authorityName;
 
-  // Fully admin-verified = an admin has marked the whole listing Verified. That
-  // single toggle is the Truvi team's own sign-off, so it flips every
-  // intelligence option to VERIFIED (100% of the category checks) — the
-  // Verified badge and the Truvi Score now agree. Individual document checks
-  // (below) still let an un-Verified listing earn partial, per-signal credit.
-  const fullyAdminVerified = project.isVerified === true;
-
-  const government = buildCategory(project, "government", "Government & Legal Data", [
-    ["LDA Master Plan", "LDA (Lucknow Development Authority) Master Plan 2031"],
-    ["Village Boundaries", "Revenue Department — Village Boundary Records"],
-    ["Land Use", "LDA Land Use Classification Maps"],
-    ["Circle Rates", "UP IGRS — Registration & Stamps Department"],
-    [
-      "Registered Developers",
-      "RERA Developer Registry",
-      () =>
-        vd?.portfolioVerified
-          ? {
-              label: "Registered Developers",
-              source: "RERA Developer Registry",
-              status: "VERIFIED",
-              detail: "Developer portfolio verified by Truvi.",
-            }
-          : null,
-    ],
-    [
-      "Approval / RERA",
-      reraSource,
-      () =>
-        reraVerified
-          ? { label: "Approval / RERA", source: reraSource, status: "VERIFIED", detail: `${authorityName} approval confirmed.` }
-          : null,
-    ],
-    ["Property Tax Records", "Nagar Nigam — Municipal Tax Records"],
-    ["Mutation Records", "Tehsil / Revenue Department Records"],
-    [
-      "Land Registry / Sale Deeds",
-      "IGRS — Sub-Registrar Office",
-      () =>
-        vd?.titleClearance
-          ? {
-              label: "Land Registry / Sale Deeds",
-              source: "IGRS — Sub-Registrar Office",
-              status: "VERIFIED",
-              detail: "Title clearance confirmed.",
-            }
-          : null,
-    ],
-    [
-      "Encumbrance Records",
-      "Sub-Registrar — Encumbrance Certificate",
-      () =>
-        vd?.encumbranceFree
-          ? {
-              label: "Encumbrance Records",
-              source: "Sub-Registrar — Encumbrance Certificate",
-              status: "VERIFIED",
-              detail: "No encumbrances on record.",
-            }
-          : null,
-    ],
-    [
-      "Court & Litigation Cases",
-      "eCourts — District & High Court Records",
-      () => {
-        if (project.legalRiskLevel === "LOW")
-          return {
-            label: "Court & Litigation Cases",
-            source: "eCourts — District & High Court Records",
-            status: "VERIFIED",
-            detail: "No active litigation found.",
-          };
-        if (project.legalRiskLevel === "HIGH")
-          return {
-            label: "Court & Litigation Cases",
-            source: "eCourts — District & High Court Records",
-            status: "PENDING",
-            detail: "Records under review — elevated legal risk flagged.",
-          };
-        return null;
-      },
-    ],
-    ["Government Notifications", "UP Government Gazette & Notifications"],
-    ["Smart City / Urban Planning Data", "Smart City Mission Portal"],
-  ], fullyAdminVerified, ragItems("government"));
-
-  const infrastructure = buildCategory(project, "infrastructure", "Infrastructure Intelligence", [
-    ["Roads", "PWD — Public Works Department"],
-    ["Ring Road", "NHAI — Outer Ring Road Project Records"],
-    ["Highways", "NHAI / UPEIDA — National & State Highways"],
-    ["Metro", "UPMRC — Metro Rail Network Maps"],
-    ["Railway Stations", "Indian Railways — Station Directory"],
-    ["Airport", "AAI — Airports Authority of India"],
-    ["Bus Terminals", "UPSRTC — Terminal & Depot Records"],
-    ["Future Infrastructure Projects", "State Infrastructure Pipeline Disclosures"],
-    ["Government Development Projects", "State Development Authority Announcements"],
-  ], fullyAdminVerified, ragItems("infrastructure"));
-
+  // 6) Coordinates, 3) Site visit, 2) Connectivity, 5) Crime/Flood.
   const hasCoords = typeof project.lat === "number" && typeof project.lng === "number";
-  const location = buildCategory(project, "location", "Location Intelligence", [
-    [
-      "Exact Site Coordinates",
-      "Truvi field GPS capture",
-      () =>
-        hasCoords
-          ? { label: "Exact Site Coordinates", source: `Truvi field GPS (${project.lat!.toFixed(5)}, ${project.lng!.toFixed(5)})`, status: "VERIFIED", detail: "Precise location captured on site." }
-          : null,
-    ],
-    ["Schools", "OpenStreetMap + Field Survey"],
-    ["Colleges", "UGC / AICTE Registry + Field Survey"],
-    ["Hospitals", "State Health Department Directory"],
-    ["Shopping Malls", "OpenStreetMap + Field Survey"],
-    ["Markets", "Nagar Nigam Market Records"],
-    ["Parks", "LDA Green Space Registry"],
-    ["Religious Places", "OpenStreetMap + Field Survey"],
-    ["Police Stations", "UP Police Station Directory"],
-    ["Fire Stations", "UP Fire Services Directory"],
-    ["Banks & ATMs", "RBI Branch/ATM Locator"],
-    ["Fuel Stations", "OMC (IOCL/BPCL/HPCL) Outlet Registry"],
-  ], fullyAdminVerified, ragItems("location"));
+  const siteVisited = project.teamSiteVisited === true;
+  const info = project.presentationInfo;
+  const hasConnectivity = !!(info?.connectivityNotes && info.connectivityNotes.trim());
+  const hasRisk = !!project.crimeIndexLevel && !!project.floodRiskLevel;
 
-  const market = buildCategory(project, "market", "Market Intelligence", [
-    ["Property Rates", "IGRS Transactions + Truvi Market Index"],
-    ["Rental Yield", "Truvi Rental Listings Analysis"],
-    ["Builder History", "RERA Registry + Truvi Developer Records"],
-    ["Past Transactions", "IGRS — Registered Sale Transactions"],
-    ["Demand & Supply", "Truvi Market Analytics"],
-    ["Inventory", "Truvi Live Inventory Engine"],
-    ["Price Appreciation", "Circle Rate History + IGRS Transactions"],
-    ["Resale Trends", "Truvi Resale Listings Analysis"],
-    ["Investment Score", "Truvi AI Investment Model"],
-  ], fullyAdminVerified, ragItems("market"));
+  // Admin-uploaded (RAG) evidence for a category: appended items + counts.
+  const ragOf = (key: IntelCategoryKey) => {
+    const r = rag[key];
+    const items = r?.items ?? [];
+    const verifiedN = r?.items ? items.filter((i) => i.status === "VERIFIED").length : r?.verified ?? 0;
+    const pendingN = r?.items ? items.filter((i) => i.status === "PENDING").length : r?.pending ?? 0;
+    return { items, verifiedN, pendingN };
+  };
 
-  const environmental = buildCategory(project, "environmental", "Environmental Intelligence", [
-    [
-      "Flood Zones",
-      "UP Irrigation Department — Flood Plain Maps",
-      () => {
-        if (project.floodRiskLevel === "LOW")
-          return {
-            label: "Flood Zones",
-            source: "UP Irrigation Department — Flood Plain Maps",
-            status: "VERIFIED",
-            detail: "Outside designated flood plain.",
-          };
-        if (project.floodRiskLevel === "HIGH")
-          return {
-            label: "Flood Zones",
-            source: "UP Irrigation Department — Flood Plain Maps",
-            status: "VERIFIED",
-            detail: "Within or near a flood-prone zone — flagged as a risk.",
-          };
-        return null;
+  // Build a category from one primary "real" data point + any uploaded RAG rows.
+  // When the whole listing is admin-Verified, everything reads VERIFIED — except
+  // the physical site visit, which only a real visit can confirm (allowVerifyFlip).
+  function buildCat(
+    key: IntelCategoryKey,
+    title: string,
+    primary: { label: string; source: string; verified: boolean; detailV: string; detailP: string },
+    allowVerifyFlip = true,
+  ): IntelCategory {
+    const primaryVerified = primary.verified || (allowVerifyFlip && isVerified);
+    const items: IntelItem[] = [
+      {
+        label: primary.label,
+        source: primary.source,
+        status: primaryVerified ? "VERIFIED" : "PENDING",
+        detail: primaryVerified ? primary.detailV : primary.detailP,
       },
-    ],
-    ["Climate Conditions", "IMD — India Meteorological Department"],
-    ["Air Quality", "CPCB — Continuous Air Quality Monitoring"],
-    ["Water Logging Areas", "Nagar Nigam Drainage Records"],
-    ["Green Zones", "LDA Master Plan — Green Belt Designations"],
-    ["Noise Pollution", "CPCB Noise Monitoring Network"],
-    ["Heat Map", "Satellite Thermal Imaging (Landsat)"],
-    ["Disaster Risk", "NDMA — Disaster Risk Assessments"],
-  ], fullyAdminVerified, ragItems("environmental"));
-
-  const gis = buildCategory(project, "gis", "Satellite & GIS Intelligence", [
-    ["Satellite Imagery", "ISRO Bhuvan + Sentinel-2"],
-    ["GIS Layers", "State GIS Portal + OpenStreetMap"],
-    ["Plot Boundaries", "Revenue Department Cadastral Maps"],
-    ["Road Connectivity", "OpenStreetMap Road Network"],
-    ["Nearby Amenities", "GIS Amenity Layers + Field Survey"],
-    ["Elevation", "SRTM Digital Elevation Model"],
-    ["Land Cover", "Sentinel-2 Land Cover Classification"],
-  ], fullyAdminVerified, ragItems("gis"));
-
-  const community = buildCategory(project, "community", "Community Intelligence", [
-    [
-      "Crime Data",
-      "NCRB + District Police Records",
-      () => {
-        if (project.crimeIndexLevel === "LOW")
-          return {
-            label: "Crime Data",
-            source: "NCRB + District Police Records",
-            status: "VERIFIED",
-            detail: "Low reported crime in this area.",
-          };
-        if (project.crimeIndexLevel === "HIGH")
-          return {
-            label: "Crime Data",
-            source: "NCRB + District Police Records",
-            status: "VERIFIED",
-            detail: "Higher-than-average reported crime — flagged as a risk.",
-          };
-        return null;
-      },
-    ],
-    ["Population Density", "Census of India"],
-    ["Demographics", "Census of India + Sample Surveys"],
-    ["Resident Reviews", "Truvi Community — Verified Residents"],
-    ["Traffic Density", "GPS Probe Data + Field Survey"],
-    ["Safety Index", "Truvi Safety Model (Crime + Lighting + Patrols)"],
-    ["Livability Score", "Truvi Livability Model (Composite)"],
-  ], fullyAdminVerified, ragItems("community"));
-
-  const categories = [government, infrastructure, location, market, environmental, gis, community];
-
-  // ── Truvi AI Verification Engine ──────────────────────────────────────────
-  const allItems = categories.flatMap((c) => c.items);
-  const verified = allItems.filter((i) => i.status === "VERIFIED").length;
-  const pending = allItems.filter((i) => i.status === "PENDING").length;
-
-  const riskFlags: string[] = [];
-  if (project.legalRiskLevel === "HIGH") riskFlags.push("Elevated legal risk — litigation records under review.");
-  if (project.legalRiskLevel === "MEDIUM") riskFlags.push("Moderate legal risk — some records pending confirmation.");
-  if (project.floodRiskLevel === "HIGH") riskFlags.push("Located in or near a flood-prone zone.");
-  if (project.crimeIndexLevel === "HIGH") riskFlags.push("Higher-than-average crime index in the locality.");
-  if (!reraVerified && !project.isVerified) riskFlags.push("RERA registration not yet confirmed.");
-
-  const fraudSignals: string[] = [];
-  // Cross-verification passed if the core legal documents corroborate each other.
-  const coreLegalOk = !!vd?.titleClearance && !!vd?.encumbranceFree;
-  if (!coreLegalOk && project.isVerified === false) {
-    fraudSignals.push("Ownership documents not yet cross-verified against registry records.");
+    ];
+    for (const it of ragOf(key).items) {
+      items.push(allowVerifyFlip && isVerified ? { ...it, status: "VERIFIED" } : it);
+    }
+    return {
+      key,
+      title,
+      items,
+      verifiedCount: items.filter((i) => i.status === "VERIFIED").length,
+      totalCount: items.length,
+    };
   }
 
-  // ── Truvi Score, made transparent ────────────────────────────────────────
-  // The score is the SUM of six per-signal contributions (max 100), so a user
-  // can see exactly how the number was built. A physical site visit by the
-  // Truvi team is worth a fixed 20 points that stays locked until the visit
-  // happens — so an un-visited listing can never exceed 80, and only reaches a
-  // true 100 once the site has actually been visited. Each signal scores from
-  // the share of its category that is actually verified (nothing is inflated).
-  const siteVisited = project.teamSiteVisited === true;
-  const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
-  // A category is scored by how much data backs it, measured against a modest
-  // coverage target (so a handful of points fully establishes a category and
-  // uploading data visibly raises the score). Verified data — admin-ticked
-  // structural checks AND admin-uploaded verified rows — counts in full; data
-  // that's uploaded but not yet verified counts at a reduced weight (it's real
-  // effort, but unconfirmed). Capped at 1.
-  const EXPECTED_PER_CATEGORY = 5;
+  const government = buildCat("government", "Government & Legal Data", {
+    label: "Approval — RERA / District Panchayat / Developer Authority",
+    source: approvalSource,
+    verified: reraOk,
+    detailV: `${authorityName} approval on record.`,
+    detailP: "Add the approving authority + registration/approval number.",
+  });
+
+  const infrastructure = buildCat("infrastructure", "Infrastructure & Connectivity", {
+    label: "Connectivity",
+    source: hasConnectivity ? "Developer / Truvi field survey" : "Pending",
+    verified: hasConnectivity,
+    detailV: info?.connectivityNotes ?? "Connectivity captured.",
+    detailP: "Add connectivity (roads, highways, metro, key distances).",
+  });
+
+  // Site visit is never auto-verified by the Verified toggle — only a real visit.
+  const sitevisit = buildCat(
+    "sitevisit",
+    "Site Visit by Truvi",
+    {
+      label: "Physical Site Visit by Truvi",
+      source: "Truvi field team",
+      verified: siteVisited,
+      detailV: "Truvi team has physically visited and inspected the site.",
+      detailP: "Awaiting a Truvi team site visit.",
+    },
+    false,
+  );
+
+  const market = buildCat("market", "Market Intelligence", {
+    label: "Market Rate Analysis",
+    source: "Comparable listings · IGRS circle rates",
+    verified: ragOf("market").verifiedN > 0,
+    detailV: "Asking price checked against the observed market range.",
+    detailP: "Add local rate evidence to validate the asking price.",
+  });
+
+  const environmental = buildCat("environmental", "Environmental Intelligence", {
+    label: "Crime & Flood Index",
+    source: "NCRB · UP Irrigation flood maps",
+    verified: hasRisk,
+    detailV: `Crime index ${project.crimeIndexLevel ?? "—"} · Flood risk ${project.floodRiskLevel ?? "—"}.`,
+    detailP: "Set the crime index and flood risk for this locality.",
+  });
+
+  const gis = buildCat("gis", "Satellite & GIS — Coordinates", {
+    label: "Exact Site Coordinates",
+    source: hasCoords ? `Truvi field GPS (${project.lat!.toFixed(5)}, ${project.lng!.toFixed(5)})` : "Pending",
+    verified: hasCoords,
+    detailV: "Precise location captured on site.",
+    detailP: "Drop the exact map pin for this project.",
+  });
+
+  const community = buildCat("community", "Community Intelligence", {
+    label: "Truvi Assessment",
+    source: "Truvi Research",
+    verified: isVerified,
+    detailV: "Truvi's overall read on this project and locality.",
+    detailP: "Truvi's assessment is added once the listing is verified.",
+  });
+
+  const categories = [government, infrastructure, sitevisit, market, environmental, gis, community];
+
+  // ── Score: each category contributes its full weight once its primary field
+  // is verified; otherwise partial credit from uploaded (pending) evidence. ──
+  const RAG_TARGET = 3; // ~3 uploaded points fully cover a category on their own
   const PENDING_WEIGHT = 0.4;
-  const catRatio = (key: IntelCategoryKey) => {
-    const c = categories.find((x) => x.key === key);
-    if (!c) return 0;
-    const r = rag[key];
-    const ragVerified = r?.items ? r.items.filter((i) => i.status === "VERIFIED").length : r?.verified ?? 0;
-    const ragPending = r?.items ? r.items.filter((i) => i.status === "PENDING").length : r?.pending ?? 0;
-    // c.verifiedCount already includes appended RAG verified items (detail mode);
-    // strip them so structural verified isn't double-counted with ragVerified.
-    const appendedVerified = r?.items ? ragVerified : 0;
-    const structuralVerified = c.verifiedCount - appendedVerified;
-    const effective = structuralVerified + ragVerified + PENDING_WEIGHT * ragPending;
-    return Math.min(effective / EXPECTED_PER_CATEGORY, 1);
-  };
-  const fromCategory = (label: string, max: number, key: IntelCategoryKey, sourceLabel: string): ScoreSignal => {
-    const ratio = catRatio(key);
-    const score = Math.round(ratio * max);
-    return { label, score, max, sourceLabel, verified: ratio >= 0.6, lastUpdated: ratio > 0 ? verifiedDate : null };
+  const signalFor = (cat: IntelCategory, label: string): ScoreSignal => {
+    const key = cat.key as IntelCategoryKey;
+    const max = CATEGORY_WEIGHT[key];
+    const primaryVerified = cat.items[0]?.status === "VERIFIED";
+    const { verifiedN, pendingN } = ragOf(key);
+    let score: number;
+    if (primaryVerified) score = max;
+    else {
+      const cov = Math.min((verifiedN + PENDING_WEIGHT * pendingN) / RAG_TARGET, 1);
+      score = Math.round(max * cov);
+    }
+    return {
+      label,
+      score,
+      max,
+      sourceLabel: cat.items[0]?.source ?? "",
+      verified: primaryVerified,
+      lastUpdated: primaryVerified || verifiedN > 0 ? verifiedDate : null,
+    };
   };
 
   const scoreBreakdown: ScoreSignal[] = [
-    fromCategory("Legal & RERA", 22, "government", "TS/UP RERA · IGRS · eCourts"),
-    fromCategory("Location", 18, "location", "OpenStreetMap · Field survey · Govt directories"),
-    fromCategory("Infrastructure", 15, "infrastructure", "NHAI · Metro · Railways · PWD"),
-    fromCategory("Market & Price", 15, "market", "Comparable listings · IGRS circle rates"),
-    {
-      // Credited when the developer portfolio is ticked OR the whole listing is
-      // admin-Verified (that sign-off covers the developer too).
-      label: "Developer",
-      score: vd?.portfolioVerified || project.isVerified ? 10 : 0,
-      max: 10,
-      sourceLabel: "RERA Developer Registry · MCA",
-      verified: !!vd?.portfolioVerified || !!project.isVerified,
-      lastUpdated: vd?.portfolioVerified || project.isVerified ? verifiedDate : null,
-    },
-    {
-      label: "Physical Site Visit",
-      score: siteVisited ? 20 : 0,
-      max: 20,
-      sourceLabel: "Truvi field team",
-      verified: siteVisited,
-      lastUpdated: siteVisited ? verifiedDate : null,
-    },
+    signalFor(government, "Government & Legal"),
+    signalFor(infrastructure, "Infrastructure & Connectivity"),
+    signalFor(sitevisit, "Site Visit by Truvi"),
+    signalFor(market, "Market & Price"),
+    signalFor(environmental, "Environmental (Crime/Flood)"),
+    signalFor(gis, "Coordinates (GIS)"),
+    signalFor(community, "Community (Truvi's take)"),
   ];
+
+  // ── Risk flags ──
+  const riskFlags: string[] = [];
+  if (project.legalRiskLevel === "HIGH") riskFlags.push("Elevated legal risk — litigation records under review.");
+  if (project.floodRiskLevel === "HIGH") riskFlags.push("Located in or near a flood-prone zone.");
+  if (project.crimeIndexLevel === "HIGH") riskFlags.push("Higher-than-average crime index in the locality.");
+  if (!reraOk && !isVerified) riskFlags.push("Approval / RERA not yet confirmed.");
+
+  const fraudSignals: string[] = [];
+  if (!isVerified && !vd?.titleClearance && !vd?.encumbranceFree) {
+    fraudSignals.push("Ownership documents not yet cross-verified against registry records.");
+  }
 
   let confidence = scoreBreakdown.reduce((sum, s) => sum + s.score, 0);
   confidence -= riskFlags.length * 4; // each open risk flag costs points
   confidence = Math.max(0, Math.min(100, confidence));
 
+  const allItems = categories.flatMap((c) => c.items);
+  const verified = allItems.filter((i) => i.status === "VERIFIED").length;
+  const pending = allItems.filter((i) => i.status === "PENDING").length;
+
   const overallStatus: IntelStatus =
-    project.isVerified || confidence >= 75 ? "VERIFIED" : pending > 0 ? "PENDING" : "UNAVAILABLE";
+    isVerified || confidence >= 75 ? "VERIFIED" : pending > 0 ? "PENDING" : "UNAVAILABLE";
 
   const decisionSummary =
     overallStatus === "VERIFIED"
-      ? `${verified} of ${allItems.length} data points verified across ${categories.length} intelligence categories. ` +
+      ? `${verified} of ${allItems.length} checks verified across ${categories.length} categories. ` +
         (riskFlags.length === 0
           ? "No material risks detected — this listing is decision-ready."
           : `${riskFlags.length} risk flag${riskFlags.length > 1 ? "s" : ""} to review before deciding.`)
-      : `Verification in progress — ${verified} of ${allItems.length} data points confirmed so far. ` +
-        "We recommend waiting for pending checks or requesting a Truvi assisted review.";
+      : `Verification in progress — ${verified} of ${allItems.length} checks confirmed so far.`;
 
   return {
     projectId: String(project._id),
@@ -448,8 +287,6 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     categories,
     ai: {
       crossVerifiedSources: new Set(allItems.filter((i) => i.status === "VERIFIED").map((i) => i.source)).size,
-      // Only actually-verified data points count as evidence collected — a
-      // pending item is not evidence until its verification is complete.
       evidenceCount: verified,
       riskFlags,
       fraudSignals,

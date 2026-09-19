@@ -7,7 +7,8 @@ import type { IntelCategoryKey, IntelItem, RagInput } from "./intelligenceServic
 const RAG_TO_INTEL: Record<DataCategory, IntelCategoryKey> = {
   government_legal: "government",
   infrastructure: "infrastructure",
-  location_intelligence: "location",
+  // Connectivity/location data is shown under Infrastructure & Connectivity.
+  location_intelligence: "infrastructure",
   market_intelligence: "market",
   environmental_data: "environmental",
   satellite_gis: "gis",
@@ -22,26 +23,27 @@ const CATEGORY_ENTRIES = Object.entries(CATEGORY_TABLES) as [DataCategory, (type
  * category, for the listing's full Truvi Score breakdown panel.
  */
 export async function fetchRagItemsForProject(db: Db, projectId: string): Promise<RagInput> {
-  const out: RagInput = {};
-  await Promise.all(
+  const results = await Promise.all(
     CATEGORY_ENTRIES.map(async ([category, table]) => {
       const rows = await db
         .select({ label: table.label, sourceType: table.sourceType, verified: table.verified })
         .from(table)
         .where(eq(table.projectId, projectId));
-      if (rows.length === 0) return;
-      const key = RAG_TO_INTEL[category];
       const items: IntelItem[] = rows.map((r) => ({
         label: r.label,
         source: r.sourceType?.trim() || "Truvi ingested data",
         status: r.verified ? "VERIFIED" : "PENDING",
-        detail: r.verified
-          ? "Uploaded and verified by Truvi."
-          : "Uploaded — verification pending.",
+        detail: r.verified ? "Uploaded and verified by Truvi." : "Uploaded — verification pending.",
       }));
-      out[key] = { items };
+      return { key: RAG_TO_INTEL[category], items };
     }),
   );
+  // Merge sequentially (several RAG tables can map to one intel category).
+  const out: RagInput = {};
+  for (const { key, items } of results) {
+    if (items.length === 0) continue;
+    out[key] = { items: [...(out[key]?.items ?? []), ...items] };
+  }
   return out;
 }
 
@@ -57,7 +59,7 @@ export async function fetchRagCountsForProjects(
   const byProject = new Map<string, RagInput>();
   if (projectIds.length === 0) return byProject;
 
-  await Promise.all(
+  const results = await Promise.all(
     CATEGORY_ENTRIES.map(async ([category, table]) => {
       const rows = await db
         .select({
@@ -68,17 +70,23 @@ export async function fetchRagCountsForProjects(
         .from(table)
         .where(inArray(table.projectId, projectIds))
         .groupBy(table.projectId);
-
-      const key = RAG_TO_INTEL[category];
-      for (const r of rows) {
-        const id = String(r.projectId);
-        const verified = Number(r.verified) || 0;
-        const total = Number(r.total) || 0;
-        const entry = byProject.get(id) ?? {};
-        entry[key] = { verified, pending: Math.max(0, total - verified) };
-        byProject.set(id, entry);
-      }
+      return { key: RAG_TO_INTEL[category], rows };
     }),
   );
+  // Merge sequentially (several RAG tables can map to one intel category).
+  for (const { key, rows } of results) {
+    for (const r of rows) {
+      const id = String(r.projectId);
+      const verified = Number(r.verified) || 0;
+      const total = Number(r.total) || 0;
+      const entry = byProject.get(id) ?? {};
+      const prev = entry[key] ?? { verified: 0, pending: 0 };
+      entry[key] = {
+        verified: (prev.verified ?? 0) + verified,
+        pending: (prev.pending ?? 0) + Math.max(0, total - verified),
+      };
+      byProject.set(id, entry);
+    }
+  }
   return byProject;
 }
