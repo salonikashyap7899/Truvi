@@ -98,8 +98,10 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   const isVerified = project.isVerified === true;
   const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
 
-  // 1) Government & Legal — the approving authority + number the founder fills.
-  const hasApproval = !!project.approvalAuthority && !!project.reraNumber;
+  // 1) Government & Legal — the approval number the founder fills (RERA /
+  // District Panchayat / Developer Authority). The number itself is the
+  // evidence; the authority dropdown is just its label.
+  const hasApproval = !!project.reraNumber;
   const reraOk = !!vd?.reraVerified || project.reraStatus === "REGISTERED" || hasApproval;
   const authorityName = project.approvalAuthority ? AUTHORITY_LABEL[project.approvalAuthority] ?? "RERA" : "RERA";
   const approvalSource = project.reraNumber ? `${authorityName} · Reg. No. ${project.reraNumber}` : authorityName;
@@ -121,15 +123,16 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   };
 
   // Build a category from one primary "real" data point + any uploaded RAG rows.
-  // When the whole listing is admin-Verified, everything reads VERIFIED — except
-  // the physical site visit, which only a real visit can confirm (allowVerifyFlip).
+  // Each category is verified strictly by ITS OWN field being filled — the
+  // Verified toggle does NOT blanket-flip everything (that made every listing an
+  // identical 80). So the score differentiates: a project with more fields
+  // filled scores higher than one with fewer.
   function buildCat(
     key: IntelCategoryKey,
     title: string,
     primary: { label: string; source: string; verified: boolean; detailV: string; detailP: string },
-    allowVerifyFlip = true,
   ): IntelCategory {
-    const primaryVerified = primary.verified || (allowVerifyFlip && isVerified);
+    const primaryVerified = primary.verified;
     const items: IntelItem[] = [
       {
         label: primary.label,
@@ -137,10 +140,8 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
         status: primaryVerified ? "VERIFIED" : "PENDING",
         detail: primaryVerified ? primary.detailV : primary.detailP,
       },
+      ...ragOf(key).items,
     ];
-    for (const it of ragOf(key).items) {
-      items.push(allowVerifyFlip && isVerified ? { ...it, status: "VERIFIED" } : it);
-    }
     return {
       key,
       title,
@@ -166,7 +167,6 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     detailP: "Add connectivity (roads, highways, metro, key distances).",
   });
 
-  // Site visit is never auto-verified by the Verified toggle — only a real visit.
   const sitevisit = buildCat(
     "sitevisit",
     "Site Visit by Truvi",
@@ -177,7 +177,6 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
       detailV: "Truvi team has physically visited and inspected the site.",
       detailP: "Awaiting a Truvi team site visit.",
     },
-    false,
   );
 
   const market = buildCat("market", "Market Intelligence", {
