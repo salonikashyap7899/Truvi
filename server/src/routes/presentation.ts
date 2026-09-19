@@ -165,7 +165,10 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     byType[u.type] = (byType[u.type] ?? 0) + 1;
     if (u.status === "AVAILABLE") available += 1;
   }
-  const unitSummary = { total: unitRows.length, available, byType };
+  // Headline total prefers the developer-declared plot/unit count (a plotted
+  // layout may have 120 plots but only a sample unit row entered); falls back to
+  // the number of individual unit rows actually listed.
+  const unitSummary = { total: project.totalUnits ?? unitRows.length, listed: unitRows.length, available, byType };
 
   res.json({
     project: { ...project, developerId: row.developer ?? project.developerId },
