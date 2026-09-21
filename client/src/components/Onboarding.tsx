@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
-  Shield, ShieldCheck, ScanSearch, Database, TrendingUp, Scale, Droplets,
+  ShieldCheck, ScanSearch, Database, TrendingUp, Scale, Droplets,
   Box, Layers, IndianRupee, Sparkles, CalendarCheck, MapPin, Users, Bell,
   BarChart3, RefreshCw, Megaphone, Award, Trophy, BookOpen,
   ArrowRight, Check,
@@ -224,6 +224,7 @@ const SLIDES: Slide[] = [
 export default function Onboarding({ onDone }: { onDone: () => void }) {
   const [i, setI] = useState(0);
   const [dir, setDir] = useState(1);
+  const [logoFailed, setLogoFailed] = useState(false);
   const slide = SLIDES[i];
   const last = i === SLIDES.length - 1;
 
@@ -249,10 +250,22 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between px-5 pt-5">
-        <div className="flex items-center gap-2 font-display text-sm font-semibold tracking-tight">
-          <span className="grid size-6 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[#2563eb]"><Shield size={13} /></span>
-          TRUVI <span className="text-[10px] font-normal tracking-[0.2em] text-white/40">VENTURES</span>
-        </div>
+        {/* Real Truvi brand mark — same wordmark (with icon fallback) as the site nav. */}
+        {logoFailed ? (
+          <div className="flex items-center gap-2 font-display text-sm font-semibold tracking-tight">
+            <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
+              <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
+            </span>
+            <span className="truncate">TRUVI VENTURES</span>
+          </div>
+        ) : (
+          <img
+            src="/brand/wordmark.png"
+            alt="Truvi Ventures"
+            onError={() => setLogoFailed(true)}
+            className="h-6 w-auto max-w-[150px] shrink-0 object-contain sm:h-7 sm:max-w-[175px]"
+          />
+        )}
         <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${ROLE_TONE[slide.role]}`}>{slide.role}</span>
       </div>
 
