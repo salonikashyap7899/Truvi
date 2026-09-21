@@ -26,6 +26,18 @@ function parseDate(v?: string): Date | null {
 }
 
 /**
+ * Normalise a phone / ExoPhone to what Exotel expects: digits only, keeping a
+ * single leading "+" for E.164. This tolerates values entered with spaces,
+ * dashes or brackets (e.g. "095-138-86363" → "09513886363") so a formatting
+ * slip in the number or the CallerId can't fail an otherwise valid call.
+ */
+function normalizeNumber(v: string): string {
+  const trimmed = (v || "").trim();
+  const plus = trimmed.startsWith("+") ? "+" : "";
+  return plus + trimmed.replace(/[^\d]/g, "");
+}
+
+/**
  * Exotel adapter — "Connect two numbers" API. Exotel first calls `From` (the
  * Channel Partner), and on answer bridges to `To` (the Developer), both seeing
  * only the `CallerId` ExoPhone (virtual number). Recording + status callbacks
@@ -46,9 +58,9 @@ export const exotelProvider: TelephonyProvider = {
     const url = `https://${e.subdomain}/v1/Accounts/${e.sid}/Calls/connect.json`;
 
     const form = new URLSearchParams();
-    form.set("From", params.firstNumber);
-    form.set("To", params.secondNumber);
-    form.set("CallerId", params.callerId);
+    form.set("From", normalizeNumber(params.firstNumber));
+    form.set("To", normalizeNumber(params.secondNumber));
+    form.set("CallerId", normalizeNumber(params.callerId));
     form.set("CallType", "trans");
     if (params.record) form.set("Record", "true");
     form.set("StatusCallback", params.statusCallbackUrl);
