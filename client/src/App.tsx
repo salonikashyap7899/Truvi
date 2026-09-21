@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import WelcomeGate from "@/components/WelcomeGate";
+import Onboarding from "@/components/Onboarding";
 import WhatsAppChannelPrompt from "@/components/WhatsAppChannelPrompt";
 import AskTruvi from "@/components/AskTruvi";
 import AISalesCopilot from "@/components/AISalesCopilot";
@@ -177,6 +178,36 @@ function PageTransition({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * First-run onboarding tour — shown once in the installed app (remembered via
+ * localStorage). Purely additive; it doesn't touch any existing flow.
+ */
+function OnboardingGate() {
+  const [show, setShow] = useState(() => {
+    try {
+      return IS_NATIVE && !localStorage.getItem("truvi_onboarding_seen");
+    } catch {
+      return false;
+    }
+  });
+  if (!show) return null;
+  return (
+    <Onboarding
+      onDone={() => {
+        try { localStorage.setItem("truvi_onboarding_seen", "1"); } catch { /* ignore */ }
+        setShow(false);
+      }}
+    />
+  );
+}
+
+/** Standalone /welcome route so the tour can be previewed any time (web too). */
+function WelcomeRoute() {
+  const navigate = useNavigate();
+  return <Onboarding onDone={() => navigate("/")} />;
+}
+
+
 export default function App() {
   // In the installed app, ask for the user's location on open so "Near Me" and
   // property distances work right away. On the web we ask only when needed.
@@ -192,6 +223,7 @@ export default function App() {
       <Toaster richColors position="top-right" theme="dark" />
       <Ambience />
       <WelcomeGate />
+      <OnboardingGate />
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
       <InvestFab />
@@ -200,6 +232,7 @@ export default function App() {
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/welcome" element={<WelcomeRoute />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
