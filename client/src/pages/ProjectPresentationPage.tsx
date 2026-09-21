@@ -14,6 +14,7 @@ import { haversineKm, formatDistance } from "@/lib/geo";
 import { useLocationStore } from "@/store/locationStore";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
 import ListingIntelligence from "@/components/ListingIntelligence";
+import BrochureActions from "@/components/BrochureActions";
 import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
@@ -337,6 +338,9 @@ export default function ProjectPresentationPage() {
             className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-200 transition-all hover:border-emerald-400/60 hover:bg-emerald-500/20 hover:shadow-[0_0_24px_rgba(16,185,129,0.2)]"
           />
         </div>
+
+        {/* Brochure — appears only when an admin has uploaded one */}
+        <BrochureActions projectId={project._id} projectName={project.name} className="mt-2" />
       </div>
 
       {/* Truvi Score & verification intelligence */}

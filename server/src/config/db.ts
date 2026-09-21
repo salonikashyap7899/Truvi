@@ -142,6 +142,19 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "project_comments_project_idx" ON "project_comments" ("project_id", "created_at")`,
+    // Brochure view/download analytics (the brochure file itself is a
+    // project_assets row of category "BROCHURE").
+    `CREATE TABLE IF NOT EXISTS "brochure_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "asset_id" uuid,
+       "user_id" uuid REFERENCES "users"("id"),
+       "role" text,
+       "event_type" text NOT NULL,
+       "platform" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "brochure_events_project_idx" ON "brochure_events" ("project_id", "event_type", "created_at")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

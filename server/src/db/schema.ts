@@ -885,6 +885,28 @@ export const projectComments = pgTable(
 );
 export type IProjectComment = typeof projectComments.$inferSelect;
 
+/**
+ * Brochure view/download analytics. The brochure file itself lives as a
+ * `project_assets` row (category "BROCHURE") — this table only records who
+ * opened or downloaded it, for the admin analytics panel.
+ */
+export type BrochureEventType = "VIEW" | "DOWNLOAD";
+export const brochureEvents = pgTable(
+  "brochure_events",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    assetId: uuid("asset_id"),
+    userId: uuid("user_id").references(() => users._id),
+    role: text("role"),
+    eventType: text("event_type").$type<BrochureEventType>().notNull(),
+    platform: text("platform"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("brochure_events_project_idx").on(t.projectId, t.eventType, t.createdAt)]
+);
+export type IBrochureEvent = typeof brochureEvents.$inferSelect;
+
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
 
