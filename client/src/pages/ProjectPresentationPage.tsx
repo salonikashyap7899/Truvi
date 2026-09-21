@@ -15,6 +15,7 @@ import { useLocationStore } from "@/store/locationStore";
 import PublicLegalDocs from "@/components/PublicLegalDocs";
 import ListingIntelligence from "@/components/ListingIntelligence";
 import BrochureActions from "@/components/BrochureActions";
+import CallDeveloperButton from "@/components/CallDeveloperButton";
 import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
@@ -341,6 +342,8 @@ export default function ProjectPresentationPage() {
 
         {/* Brochure — appears only when an admin has uploaded one */}
         <BrochureActions projectId={project._id} projectName={project.name} className="mt-2" />
+        {/* Masked call to the developer — Channel Partners only */}
+        <CallDeveloperButton projectId={project._id} className="mt-2" />
       </div>
 
       {/* Truvi Score & verification intelligence */}
