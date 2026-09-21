@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
 import PresentationManager from "@/components/PresentationManager";
 import UnitsManager from "@/components/UnitsManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import BrochureManager from "@/components/BrochureManager";
 import RiskAssessmentEditor from "@/components/RiskAssessmentEditor";
 import OwnershipGrowthEditor from "@/components/OwnershipGrowthEditor";
 import ProjectProgressEditor from "@/components/ProjectProgressEditor";
@@ -66,6 +67,11 @@ export default function AdminProjectManagePage() {
 
       {/* Editable core details: name, location, RERA, possession, contact, plans */}
       <ProjectDetailsEditor project={project} onUpdated={setProject} />
+
+      {/* Brochure — upload / replace / delete a PDF + view analytics */}
+      <div className="mt-4">
+        <BrochureManager projectId={project._id} projectName={project.name} />
+      </div>
 
       {/* Physical site-visit toggle (admin-only) — adds +20 to the Trust Score */}
       <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 glass p-4">

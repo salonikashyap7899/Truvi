@@ -40,6 +40,8 @@ import enquiryRoutes from "./routes/enquiries";
 import investRoutes from "./routes/invest";
 import ambassadorKnowledgeRoutes from "./routes/ambassadorKnowledge";
 import presentationRoutes from "./routes/presentation";
+import brochureRoutes from "./routes/brochure";
+import callRoutes from "./routes/calls";
 import commentRoutes from "./routes/comments";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import legalRoutes from "./routes/legal";
@@ -83,6 +85,11 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
   app.use("/api/auth", authRoutes);
+  // Brochure routes are mounted at /api and define their own /admin/... and
+  // /projects/... paths — registered before the generic admin/project routers
+  // so those specific brochure endpoints win.
+  app.use("/api", brochureRoutes);
+  app.use("/api", callRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/buyer", buyerRoutes);
   app.use("/api/projects", projectRoutes);

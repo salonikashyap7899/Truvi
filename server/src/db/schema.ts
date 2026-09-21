@@ -885,6 +885,65 @@ export const projectComments = pgTable(
 );
 export type IProjectComment = typeof projectComments.$inferSelect;
 
+/**
+ * Brochure view/download analytics. The brochure file itself lives as a
+ * `project_assets` row (category "BROCHURE") — this table only records who
+ * opened or downloaded it, for the admin analytics panel.
+ */
+export type BrochureEventType = "VIEW" | "DOWNLOAD";
+export const brochureEvents = pgTable(
+  "brochure_events",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    assetId: uuid("asset_id"),
+    userId: uuid("user_id").references(() => users._id),
+    role: text("role"),
+    eventType: text("event_type").$type<BrochureEventType>().notNull(),
+    platform: text("platform"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("brochure_events_project_idx").on(t.projectId, t.eventType, t.createdAt)]
+);
+export type IBrochureEvent = typeof brochureEvents.$inferSelect;
+
+/**
+ * Masked-call log — a Channel Partner → Developer call bridged through a Truvi
+ * virtual number. Neither party's real number is ever exposed to the other or
+ * to the frontend; the raw numbers are NOT stored here (only the virtual/ExoPhone
+ * and the provider's own call id).
+ */
+export type CallStatus =
+  | "INITIATED" | "RINGING" | "IN_PROGRESS" | "CONNECTED" | "COMPLETED"
+  | "MISSED" | "NO_ANSWER" | "BUSY" | "FAILED" | "CANCELED";
+export const calls = pgTable(
+  "calls",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    cpId: uuid("cp_id").notNull().references(() => users._id),
+    developerId: uuid("developer_id").notNull().references(() => users._id),
+    provider: text("provider").notNull().default("exotel"),
+    providerCallId: text("provider_call_id"),
+    virtualNumber: text("virtual_number"),
+    status: text("status").$type<CallStatus>().notNull().default("INITIATED"),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    endedAt: timestamp("ended_at", { withTimezone: true, mode: "date" }),
+    durationSec: integer("duration_sec"),
+    recordingUrl: text("recording_url"),
+    recordingId: text("recording_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("calls_project_idx").on(t.projectId, t.createdAt),
+    index("calls_developer_idx").on(t.developerId, t.createdAt),
+    index("calls_cp_idx").on(t.cpId, t.createdAt),
+    index("calls_provider_call_idx").on(t.providerCallId),
+  ]
+);
+export type ICall = typeof calls.$inferSelect;
+
 /** Asset categories treated as legal documents (admin verification required before public display). */
 export const LEGAL_ASSET_CATEGORIES: AssetCategory[] = ["APPROVAL_DOC", "APPROVAL_CERT"];
 

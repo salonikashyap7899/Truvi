@@ -88,6 +88,7 @@ const ProjectsMapPage = lazy(() => import("@/pages/ProjectsMapPage"));
 const ThreeDViewPage = lazy(() => import("@/pages/ThreeDViewPage"));
 
 const AdminEnquiriesPage = lazy(() => import("@/pages/admin/AdminEnquiriesPage"));
+const AdminCallsPage = lazy(() => import("@/pages/admin/AdminCallsPage"));
 const AdminAmbassadorTasksPage = lazy(() => import("@/pages/admin/AdminAmbassadorTasksPage"));
 const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage"));
 const AdminVerificationPage = lazy(() => import("@/pages/admin/AdminVerificationPage"));
@@ -241,6 +242,7 @@ export default function App() {
         <Route path="/admin/listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
         <Route path="/admin/listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
         <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
+        <Route path="/admin/calls" element={<ProtectedRoute roles={["ADMIN"]}><AdminCallsPage /></ProtectedRoute>} />
         <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />

@@ -25,6 +25,25 @@ export function getEnv() {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // ── Telephony / masked calling (CPaaS) ────────────────────────────────────
+    // Modular: swap the provider by changing TELEPHONY_PROVIDER + its creds; no
+    // app code changes. Exotel is the default India-supported provider (virtual
+    // numbers, call masking + bridging, recording, status webhooks).
+    telephony: {
+      provider: (process.env.TELEPHONY_PROVIDER || "exotel").toLowerCase(),
+      // Shared secret appended to the provider status-callback URL so only the
+      // provider's webhooks are accepted.
+      webhookToken: process.env.TELEPHONY_WEBHOOK_TOKEN || "",
+      exotel: {
+        sid: process.env.EXOTEL_SID || "",
+        apiKey: process.env.EXOTEL_API_KEY || "",
+        apiToken: process.env.EXOTEL_API_TOKEN || "",
+        subdomain: process.env.EXOTEL_SUBDOMAIN || "api.exotel.com",
+        // The ExoPhone / virtual number both parties see (real numbers stay hidden).
+        callerId: process.env.EXOTEL_CALLER_ID || "",
+        record: /^(1|true|yes|on)$/i.test(String(process.env.EXOTEL_RECORD ?? "true")),
+      },
+    },
     // GST added on top of every price. Configurable; India default is 18%.
     // parseFloat tolerates values like "18%" or "18 " and we fall back to 18
     // on anything non-numeric so a stray character can never make amounts NaN.

@@ -133,15 +133,21 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     primary: { label: string; source: string; verified: boolean; detailV: string; detailP: string },
   ): IntelCategory {
     const primaryVerified = primary.verified;
-    const items: IntelItem[] = [
-      {
+    const ragI = ragOf(key).items;
+    const items: IntelItem[] = [];
+    // Show the primary data point when its own field is set, or as a prompt when
+    // there's no uploaded evidence yet. If uploaded evidence exists but the field
+    // isn't set, the uploaded rows ARE the data — don't also show the pending
+    // placeholder (that produced a duplicate "Crime & Flood Index", etc.).
+    if (primaryVerified || ragI.length === 0) {
+      items.push({
         label: primary.label,
         source: primary.source,
         status: primaryVerified ? "VERIFIED" : "PENDING",
         detail: primaryVerified ? primary.detailV : primary.detailP,
-      },
-      ...ragOf(key).items,
-    ];
+      });
+    }
+    items.push(...ragI);
     return {
       key,
       title,

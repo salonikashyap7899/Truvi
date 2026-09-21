@@ -142,6 +142,42 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "project_comments_project_idx" ON "project_comments" ("project_id", "created_at")`,
+    // Brochure view/download analytics (the brochure file itself is a
+    // project_assets row of category "BROCHURE").
+    `CREATE TABLE IF NOT EXISTS "brochure_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "asset_id" uuid,
+       "user_id" uuid REFERENCES "users"("id"),
+       "role" text,
+       "event_type" text NOT NULL,
+       "platform" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "brochure_events_project_idx" ON "brochure_events" ("project_id", "event_type", "created_at")`,
+    // Masked-call log (CP → Developer via a Truvi virtual number). Real numbers
+    // are never stored — only the provider's call id + the virtual number.
+    `CREATE TABLE IF NOT EXISTS "calls" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "developer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "provider" text NOT NULL DEFAULT 'exotel',
+       "provider_call_id" text,
+       "virtual_number" text,
+       "status" text NOT NULL DEFAULT 'INITIATED',
+       "started_at" timestamptz,
+       "ended_at" timestamptz,
+       "duration_sec" integer,
+       "recording_url" text,
+       "recording_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "calls_project_idx" ON "calls" ("project_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_developer_idx" ON "calls" ("developer_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_cp_idx" ON "calls" ("cp_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_provider_call_idx" ON "calls" ("provider_call_id")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (
