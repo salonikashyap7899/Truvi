@@ -55,6 +55,14 @@ body.copilot-open [data-fab="ask"] {
   pointer-events: none !important;
 }
 
+/* The first-run onboarding tour is a fullscreen overlay; hide every floating
+   button while it is open so none of them sits above it and intercepts taps on
+   the Next / Get Started button. */
+body.onboarding-open [data-fab] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Responsive safety net: decorative glows, wide diagrams and animated
    elements must never introduce sideways page scroll on small screens. */
 html, body {
