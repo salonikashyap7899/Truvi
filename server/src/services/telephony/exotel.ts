@@ -26,15 +26,21 @@ function parseDate(v?: string): Date | null {
 }
 
 /**
- * Normalise a phone / ExoPhone to what Exotel expects: digits only, keeping a
- * single leading "+" for E.164. This tolerates values entered with spaces,
- * dashes or brackets (e.g. "095-138-86363" → "09513886363") so a formatting
- * slip in the number or the CallerId can't fail an otherwise valid call.
+ * Format a phone / ExoPhone the way Exotel's Connect API expects: digits only,
+ * NO leading "+", and Indian numbers as a 0-prefixed 11-digit national number.
+ * Exotel rejects a leading "+" and bare 10-digit numbers with
+ * "Invalid 'From'/'To' specified", so we canonicalise every number here.
+ *
+ * Examples — all of "+91 98765 43210", "919876543210", "9876543210" and
+ * "098765-43210" become "09876543210"; the ExoPhone "095-138-86363" stays
+ * "09513886363".
  */
 function normalizeNumber(v: string): string {
-  const trimmed = (v || "").trim();
-  const plus = trimmed.startsWith("+") ? "+" : "";
-  return plus + trimmed.replace(/[^\d]/g, "");
+  let d = (v || "").replace(/\D/g, ""); // strip +, spaces, dashes, brackets
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2); // 91XXXXXXXXXX -> national
+  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);  // 0XXXXXXXXXX  -> national
+  if (d.length === 10) return "0" + d;                        // 10-digit mobile -> 0XXXXXXXXXX
+  return d; // some other shape (short code / landline) — send digits as-is
 }
 
 /**
