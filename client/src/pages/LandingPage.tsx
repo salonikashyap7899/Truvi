@@ -902,7 +902,9 @@ export default function LandingPage() {
           The website is unaffected, and all the landing content stays below. */}
       {IS_NATIVE && <AppHomeTop />}
 
-      <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
+      {/* The 3D WebGL city backdrop is website-only — in the installed app it's
+          heavy (pulls three.js) and distracting, so the app stays flat & fast. */}
+      {!IS_NATIVE && <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>}
 
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
@@ -965,6 +967,11 @@ export default function LandingPage() {
       {/* ---------- 1c · LIVE PROJECT SHOWCASE (self-populating) ---------- */}
       <LiveProjectsShowcase />
 
+      {/* The long marketing story (problem → methodology → company profile) is
+          website-only. The installed app keeps a focused home: search, banners,
+          live stats, verified projects and the final call-to-action. */}
+      {!IS_NATIVE && (
+      <>
       {/* ---------- 2 · THE PROBLEM ---------- */}
       <Section id="the-problem">
         <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
@@ -1454,6 +1461,9 @@ export default function LandingPage() {
         tint={0}
         muted={false}
       />
+
+      </>
+      )}
 
       {/* ---------- FINAL CTA ---------- */}
       <Section id="join" className="items-center pb-32 text-center">

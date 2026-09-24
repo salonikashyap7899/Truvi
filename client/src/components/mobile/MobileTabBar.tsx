@@ -47,11 +47,14 @@ export default function MobileTabBar() {
 
   const savedActive = pathname === "/inventory" && new URLSearchParams(search).get("cat") === "SAVED";
   const exploreActive = pathname === "/inventory" && !savedActive;
-  const bar: { key: string; label: string; Icon: LucideIcon; onPress: () => void; active: boolean }[] = [
+  const openAsk = () => window.dispatchEvent(new Event("open-ask-truvi"));
+  // Order: Home · Explore · [Ask Truvi] · Saved · Menu — Ask Truvi sits in the
+  // centre as the highlighted hero action; Saved moved to its right.
+  const bar: { key: string; label: string; Icon: LucideIcon; onPress: () => void; active: boolean; highlight?: boolean }[] = [
     { key: "home", label: "Home", Icon: Home, onPress: () => navigate("/"), active: pathname === "/" },
     { key: "explore", label: "Explore", Icon: Building2, onPress: () => navigate("/inventory"), active: exploreActive },
+    { key: "ask", label: "Ask Truvi", Icon: Sparkles, onPress: openAsk, active: false, highlight: true },
     { key: "saved", label: "Saved", Icon: Heart, onPress: () => navigate("/inventory?cat=SAVED"), active: savedActive },
-    { key: "ask", label: "Ask Truvi", Icon: Sparkles, onPress: () => window.dispatchEvent(new Event("open-ask-truvi")), active: false },
     { key: "menu", label: "Menu", Icon: MenuIcon, onPress: () => setMenuOpen(true), active: menuOpen },
   ];
 
@@ -69,12 +72,12 @@ export default function MobileTabBar() {
               className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
             />
             <motion.nav
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 30 }}
-              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed inset-x-0 bottom-0 z-[71] max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0d14]/98 backdrop-blur-xl"
-              style={{ paddingBottom: "calc(72px + env(safe-area-inset-bottom, 0px))" }}
+              initial={{ opacity: 0, y: 48, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 48, scale: 0.94 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
+              className="fixed inset-x-0 bottom-0 z-[71] max-h-[82vh] origin-bottom overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0d14]/98 backdrop-blur-xl"
+              style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}
             >
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/50">Menu</span>
@@ -82,6 +85,20 @@ export default function MobileTabBar() {
                   <X size={16} />
                 </button>
               </div>
+
+              {/* Ask Truvi — the highlighted hero action, first in the list. */}
+              <button
+                onClick={() => { close(); window.dispatchEvent(new Event("open-ask-truvi")); }}
+                className="mx-4 my-2 flex w-[calc(100%-2rem)] items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[var(--trust)]/25 to-fuchsia-500/20 px-4 py-3.5 text-left shadow-[0_8px_24px_-8px_rgba(124,58,237,0.6)]"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--trust)] to-fuchsia-500 text-white">
+                  <Sparkles size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-white">Ask Truvi</span>
+                  <span className="block text-[11px] text-white/60">Your AI property advisor — ask anything</span>
+                </span>
+              </button>
 
               {links.map((l) => (
                 <Link
@@ -151,32 +168,76 @@ export default function MobileTabBar() {
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        {bar.map((t) => (
-          <button
-            key={t.key}
-            onClick={t.onPress}
-            aria-current={t.active ? "page" : undefined}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              padding: "9px 4px 8px",
-              border: "none",
-              background: "transparent",
-              color: t.active ? "#3B82F6" : "rgba(255,255,255,0.55)",
-              fontSize: 10.5,
-              fontWeight: 600,
-              cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            <t.Icon size={21} strokeWidth={t.active ? 2.4 : 1.9} />
-            <span>{t.label}</span>
-          </button>
-        ))}
+        {bar.map((t) =>
+          t.highlight ? (
+            // Ask Truvi — the highlighted hero action: a raised, glowing pill
+            // that lifts above the bar so it reads as the primary action.
+            <button
+              key={t.key}
+              onClick={t.onPress}
+              aria-label={t.label}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: 4,
+                padding: "0 4px",
+                border: "none",
+                background: "transparent",
+                color: "#fff",
+                fontSize: 10.5,
+                fontWeight: 700,
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span
+                style={{
+                  marginTop: -18,
+                  display: "grid",
+                  placeItems: "center",
+                  width: 52,
+                  height: 52,
+                  borderRadius: 9999,
+                  background: "linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)",
+                  boxShadow: "0 10px 24px -6px rgba(124,58,237,0.7), 0 0 0 4px rgba(8,11,18,0.92)",
+                }}
+              >
+                <Sparkles size={24} strokeWidth={2.2} color="#fff" />
+              </span>
+              <span style={{ marginTop: 1, background: "linear-gradient(90deg,#93c5fd,#c4b5fd)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
+                {t.label}
+              </span>
+            </button>
+          ) : (
+            <button
+              key={t.key}
+              onClick={t.onPress}
+              aria-current={t.active ? "page" : undefined}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 3,
+                padding: "9px 4px 8px",
+                border: "none",
+                background: "transparent",
+                color: t.active ? "#3B82F6" : "rgba(255,255,255,0.55)",
+                fontSize: 10.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <t.Icon size={21} strokeWidth={t.active ? 2.4 : 1.9} />
+              <span>{t.label}</span>
+            </button>
+          ),
+        )}
       </nav>
     </>
   );
