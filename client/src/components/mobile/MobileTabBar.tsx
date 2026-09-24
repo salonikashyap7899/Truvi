@@ -131,7 +131,7 @@ export default function MobileTabBar() {
                     <LayoutDashboard size={15} /> My {roleDisplayLabel(user)} Dashboard
                   </Link>
                   <button
-                    onClick={async () => { close(); await logout(); }}
+                    onClick={async () => { close(); await logout(); navigate("/"); }}
                     className="flex w-full items-center gap-2 border-b border-white/5 px-5 py-3.5 text-left text-sm font-semibold text-red-300"
                   >
                     <LogOut size={15} /> Logout ({user.name})
