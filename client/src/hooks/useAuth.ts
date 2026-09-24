@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useCompareStore } from "@/store/compareStore";
@@ -60,6 +61,8 @@ export function useAuth() {
     disconnectSocket();
     clearAuth();
     useCompareStore.getState().clear(); // prevent stale selections carrying across sessions
+    // Give clear feedback so the user knows the logout actually happened.
+    toast.success("You've been logged out");
   }, [clearAuth]);
 
   return { user, accessToken, login, signup, verifyAccount, resendOtp, forgotPassword, resetPassword, logout, isAuthenticated: !!accessToken };
