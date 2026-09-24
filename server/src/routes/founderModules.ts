@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -174,7 +175,7 @@ const employeeSchema = z.object({
 });
 router.post("/employees", async (req, res) => {
   const parsed = employeeSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(employees).values({ ...parsed.data, department: parsed.data.department || "General" }).returning();
   res.status(201).json({ employee: row });
@@ -198,7 +199,7 @@ const campaignSchema = z.object({
 });
 router.post("/campaigns", async (req, res) => {
   const parsed = campaignSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(marketingCampaigns).values({ ...parsed.data, channel: parsed.data.channel || "Other" }).returning();
   res.status(201).json({ campaign: row });
@@ -224,7 +225,7 @@ const landSchema = z.object({
 });
 router.post("/land", async (req, res) => {
   const parsed = landSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(landParcels).values(parsed.data).returning();
   res.status(201).json({ parcel: row });
@@ -245,7 +246,7 @@ const capSchema = z.object({
 });
 router.post("/cap-table", async (req, res) => {
   const parsed = capSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(capTableEntries).values(parsed.data).returning();
   res.status(201).json({ entry: row });
@@ -266,7 +267,7 @@ const fundraiseSchema = z.object({
 });
 router.post("/fundraise", async (req, res) => {
   const parsed = fundraiseSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(fundraiseRounds).values(parsed.data).returning();
   res.status(201).json({ round: row });
@@ -281,7 +282,7 @@ router.delete("/fundraise/:id", async (req, res) => {
 const updateSchema = z.object({ title: z.string().min(1), body: z.string().optional() });
 router.post("/updates", async (req, res) => {
   const parsed = updateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(investorUpdates).values(parsed.data).returning();
   res.status(201).json({ update: row });
@@ -303,7 +304,7 @@ const feedbackSchema = z.object({
 });
 router.post("/feedback", async (req: AuthedRequest, res) => {
   const parsed = feedbackSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const d = parsed.data;
   const db = getDb();
   const [row] = await db.insert(customerFeedback).values({

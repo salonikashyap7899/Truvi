@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -57,7 +58,7 @@ router.post("/:projectId", authenticate, async (req: AuthedRequest, res) => {
   if (!isValidId(projectId)) return res.status(400).json({ error: "Invalid project id" });
 
   const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [project] = await db.select({ _id: projects._id }).from(projects).where(eq(projects._id, projectId));

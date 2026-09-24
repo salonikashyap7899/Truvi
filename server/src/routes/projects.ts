@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -226,7 +227,7 @@ const updateProjectSchema = z.object({
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = updateProjectSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
 
@@ -285,7 +286,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
 router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = createProjectSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const { possessionDate, developerId: assignedDeveloperId, ...rest } = parsed.data;

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { desc, eq, inArray, sql } from "drizzle-orm";
@@ -51,7 +52,7 @@ const payoutDetailsSchema = z.object({
 // PUT /api/commissions/payout-details — add / update the CP's payout details.
 router.put("/payout-details", requireRole("CP", "AMBASSADOR"), async (req: AuthedRequest, res) => {
   const parsed = payoutDetailsSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const clean = Object.fromEntries(Object.entries(parsed.data).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
   const payoutDetails = { ...clean, updatedAt: new Date().toISOString() };
@@ -116,7 +117,7 @@ const generateSchema = z.object({
 
 router.post("/", requireRole("ADMIN", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = generateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { leadId, bookingValue } = parsed.data;
   const user = req.user!;
@@ -214,7 +215,7 @@ const releaseSchema = z.object({ milestoneId: z.string().min(1) });
 
 router.patch("/:id/milestones", requireRole("ADMIN"), async (req, res) => {
   const parsed = releaseSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
   const db = getDb();
@@ -265,7 +266,7 @@ const invoiceSchema = z.object({ invoiceUrl: z.string().url() });
 
 router.patch("/:id/invoice", async (req: AuthedRequest, res) => {
   const parsed = invoiceSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
   const db = getDb();

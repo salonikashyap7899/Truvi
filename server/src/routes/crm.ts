@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, gte, or } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -145,7 +146,7 @@ router.get("/followups", async (req: AuthedRequest, res) => {
 
 router.post("/leads/:id/followups", async (req: AuthedRequest, res) => {
   const parsed = createFollowUpSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const lead = await ownedLead(req.user!.userId, String(req.params.id));
   if (!lead) return res.status(404).json({ error: "Lead not found" });
@@ -171,7 +172,7 @@ router.post("/leads/:id/followups", async (req: AuthedRequest, res) => {
 
 router.patch("/followups/:id", async (req: AuthedRequest, res) => {
   const parsed = z.object({ status: z.enum(["PENDING", "DONE", "MISSED"]) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Follow-up not found" });
 
   const db = getDb();
@@ -206,7 +207,7 @@ router.get("/leads/:id/activities", async (req: AuthedRequest, res) => {
 
 router.post("/leads/:id/activities", async (req: AuthedRequest, res) => {
   const parsed = createActivitySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const lead = await ownedLead(req.user!.userId, String(req.params.id));
   if (!lead) return res.status(404).json({ error: "Lead not found" });
@@ -222,7 +223,7 @@ router.post("/leads/:id/activities", async (req: AuthedRequest, res) => {
 // ── Lead tags ──────────────────────────────────────────────────────────────
 router.patch("/leads/:id/tags", async (req: AuthedRequest, res) => {
   const parsed = z.object({ tags: z.array(z.string().min(1).max(40)).max(20) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const lead = await ownedLead(req.user!.userId, String(req.params.id));
   if (!lead) return res.status(404).json({ error: "Lead not found" });
@@ -252,7 +253,7 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
 
 router.post("/tasks", async (req: AuthedRequest, res) => {
   const parsed = createTaskSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { title, dueAt, priority, leadId } = parsed.data;
   if (leadId && !(await ownedLead(req.user!.userId, leadId))) return res.status(404).json({ error: "Lead not found" });
@@ -273,7 +274,7 @@ router.post("/tasks", async (req: AuthedRequest, res) => {
 
 router.patch("/tasks/:id", async (req: AuthedRequest, res) => {
   const parsed = z.object({ status: z.enum(["OPEN", "DONE"]) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Task not found" });
 
   const db = getDb();

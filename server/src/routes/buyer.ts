@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -52,7 +53,7 @@ router.get("/dashboard", requireRole("BUYER"), async (req: AuthedRequest, res) =
 
 router.post("/save", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const parsed = saveProjectSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(parsed.data.projectId)) {
     return res.status(400).json({ error: "Invalid projectId" });
@@ -160,7 +161,7 @@ router.get("/projects", requireRole("BUYER"), async (req: AuthedRequest, res) =>
 
 router.post("/compare", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const parsed = saveProjectSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, req.user!.userId));
@@ -179,7 +180,7 @@ router.post("/compare", requireRole("BUYER"), async (req: AuthedRequest, res) =>
 
 router.post("/loan-eligibility", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const parsed = z.object({ notes: z.string().min(1) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, req.user!.userId));
@@ -194,7 +195,7 @@ router.post("/loan-eligibility", requireRole("BUYER"), async (req: AuthedRequest
 
 router.post("/investment-goals", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const parsed = z.object({ goals: z.string().min(1) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, req.user!.userId));

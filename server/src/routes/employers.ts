@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -152,7 +153,7 @@ router.get("/:id", async (req, res) => {
 /* ------------------------------------------------------------------- CRUD */
 router.post("/", async (req: AuthedRequest, res) => {
   const p = employerSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(employees).values({
     name: p.data.name,
     title: p.data.designation ?? null,
@@ -169,7 +170,7 @@ router.post("/", async (req: AuthedRequest, res) => {
 router.patch("/:id", async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = employerSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const d = p.data;
   const patch: Record<string, unknown> = {};
   if (d.name !== undefined) patch.name = d.name;
@@ -200,7 +201,7 @@ router.delete("/:id", async (req, res) => {
 router.post("/:id/payments", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = paymentSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const db = getDb();
   const [emp] = await db.select().from(employees).where(eq(employees._id, req.params.id));
   if (!emp) return res.status(404).json({ error: "Not found" });

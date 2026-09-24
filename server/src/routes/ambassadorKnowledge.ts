@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -58,7 +59,7 @@ const topicSchema = z.object({ title: z.string().min(1).max(160), description: z
 
 router.post("/admin/topics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = topicSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(ambassadorKnowledgeTopics).values({ title: parsed.data.title, description: parsed.data.description ?? null, sortOrder: parsed.data.sortOrder ?? 0 }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador.knowledge.topic.create", resourceType: "ambassador_knowledge_topic", resourceId: String(row._id) });
@@ -68,7 +69,7 @@ router.post("/admin/topics", requireRole("ADMIN"), async (req: AuthedRequest, re
 router.patch("/admin/topics/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Topic not found" });
   const parsed = topicSchema.partial().safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
   const db = getDb();
   const [row] = await db.update(ambassadorKnowledgeTopics).set({ ...parsed.data, updatedAt: new Date() }).where(eq(ambassadorKnowledgeTopics._id, req.params.id)).returning();
   if (!row) return res.status(404).json({ error: "Topic not found" });
@@ -98,7 +99,7 @@ router.post(
   async (req: AuthedRequest, res) => {
     if (!isValidId(req.params.id)) return res.status(404).json({ error: "Topic not found" });
     const parsed = materialSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
     const url = req.file ? fileUrl(req.file.filename) : parsed.data.url;
     if (!url) return res.status(400).json({ error: "Provide a file upload or a URL." });
 
@@ -127,7 +128,7 @@ router.patch(
   async (req: AuthedRequest, res) => {
     if (!isValidId(req.params.id)) return res.status(404).json({ error: "Material not found" });
     const parsed = materialSchema.partial().safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
     const patch: Record<string, unknown> = { ...parsed.data };
     if (req.file) { patch.url = fileUrl(req.file.filename); patch.fileName = req.file.originalname; }
     const db = getDb();
@@ -147,7 +148,7 @@ router.delete("/admin/materials/:id", requireRole("ADMIN"), async (req: AuthedRe
 const configSchema = z.object({ helpContact: z.string().max(60).nullable().optional(), helpText: z.string().max(300).nullable().optional() });
 router.put("/admin/config", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = configSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
   const db = getDb();
   const cfg = await getConfig(db);
   const [row] = await db.update(ambassadorKnowledgeConfig).set({ ...parsed.data, updatedAt: new Date() }).where(eq(ambassadorKnowledgeConfig._id, cfg._id)).returning();

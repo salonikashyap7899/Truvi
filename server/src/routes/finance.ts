@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -55,7 +56,7 @@ router.get("/", async (req, res) => {
 // POST /api/finance
 router.post("/", async (req: AuthedRequest, res) => {
   const p = entrySchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const d = p.data;
   if (d.projectId && !isValidId(d.projectId)) return res.status(400).json({ error: "Invalid projectId" });
   const db = getDb();
@@ -82,7 +83,7 @@ router.post("/", async (req: AuthedRequest, res) => {
 router.patch("/:id", async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = entrySchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const d = p.data;
   const db = getDb();
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -118,7 +119,7 @@ router.get("/accounts", async (_req, res) => {
 });
 router.post("/accounts", async (req, res) => {
   const p = accountSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(bankAccounts).values(p.data).returning();
   pushLive();
   res.status(201).json({ account: row });
@@ -126,7 +127,7 @@ router.post("/accounts", async (req, res) => {
 router.patch("/accounts/:id", async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = accountSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().update(bankAccounts).set({ ...p.data, updatedAt: new Date() }).where(eq(bankAccounts._id, req.params.id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   pushLive();
@@ -155,7 +156,7 @@ router.get("/loans", async (_req, res) => {
 });
 router.post("/loans", async (req: AuthedRequest, res) => {
   const p = loanSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const d = p.data;
   const [row] = await getDb().insert(loans).values({
     lender: d.lender, principalPaise: d.principalPaise, outstandingPaise: d.outstandingPaise,
@@ -168,7 +169,7 @@ router.post("/loans", async (req: AuthedRequest, res) => {
 router.patch("/loans/:id", async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = loanSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const d = p.data;
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   for (const k of ["lender", "principalPaise", "outstandingPaise", "emiPaise", "status"] as const)

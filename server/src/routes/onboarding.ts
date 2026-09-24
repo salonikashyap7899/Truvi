@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -38,7 +39,7 @@ const referralSchema = z.object({
 // POST /api/onboarding/developers — a CP or developer submits a developer to onboard.
 router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = referralSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const d = parsed.data;
 
   const db = getDb();
@@ -209,7 +210,7 @@ const statusSchema = z.object({ status: z.enum(["PENDING", "VERIFIED", "ACTIVE",
 router.patch("/developers/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Referral not found" });
   const parsed = statusSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [updated] = await db

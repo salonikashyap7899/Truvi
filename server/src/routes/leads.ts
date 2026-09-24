@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { and, desc, eq, gte, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
@@ -67,7 +68,7 @@ const STAGE_ORDER = ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_V
 
 router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = createLeadSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { projectId, clientPhone, confirmDuplicate, ...rest } = parsed.data;
   if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
@@ -135,7 +136,7 @@ router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
 
 router.patch("/:id", async (req: AuthedRequest, res) => {
   const parsed = updateLeadStageSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Lead not found" });
   const db = getDb();

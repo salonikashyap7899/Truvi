@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -30,7 +31,7 @@ router.get("/", async (req: AuthedRequest, res) => {
 router.post("/", async (req: AuthedRequest, res) => {
   const parsed = investmentSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const db = getDb();
@@ -55,7 +56,7 @@ router.put("/:id", async (req: AuthedRequest, res) => {
 
   const parsed = investmentSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const db = getDb();

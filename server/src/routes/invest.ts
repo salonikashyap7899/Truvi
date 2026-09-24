@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -67,7 +68,7 @@ router.get("/opportunities", async (_req, res) => {
 const createOrderSchema = z.object({ projectId: z.string(), amount: z.number().positive() });
 router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const { projectId, amount } = parsed.data;
   if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
   if (!isPaymentGatewayConfigured) return res.status(503).json({ error: "Payments are not configured yet. Please contact the Truvi team." });
@@ -105,7 +106,7 @@ router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
 const verifySchema = z.object({ razorpay_order_id: z.string(), razorpay_payment_id: z.string(), razorpay_signature: z.string() });
 router.post("/verify", authenticate, async (req: AuthedRequest, res) => {
   const parsed = verifySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
   if (!verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
     return res.status(400).json({ error: "Payment signature verification failed" });
@@ -181,7 +182,7 @@ const termsSchema = z.object({
 router.put("/admin/terms/:projectId", authenticate, requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.projectId)) return res.status(404).json({ error: "Project not found" });
   const parsed = termsSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [proj] = await db.select({ _id: projects._id }).from(projects).where(eq(projects._id, req.params.projectId));
