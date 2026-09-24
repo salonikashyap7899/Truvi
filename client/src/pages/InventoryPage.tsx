@@ -49,11 +49,14 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "TRUST", label: "Trust Score" },
 ];
 
-/* ── Shortlist (per-device, localStorage) ──────────────────────────────────── */
-const SHORTLIST_KEY = "truvi-shortlist";
-function loadShortlist(): Set<string> {
+/* ── Shortlist (localStorage, scoped PER ACCOUNT) ───────────────────────────
+   The saved list is keyed by the signed-in user's id, so switching accounts on
+   the same device never shows one account's saves under another. Signed-out
+   browsing uses a separate "guest" bucket. */
+const shortlistKey = (userId?: string | null) => `truvi-shortlist:${userId || "guest"}`;
+function loadShortlist(userId?: string | null): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(SHORTLIST_KEY) || "[]"));
+    return new Set(JSON.parse(localStorage.getItem(shortlistKey(userId)) || "[]"));
   } catch {
     return new Set();
   }
@@ -73,9 +76,9 @@ export default function InventoryPage() {
   const [nearMe, setNearMe] = useState(params.get("near") === "1");
   const [loading, setLoading] = useState(true);
   const [showGate, setShowGate] = useState(false);
-  const [saved, setSaved] = useState<Set<string>>(loadShortlist);
-  const [scoreProject, setScoreProject] = useState<Project | null>(null);
   const { user } = useAuth();
+  const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(user?._id));
+  const [scoreProject, setScoreProject] = useState<Project | null>(null);
   const coords = useLocationStore((s) => s.coords);
   const locStatus = useLocationStore((s) => s.status);
   const requestLocation = useLocationStore((s) => s.request);
@@ -107,12 +110,18 @@ export default function InventoryPage() {
     }
   }
 
+  // Reload the shortlist whenever the signed-in account changes (login, logout
+  // or switching users) so each account only ever sees its own saved projects.
+  useEffect(() => {
+    setSaved(loadShortlist(user?._id));
+  }, [user?._id]);
+
   const toggleSaved = (id: string) => {
     setSaved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem(shortlistKey(user?._id), JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   };
