@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { IS_NATIVE } from "@/lib/native";
 import {
   X, Send, Bot, User, Sparkles, SlidersHorizontal, ChevronRight,
   Search, Scale, Building2, MapPin, Wallet, ShieldCheck, Star, TrendingUp,
@@ -387,21 +388,26 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         }
       `}</style>
 
-      {/* Floating trigger button */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Ask Truvi"
-        data-fab="ask"
-        className={`
-          fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-full
-          bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-900/40
-          transition-all duration-200 hover:bg-blue-500 hover:shadow-blue-800/50
-          ${open ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"}
-        `}
-      >
-        <Sparkles size={14} />
-        Ask Truvi
-      </button>
+      {/* Floating trigger button. Hidden in the installed app — the bottom
+          navigation already has a prominent "Ask Truvi" action that opens this
+          panel via the `open-ask-truvi` event, so the floating pill would be a
+          redundant overlap. The website keeps it. */}
+      {!IS_NATIVE && (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-label="Ask Truvi"
+          data-fab="ask"
+          className={`
+            fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-full
+            bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-900/40
+            transition-all duration-200 hover:bg-blue-500 hover:shadow-blue-800/50
+            ${open ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"}
+          `}
+        >
+          <Sparkles size={14} />
+          Ask Truvi
+        </button>
+      )}
 
       {/* Overlay — mobile only */}
       {open && (
