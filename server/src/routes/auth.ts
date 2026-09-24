@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
@@ -300,7 +301,7 @@ function issueSession(res: import("express").Response, user: IUser) {
 router.post("/signup", async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { name, email, password, phone, role, companyName, reraNumber, referralCode } = parsed.data;
@@ -371,16 +372,16 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, password } = parsed.data;
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user) return res.status(401).json({ error: "Invalid email or password" });
+  if (!user) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
 
   const isValid = await bcrypt.compare(password, user.password);
-  if (!isValid) return res.status(401).json({ error: "Invalid email or password" });
+  if (!isValid) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
 
   // Deactivated accounts can't log in (kept in the DB so their history stays).
   if (user.disabled) {
@@ -418,7 +419,7 @@ router.post("/login", async (req, res) => {
 router.post("/verify-account", async (req, res) => {
   const parsed = verifyAccountSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, emailOtp, phoneOtp } = parsed.data;
@@ -491,7 +492,7 @@ router.post("/verify-account", async (req, res) => {
 router.post("/resend-otp", async (req, res) => {
   const parsed = resendOtpSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const db = getDb();
@@ -539,7 +540,7 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/forgot-password", async (req, res) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const db = getDb();
@@ -573,7 +574,7 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, otp, password } = parsed.data;

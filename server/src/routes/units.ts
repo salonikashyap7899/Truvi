@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { and, asc, eq, lt, or } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { units, projects, UnitStatus } from "../db/schema";
@@ -37,7 +38,7 @@ router.get("/", async (req: AuthedRequest, res) => {
 
 router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = createUnitSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [project] = await db.select().from(projects).where(eq(projects._id, parsed.data.projectId));
@@ -223,7 +224,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   const detailKeys = ["unitNumber", "type", "areaSqft", "plotSize"] as const;
   if (detailKeys.some((k) => req.body?.[k] !== undefined)) {
     const parsed = editUnitSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
     const d = parsed.data;
     const upd: Record<string, unknown> = {};
@@ -246,7 +247,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
   if (req.body?.price !== undefined) {
     const parsed = updatePriceSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
     // Never overwrite without logging history — push, don't set.
     const priceHistory = [

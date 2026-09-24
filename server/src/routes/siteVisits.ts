@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
@@ -58,7 +59,7 @@ router.get("/", async (req: AuthedRequest, res) => {
 
 router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => {
   const parsed = createSiteVisitSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(parsed.data.projectId)) return res.status(404).json({ error: "Project not found" });
   const db = getDb();
@@ -129,7 +130,7 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
 // Geo-verified attendance confirmation
 router.patch("/:id/attendance", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = confirmAttendanceSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Site visit not found" });
   const db = getDb();
@@ -173,7 +174,7 @@ router.post("/:id/photo", requireRole("CP"), upload.single("photo"), async (req:
 
 router.patch("/:id/report", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = siteVisitReportSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Site visit not found" });
   const db = getDb();

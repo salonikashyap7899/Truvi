@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { zodMessage } from "../lib/validationError";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
@@ -93,7 +94,7 @@ const createOrderSchema = z.object({
 
 router.post("/create-order", async (req: AuthedRequest, res: Response) => {
   const parsed = createOrderSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const plan = getPlan(parsed.data.planId);
   if (!plan) return res.status(404).json({ error: "Unknown plan" });
@@ -170,7 +171,7 @@ const verifySchema = z.object({
 
 router.post("/verify", async (req, res) => {
   const parsed = verifySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
 
   const env = getEnv();
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
@@ -245,7 +246,7 @@ const TOTAL_CYCLES = { monthly: 120, yearly: 10 } as const; // ~10 years either 
 
 router.post("/create-subscription", async (req: AuthedRequest, res: Response) => {
   const parsed = createSubSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const plan = getPlan(parsed.data.planId);
   if (!plan) return res.status(404).json({ error: "Unknown plan" });
@@ -317,7 +318,7 @@ const verifySubSchema = z.object({
 
 router.post("/verify-subscription", async (req, res) => {
   const parsed = verifySubSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed" });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
 
   const env = getEnv();
   const { razorpay_payment_id, razorpay_subscription_id, razorpay_signature } = parsed.data;

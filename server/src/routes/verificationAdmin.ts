@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, gte, like, lte, ne } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -40,7 +41,7 @@ router.get("/checks", async (_req, res) => {
 
 router.post("/checks", async (req: AuthedRequest, res) => {
   const p = checkSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(verificationChecks).values(p.data as any).returning();
   await audit(req, "check.create", "verification_check", row._id, { name: row.name });
   res.status(201).json({ check: row });
@@ -49,7 +50,7 @@ router.post("/checks", async (req: AuthedRequest, res) => {
 router.put("/checks/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = checkSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().update(verificationChecks).set(p.data as any).where(eq(verificationChecks._id, req.params.id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   await audit(req, "check.update", "verification_check", row._id);
@@ -78,7 +79,7 @@ router.get("/fraud-rules", async (_req, res) => {
 
 router.post("/fraud-rules", async (req: AuthedRequest, res) => {
   const p = ruleSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(fraudRules).values(p.data as any).returning();
   await audit(req, "fraud_rule.create", "fraud_rule", row._id, { name: row.name });
   res.status(201).json({ rule: row });
@@ -87,7 +88,7 @@ router.post("/fraud-rules", async (req: AuthedRequest, res) => {
 router.put("/fraud-rules/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = ruleSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().update(fraudRules).set(p.data as any).where(eq(fraudRules._id, req.params.id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   await audit(req, "fraud_rule.update", "fraud_rule", row._id);
@@ -115,7 +116,7 @@ router.get("/prompts", async (_req, res) => {
 
 router.post("/prompts", async (req: AuthedRequest, res) => {
   const p = promptSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const db = getDb();
   const [row] = await db.insert(aiPrompts).values(p.data as any).returning();
   if (row.active) await db.update(aiPrompts).set({ active: false }).where(ne(aiPrompts._id, row._id));
@@ -126,7 +127,7 @@ router.post("/prompts", async (req: AuthedRequest, res) => {
 router.put("/prompts/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = promptSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const db = getDb();
   const [row] = await db.update(aiPrompts).set(p.data as any).where(eq(aiPrompts._id, req.params.id)).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
@@ -150,7 +151,7 @@ const thresholdSchema = z.object({
 
 router.put("/thresholds", async (req: AuthedRequest, res) => {
   const p = thresholdSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   if (p.data.pendingMin > p.data.verifiedMin) return res.status(400).json({ error: "pendingMin must be ≤ verifiedMin" });
   const db = getDb();
   const [existing] = await db.select().from(scoreThresholds).limit(1);

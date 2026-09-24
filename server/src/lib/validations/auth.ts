@@ -51,7 +51,7 @@ export type SignupInput = z.infer<typeof signupSchema>;
 
 export const loginSchema = z.object({
   email: emailField,
-  password: z.string().min(1),
+  password: z.string().min(1, "Enter your password"),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 

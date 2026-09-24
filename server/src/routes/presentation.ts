@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -229,7 +230,7 @@ router.post(
     if (!parsed.success) {
       // Don't orphan the file on validation failure
       fs.unlink(req.file.path, () => {});
-      return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+      return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
     }
 
     // Legal documents uploaded by a developer need admin verification before
@@ -362,7 +363,7 @@ router.put(
     if (!project) return;
 
     const parsed = infoSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
     const { projectType, ...info } = parsed.data;
     const presentationInfo: PresentationInfo = { ...(project.presentationInfo ?? {}), ...info };

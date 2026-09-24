@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -33,7 +34,7 @@ const createPostSchema = z.object({
 
 router.post("/posts", async (req: AuthedRequest, res) => {
   const parsed = createPostSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const user = req.user!;
   const db = getDb();

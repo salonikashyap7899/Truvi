@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -56,7 +57,7 @@ const enquirySchema = z.object({
 router.post("/", enquiryUpload.single("file"), async (req, res) => {
   const parsed = enquirySchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, name, purposeType, message, projectId, projectName } = parsed.data;

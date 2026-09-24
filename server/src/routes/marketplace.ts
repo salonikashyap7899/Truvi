@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { asc, desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -25,7 +26,7 @@ const purchaseSchema = z.object({ leadType: z.enum(["BASIC", "QUALIFIED", "SITE_
 
 router.post("/create-order", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = purchaseSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const price = LEAD_MARKETPLACE_PRICES[parsed.data.leadType];
   const order = await createOrder(price, `lead_${parsed.data.leadType}_${req.user!.userId}_${Date.now()}`);
@@ -42,7 +43,7 @@ const confirmSchema = z.object({
 
 router.post("/confirm", requireRole("CP"), async (req: AuthedRequest, res) => {
   const parsed = confirmSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { leadType, razorpayOrderId, razorpayPaymentId, razorpaySignature } = parsed.data;
   const price = LEAD_MARKETPLACE_PRICES[leadType];

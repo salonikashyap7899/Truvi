@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { askLimiter } from "../middleware/security";
@@ -18,7 +19,7 @@ const askSchema = z.object({
 /** POST /api/ask — RAG answer over verified data (10/min per user). */
 router.post("/ask", askLimiter, async (req: AuthedRequest, res) => {
   const p = askSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   if (p.data.propertyId && !isValidId(p.data.propertyId)) return res.status(400).json({ error: "Invalid propertyId" });
 
   try {

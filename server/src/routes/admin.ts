@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -950,7 +951,7 @@ const userStatusSchema = z
   .refine((d) => d.disabled !== undefined || d.approvalStatus !== undefined, { message: "Nothing to update" });
 router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = userStatusSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const userId = req.params.id;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
@@ -1408,7 +1409,7 @@ const patchProjectSchema = z.object({
 
 router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = patchProjectSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { projectId, ...data } = parsed.data;
   if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
@@ -1604,7 +1605,7 @@ const settingsPatchSchema = z.object({
 
 router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = settingsPatchSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const d = parsed.data;
 
   const current = await loadSettings();
@@ -1750,7 +1751,7 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
   const { userId } = req.params;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
   const parsed = kycDecisionSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, userId));
@@ -1970,7 +1971,7 @@ router.patch("/documents/:source/:id", requireRole("ADMIN"), async (req: AuthedR
   const id = req.params.id;
   if (!isValidId(id)) return res.status(404).json({ error: "Document not found" });
   const parsed = docDecisionSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const approve = parsed.data.status === "APPROVED";
 
   const db = getDb();
@@ -2036,7 +2037,7 @@ const commissionPaySchema = z.object({
 });
 router.post("/commissions/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = commissionPaySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const { cpId, amount, mode, transactionId, paymentDate, notes } = parsed.data;
   if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
 
@@ -2091,7 +2092,7 @@ const manualAddSchema = z.object({
 // POST /api/admin/commissions/manual — add a commission for a Channel Partner.
 router.post("/commissions/manual", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = manualAddSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const { cpId, amount, percent, bookingValue, leadId, label, notes } = parsed.data;
   if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
 
@@ -2132,7 +2133,7 @@ const manualEditSchema = z.object({
 router.patch("/commissions/manual/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
   const parsed = manualEditSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
@@ -2187,7 +2188,7 @@ const manualPaySchema = z.object({
 router.post("/commissions/manual/:id/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
   const parsed = manualPaySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const db = getDb();
   const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -28,7 +29,7 @@ const completeModuleSchema = z.object({
 
 router.post("/progress/:courseId", async (req: AuthedRequest, res) => {
   const parsed = completeModuleSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const { moduleId, totalModules } = parsed.data;
   const courseId = String(req.params.courseId);
@@ -127,7 +128,7 @@ router.post(
   },
   async (req: AuthedRequest, res) => {
     const parsed = createContentSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
     const { courseId, title, type, description, duration, transcriptEn, sortOrder } = parsed.data;
     const url = req.file ? fileUrl(req.file.filename) : parsed.data.url;
@@ -159,7 +160,7 @@ const translateSchema = z.object({ text: z.string().min(2).max(20_000) });
 
 router.post("/translate", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = translateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Validation failed", issues: parsed.error.flatten() });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim().replace(/\s+/g, "");
   if (!apiKey) {

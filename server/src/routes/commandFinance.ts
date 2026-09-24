@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -65,7 +66,7 @@ router.get("/investments", async (_req, res) => {
 
 router.post("/investments", async (req: AuthedRequest, res) => {
   const p = entrySchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(commandInvestments).values({
     title: p.data.title,
     category: p.data.category,
@@ -94,7 +95,7 @@ router.get("/revenues", async (_req, res) => {
 
 router.post("/revenues", async (req: AuthedRequest, res) => {
   const p = entrySchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(commandRevenues).values({
     title: p.data.title,
     category: p.data.category,
@@ -124,7 +125,7 @@ router.get("/recurring", async (_req, res) => {
 
 router.post("/recurring", async (req: AuthedRequest, res) => {
   const p = recurringSchema.safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const [row] = await getDb().insert(recurringExpenses).values({
     label: p.data.label,
     category: p.data.category,
@@ -141,7 +142,7 @@ router.post("/recurring", async (req: AuthedRequest, res) => {
 router.patch("/recurring/:id", async (req, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Not found" });
   const p = recurringSchema.partial().safeParse(req.body);
-  if (!p.success) return res.status(400).json({ error: "Validation failed", issues: p.error.flatten() });
+  if (!p.success) return res.status(400).json({ error: zodMessage(p.error), issues: p.error.flatten() });
   const patch: Record<string, unknown> = {};
   for (const k of ["label", "category", "amount", "dueDay", "notes", "active"] as const)
     if (p.data[k] !== undefined) patch[k] = p.data[k];
