@@ -967,11 +967,11 @@ router.post(
     const aadhaarNumber = String(req.body?.aadhaarNumber || "").replace(/\s/g, "");
     const panNumber = String(req.body?.panNumber || "").trim().toUpperCase();
     if (!isValidAadhaar(aadhaarNumber)) {
-      return res.status(400).json({ error: "Enter a valid 12-digit Aadhaar number" });
+      return res.status(400).json({ error: "Please enter a correct 12-digit Aadhaar number." });
     }
     // Validate PAN only when it applies (CP always; Ambassador only if supplied).
     if ((!isAmbassador || panNumber) && !isValidPan(panNumber)) {
-      return res.status(400).json({ error: "Enter a valid PAN (e.g. ABCDE1234F)" });
+      return res.status(400).json({ error: "Please enter a correct PAN number, like ABCDE1234F." });
     }
 
     const user = await findUserById(userId);
