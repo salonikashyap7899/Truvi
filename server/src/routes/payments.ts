@@ -5,9 +5,11 @@ import Razorpay from "razorpay";
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { payments, subscriptions, subscriptionPlans } from "../db/schema";
+import { payments, subscriptions, subscriptionPlans, vouchers } from "../db/schema";
 import { getEnv, isRazorpayConfigured } from "../config/env";
 import { getPlan, withGst, intervalEnd } from "../config/pricing";
+import { evaluateVoucher, normalizeVoucherCode } from "../services/vouchers";
+import { sql } from "drizzle-orm";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
 import { notifyUser, notifyRole } from "../services/notificationService";
@@ -90,6 +92,7 @@ const createOrderSchema = z.object({
   name: z.string().min(2).max(120),
   email: z.string().email(),
   phone: z.string().min(6).max(20),
+  voucherCode: z.string().max(40).optional(),
 });
 
 router.post("/create-order", async (req: AuthedRequest, res: Response) => {
@@ -112,12 +115,28 @@ router.post("/create-order", async (req: AuthedRequest, res: Response) => {
   }
 
   const env = getEnv();
+  const db = getDb();
+
   // The server decides the amount — the client is never trusted for money.
-  const basePaise = plan.pricePaise;
+  // A voucher (if valid) is applied to the base BEFORE GST; the discount is
+  // computed here, never sent by the client.
+  let basePaise = plan.pricePaise;
+  let discountPaise = 0;
+  let appliedVoucherCode: string | null = null;
+  if (parsed.data.voucherCode) {
+    const code = normalizeVoucherCode(parsed.data.voucherCode);
+    const [v] = await db.select().from(vouchers).where(eq(vouchers.code, code));
+    if (!v) return res.status(400).json({ error: "That voucher code isn't valid." });
+    const result = evaluateVoucher(v, plan, plan.pricePaise);
+    if (!result.ok) return res.status(400).json({ error: result.reason || "This voucher can't be applied." });
+    discountPaise = result.discountPaise;
+    basePaise = plan.pricePaise - discountPaise;
+    appliedVoucherCode = v.code;
+  }
+
   const gstPaise = withGst(basePaise, env.gstPercent) - basePaise;
   const totalPaise = basePaise + gstPaise;
 
-  const db = getDb();
   // Insert a CREATED row up-front so we have a record even if the user abandons.
   const [row] = await db
     .insert(payments)
@@ -131,6 +150,8 @@ router.post("/create-order", async (req: AuthedRequest, res: Response) => {
       category: plan.category,
       amountPaise: basePaise,
       gstPaise,
+      discountPaise,
+      voucherCode: appliedVoucherCode,
       currency: "INR",
       status: "CREATED",
     })
@@ -154,6 +175,8 @@ router.post("/create-order", async (req: AuthedRequest, res: Response) => {
       planLabel: plan.label,
       basePaise,
       gstPaise,
+      discountPaise,
+      voucherCode: appliedVoucherCode,
       prefill: { name: parsed.data.name, email: parsed.data.email, contact: parsed.data.phone },
     });
   } catch (err: any) {
@@ -197,6 +220,16 @@ router.post("/verify", async (req, res) => {
       .update(payments)
       .set({ status: "PAID", razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature, updatedAt: new Date() })
       .where(eq(payments._id, row._id));
+
+    // Count the voucher redemption only on a real, verified payment (never on an
+    // abandoned order), so usage limits reflect actual use.
+    if (row.voucherCode) {
+      await db
+        .update(vouchers)
+        .set({ redeemedCount: sql`${vouchers.redeemedCount} + 1`, updatedAt: new Date() })
+        .where(eq(vouchers.code, row.voucherCode))
+        .catch(() => {});
+    }
 
     void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, row.amountPaise + row.gstPaise, razorpay_payment_id);
 

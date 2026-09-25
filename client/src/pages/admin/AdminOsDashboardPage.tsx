@@ -102,6 +102,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Referral Leads", icon: "users", path: "/admin/referral-leads" },
   { label: "Documents", icon: "verification", path: "/admin/documents" },
   { label: "Revenue", icon: "wallet", path: "/admin/revenue" },
+  { label: "Vouchers", icon: "wallet", path: "/admin/vouchers" },
   { label: "Finance", icon: "chart", path: "/admin/finance" },
   { label: "Payments", icon: "target", path: "/admin/payments" },
   { label: "Marketing", icon: "spark", path: "/admin/marketing" },

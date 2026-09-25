@@ -26,10 +26,30 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
   const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly");
+  const [coupon, setCoupon] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [applied, setApplied] = useState<{ code: string; discountPaise: number; finalBasePaise: number; label: string } | null>(null);
 
   const isSub = config.kind === "subscription";
   const activePlanId = isSub && cycle === "yearly" && config.yearlyPlanId ? config.yearlyPlanId : config.planId;
   const activePrice = isSub && cycle === "yearly" && config.yearlyPrice ? config.yearlyPrice : config.priceLabel;
+  const inr = (paise: number) => "₹" + (paise / 100).toLocaleString("en-IN");
+
+  async function applyCoupon() {
+    const code = coupon.trim();
+    if (!code) return;
+    setCouponBusy(true);
+    try {
+      const { data } = await api.post("/vouchers/validate", { code, planId: activePlanId });
+      setApplied({ code: data.code, discountPaise: data.discountPaise, finalBasePaise: data.finalBasePaise, label: data.label });
+      toast.success(`Voucher ${data.code} applied — you save ${inr(data.discountPaise)}`);
+    } catch (err: any) {
+      setApplied(null);
+      toast.error(err?.response?.data?.error || "That code isn't valid.");
+    } finally {
+      setCouponBusy(false);
+    }
+  }
 
   function toSuccess(payment: unknown) {
     navigate("/payment-success", { state: { payment } });
@@ -71,7 +91,7 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
           },
         });
       } else {
-        const { data } = await api.post("/payments/create-order", { planId: activePlanId, ...form });
+        const { data } = await api.post("/payments/create-order", { planId: activePlanId, ...form, voucherCode: applied?.code });
         openRazorpayCheckout({
           keyId: data.keyId,
           orderId: data.orderId,
@@ -163,9 +183,38 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
               <Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="border-white/15 bg-card text-white" placeholder="10-digit mobile" />
             </div>
 
+            {/* Voucher / coupon code — one-time purchases only. The discount is
+                validated and applied by the server; the client only previews. */}
+            {!isSub && (
+              <div>
+                <Label className="text-foreground/90">Voucher code <span className="text-muted-foreground">(optional)</span></Label>
+                {applied ? (
+                  <div className="mt-1 flex items-center justify-between rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm">
+                    <span className="text-emerald-200"><b>{applied.code}</b> applied · you save {inr(applied.discountPaise)}</span>
+                    <button type="button" onClick={() => { setApplied(null); setCoupon(""); }} className="text-xs text-emerald-300/80 underline hover:text-emerald-200">Remove</button>
+                  </div>
+                ) : (
+                  <div className="mt-1 flex gap-2">
+                    <Input value={coupon} onChange={(e) => setCoupon(e.target.value.toUpperCase())} className="border-white/15 bg-card uppercase text-white" placeholder="Enter code" />
+                    <Button type="button" variant="outline" onClick={applyCoupon} disabled={couponBusy || !coupon.trim()} className="shrink-0">
+                      {couponBusy ? <Loader2 size={15} className="animate-spin" /> : "Apply"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {applied && (
+              <p className="text-right text-sm text-foreground/80">
+                <span className="text-muted-foreground line-through">{activePrice}</span>{" "}
+                <span className="font-semibold text-emerald-300">{inr(applied.finalBasePaise)}</span>
+                <span className="text-muted-foreground"> + 18% GST</span>
+              </p>
+            )}
+
             <Button type="submit" disabled={busy} className="mt-2 w-full" size="lg">
               {busy ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Lock size={15} className="mr-2" />}
-              {busy ? "Starting secure payment…" : isSub ? `Subscribe · ${activePrice}` : `Pay ${activePrice}`}
+              {busy ? "Starting secure payment…" : isSub ? `Subscribe · ${activePrice}` : `Pay ${applied ? inr(applied.finalBasePaise) : activePrice}`}
             </Button>
           </form>
 

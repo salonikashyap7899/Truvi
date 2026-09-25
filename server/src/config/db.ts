@@ -178,6 +178,29 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "calls_developer_idx" ON "calls" ("developer_id", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "calls_cp_idx" ON "calls" ("cp_id", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "calls_provider_call_idx" ON "calls" ("provider_call_id")`,
+    // Discount vouchers (coupon codes) + the columns that record a voucher on a
+    // payment. Validated & applied server-side so a discount can't be forged.
+    `CREATE TABLE IF NOT EXISTS "vouchers" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "code" text NOT NULL,
+       "description" text,
+       "discount_type" text NOT NULL DEFAULT 'PERCENT',
+       "discount_value" integer NOT NULL DEFAULT 0,
+       "max_discount_paise" integer,
+       "plan_ids" jsonb,
+       "category" text,
+       "max_redemptions" integer,
+       "redeemed_count" integer NOT NULL DEFAULT 0,
+       "min_amount_paise" integer NOT NULL DEFAULT 0,
+       "active" boolean NOT NULL DEFAULT true,
+       "expires_at" timestamptz,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "vouchers_code_idx" ON "vouchers" ("code")`,
+    `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "voucher_code" text`,
+    `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "discount_paise" integer NOT NULL DEFAULT 0`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (
