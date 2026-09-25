@@ -48,11 +48,13 @@ export const PLANS: Record<string, PlanDef> = {
   cp_enterprise_monthly: { id: "cp_enterprise_monthly", label: "Enterprise CP (Monthly)", category: "CP", type: "subscription", pricePaise: R(2999), interval: "monthly" },
 
   // ── Developers ────────────────────────────────────────────────────────
-  dev_verified_badge: { id: "dev_verified_badge", label: "Verified Developer Badge (Prime Listing)", category: "DEVELOPER", type: "one_time", pricePaise: R(999), listPaise: R(4999) },
-  dev_3d_mapping: { id: "dev_3d_mapping", label: "3D Mapping", category: "DEVELOPER", type: "one_time", pricePaise: R(99), listPaise: R(999) },
-  dev_crm: { id: "dev_crm", label: "Developer CRM (Monthly)", category: "DEVELOPER", type: "one_time", pricePaise: R(49), listPaise: R(449), interval: "monthly" },
-  dev_ai_analytics: { id: "dev_ai_analytics", label: "AI Analytics Dashboard", category: "DEVELOPER", type: "one_time", pricePaise: R(999), listPaise: R(4999) },
-  dev_marketing_campaign: { id: "dev_marketing_campaign", label: "Marketing Campaign", category: "DEVELOPER", type: "one_time", pricePaise: R(100000), listPaise: R(200000) },
+  // Charged at full (actual) price — no upfront discount. Any discount is
+  // applied later via a backend-issued voucher, not baked into the price here.
+  dev_verified_badge: { id: "dev_verified_badge", label: "Verified Developer Badge (Prime Listing)", category: "DEVELOPER", type: "one_time", pricePaise: R(4999) },
+  dev_3d_mapping: { id: "dev_3d_mapping", label: "3D Mapping", category: "DEVELOPER", type: "one_time", pricePaise: R(999) },
+  dev_crm: { id: "dev_crm", label: "Developer CRM (Monthly)", category: "DEVELOPER", type: "one_time", pricePaise: R(499), interval: "monthly" },
+  dev_ai_analytics: { id: "dev_ai_analytics", label: "AI Analytics Dashboard", category: "DEVELOPER", type: "one_time", pricePaise: R(4999) },
+  dev_marketing_campaign: { id: "dev_marketing_campaign", label: "Marketing Campaign", category: "DEVELOPER", type: "one_time", pricePaise: R(200000) },
   dev_pro_monthly: { id: "dev_pro_monthly", label: "Developer Pro (Monthly)", category: "DEVELOPER", type: "subscription", pricePaise: R(9999), interval: "monthly" },
   dev_pro_yearly: { id: "dev_pro_yearly", label: "Developer Pro (Yearly)", category: "DEVELOPER", type: "subscription", pricePaise: R(99999), interval: "yearly" },
 };

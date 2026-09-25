@@ -87,7 +87,15 @@ export default function InventoryPage() {
     document.title = "TRUVI — Inventory";
     getInventory()
       .then((list) => setProjects(list))
-      .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load inventory"))
+      .catch((err: any) => {
+        // Only alarm the user when there's genuinely nothing to show. If we
+        // already have a (possibly cached) list on screen, a background refresh
+        // failure shouldn't pop a scary "Failed to load" toast over a working
+        // page.
+        if (peekInventory() === null) {
+          toast.error(err?.response?.data?.error || "Failed to load inventory");
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
