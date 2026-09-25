@@ -145,23 +145,23 @@ function FeatureBlock({
 }) {
   if ((!items || items.length === 0) && !note) return null;
   return (
-    <div className="rounded-2xl border border-white/10 glass p-5">
-      <p className="flex items-center gap-2 text-sm font-semibold text-white">
-        <span className="text-[var(--trust)]">{icon}</span>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.02] glass p-5 transition-colors hover:border-white/20">
+      <p className="flex items-center gap-2.5 text-sm font-semibold text-white">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-[var(--trust)]">{icon}</span>
         {title}
       </p>
       {items && items.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3.5 flex flex-wrap gap-2">
           {items.map((item) => (
             // rounded-lg (not -full) so a long, sentence-length item reads as a
             // tidy block instead of ballooning into an ellipse "blob".
-            <span key={item} className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-left text-xs leading-relaxed text-foreground/90">
+            <span key={item} className="rounded-lg border border-white/12 bg-white/[0.04] px-3 py-1.5 text-left text-xs leading-relaxed text-foreground/90">
               {item}
             </span>
           ))}
         </div>
       )}
-      {note && <p className="mt-3 text-sm text-muted-foreground">{note}</p>}
+      {note && <p className="mt-3.5 text-sm leading-relaxed text-foreground/75">{note}</p>}
     </div>
   );
 }
@@ -393,7 +393,11 @@ export default function ProjectPresentationPage() {
             <Eye size={13} /> {(project.viewCount ?? 0).toLocaleString("en-IN")} views
           </span>
         </p>
-        <p className="max-w-3xl text-sm text-foreground/90">{project.description}</p>
+        {project.description && (
+          <p className="max-w-3xl whitespace-pre-line rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-[15px] leading-[1.7] text-foreground/80">
+            {project.description}
+          </p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <Link
             to={`/inventory/${project._id}/3d`}
@@ -546,11 +550,17 @@ export default function ProjectPresentationPage() {
         const sectionImages = items.filter((a) => IMAGE_MIMES.test(a.mimeType));
         return (
           <section key={section.key} className="mt-10">
-            <h2 className="text-lg font-medium">
+            <h2 className="flex items-center gap-2 text-lg font-medium">
               {section.title} <span className="text-xs text-muted-foreground">({items.length})</span>
+              {items.length > 1 && <span className="ml-1 text-[11px] font-normal text-white/40">swipe →</span>}
             </h2>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {items.map((asset) => renderAsset(asset, sectionImages))}
+            {/* Horizontal, swipeable card carousel (was a static grid). */}
+            <div className="mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {items.map((asset) => (
+                <div key={asset._id} className="w-64 shrink-0 snap-start sm:w-72">
+                  {renderAsset(asset, sectionImages)}
+                </div>
+              ))}
             </div>
           </section>
         );
