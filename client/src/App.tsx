@@ -79,6 +79,7 @@ const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
 const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
 const InventoryPage = lazy(() => import("@/pages/InventoryPage"));
 const ProjectPresentationPage = lazy(() => import("@/pages/ProjectPresentationPage"));
+const ProjectLandingPage = lazy(() => import("@/pages/ProjectLandingPage"));
 const PipelinePage = lazy(() => import("@/pages/crm/PipelinePage"));
 const BookingsPage = lazy(() => import("@/pages/crm/BookingsPage"));
 const AdminAuditLogsPage = lazy(() => import("@/pages/admin/AdminAuditLogsPage"));
@@ -282,6 +283,8 @@ export default function App() {
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/map" element={<Suspense fallback={null}><ProjectsMapPage /></Suspense>} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
+        {/* Dedicated public project landing page (shareable, conversion-focused) */}
+        <Route path="/projects/:id" element={<ProjectLandingPage />} />
         <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
 
         {/* Marketing Dashboard — access-gated per-user (server enforces). */}
