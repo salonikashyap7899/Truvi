@@ -46,9 +46,11 @@ pm2 save >/dev/null 2>&1 || true
 # ---------------------------------------------------------------------------
 PORT="$(grep -E '^PORT=' server/.env 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
 PORT="${PORT:-5000}"
-echo "==> Waiting for the app on :$PORT to come back up…"
+# The app runs idempotent DB schema checks on boot, which can take a while on a
+# cold connection, so give it up to ~60s before calling it a failure.
+echo "==> Waiting for the app on :$PORT to come back up (up to 60s; DB checks run on boot)…"
 UP=""
-for i in $(seq 1 20); do
+for i in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then UP="yes"; break; fi
   sleep 1
 done
@@ -58,7 +60,9 @@ echo "================ DEPLOY DONE ================"
 if [ "$UP" = "yes" ]; then
   echo "App is UP and answering on :$PORT ✓"
 else
-  echo "!! App did NOT answer /health after 20s. Check: pm2 logs truviventures --lines 40 --nostream"
+  echo "!! App did NOT answer /health after 60s."
+  echo "   It may still be finishing boot — open the site and hard-refresh first."
+  echo "   If it's down, check: pm2 logs truviventures --lines 40 --nostream"
 fi
 echo "Now hard-refresh the browser: Ctrl+Shift+R"
 echo "If the database schema changed in this release, also run:"
