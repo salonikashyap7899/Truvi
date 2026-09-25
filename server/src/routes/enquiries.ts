@@ -116,6 +116,73 @@ router.post("/", enquiryUpload.single("file"), async (req, res) => {
   return res.status(201).json({ ok: true, enquiryId: enquiry._id });
 });
 
+// ── Project landing-page lead (phone-first) ──────────────────────────────────
+// Public. A landing page collects name + mobile (email optional) and posts here.
+// Stored in the same Enquiries inbox as purposeType BUYER so the founder/admin
+// sees every landing-page lead alongside site enquiries.
+const leadSchema = z.object({
+  name: z.string().min(1, "Please enter your name."),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^(\+?91[\-\s]?)?[6-9]\d{9}$/, "Please enter a valid 10-digit mobile number."),
+  email: z.string().email("Please enter a valid email.").optional().or(z.literal("")),
+  projectId: z.string().optional(),
+  projectName: z.string().optional(),
+  message: z.string().max(2000).optional(),
+});
+
+// POST /api/enquiries/lead  — public, no auth needed
+router.post("/lead", async (req, res) => {
+  const parsed = leadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  }
+
+  const { name, phone, email, projectId, projectName, message } = parsed.data;
+  const normalizedPhone = phone.replace(/[^\d]/g, "").replace(/^91(?=\d{10}$)/, "");
+
+  const db = getDb();
+  const [enquiry] = await db
+    .insert(enquiries)
+    .values({
+      name,
+      phone: normalizedPhone,
+      email: email && email.length ? email : null,
+      purposeType: "BUYER",
+      message: message || undefined,
+      projectId: projectId && isValidId(projectId) ? projectId : undefined,
+      projectName: projectName || undefined,
+    })
+    .returning();
+
+  // Real-time admin panel notification.
+  emitToRole("ADMIN", "enquiry:new", {
+    _id: enquiry._id,
+    name,
+    phone: normalizedPhone,
+    email: enquiry.email,
+    purposeType: "BUYER",
+    message: message || undefined,
+    projectName,
+    createdAt: enquiry.createdAt,
+  });
+
+  // Persistent bell/push notification (best-effort).
+  try {
+    await notifyRole("ADMIN", {
+      type: "new_enquiry",
+      title: "New project lead",
+      message: `${name || "Someone"} is interested${projectName ? ` in ${projectName}` : ""}.`,
+      data: { href: "/admin/enquiries" },
+    });
+  } catch {
+    /* non-fatal */
+  }
+
+  return res.status(201).json({ ok: true, enquiryId: enquiry._id });
+});
+
 // GET /api/enquiries  — admin only
 router.get("/", authenticate, requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
   const db = getDb();

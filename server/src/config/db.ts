@@ -201,6 +201,10 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "vouchers_code_idx" ON "vouchers" ("code")`,
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "voucher_code" text`,
     `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "discount_paise" integer NOT NULL DEFAULT 0`,
+    // Project landing-page leads are phone-first: add a phone column and drop the
+    // NOT NULL on email so a lead can arrive with only name + phone.
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "phone" text`,
+    `ALTER TABLE "enquiries" ALTER COLUMN "email" DROP NOT NULL`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (

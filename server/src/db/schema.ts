@@ -795,7 +795,9 @@ export const enquiries = pgTable(
   "enquiries",
   {
     _id: uuid("id").defaultRandom().primaryKey(),
-    email: text("email").notNull(),
+    // Email is optional now — landing-page leads are phone-first.
+    email: text("email"),
+    phone: text("phone"),
     name: text("name").notNull(),
     purposeType: text("purpose_type").$type<EnquiryPurpose>().notNull(),
     message: text("message"),
