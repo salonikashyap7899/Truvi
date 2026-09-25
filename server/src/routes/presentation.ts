@@ -23,6 +23,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
 import { scoreImageFile } from "../services/ai/scoreImage";
+import { optimizeUploadedImage } from "../services/media/optimizeImage";
 
 const router = Router();
 
@@ -239,6 +240,11 @@ router.post(
     const isLegal = LEGAL_ASSET_CATEGORIES.includes(parsed.data.category);
     const verified = !isLegal || req.user!.role === "ADMIN";
 
+    // Shrink oversized photos in place before recording their size (best-effort;
+    // a non-image or any failure leaves the original file untouched). The file
+    // path, name and URL are unchanged, so nothing downstream is affected.
+    const optimizedSize = await optimizeUploadedImage(req.file.path, req.file.mimetype);
+
     const db = getDb();
     const [asset] = await db
       .insert(projectAssets)
@@ -250,7 +256,7 @@ router.post(
         fileUrl: assetFileUrl(req.file.filename),
         fileName: req.file.originalname,
         mimeType: req.file.mimetype,
-        sizeBytes: req.file.size,
+        sizeBytes: optimizedSize,
         uploadedBy: req.user!.userId,
         verified,
       })
