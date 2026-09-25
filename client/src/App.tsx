@@ -215,6 +215,24 @@ export default function App() {
     if (IS_NATIVE) useLocationStore.getState().request();
   }, []);
 
+  // Once the app is idle, quietly pre-load the chunks for the screens people
+  // open most (Explore + a listing). Their code is then already in memory, so
+  // tapping through feels instant instead of showing a loading state. Failures
+  // are ignored — this is a best-effort warm-up, not a dependency.
+  useEffect(() => {
+    const warm = () => {
+      import("@/pages/InventoryPage").catch(() => {});
+      import("@/pages/ProjectPresentationPage").catch(() => {});
+    };
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void) => number };
+    const id = w.requestIdleCallback ? w.requestIdleCallback(warm) : window.setTimeout(warm, 1800);
+    return () => {
+      const wc = window as unknown as { cancelIdleCallback?: (id: number) => void };
+      if (wc.cancelIdleCallback) wc.cancelIdleCallback(id as number);
+      else clearTimeout(id as number);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <NativeShell />

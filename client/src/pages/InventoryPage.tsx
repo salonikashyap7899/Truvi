@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { api } from "@/lib/api";
+import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { toast } from "sonner";
 import {
   Search, Star, ShieldCheck, MapPin, ArrowRight, Share2, Heart,
@@ -70,11 +70,11 @@ export default function InventoryPage() {
   // effect even while this page is already mounted.
   const urlCat = params.get("cat") as CategoryKey | null;
   const category: CategoryKey = urlCat && CATEGORY_KEYS.has(urlCat) ? urlCat : "ALL";
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(() => peekInventory() ?? []);
   const [search, setSearch] = useState(() => params.get("q") ?? "");
   const [sort, setSort] = useState<SortKey>("RECOMMENDED");
   const [nearMe, setNearMe] = useState(params.get("near") === "1");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => peekInventory() === null);
   const [showGate, setShowGate] = useState(false);
   const { user } = useAuth();
   const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(user?._id));
@@ -85,9 +85,8 @@ export default function InventoryPage() {
 
   useEffect(() => {
     document.title = "TRUVI — Inventory";
-    api
-      .get("/inventory")
-      .then((res) => setProjects(res.data.projects))
+    getInventory()
+      .then((list) => setProjects(list))
       .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load inventory"))
       .finally(() => setLoading(false));
   }, []);

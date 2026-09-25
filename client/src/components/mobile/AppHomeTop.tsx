@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Search, Building2, MapPin, Star, ShieldCheck, ArrowRight,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { formatCompactINR } from "@/lib/utils";
 import type { Project } from "@/types";
 
@@ -16,15 +16,15 @@ import type { Project } from "@/types";
 
 export default function AppHomeTop() {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<Project[] | null>(null);
+  // Seed from the shared cache so returning to Home paints instantly.
+  const [projects, setProjects] = useState<Project[] | null>(() => peekInventory());
   const [q, setQ] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .get("/inventory")
-      .then((res) => { if (!cancelled) setProjects((res.data.projects ?? []) as Project[]); })
-      .catch(() => { if (!cancelled) setProjects([]); });
+    getInventory()
+      .then((list) => { if (!cancelled) setProjects(list); })
+      .catch(() => { if (!cancelled) setProjects((prev) => prev ?? []); });
     return () => { cancelled = true; };
   }, []);
 
