@@ -1291,6 +1291,10 @@ export const payments = pgTable(
     razorpaySignature: text("razorpay_signature"),
     // CREATED → PAID / FAILED. (Subscriptions may add ACTIVE later.)
     status: text("status").$type<"CREATED" | "PAID" | "FAILED">().notNull().default("CREATED"),
+    // Applied discount voucher (if any). amountPaise already reflects the
+    // discount; these are for the record and admin reporting.
+    voucherCode: text("voucher_code"),
+    discountPaise: integer("discount_paise").notNull().default(0),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
@@ -1302,6 +1306,38 @@ export const payments = pgTable(
   ]
 );
 export type IPayment = typeof payments.$inferSelect;
+
+/**
+ * Discount vouchers (coupon codes). Admin-issued; validated and applied on the
+ * SERVER at checkout so the discount can never be forged by the client. A
+ * PERCENT voucher takes `discountValue`% off (optionally capped at
+ * `maxDiscountPaise`); a FIXED voucher takes `discountValue` paise off. A
+ * voucher can be scoped to specific plan ids and/or a category, limited by a
+ * total redemption count and an expiry, and toggled active/inactive.
+ */
+export const vouchers = pgTable(
+  "vouchers",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(), // stored UPPERCASE, unique
+    description: text("description"),
+    discountType: text("discount_type").$type<"PERCENT" | "FIXED">().notNull().default("PERCENT"),
+    discountValue: integer("discount_value").notNull().default(0), // percent (1..100) or paise off
+    maxDiscountPaise: integer("max_discount_paise"), // cap for PERCENT (null = uncapped)
+    planIds: jsonb("plan_ids").$type<string[]>(), // null/empty = any plan
+    category: text("category"), // BUYER | CP | DEVELOPER | null (any)
+    maxRedemptions: integer("max_redemptions"), // null = unlimited
+    redeemedCount: integer("redeemed_count").notNull().default(0),
+    minAmountPaise: integer("min_amount_paise").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("vouchers_code_idx").on(t.code)],
+);
+export type IVoucher = typeof vouchers.$inferSelect;
 
 /**
  * Razorpay Plan mapping — one row per internal subscription plan id
