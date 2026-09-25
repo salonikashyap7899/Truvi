@@ -64,11 +64,13 @@ router.post(
         projectId, cpId: cp._id, developerId: dev._id, provider: provider.name,
         virtualNumber: callerId, status: "FAILED",
       }).catch(() => {});
-      // 400 (not 5xx): the provider rejected the request (e.g. a number that is
-      // invalid or not yet verified with the trial account), so a gateway proxy
-      // won't swallow the body and the real reason reaches the caller.
+      // 400 (not 5xx): the provider rejected the request (e.g. calling isn't
+      // fully activated yet, or a number isn't verified), so a gateway proxy
+      // won't swallow the body and a clear, non-alarming message reaches the
+      // caller.
       return res.status(400).json({
-        error: "Couldn't connect the call. Please check that both phone numbers are valid and verified with the calling provider, then try again.",
+        error: "Calling isn't available right now. Please try again later.",
+        reason: "unavailable",
       });
     }
 

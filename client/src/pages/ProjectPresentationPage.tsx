@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -166,6 +166,67 @@ function FeatureBlock({
   );
 }
 
+/* ── Hero image carousel ──────────────────────────────────────────────────
+   A full-width, auto-playing, swipeable banner of the project's photos, shown
+   at the very top so the page opens like a real property listing. Tapping an
+   image opens the zoomable lightbox. */
+function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img: ProjectAsset) => void }) {
+  const [i, setI] = useState(0);
+  const n = images.length;
+  const touch = useRef<{ x: number; active: boolean }>({ x: 0, active: false });
+  const paused = useRef(false);
+
+  useEffect(() => { if (i >= n && n > 0) setI(0); }, [n, i]);
+  useEffect(() => {
+    if (n <= 1) return;
+    const id = setInterval(() => { if (!paused.current) setI((p) => (p + 1) % n); }, 4000);
+    return () => clearInterval(id);
+  }, [n]);
+
+  if (n === 0) return null;
+  const go = (next: number) => setI(((next % n) + n) % n);
+
+  return (
+    <div
+      className="relative mt-4 h-56 w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0a0d14] sm:h-72 md:h-96"
+      onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, active: true }; paused.current = true; }}
+      onTouchEnd={(e) => {
+        if (touch.current.active) {
+          const dx = e.changedTouches[0].clientX - touch.current.x;
+          if (dx < -40) go(i + 1); else if (dx > 40) go(i - 1);
+        }
+        touch.current.active = false; paused.current = false;
+      }}
+    >
+      <div className="flex h-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${i * 100}%)` }}>
+        {images.map((img) => (
+          <button key={img._id} onClick={() => onOpen(img)} className="relative h-full w-full shrink-0" title="Click to view & zoom">
+            <img src={img.fileUrl} alt={img.title} className="h-full w-full object-cover" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </button>
+        ))}
+      </div>
+
+      {n > 1 && (
+        <>
+          <button onClick={() => go(i - 1)} aria-label="Previous image" className="absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/70">
+            <ChevronLeft size={18} />
+          </button>
+          <button onClick={() => go(i + 1)} aria-label="Next image" className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/70">
+            <ChevronRight size={18} />
+          </button>
+          <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center gap-1.5">
+            {images.map((_, idx) => (
+              <button key={idx} onClick={() => go(idx)} aria-label={`Go to image ${idx + 1}`} className={`h-1.5 rounded-full transition-all ${idx === i ? "w-5 bg-white" : "w-1.5 bg-white/40"}`} />
+            ))}
+          </div>
+          <span className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white/90">{i + 1} / {n}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main page ────────────────────────────────────────────────────────────── */
 export default function ProjectPresentationPage() {
   const { id } = useParams<{ id: string }>();
@@ -205,6 +266,9 @@ export default function ProjectPresentationPage() {
     }
     return map;
   }, [assets]);
+
+  // Every photo across all categories, for the hero banner at the top.
+  const heroImages = useMemo(() => assets.filter((a) => IMAGE_MIMES.test(a.mimeType)), [assets]);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading presentation…</div>;
   if (!project) {
@@ -292,6 +356,9 @@ export default function ProjectPresentationPage() {
       <Link to="/inventory" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white transition-colors">
         <ArrowLeft size={14} /> Back to Inventory
       </Link>
+
+      {/* Hero photo banner — opens the page like a real property listing */}
+      <HeroCarousel images={heroImages} onOpen={(img) => openLightbox(heroImages, img)} />
 
       {/* Header */}
       <div className="mt-4 flex flex-col gap-2">

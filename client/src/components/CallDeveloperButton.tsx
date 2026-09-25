@@ -26,7 +26,11 @@ export default function CallDeveloperButton({ projectId, className = "" }: { pro
       const res = await api.post(`/projects/${projectId}/call-developer`);
       setPlaced(res.data?.message || "Connecting your call — your phone will ring shortly.");
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Couldn't start the call. Please try again.");
+      // A calling failure here is almost always "not activated yet", not a real
+      // error — show it as a calm, informational message, not an alarming red one.
+      toast(err?.response?.data?.error || "Calling isn't available right now. Please try again later.", {
+        icon: "📞",
+      });
     } finally {
       setCalling(false);
     }
