@@ -144,6 +144,8 @@ export interface User {
   emailVerified?: boolean;
   phoneVerified?: boolean;
   onboardingVerified?: boolean;
+  /** CP has confirmed joining the mandatory Truvi WhatsApp updates channel. */
+  whatsappChannelJoined?: boolean;
   onboardingChecks?: {
     aadhaarVerified?: boolean;
     phoneVerified?: boolean;

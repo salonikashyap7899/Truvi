@@ -363,6 +363,11 @@ export const users = pgTable(
     // editable by the account owner from their dashboard settings.
     avatarUrl: text("avatar_url"),
     bio: text("bio"),
+    // Channel Partners must follow the Truvi Ventures WhatsApp updates channel
+    // before the CP workspace unlocks (a mandatory step alongside KYC). Set once
+    // the CP confirms they've joined; there's no WhatsApp API to verify it, so
+    // this is a required self-acknowledgement gate.
+    whatsappChannelJoined: boolean("whatsapp_channel_joined").notNull().default(false),
     // Last time this account made an authenticated request — powers the
     // MAU/DAU active-user metrics (updated at most once per ~10 min).
     lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),

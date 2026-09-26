@@ -23,6 +23,9 @@ async function ensureSchema(db: Db): Promise<void> {
     // Personal profile: avatar image URL + short bio, editable from dashboard settings.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
+    // Mandatory WhatsApp-updates-channel join for Channel Partners (gates the CP
+    // workspace alongside KYC).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "whatsapp_channel_joined" boolean NOT NULL DEFAULT false`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
     // Which body approved the project (RERA / District Panchayat / DTCP), so a
