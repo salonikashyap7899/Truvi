@@ -292,6 +292,7 @@ function issueSession(res: import("express").Response, user: IUser) {
       phoneVerified: user.phoneVerified,
       onboardingVerified: user.onboardingVerified,
       onboardingChecks: user.onboardingChecks,
+      whatsappChannelJoined: user.whatsappChannelJoined ?? false,
       avatarUrl: user.avatarUrl ?? null,
       bio: user.bio ?? null,
     },
@@ -652,6 +653,23 @@ router.get("/me", authenticate, async (req: AuthedRequest, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
   const { password: _p, ...safeUser } = user;
   return res.json({ user: { ...safeUser, isFounder: isFounderEmail(user.email) } });
+});
+
+// POST /api/auth/join-whatsapp-channel — the signed-in user confirms they've
+// followed the mandatory Truvi Ventures WhatsApp updates channel. There is no
+// WhatsApp API to verify membership, so this records the user's own
+// confirmation, which unlocks the CP workspace alongside KYC.
+router.post("/join-whatsapp-channel", authenticate, async (req: AuthedRequest, res) => {
+  const userId = req.user!.userId;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  const db = getDb();
+  const [updated] = await db
+    .update(users)
+    .set({ whatsappChannelJoined: true })
+    .where(eq(users._id, userId))
+    .returning({ whatsappChannelJoined: users.whatsappChannelJoined });
+  if (!updated) return res.status(404).json({ error: "User not found" });
+  return res.json({ ok: true, whatsappChannelJoined: true });
 });
 
 // PATCH /api/auth/profile — the signed-in user edits their own display profile

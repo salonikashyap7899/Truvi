@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MyPlans } from "@/components/MyPlans";
 import { CpKycOnboarding } from "@/components/CpKycOnboarding";
+import { CpWhatsAppGate } from "@/components/CpWhatsAppGate";
 import { CpHubNav } from "@/components/CpHubNav";
 import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { UpsellModal } from "@/components/UpsellModal";
@@ -61,13 +62,16 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
     }
   }
 
-  // Channel Partners must clear identity verification before the workspace loads.
+  // Channel Partners must clear identity verification before the workspace
+  // loads, and then confirm they've joined the mandatory WhatsApp updates
+  // channel — both gates come before any dashboard data is fetched.
   const needsKyc = user?.role === "CP" && !user?.onboardingVerified;
+  const needsWhatsApp = user?.role === "CP" && !!user?.onboardingVerified && !user?.whatsappChannelJoined;
 
   useEffect(() => {
-    if (!needsKyc) load();
+    if (!needsKyc && !needsWhatsApp) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsKyc]);
+  }, [needsKyc, needsWhatsApp]);
 
   // Real-time: another CP locking a unit reflects here instantly — this is
   // exactly the "Developers and CPs must see literally the same live data"
@@ -109,6 +113,7 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
   }
 
   if (needsKyc) return <CpKycOnboarding />;
+  if (needsWhatsApp) return <CpWhatsAppGate />;
   if (!user) return null;
   if (error) return <div className="min-h-screen p-10 text-white"><p className="text-red-400">{error}</p></div>;
 
