@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box, Eye,
-  Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera, ExternalLink,
+  Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
 } from "lucide-react";
 import { LayoutGrid, CalendarClock } from "lucide-react";
 import { Navigation } from "lucide-react";
@@ -409,15 +409,6 @@ export default function ProjectPresentationPage() {
             project={project}
             className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-200 transition-all hover:border-emerald-400/60 hover:bg-emerald-500/20 hover:shadow-[0_0_24px_rgba(16,185,129,0.2)]"
           />
-          {/* Open the public, shareable landing page for this project. */}
-          <a
-            href={`/projects/${project._id}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex w-fit items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-5 py-2.5 text-sm font-medium text-sky-200 transition-all hover:border-sky-400/60 hover:bg-sky-500/20 hover:shadow-[0_0_24px_rgba(56,189,248,0.2)]"
-          >
-            <ExternalLink size={15} /> View public page
-          </a>
         </div>
 
         {/* Brochure — appears only when an admin has uploaded one */}

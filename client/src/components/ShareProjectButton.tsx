@@ -9,14 +9,9 @@ import type { Project } from "@/types";
  * on browsers without the Web Share API.
  */
 
-/**
- * Public link used when SHARING a listing — points to the dedicated project
- * landing page (`/projects/:id`), a clean, conversion-focused page built for
- * buyers arriving from WhatsApp, ads, social or a QR code. (In-app navigation
- * still uses the richer `/inventory/:id/presentation` view.)
- */
+/** Public presentation link for a listing. */
 export function shareUrl(project: Project): string {
-  return `${window.location.origin}/projects/${project._id}`;
+  return `${window.location.origin}/inventory/${project._id}/presentation`;
 }
 
 /** Buyer-friendly summary — headline facts only (no full spec sheet). */

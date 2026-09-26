@@ -291,6 +291,18 @@ export default function ProjectLandingPage() {
     return () => { alive = false; };
   }, [id]);
 
+  // Keep the landing page OUT of search engines. It is meant to be reached only
+  // via an ad link or a share we send to a buyer — not discovered by browsing
+  // or Googling. We add a robots "noindex, nofollow" tag while this page is
+  // mounted and remove it on unmount so the rest of the site stays indexable.
+  useEffect(() => {
+    const meta = document.createElement("meta");
+    meta.name = "robots";
+    meta.content = "noindex, nofollow";
+    document.head.appendChild(meta);
+    return () => { document.head.removeChild(meta); };
+  }, []);
+
   const heroImages = useMemo(() => assets.filter((a) => IMAGE_MIMES.test(a.mimeType)), [assets]);
   const galleryImages = useMemo(
     () => assets.filter((a) => IMAGE_MIMES.test(a.mimeType) && (a.category === "GALLERY_IMAGE" || a.category === "RENDER_3D")),
