@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
@@ -10,8 +10,74 @@ import { Input, Label, PasswordInput } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
 import { VoiceGuideButton } from "@/components/VoiceGuideButton";
-import { User, Handshake, Building2, Loader2, ArrowRight } from "lucide-react";
+import { User, Handshake, Building2, Loader2, ArrowRight, ChevronDown, Search } from "lucide-react";
 import { COUNTRY_CODES } from "@/lib/countryCodes";
+
+/** Searchable country dial-code picker (native <select> can't be searched).
+ *  Defined at module scope so the search input keeps focus across renders. */
+function CountrySelect({ value, onChange, inputCls }: { value: string; onChange: (dial: string) => void; inputCls: string }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = COUNTRY_CODES.find((c) => c.dial === value) ?? COUNTRY_CODES[0];
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? COUNTRY_CODES.filter((c) => c.name.toLowerCase().includes(q) || c.dial.replace("+", "").includes(q.replace("+", "")) || c.iso.toLowerCase().includes(q))
+    : COUNTRY_CODES;
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-[8.5rem] shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`${inputCls} flex w-full items-center justify-between gap-1`}
+        aria-label="Select country code"
+      >
+        <span className="truncate">{selected.flag} {selected.dial}</span>
+        <ChevronDown size={14} className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-[60] mt-1 w-64 overflow-hidden rounded-xl border border-white/15 bg-[#0d1219] shadow-2xl shadow-black/60">
+          <div className="border-b border-white/10 p-2">
+            <div className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.05] px-2.5 py-1.5">
+              <Search size={14} className="shrink-0 text-white/40" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search country or code…"
+                className="w-full bg-transparent text-sm text-white placeholder:text-white/35 outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {filtered.length === 0 && <p className="px-3 py-3 text-xs text-white/50">No country matches.</p>}
+            {filtered.map((c) => (
+              <button
+                type="button"
+                key={`${c.iso}${c.dial}`}
+                onClick={() => { onChange(c.dial); setOpen(false); setQuery(""); }}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${c.dial === value ? "bg-white/[0.06]" : ""}`}
+              >
+                <span className="w-6 shrink-0">{c.flag}</span>
+                <span className="flex-1 truncate text-white/90">{c.name}</span>
+                <span className="shrink-0 text-white/50">{c.dial}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const signupSchema = z
   .object({
@@ -184,17 +250,12 @@ export default function SignupPage() {
                 <div>
                   <Label>Phone</Label>
                   <div className="flex gap-2">
-                    <select
-                      {...register("countryCode")}
-                      aria-label="Country code"
-                      className={`${inputCls} w-[7.5rem] shrink-0 pr-1`}
-                    >
-                      {COUNTRY_CODES.map((c) => (
-                        <option key={`${c.iso}${c.dial}`} value={c.dial}>
-                          {c.flag} {c.dial}
-                        </option>
-                      ))}
-                    </select>
+                    <input type="hidden" {...register("countryCode")} />
+                    <CountrySelect
+                      value={countryCode}
+                      onChange={(d) => setValue("countryCode", d, { shouldValidate: true })}
+                      inputCls={inputCls}
+                    />
                     <Input
                       {...register("phone")}
                       inputMode="tel"
