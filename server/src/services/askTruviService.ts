@@ -36,6 +36,24 @@ export interface RetrievedContext {
   location: LocationFacts | null;
   budgetQuery: BudgetQuery | null;
   retrievalNotes: string[];
+  /** Compact list of EVERY approved project, so the assistant always has full
+   *  visibility into what's available (cities, locations, prices, verification)
+   *  and never falsely claims it can't see the catalog. */
+  catalog: CatalogItem[];
+}
+
+export interface CatalogItem {
+  name: string;
+  city: string;
+  location: string;
+  projectType: string | null;
+  isVerified: boolean;
+  trustScore: number | null;
+  rera: boolean;
+  priceMin: number | null;
+  priceMax: number | null;
+  availableUnits: number;
+  possession: string | null;
 }
 
 interface FactValue {
@@ -225,21 +243,70 @@ async function findProjectsInMessage(message: string, limit = 4): Promise<IProje
   if (tokens.length === 0) return [];
 
   const db = getDb();
-  const tokenConditions = tokens.map((t) => ilike(projects.name, `%${t}%`));
+  // Match a token against the project NAME, CITY or LOCATION — so "projects in
+  // Hyderabad" or "plots on Sultanpur Road" find the right project, not just a
+  // name search.
+  const tokenConditions = tokens.flatMap((t) => [
+    ilike(projects.name, `%${t}%`),
+    ilike(projects.city, `%${t}%`),
+    ilike(projects.location, `%${t}%`),
+  ]);
   const candidates = await db
     .select()
     .from(projects)
     .where(and(eq(projects.approvalStatus, "APPROVED"), or(...tokenConditions)))
     .limit(20);
 
-  // Rank by how many tokens the name matches so "ABC Residency" beats "ABC"
+  // Rank by how many tokens hit the name/city/location.
   const scored = candidates
-    .map((p) => ({
-      p,
-      score: tokens.filter((t) => p.name.toLowerCase().includes(t.toLowerCase())).length,
-    }))
+    .map((p) => {
+      const hay = `${p.name} ${p.city} ${p.location}`.toLowerCase();
+      return { p, score: tokens.filter((t) => hay.includes(t.toLowerCase())).length };
+    })
     .sort((a, b) => b.score - a.score);
   return scored.slice(0, limit).map((s) => s.p);
+}
+
+/** Compact summary of every approved project — always sent to the model. */
+async function buildCatalog(): Promise<CatalogItem[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.approvalStatus, "APPROVED"))
+    .limit(200);
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((p) => p._id);
+  const agg = await db
+    .select({
+      projectId: units.projectId,
+      min: sql<number | null>`min(${units.price})`,
+      max: sql<number | null>`max(${units.price})`,
+      avail: sql<number>`count(*) filter (where ${units.status} = 'AVAILABLE')`,
+    })
+    .from(units)
+    .where(inArray(units.projectId, ids))
+    .groupBy(units.projectId);
+  const byId = new Map(agg.map((a) => [String(a.projectId), a]));
+
+  return rows.map((p) => {
+    const a = byId.get(String(p._id));
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return {
+      name: p.name,
+      city: p.city,
+      location: p.location,
+      projectType: p.projectType ?? null,
+      isVerified: !!p.isVerified,
+      trustScore: p.trustScore ?? null,
+      rera: !!p.reraNumber,
+      priceMin: num(a?.min),
+      priceMax: num(a?.max),
+      availableUnits: Number(a?.avail ?? 0),
+      possession: fmtDate(p.possessionDate) ?? null,
+    };
+  });
 }
 
 async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]> {
@@ -376,5 +443,12 @@ export async function retrieveContext(message: string): Promise<RetrievedContext
     projectFacts.push(await buildProjectFacts(p));
   }
 
-  return { intent, projects: projectFacts, builders, location, budgetQuery, retrievalNotes: notes };
+  // Always attach the full catalog so the assistant can answer "which cities",
+  // location and availability questions even when no single project matched.
+  const catalog = await buildCatalog().catch((err) => {
+    console.error("Ask Truvi catalog build failed:", err instanceof Error ? err.message : err);
+    return [] as CatalogItem[];
+  });
+
+  return { intent, projects: projectFacts, builders, location, budgetQuery, retrievalNotes: notes, catalog };
 }

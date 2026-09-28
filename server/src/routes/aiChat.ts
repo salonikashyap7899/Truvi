@@ -202,7 +202,8 @@ router.post("/", authenticate, async (req: AuthedRequest, res) => {
     if (context.retrievalNotes.length) {
       dataBlock += `RETRIEVAL NOTES: ${context.retrievalNotes.join(" | ")}\n`;
     }
-    dataBlock += `\nTRUVI DATA:\n${JSON.stringify(
+    dataBlock += `\nFULL CATALOG — every project currently APPROVED and live on Truvi (${context.catalog.length} project${context.catalog.length === 1 ? "" : "s"}). You HAVE full visibility into this list; use it to answer which cities/locations have projects, prices, availability and verification, and to match a metro to nearby projects (e.g. a project in Telangana / Yadadri-Bhuvanagiri near Hyderabad). Never say you lack visibility into the catalog when this list is present.\n${JSON.stringify(context.catalog, null, 1)}`;
+    dataBlock += `\n\nTRUVI DATA (detailed facts for the projects most relevant to this query):\n${JSON.stringify(
       { projects: context.projects, builders: context.builders, location: context.location },
       null,
       1,
