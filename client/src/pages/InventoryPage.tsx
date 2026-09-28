@@ -50,11 +50,14 @@ const SORTS: { key: SortKey; label: string }[] = [
 ];
 
 /* ── Shortlist (localStorage, scoped PER ACCOUNT) ───────────────────────────
-   The saved list is keyed by the signed-in user's id, so switching accounts on
-   the same device never shows one account's saves under another. Signed-out
-   browsing uses a separate "guest" bucket. */
-const shortlistKey = (userId?: string | null) => `truvi-shortlist:${userId || "guest"}`;
+   Saving requires an account. The saved list is keyed strictly by the signed-in
+   user's id, so switching accounts on the same device never shows one account's
+   saves under another — and once you log out, you have NO saved list (the
+   feature belongs to the account, not the device). There is deliberately no
+   "guest" bucket: a signed-out visitor sees an empty Saved tab. */
+const shortlistKey = (userId: string) => `truvi-shortlist:${userId}`;
 function loadShortlist(userId?: string | null): Set<string> {
+  if (!userId) return new Set(); // signed out → nothing saved
   try {
     return new Set(JSON.parse(localStorage.getItem(shortlistKey(userId)) || "[]"));
   } catch {
@@ -82,6 +85,13 @@ export default function InventoryPage() {
   const coords = useLocationStore((s) => s.coords);
   const locStatus = useLocationStore((s) => s.status);
   const requestLocation = useLocationStore((s) => s.request);
+
+  // One-time cleanup: earlier builds stored signed-out saves in a shared
+  // "guest" bucket, which is why a saved property could linger after logout on
+  // this device. Remove it so those stale saves disappear for good.
+  useEffect(() => {
+    try { localStorage.removeItem("truvi-shortlist:guest"); } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     document.title = "TRUVI — Inventory";
@@ -124,11 +134,18 @@ export default function InventoryPage() {
   }, [user?._id]);
 
   const toggleSaved = (id: string) => {
+    // Saving is an account feature — a signed-out visitor cannot save (so a
+    // save can never leak across accounts or survive logout on a shared device).
+    if (!user?._id) {
+      toast.error("Please log in to save properties.");
+      return;
+    }
+    const uid = user._id;
     setSaved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      try { localStorage.setItem(shortlistKey(user?._id), JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem(shortlistKey(uid), JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   };
@@ -238,7 +255,11 @@ export default function InventoryPage() {
           </div>
         ) : results.length === 0 ? (
           <p className="mt-16 text-center text-sm text-muted-foreground">
-            {category === "SAVED" ? "No saved properties yet — tap the heart on a listing to save it." : "No properties match your search."}
+            {category === "SAVED"
+              ? user
+                ? "No saved properties yet — tap the heart on a listing to save it."
+                : "Log in to save properties and see them here."
+              : "No properties match your search."}
           </p>
         ) : (
           <div className="mx-auto mt-6 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-3">
