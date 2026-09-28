@@ -105,9 +105,14 @@ const twilioClient = hasTwilioConfig
  * E.164; the app stores plain 10-digit numbers.
  */
 function toE164(phone: string): string {
-  const trimmed = phone.trim();
-  if (trimmed.startsWith("+")) return trimmed;
+  const trimmed = (phone || "").trim();
+  // Already international (has its own country code) → keep it, just strip any
+  // spaces/dashes so Twilio gets a clean +<digits> number.
+  if (trimmed.startsWith("+")) return "+" + trimmed.slice(1).replace(/\D/g, "");
   const digits = trimmed.replace(/\D/g, "");
+  // A stored number that already carries the 91 country code but no "+".
+  if (digits.length > 10 && digits.startsWith("91")) return `+${digits}`;
+  // Bare Indian 10-digit → default to +91 (unchanged behaviour).
   return `+91${digits.slice(-10)}`;
 }
 

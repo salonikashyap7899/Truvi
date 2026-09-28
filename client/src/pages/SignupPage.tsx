@@ -11,6 +11,7 @@ import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
 import { VoiceGuideButton } from "@/components/VoiceGuideButton";
 import { User, Handshake, Building2, Loader2, ArrowRight } from "lucide-react";
+import { COUNTRY_CODES } from "@/lib/countryCodes";
 
 const signupSchema = z
   .object({
@@ -26,7 +27,10 @@ const signupSchema = z
       .regex(/[A-Z]/, "Add at least one uppercase letter")
       .regex(/[0-9]/, "Add at least one number")
       .regex(/[^A-Za-z0-9]/, "Add at least one special character"),
-    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    // The country dial code (e.g. "+91") plus the national number. Indian
+    // numbers keep the exact 10-digit rule; other countries accept 6–14 digits.
+    countryCode: z.string(),
+    phone: z.string(),
     role: z.enum(["DEVELOPER", "CP", "BUYER"]),
     companyName: z.string().optional(),
     referralCode: z.string().optional(),
@@ -34,6 +38,14 @@ const signupSchema = z
   .superRefine((data, ctx) => {
     if (data.role === "DEVELOPER" && (!data.companyName || data.companyName.trim().length < 2)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["companyName"], message: "Company name is required for developers" });
+    }
+    const national = (data.phone || "").replace(/\D/g, "");
+    if (data.countryCode === "+91") {
+      if (!/^[6-9]\d{9}$/.test(national)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phone"], message: "Enter a valid 10-digit Indian mobile number" });
+      }
+    } else if (national.length < 6 || national.length > 14) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phone"], message: "Enter a valid mobile number for the selected country" });
     }
   });
 
@@ -73,10 +85,11 @@ export default function SignupPage() {
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { role: initialRole, referralCode: searchParams.get("ref") ?? "" },
+    defaultValues: { role: initialRole, countryCode: "+91", referralCode: searchParams.get("ref") ?? "" },
   });
 
   const role = watch("role");
+  const countryCode = watch("countryCode");
 
   // Play the voice guide that matches the role the user is signing up as.
   const guideAudio =
@@ -88,10 +101,15 @@ export default function SignupPage() {
 
   async function onSubmit(data: SignupForm) {
     setServerError(null);
+    // Build the number to send: Indian numbers stay a bare 10-digit (unchanged);
+    // other countries send full E.164 with the country code so the OTP SMS
+    // reaches the right country.
+    const national = (data.phone || "").replace(/\D/g, "");
+    const phoneToSend = data.countryCode === "+91" ? national : `${data.countryCode}${national}`;
     try {
-      await signup(data);
+      await signup({ ...data, phone: phoneToSend });
       // Account created — verify the email + phone OTPs inline on this page.
-      setPending({ email: data.email, phone: data.phone });
+      setPending({ email: data.email, phone: phoneToSend });
       setStep("otp");
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
@@ -165,8 +183,31 @@ export default function SignupPage() {
                 </div>
                 <div>
                   <Label>Phone</Label>
-                  <Input {...register("phone")} placeholder="98765 43210" className={inputCls} />
+                  <div className="flex gap-2">
+                    <select
+                      {...register("countryCode")}
+                      aria-label="Country code"
+                      className={`${inputCls} w-[7.5rem] shrink-0 pr-1`}
+                    >
+                      {COUNTRY_CODES.map((c) => (
+                        <option key={`${c.iso}${c.dial}`} value={c.dial}>
+                          {c.flag} {c.dial}
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      {...register("phone")}
+                      inputMode="tel"
+                      placeholder={countryCode === "+91" ? "98765 43210" : "Mobile number"}
+                      className={`${inputCls} flex-1`}
+                    />
+                  </div>
                   {errors.phone && <p className="mt-1 text-xs text-red-400">{errors.phone.message}</p>}
+                  {countryCode !== "+91" && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      We'll text your OTP to {countryCode}. Standard international SMS may apply.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Password</Label>
