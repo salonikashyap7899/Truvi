@@ -96,24 +96,52 @@ function profileIsSet(p: AdvisorProfile) {
   return Boolean(p.budget || p.city || p.bhk || p.purpose || p.timeline);
 }
 
-/* ---- Minimal rich text: **bold** + newlines ---- */
-function RichText({ text }: { text: string }) {
+/* ---- Rich text: **bold**, headings, bullets, clean line breaks ----
+   Renders the assistant's reply as tidy, professional text. It also degrades
+   gracefully if the model slips in markdown: `#`/`##` become bold headings,
+   `-`/`*` become • bullets, and markdown table pipe-rows / separator rows are
+   dropped instead of shown as raw `| a | b |`. */
+function Inline({ text }: { text: string }) {
   return (
     <>
-      {text.split("\n").map((line, i) => (
-        <span key={i}>
-          {i > 0 && <br />}
-          {line.split(/\*\*(.*?)\*\*/g).map((part, j) =>
-            j % 2 === 1 ? (
-              <strong key={j} className="font-semibold text-white">{part}</strong>
-            ) : (
-              part
-            ),
-          )}
-        </span>
-      ))}
+      {text.split(/\*\*(.*?)\*\*/g).map((part, j) =>
+        j % 2 === 1 ? <strong key={j} className="font-semibold text-white">{part}</strong> : <span key={j}>{part}</span>,
+      )}
     </>
   );
+}
+
+function RichText({ text }: { text: string }) {
+  const lines = (text ?? "").replace(/\r/g, "").split("\n");
+  const out: React.ReactNode[] = [];
+  lines.forEach((raw, i) => {
+    const line = raw.trimEnd();
+    // Drop markdown table separator rows like |---|---| entirely.
+    if (/^\s*\|?\s*:?-{2,}.*\|/.test(line)) return;
+    // A markdown table data row → render its cells as a simple " · " list.
+    if (/^\s*\|.*\|\s*$/.test(line)) {
+      const cells = line.replace(/^\s*\||\|\s*$/g, "").split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length) out.push(<div key={i} className="text-foreground/90"><Inline text={cells.join(" · ")} /></div>);
+      return;
+    }
+    // Headings
+    const h = line.match(/^#{1,3}\s+(.*)$/);
+    if (h) {
+      out.push(<div key={i} className="mt-2 mb-0.5 font-semibold text-white"><Inline text={h[1]} /></div>);
+      return;
+    }
+    // Bullets
+    const b = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (b) {
+      out.push(
+        <div key={i} className="flex gap-1.5 pl-1"><span className="text-[var(--trust)]">•</span><span><Inline text={b[1]} /></span></div>,
+      );
+      return;
+    }
+    if (line === "") { out.push(<div key={i} className="h-1.5" />); return; }
+    out.push(<div key={i}><Inline text={line} /></div>);
+  });
+  return <div className="space-y-0.5">{out}</div>;
 }
 
 interface AiPayload {
@@ -490,8 +518,10 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
           <AdvisorPanel profile={profile} onChange={setProfile} onClose={() => setShowAdvisor(false)} />
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Messages — min-h-0 lets this flex child actually scroll inside the
+            panel instead of growing and pushing the input bar off-screen (which
+            made both scrolling and typing impossible on long replies). */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
           {messages.map((msg) => (
             <div key={msg.id}>
               <div className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>

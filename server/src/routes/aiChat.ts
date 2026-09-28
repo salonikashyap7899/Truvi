@@ -50,19 +50,56 @@ TRUVI PLATFORM KNOWLEDGE (general product facts — always available, source lab
 
 Prices are in INR. Format large amounts as ₹X.X L (lakh) or ₹X.X Cr (crore).
 
-OUTPUT FORMAT — respond with ONLY a valid JSON object, no markdown fences, no extra text before or after:
+REPLY STYLE (very important — keep it professional and clean):
+- Write like a polished human property advisor: clear, concise, confident and friendly. No raw data dumps.
+- Structure the reply with short paragraphs and, where useful, bullet lines that each start with "• ". Use **bold** for names and key numbers. Separate sections with a blank line.
+- When listing projects, give a short block per project: the project name in **bold** on its own line, then 2–4 "• " bullets (location, price, Truvi Score / verified, availability). Keep it scannable.
+- Do NOT put markdown tables, pipe characters "|" or "#" headings inside "reply". A side-by-side comparison goes ONLY in the "comparison" field, never in the reply text.
+- Be concise — a few tight sections, not a wall of text. End with a clear next step (e.g. "Want me to book a site visit?").
+
+OUTPUT FORMAT — respond with ONLY a single valid JSON object, no markdown fences, no text before or after. The "reply" value MUST be a valid JSON string: escape every line break as \\n and every double quote as \\". Do not put literal newlines inside the JSON.
 {
-  "reply": "the answer text (use \\n for line breaks, ** for bold)",
+  "reply": "the answer text — plain prose with \\n line breaks, ** for bold, and • bullets. No tables, no | , no # .",
   "sources": [{"label": "TRUVI_VERIFIED", "detail": "what this covered", "lastUpdated": "YYYY-MM-DD or null"}],
   "flags": [{"type": "NEEDS_VERIFICATION", "note": "short neutral note"}],
   "followUps": ["question 1", "question 2", "question 3"],
-  "comparison": {"headers": ["Aspect", "Project A", "Project B"], "rows": [["Location", "...", "..."]]} 
+  "comparison": {"headers": ["Aspect", "Project A", "Project B"], "rows": [["Location", "...", "..."]]}
 }
 "comparison" must be null unless the user asked to compare. "flags" may be empty. "sources" must reflect only sources actually used.`;
 
 interface HistoryTurn {
   role: "user" | "ai";
   text: string;
+}
+
+/**
+ * When the model returns JSON that won't parse (a stray table, an unescaped
+ * newline in the "reply" value), pull the reply text out with a tolerant
+ * regex and unescape it — so the user sees the answer, never a raw
+ * `{"reply":"…"}` blob.
+ */
+function salvageReply(s: string): string | null {
+  const m = s.match(/"reply"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (!m) return null;
+  try {
+    return JSON.parse(`"${m[1]}"`);
+  } catch {
+    return m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\t/g, " ");
+  }
+}
+
+/** Last-resort: strip an obvious JSON wrapper off raw model text so a fallback
+ *  never surfaces literal `{"reply":"` / escape sequences to the user. */
+function plainFromRaw(raw: string): string {
+  const salvaged = salvageReply(raw);
+  if (salvaged) return salvaged;
+  return raw
+    .replace(/^\s*\{?\s*"reply"\s*:\s*"/i, "")
+    .replace(/",?\s*"(?:sources|flags|followUps|comparison)"[\s\S]*$/i, "")
+    .replace(/"\s*\}?\s*$/i, "")
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '"')
+    .trim() || "Sorry, I couldn't format that answer. Please ask again.";
 }
 
 /**
@@ -243,7 +280,7 @@ router.post("/", authenticate, async (req: AuthedRequest, res) => {
 
     const response = await client.messages.create({
       model: AI_MODEL,
-      max_tokens: 1024,
+      max_tokens: 1600,
       system: `${ASK_TRUVI_SYSTEM}\n\n${dataBlock}`,
       messages: [
         ...historyMessages,
@@ -278,10 +315,10 @@ router.post("/", authenticate, async (req: AuthedRequest, res) => {
         try {
           parsed = JSON.parse(match[0]);
         } catch {
-          parsed = { reply: raw };
+          parsed = { reply: salvageReply(unfenced) ?? plainFromRaw(raw) };
         }
       } else {
-        parsed = { reply: raw };
+        parsed = { reply: salvageReply(unfenced) ?? plainFromRaw(raw) };
       }
     }
 
