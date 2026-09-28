@@ -80,7 +80,11 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(() => peekInventory() === null);
   const [showGate, setShowGate] = useState(false);
   const { user } = useAuth();
-  const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(user?._id));
+  // The signed-in user's id — read both keys: /auth/me returns `_id` while a
+  // freshly-logged-in session may carry `id`. Missing this made saving fail
+  // right after login ("Please log in to save").
+  const uid = user ? (user._id ?? (user as unknown as { id?: string }).id ?? null) : null;
+  const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(uid));
   const [scoreProject, setScoreProject] = useState<Project | null>(null);
   const coords = useLocationStore((s) => s.coords);
   const locStatus = useLocationStore((s) => s.status);
@@ -130,17 +134,16 @@ export default function InventoryPage() {
   // Reload the shortlist whenever the signed-in account changes (login, logout
   // or switching users) so each account only ever sees its own saved projects.
   useEffect(() => {
-    setSaved(loadShortlist(user?._id));
-  }, [user?._id]);
+    setSaved(loadShortlist(uid));
+  }, [uid]);
 
   const toggleSaved = (id: string) => {
     // Saving is an account feature — a signed-out visitor cannot save (so a
     // save can never leak across accounts or survive logout on a shared device).
-    if (!user?._id) {
+    if (!uid) {
       toast.error("Please log in to save properties.");
       return;
     }
-    const uid = user._id;
     setSaved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);

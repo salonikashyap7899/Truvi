@@ -236,6 +236,15 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
     return () => document.body.classList.remove("onboarding-open");
   }, []);
 
+  // Auto-advance the tour like a carousel. It stops on the last slide so it
+  // never auto-closes — the user taps "Get Started" there. Any manual tap
+  // changes `i`, which resets this timer.
+  useEffect(() => {
+    if (last) return;
+    const t = setTimeout(() => { setDir(1); setI((p) => Math.min(p + 1, SLIDES.length - 1)); }, 4000);
+    return () => clearTimeout(t);
+  }, [i, last]);
+
   const go = (n: number) => {
     if (n < 0 || n >= SLIDES.length) return;
     setDir(n > i ? 1 : -1);

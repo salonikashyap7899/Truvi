@@ -240,7 +240,19 @@ export default function App() {
       <NativeShell />
       <OfflineBanner />
       <PushRegistration />
-      <Toaster richColors position="top-right" theme="dark" />
+      <Toaster
+        richColors
+        position="top-center"
+        theme="dark"
+        closeButton
+        expand
+        toastOptions={{
+          style: {
+            borderRadius: "14px",
+            boxShadow: "0 12px 40px -8px rgba(0,0,0,.55)",
+          },
+        }}
+      />
       <Ambience />
       <WelcomeGate />
       <OnboardingGate />
