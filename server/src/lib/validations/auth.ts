@@ -10,12 +10,18 @@ const emailField = z
   .email("Enter a valid email")
   .regex(/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i, "Enter a valid email");
 
-// Indian mobile number: 10 digits starting 6–9. Required for every account so
-// the phone OTP has somewhere to go.
+// Mobile number for the phone OTP. Accepts EITHER a bare Indian 10-digit
+// number (starting 6–9, unchanged behaviour) OR a full international number in
+// E.164 form with a leading "+" and country code (e.g. +14155551234,
+// +971501234567). Spaces, dashes and brackets are stripped first.
 const phoneField = z
   .string()
   .trim()
-  .regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number");
+  .transform((v) => v.replace(/[\s\-()]/g, ""))
+  .refine(
+    (v) => /^[6-9]\d{9}$/.test(v) || /^\+[1-9]\d{6,14}$/.test(v),
+    "Enter a valid mobile number — Indian 10-digit, or international with country code (e.g. +14155551234).",
+  );
 
 // Strong password: at least 8 chars with a lowercase, an uppercase, a number
 // and a special character.
