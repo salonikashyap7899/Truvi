@@ -282,6 +282,11 @@ function issueSession(res: import("express").Response, user: IUser) {
   return {
     accessToken,
     user: {
+      // Expose the id under BOTH keys: the client User type uses `_id` (matching
+      // GET /auth/me, which returns the raw row), while some older code reads
+      // `id`. Sending only `id` here left `user._id` undefined right after login,
+      // which broke per-account features (e.g. saving a property).
+      _id: user._id,
       id: user._id,
       name: user.name,
       email: user.email,
