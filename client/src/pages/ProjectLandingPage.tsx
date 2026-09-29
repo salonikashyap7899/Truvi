@@ -257,6 +257,7 @@ function LeadForm({ projectId, projectName }: { projectId: string; projectName: 
         projectId, projectName, message: extras || undefined,
       });
       setDone(true);
+      markLeadDone(projectId);
       toast.success("Thank you! Our team will call you shortly.");
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Couldn't submit right now. Please try WhatsApp instead.");
@@ -296,6 +297,70 @@ function LeadForm({ projectId, projectName }: { projectId: string; projectName: 
   );
 }
 
+/* ── Early lead capture ────────────────────────────────────────────────────
+   Gets the visitor's name + number early (a short delay or a little scrolling)
+   so a lead is captured before they read all the way down or bounce. Shows
+   once per visit and never again once they've submitted a lead. */
+function leadDoneKey(id?: string) { return `truvi-lead-done:${id || ""}`; }
+function markLeadDone(id?: string) { try { localStorage.setItem(leadDoneKey(id), "1"); } catch { /* ignore */ } }
+function isLeadDone(id?: string) { try { return localStorage.getItem(leadDoneKey(id)) === "1"; } catch { return false; } }
+
+function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }: {
+  projectId: string; projectName: string; waHref: string; onClose: () => void; onCaptured: () => void;
+}) {
+  const [form, setForm] = useState({ name: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const field = "w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[var(--trust)]/60";
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return toast.error("Please enter your name.");
+    if (!/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(form.phone.trim())) return toast.error("Please enter a valid 10-digit mobile number.");
+    setBusy(true);
+    try {
+      await api.post("/enquiries/lead", {
+        name: form.name.trim(), phone: form.phone.trim(),
+        projectId, projectName, message: "Quick enquiry from the landing page",
+      });
+      markLeadDone(projectId);
+      toast.success("Thank you! Our team will call you shortly.");
+      onCaptured();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't submit right now. Please try WhatsApp instead.");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
+      <motion.div
+        initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-t-3xl border border-white/10 bg-[#0b0f18] p-6 shadow-2xl shadow-black/60 sm:rounded-3xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--trust)]">Get price &amp; availability</p>
+            <h3 className="mt-1.5 font-display text-xl font-semibold text-white">Interested in {projectName}?</h3>
+            <p className="mt-1 text-sm text-white/60">Leave your number — our team will call you with the latest price and a site-visit slot.</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-white/70 hover:bg-white/10"><X size={16} /></button>
+        </div>
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <input className={field} placeholder="Your name*" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className={field} placeholder="Mobile number*" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Sending…" : "Request a callback"}
+          </button>
+        </form>
+        <a href={waHref} target="_blank" rel="noreferrer" className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#25D366]">
+          <MessageCircle size={15} /> Or chat on WhatsApp
+        </a>
+        <p className="mt-3 text-center text-[11px] text-white/40">We never share your details. You can also just close this and keep browsing.</p>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ── Main page ────────────────────────────────────────────────────────────── */
 export default function ProjectLandingPage() {
   const { id } = useParams<{ id: string }>();
@@ -306,6 +371,39 @@ export default function ProjectLandingPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [lightbox, setLightbox] = useState<{ images: ProjectAsset[]; index: number } | null>(null);
+  const [quickLead, setQuickLead] = useState(false);
+
+  // Pop the early lead-capture prompt once the project has loaded — after a
+  // short delay OR a little scrolling, whichever comes first — so we capture a
+  // name + number before the visitor reads all the way down. Shown once per
+  // visit; never shown once a lead has been submitted.
+  useEffect(() => {
+    if (!project) return;
+    const pid = project._id;
+    if (isLeadDone(pid)) return;
+    const shownKey = `truvi-lead-prompt:${pid}`;
+    try { if (sessionStorage.getItem(shownKey)) return; } catch { /* ignore */ }
+
+    let fired = false;
+    const fire = () => {
+      if (fired) return;
+      fired = true;
+      try { sessionStorage.setItem(shownKey, "1"); } catch { /* ignore */ }
+      setQuickLead(true);
+      cleanup();
+    };
+    const onScroll = () => {
+      const max = Math.max(1, document.body.scrollHeight - window.innerHeight);
+      if (window.scrollY / max > 0.22) fire();
+    };
+    const timer = setTimeout(fire, 12000);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    function cleanup() {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+    }
+    return cleanup;
+  }, [project]);
 
   // Fetch (shared by the initial load and the inventory auto-refresh). The
   // refresh keeps an open page's plot availability current with what the
@@ -420,6 +518,16 @@ export default function ProjectLandingPage() {
     <main className="min-h-screen bg-[#05070c] text-white">
       {lightbox && (
         <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} onNavigate={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))} />
+      )}
+
+      {quickLead && (
+        <QuickLeadModal
+          projectId={project._id}
+          projectName={project.name}
+          waHref={waHi}
+          onClose={() => setQuickLead(false)}
+          onCaptured={() => setQuickLead(false)}
+        />
       )}
 
       {/* Floating header */}
