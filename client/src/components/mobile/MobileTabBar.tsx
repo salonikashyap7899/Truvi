@@ -13,7 +13,7 @@ import { showsTabBar } from "@/lib/native";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 const WA_URL =
-  "https://wa.me/919196366358?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
+  "https://wa.me/917054280101?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
 
 /**
  * The app's bottom navigation — the top-bar hamburger menu, relocated to the

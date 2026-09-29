@@ -28,8 +28,8 @@ import type { Project, ProjectAsset } from "@/types";
    Reached only via a direct ad link (noindex, not linked from the app).
    ──────────────────────────────────────────────────────────────────────── */
 
-const WA_NUMBER = "919196366358";
-const CALL_NUMBER = "+919196366358";
+const WA_NUMBER = "917054280101";
+const CALL_NUMBER = "+917054280101";
 const IMAGE_MIMES = /^image\//;
 const VIDEO_MIMES = /^video\//;
 const INVENTORY_REFRESH_MS = 45000; // keep an open page's inventory current

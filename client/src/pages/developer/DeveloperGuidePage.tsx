@@ -145,7 +145,7 @@ export default function DeveloperGuidePage() {
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><Globe size={14} /> www.truviventures.com</span>
             <span className="inline-flex items-center gap-1.5"><Mail size={14} /> truviventures@gmail.com</span>
-            <span className="inline-flex items-center gap-1.5"><Phone size={14} /> +91 91963 66358</span>
+            <span className="inline-flex items-center gap-1.5"><Phone size={14} /> +91 70542 80101</span>
           </div>
           <p className="mt-5 text-xs italic text-muted-foreground">"Building trust before every property decision."</p>
         </section>

@@ -486,7 +486,7 @@ export default function AboutPage() {
               {[
                 { icon: <Globe size={14} />, label: "Website", value: "www.truviventures.com",   href: "https://www.truviventures.com" },
                 { icon: <Mail  size={14} />, label: "Email",   value: "info@truviventures.com", href: "mailto:info@truviventures.com" },
-                { icon: <Phone size={14} />, label: "Phone",   value: "+91 91963 66358",          href: "tel:+919196366358" },
+                { icon: <Phone size={14} />, label: "Phone",   value: "+91 70542 80101",          href: "tel:+917054280101" },
               ].map((c) => (
                 <motion.a
                   key={c.label}

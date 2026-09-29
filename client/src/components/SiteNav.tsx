@@ -10,7 +10,7 @@ import UserMenu from "@/components/UserMenu";
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
 const WA_URL =
-  "https://wa.me/919196366358?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
+  "https://wa.me/917054280101?text=Hi%20Truvi%20Ventures%2C%20I%20would%20like%20to%20know%20more!";
 
 /**
  * Header brand. Prefers the horizontal wordmark image; if that file hasn't

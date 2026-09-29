@@ -5,7 +5,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { Button } from "@/components/ui/button";
 
 const WA_SUPPORT =
-  "https://wa.me/919196366358?text=Hi%20Truvi%20Support%2C%20my%20payment%20failed%20and%20I%20need%20help.";
+  "https://wa.me/917054280101?text=Hi%20Truvi%20Support%2C%20my%20payment%20failed%20and%20I%20need%20help.";
 
 export default function PaymentFailedPage() {
   const { state } = useLocation();

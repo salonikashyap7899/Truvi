@@ -18,7 +18,7 @@ const Property3DScene = lazy(() => import("@/components/Property3DScene"));
 const PrimeEstateScene = lazy(() => import("@/components/PrimeEstateScene"));
 const PlotLayoutMap = lazy(() => import("@/components/PlotLayoutMap"));
 
-const WA_NUMBER = "919196366358";
+const WA_NUMBER = "917054280101";
 
 /** Approximate plot dimensions from area, assuming a 40 ft depth. */
 function plotDimensions(areaSqft: number): string {
