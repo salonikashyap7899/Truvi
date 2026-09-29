@@ -18,7 +18,7 @@ import { useLocationStore } from "@/store/locationStore";
 import type { Project, ProjectType } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
 
-const WA_NUMBER = "919196366358";
+const WA_NUMBER = "917054280101";
 
 /* ── Category filter (kept for the Saved view + ?cat= deep links) ───────────── */
 type CategoryKey = "ALL" | "SAVED" | "APARTMENT" | "VILLA" | "PLOT" | "COMMERCIAL" | "LAND";
