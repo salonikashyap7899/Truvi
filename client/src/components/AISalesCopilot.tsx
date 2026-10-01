@@ -129,7 +129,9 @@ export default function AISalesCopilot() {
           sm:bottom-6 sm:right-6 sm:left-auto sm:w-[420px] sm:rounded-2xl sm:border sm:border-white/10
           ${open ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
-        style={{ maxHeight: "90vh" }}
+        /* Bottom sheet on phones: cap the height and keep the last control clear
+           of the device home indicator / safe area. */
+        style={{ maxHeight: "85dvh", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">

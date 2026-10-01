@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
-import { MessageSquare, Send, CornerDownRight, Loader2, User } from "lucide-react";
+import { MessageSquare, Send, CornerDownRight, Loader2, User, Pencil, Trash2, Check, X } from "lucide-react";
 
 interface Comment {
   _id: string;
   parentId: string | null;
   body: string;
   createdAt: string;
-  userId: string; // short, name-free id like "#A1B2C3"
+  userId: string; // short id like "#A1B2C3" (used for the avatar colour)
+  authorName: string; // real display name
   role: string | null;
   mine: boolean;
 }
@@ -39,21 +40,84 @@ function Avatar({ id }: { id: string }) {
   );
 }
 
-function CommentRow({ c, onReply }: { c: Comment; onReply: (id: string) => void }) {
+function CommentRow({
+  c,
+  onReply,
+  onEdit,
+  onDelete,
+  canModerate,
+}: {
+  c: Comment;
+  onReply: (id: string) => void;
+  onEdit: (id: string, body: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  canModerate: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.body);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const t = draft.trim();
+    if (!t || t === c.body) { setEditing(false); return; }
+    setBusy(true);
+    try {
+      await onEdit(c._id, t);
+      setEditing(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="flex gap-3">
       <Avatar id={c.userId} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-white">{c.userId}</span>
+          <span className="text-sm font-medium text-white">{c.authorName}</span>
           {c.role && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{c.role}</span>}
           {c.mine && <span className="rounded-full bg-[var(--trust)]/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">You</span>}
           <span className="text-[11px] text-muted-foreground">{fmt(c.createdAt)}</span>
         </div>
-        <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground/90">{c.body}</p>
-        <button onClick={() => onReply(c._id)} className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-white">
-          <CornerDownRight size={11} /> Reply
-        </button>
+
+        {editing ? (
+          <div className="mt-1.5">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-white/10 bg-white/[0.04] p-2 text-sm text-foreground outline-none focus:border-[var(--trust)]"
+            />
+            <div className="mt-1 flex gap-2">
+              <button onClick={save} disabled={busy} className="inline-flex items-center gap-1 rounded-full bg-[var(--trust)] px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
+                {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Save
+              </button>
+              <button onClick={() => { setEditing(false); setDraft(c.body); }} className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/15">
+                <X size={12} /> Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground/90">{c.body}</p>
+        )}
+
+        {!editing && (
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <button onClick={() => onReply(c._id)} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-white">
+              <CornerDownRight size={11} /> Reply
+            </button>
+            {c.mine && (
+              <button onClick={() => { setDraft(c.body); setEditing(true); }} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-white">
+                <Pencil size={11} /> Edit
+              </button>
+            )}
+            {(c.mine || canModerate) && (
+              <button onClick={() => onDelete(c._id)} className="inline-flex items-center gap-1 text-[11px] text-rose-300/80 hover:text-rose-300">
+                <Trash2 size={11} /> Delete
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -100,6 +164,28 @@ export default function ProjectComments({ projectId }: { projectId: string }) {
     }
   }
 
+  async function saveEdit(id: string, text: string) {
+    try {
+      await api.patch(`/comments/${projectId}/${id}`, { body: text });
+      setComments((prev) => prev.map((c) => (c._id === id ? { ...c, body: text } : c)));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't update comment");
+      throw err;
+    }
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm("Delete this comment? This can't be undone.")) return;
+    try {
+      await api.delete(`/comments/${projectId}/${id}`);
+      // Drop the comment and any replies that hung off it.
+      setComments((prev) => prev.filter((c) => c._id !== id && c.parentId !== id));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't delete comment");
+    }
+  }
+
+  const canModerate = user?.role === "ADMIN";
   const top = comments.filter((c) => !c.parentId);
   const repliesOf = (id: string) => comments.filter((c) => c.parentId === id);
 
@@ -146,13 +232,13 @@ export default function ProjectComments({ projectId }: { projectId: string }) {
             ) : (
               top.map((c) => (
                 <div key={c._id}>
-                  <CommentRow c={c} onReply={(id) => setReplyTo(replyTo === id ? null : id)} />
+                  <CommentRow c={c} onReply={(id) => setReplyTo(replyTo === id ? null : id)} onEdit={saveEdit} onDelete={remove} canModerate={canModerate} />
 
                   {/* Replies */}
                   {repliesOf(c._id).length > 0 && (
                     <div className="ml-11 mt-4 space-y-4 border-l border-white/10 pl-4">
                       {repliesOf(c._id).map((r) => (
-                        <CommentRow key={r._id} c={r} onReply={(id) => setReplyTo(replyTo === id ? null : id)} />
+                        <CommentRow key={r._id} c={r} onReply={(id) => setReplyTo(replyTo === id ? null : id)} onEdit={saveEdit} onDelete={remove} canModerate={canModerate} />
                       ))}
                     </div>
                   )}
