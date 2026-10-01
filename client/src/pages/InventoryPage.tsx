@@ -377,6 +377,7 @@ function ListingCard({
             alt={project.name}
             onOpen={() => navigate(`/inventory/${project._id}/presentation`)}
             className="absolute inset-0 h-full w-full"
+            thumb
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
 

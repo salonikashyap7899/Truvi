@@ -24,6 +24,7 @@ import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
 import { getEnv } from "../config/env";
 import { scoreImageFile } from "../services/ai/scoreImage";
 import { optimizeUploadedImage } from "../services/media/optimizeImage";
+import { generateThumbnail } from "../services/media/thumbnail";
 
 const router = Router();
 
@@ -244,6 +245,10 @@ router.post(
     // a non-image or any failure leaves the original file untouched). The file
     // path, name and URL are unchanged, so nothing downstream is affected.
     const optimizedSize = await optimizeUploadedImage(req.file.path, req.file.mimetype);
+    // Generate a small thumbnail sibling so listing/search cards load a light
+    // preview instead of the full image. Best-effort; the card falls back to
+    // the full image if a thumbnail is missing.
+    await generateThumbnail(req.file.path, req.file.mimetype);
 
     const db = getDb();
     const [asset] = await db
