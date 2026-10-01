@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import fs from "fs";
@@ -70,6 +71,14 @@ export function createApp() {
   app.set("trust proxy", 1);
 
   app.use(securityHeaders);
+
+  // Gzip/brotli-style compression for every response (JSON API payloads, the
+  // HTML shell, and any uncached static file). Cuts typical response sizes by
+  // ~70–80%, so the app and website paint faster — especially on mobile data.
+  // Clients that don't send Accept-Encoding simply receive the response
+  // uncompressed, so this is fully backward-compatible.
+  app.use(compression());
+
   app.use(cors({ origin: getAllowedOrigins(), credentials: true }));
 
   // Razorpay webhook must see the RAW request body to verify the signature, so
@@ -81,7 +90,21 @@ export function createApp() {
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
   // Static file serving for uploaded brochures/price lists/site-visit photos.
-  app.use("/uploads", express.static(uploadsDir));
+  // Uploaded files are content-stable (a new upload gets a new filename), so we
+  // let browsers and any CDN (Cloudflare) cache them for a year instead of
+  // re-downloading every image on every screen. This is the single biggest win
+  // for perceived app speed on repeat views. `immutable` tells the browser it
+  // never needs to revalidate a cached file within that window.
+  app.use(
+    "/uploads",
+    express.static(uploadsDir, {
+      maxAge: "365d",
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    }),
+  );
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
