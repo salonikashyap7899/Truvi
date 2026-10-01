@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Building2, Play } from "lucide-react";
+import { thumbUrl } from "@/lib/mediaUrl";
 
 export interface MediaItem {
   url: string;
@@ -18,12 +19,16 @@ export default function MediaCarousel({
   alt,
   onOpen,
   className = "",
+  thumb = false,
 }: {
   media?: MediaItem[];
   fallback?: string | null;
   alt: string;
   onOpen?: () => void;
   className?: string;
+  /** Use the lightweight thumbnail for images (listing/search cards). Falls
+   *  back to the full image automatically if a thumbnail isn't available. */
+  thumb?: boolean;
 }) {
   const list: MediaItem[] =
     media && media.length > 0 ? media : fallback ? [{ url: fallback, type: "image" }] : [];
@@ -69,10 +74,16 @@ export default function MediaCarousel({
           ) : (
             <img
               key={i}
-              src={m.url}
+              src={thumb ? thumbUrl(m.url) : m.url}
               alt={alt}
               loading="lazy"
+              decoding="async"
               onClick={onOpen}
+              onError={(e) => {
+                // Thumbnail not generated yet → fall back to the full image
+                // once (guard against a loop if the full image is also broken).
+                if (thumb && e.currentTarget.src !== m.url) e.currentTarget.src = m.url;
+              }}
               className="h-full w-full shrink-0 snap-center object-cover"
             />
           ),
