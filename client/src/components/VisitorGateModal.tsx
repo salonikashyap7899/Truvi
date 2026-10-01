@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { X, ShieldCheck, LogIn, UserPlus } from "lucide-react";
+import { X, LogIn, UserPlus } from "lucide-react";
 
 interface Props {
   onClose: () => void;
@@ -34,7 +34,9 @@ export default function VisitorGateModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <div className="flex items-center gap-2 font-display text-sm font-semibold tracking-tight text-white">
-            <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[9px] font-bold">T</span>
+            <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)]">
+              <img src="/brand/icon-white.png" alt="" className="h-3 w-3 object-contain" />
+            </span>
             TRUVI
           </div>
           <button
@@ -48,8 +50,8 @@ export default function VisitorGateModal({ onClose }: Props) {
 
         {/* Body */}
         <div className="px-6 py-6 text-center">
-          <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-[var(--trust)]/25 to-[var(--tech)]/15 text-sky-300">
-            <ShieldCheck size={22} />
+          <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-[var(--trust)]/25 to-[var(--tech)]/15">
+            <img src="/brand/icon-white.png" alt="Truvi" className="h-7 w-7 object-contain" />
           </div>
           <h2 className="mt-4 font-display text-lg font-semibold text-white">Sign in to continue</h2>
           <p className="mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">

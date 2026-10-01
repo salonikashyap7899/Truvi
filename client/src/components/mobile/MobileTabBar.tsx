@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut, MessageCircle,
+  Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut,
   Heart, TrendingUp, Bot,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import WhatsAppGlyph from "@/components/WhatsAppGlyph";
 import { navLinksForRole, type NavLink } from "@/components/SiteNav";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import { showsTabBar } from "@/lib/native";
@@ -92,7 +93,7 @@ export default function MobileTabBar() {
                 className="mx-4 my-2 flex w-[calc(100%-2rem)] items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[var(--trust)]/25 to-fuchsia-500/20 px-4 py-3.5 text-left shadow-[0_8px_24px_-8px_rgba(124,58,237,0.6)]"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--trust)] to-fuchsia-500 text-white">
-                  <Sparkles size={17} />
+                  <img src="/brand/icon-white.png" alt="" className="h-5 w-5 object-contain" />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-white">Ask Truvi</span>
@@ -142,8 +143,8 @@ export default function MobileTabBar() {
                   Sign in / Join
                 </Link>
               )}
-              <a href={WA_URL} target="_blank" rel="noopener noreferrer" onClick={close} className="flex items-center gap-2 px-5 py-3.5 text-sm font-semibold text-[#3B82F6]">
-                <MessageCircle size={15} /> Chat on WhatsApp
+              <a href={WA_URL} target="_blank" rel="noopener noreferrer" onClick={close} className="flex items-center gap-2 px-5 py-3.5 text-sm font-semibold text-[#25D366]">
+                <WhatsAppGlyph size={16} /> Chat on WhatsApp
               </a>
             </motion.nav>
           </>
@@ -205,7 +206,7 @@ export default function MobileTabBar() {
                   boxShadow: "0 10px 24px -6px rgba(124,58,237,0.7), 0 0 0 4px rgba(8,11,18,0.92)",
                 }}
               >
-                <Sparkles size={24} strokeWidth={2.2} color="#fff" />
+                <img src="/brand/icon-white.png" alt="Ask Truvi" width={28} height={28} style={{ objectFit: "contain" }} />
               </span>
               <span style={{ marginTop: 1, background: "linear-gradient(90deg,#93c5fd,#c4b5fd)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
                 {t.label}

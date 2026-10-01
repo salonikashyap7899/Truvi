@@ -49,6 +49,9 @@ export function openRazorpayCheckout(opts: OpenCheckoutOptions) {
     image: "/brand/icon.png",
     prefill: opts.prefill,
     theme: { color: "#3B82F6" },
+    // Offer only UPI and Card on the Razorpay checkout — Netbanking, wallets,
+    // EMI and pay-later are hidden.
+    method: { upi: true, card: true, netbanking: false, wallet: false, emi: false, paylater: false },
     handler: opts.onSuccess,
     modal: { ondismiss: opts.onDismiss },
   });
@@ -80,6 +83,8 @@ export function openRazorpaySubscription(opts: OpenSubscriptionOptions) {
     image: "/brand/icon.png",
     prefill: opts.prefill,
     theme: { color: "#3B82F6" },
+    // Offer only UPI and Card on the Razorpay checkout.
+    method: { upi: true, card: true, netbanking: false, wallet: false, emi: false, paylater: false },
     handler: opts.onSuccess,
     modal: { ondismiss: opts.onDismiss },
   });

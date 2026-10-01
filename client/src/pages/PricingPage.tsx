@@ -80,7 +80,7 @@ export default function PricingPage() {
             animate={{ opacity: 1 }}
             className="inline-flex items-center gap-2 rounded-full border border-[var(--trust)]/25 bg-[var(--trust)]/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.25em] text-[var(--trust)]"
           >
-            <Sparkles size={13} /> Pricing
+            Pricing
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 16 }}

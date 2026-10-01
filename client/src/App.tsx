@@ -241,15 +241,30 @@ export default function App() {
       <OfflineBanner />
       <PushRegistration />
       <Toaster
-        richColors
         position="top-center"
         theme="dark"
         closeButton
         expand
+        gap={10}
+        // Push notifications clear of the phone status bar / notch so they
+        // never render under the clock & battery icons in the app.
+        offset="calc(env(safe-area-inset-top, 0px) + 14px)"
+        mobileOffset="calc(env(safe-area-inset-top, 0px) + 12px)"
         toastOptions={{
+          duration: 4000,
+          // A clean glassy card instead of a flat colour bar — the status icon
+          // (green tick / red cross) carries the colour, the surface stays dark.
           style: {
-            borderRadius: "14px",
-            boxShadow: "0 12px 40px -8px rgba(0,0,0,.55)",
+            background: "rgba(13,18,25,0.96)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: "18px",
+            boxShadow: "0 20px 55px -12px rgba(0,0,0,.65)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            color: "#f1f5f9",
+            padding: "15px 16px",
+            fontSize: "14px",
+            lineHeight: "1.4",
           },
         }}
       />

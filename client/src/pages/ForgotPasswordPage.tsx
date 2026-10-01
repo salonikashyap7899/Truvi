@@ -161,10 +161,6 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         </AuthCard>
-
-        <p className="mt-6 text-center text-[11px] uppercase tracking-[0.25em] text-muted-foreground">
-          Neutral · Evidence-led · Source-backed
-        </p>
       </motion.div>
     </main>
   );

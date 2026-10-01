@@ -4,13 +4,14 @@ import { motion } from "framer-motion";
 import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { toast } from "sonner";
 import {
-  Search, Star, ShieldCheck, MapPin, ArrowRight, Share2, Heart,
+  Search, Star, ShieldCheck, MapPin, ArrowRight, Heart,
   MessageCircle, SlidersHorizontal, X, Eye, Navigation,
 } from "lucide-react";
 import VisitorGateModal from "@/components/VisitorGateModal";
 import ListingIntelligence from "@/components/ListingIntelligence";
 import MediaCarousel from "@/components/MediaCarousel";
-import { shareProject } from "@/components/ShareProjectButton";
+import { shareProjectOnWhatsApp } from "@/components/ShareProjectButton";
+import WhatsAppGlyph from "@/components/WhatsAppGlyph";
 import { SiteNav } from "@/components/SiteNav";
 import { formatCompactINR } from "@/lib/utils";
 import { haversineKm, formatDistance } from "@/lib/geo";
@@ -199,7 +200,7 @@ export default function InventoryPage() {
           </p>
 
           <div className="relative mx-auto mt-4 max-w-xl">
-            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-300/80" />
+            <Search size={19} strokeWidth={2.2} className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-sky-300" />
             <input
               type="text"
               placeholder="Search city, locality or project…"
@@ -489,12 +490,12 @@ function ListingCard({
             View <ArrowRight size={13} />
           </Link>
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); shareProject(project); }}
-            title="Share this property"
-            aria-label="Share this property"
-            className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/[0.04] text-white transition hover:bg-white/[0.08]"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); shareProjectOnWhatsApp(project); }}
+            title="Share on WhatsApp"
+            aria-label="Share on WhatsApp"
+            className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#25D366]/35 bg-[#25D366]/10 transition hover:bg-[#25D366]/20"
           >
-            <Share2 size={15} />
+            <WhatsAppGlyph size={17} />
           </button>
         </div>
       </div>
