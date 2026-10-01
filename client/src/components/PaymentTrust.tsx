@@ -3,7 +3,8 @@ import { ShieldCheck } from "lucide-react";
 /** Accepted payment methods, as lightweight text chips (no external images so
  *  the strict CSP / offline build stays self-contained). */
 export function PaymentMethodsRow() {
-  const methods = ["UPI", "Visa", "Mastercard", "RuPay", "Netbanking"];
+  // Only UPI and cards are accepted at checkout (Netbanking/wallets are off).
+  const methods = ["UPI", "Visa", "Mastercard", "RuPay"];
   return (
     <div className="flex flex-wrap items-center justify-center gap-1.5">
       {methods.map((m) => (

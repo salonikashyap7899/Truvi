@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut, MessageCircle,
+  Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut,
   Heart, TrendingUp, Bot,
   type LucideIcon,
 } from "lucide-react";
@@ -142,8 +142,10 @@ export default function MobileTabBar() {
                   Sign in / Join
                 </Link>
               )}
-              <a href={WA_URL} target="_blank" rel="noopener noreferrer" onClick={close} className="flex items-center gap-2 px-5 py-3.5 text-sm font-semibold text-[#3B82F6]">
-                <MessageCircle size={15} /> Chat on WhatsApp
+              <a href={WA_URL} target="_blank" rel="noopener noreferrer" onClick={close} className="flex items-center gap-2 px-5 py-3.5 text-sm font-semibold text-[#25D366]">
+                <svg width="16" height="16" viewBox="0 0 32 32" fill="#25D366" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <path d="M27.25 4.74A15.36 15.36 0 0 0 16.02 0C7.26 0 .13 7.13.13 15.89c0 2.8.73 5.54 2.12 7.95L0 32l8.36-2.19a15.88 15.88 0 0 0 7.64 1.95h.01c8.75 0 15.88-7.13 15.88-15.89A15.79 15.79 0 0 0 27.25 4.74ZM16.02 29.1a13.18 13.18 0 0 1-6.72-1.84l-.48-.29-4.96 1.3 1.32-4.82-.32-.5a13.15 13.15 0 0 1-2.02-7c0-7.28 5.93-13.21 13.22-13.21a13.14 13.14 0 0 1 9.34 3.87 13.1 13.1 0 0 1 3.86 9.35c0 7.28-5.93 13.14-13.24 13.14Zm7.25-9.87c-.4-.2-2.35-1.16-2.72-1.29-.36-.13-.63-.2-.9.2-.26.39-1.02 1.29-1.25 1.56-.23.26-.46.3-.86.1a10.87 10.87 0 0 1-3.2-1.98 11.9 11.9 0 0 1-2.22-2.75c-.23-.39-.02-.6.17-.8.18-.17.4-.46.6-.69.2-.23.26-.4.4-.66.13-.26.06-.5-.04-.7-.1-.19-.9-2.15-1.23-2.94-.32-.77-.64-.67-.89-.68h-.76c-.26 0-.69.1-1.06.5-.36.4-1.38 1.35-1.38 3.28s1.42 3.8 1.61 4.06c.2.26 2.77 4.23 6.71 5.93.94.4 1.67.64 2.24.82.94.3 1.8.26 2.47.16.75-.11 2.35-.96 2.68-1.89.33-.92.33-1.7.23-1.87-.1-.17-.36-.27-.76-.46Z" />
+                </svg> Chat on WhatsApp
               </a>
             </motion.nav>
           </>
