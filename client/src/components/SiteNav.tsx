@@ -183,7 +183,13 @@ export function SiteNav() {
          the status bar. On the desktop browser env() is 0, so this is a no-op. */
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5">
+      <div
+        className="mx-auto flex max-w-7xl items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5"
+        /* Opaque surface so page content scrolling underneath never shows
+           through the bar (the default .glass is only ~6% white, which let the
+           page heading bleed through on mobile). */
+        style={{ backgroundColor: "rgba(10,13,20,0.9)" }}
+      >
         <Link
           to="/"
           onClick={close}
