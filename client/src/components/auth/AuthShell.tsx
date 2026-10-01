@@ -76,7 +76,7 @@ export function AuthCard({
           {topLeft && <div className="absolute left-4 top-4 z-20 sm:left-5 sm:top-5">{topLeft}</div>}
           {/* Card body — scrolls inside the card so the page itself never scrolls */}
           <div
-            className={`max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[27px] p-7 sm:p-8 [scrollbar-color:rgba(148,163,184,0.35)_transparent] [scrollbar-width:thin] ${className ?? ""}`}
+            className={`max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[27px] px-7 pt-7 pb-28 sm:px-8 sm:pt-8 sm:pb-8 [scrollbar-color:rgba(148,163,184,0.35)_transparent] [scrollbar-width:thin] [scrollbar-gutter:stable] ${className ?? ""}`}
           >
             {children}
           </div>

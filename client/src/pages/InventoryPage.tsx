@@ -199,7 +199,7 @@ export default function InventoryPage() {
           </p>
 
           <div className="relative mx-auto mt-4 max-w-xl">
-            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-300/80" />
+            <Search size={19} strokeWidth={2.2} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sky-300" />
             <input
               type="text"
               placeholder="Search city, locality or project…"

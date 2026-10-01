@@ -92,7 +92,7 @@ export default function MobileTabBar() {
                 className="mx-4 my-2 flex w-[calc(100%-2rem)] items-center gap-3 rounded-2xl border border-white/10 bg-gradient-to-r from-[var(--trust)]/25 to-fuchsia-500/20 px-4 py-3.5 text-left shadow-[0_8px_24px_-8px_rgba(124,58,237,0.6)]"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--trust)] to-fuchsia-500 text-white">
-                  <Sparkles size={17} />
+                  <img src="/brand/icon-white.png" alt="" className="h-5 w-5 object-contain" />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-white">Ask Truvi</span>
@@ -205,7 +205,7 @@ export default function MobileTabBar() {
                   boxShadow: "0 10px 24px -6px rgba(124,58,237,0.7), 0 0 0 4px rgba(8,11,18,0.92)",
                 }}
               >
-                <Sparkles size={24} strokeWidth={2.2} color="#fff" />
+                <img src="/brand/icon-white.png" alt="Ask Truvi" width={28} height={28} style={{ objectFit: "contain" }} />
               </span>
               <span style={{ marginTop: 1, background: "linear-gradient(90deg,#93c5fd,#c4b5fd)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>
                 {t.label}
