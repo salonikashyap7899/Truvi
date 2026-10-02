@@ -159,6 +159,8 @@ export default function InventoryPage() {
     coords && typeof p.lat === "number" && typeof p.lng === "number"
       ? haversineKm(coords, { lat: p.lat, lng: p.lng })
       : Number.POSITIVE_INFINITY;
+  // The Truvi Score shown on each card (falls back to the legacy trust_score).
+  const scoreOf = (p: Project) => (p as { truviScore?: number }).truviScore ?? p.trustScore ?? 0;
 
   const results = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -172,11 +174,13 @@ export default function InventoryPage() {
       if (nearMe && coords) return distOf(a) - distOf(b);
       if (sort === "PRICE_LOW") return priceOf(a) - priceOf(b);
       if (sort === "PRICE_HIGH") return priceOf(b) - priceOf(a);
-      if (sort === "TRUST") return (b.trustScore ?? 0) - (a.trustScore ?? 0);
-      // Recommended: Prime first, then trust score
+      // Use the score actually shown on the card (truviScore), not the legacy
+      // trust_score DB column which is almost always null.
+      if (sort === "TRUST") return scoreOf(b) - scoreOf(a);
+      // Recommended: Prime first, then Truvi Score.
       if (a.isPrimeListing && !b.isPrimeListing) return -1;
       if (!a.isPrimeListing && b.isPrimeListing) return 1;
-      return (b.trustScore ?? 0) - (a.trustScore ?? 0);
+      return scoreOf(b) - scoreOf(a);
     });
     return list;
   }, [projects, search, category, sort, saved, nearMe, coords]); // eslint-disable-line react-hooks/exhaustive-deps
