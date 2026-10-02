@@ -176,9 +176,9 @@ export default function AISalesCopilot() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Lead Stage</label>
-                <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none">
+                <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-purple-500">
                   {["GENERATED","CONTACTED","SITE_VISIT","NEGOTIATION","BOOKING"].map((s) => (
-                    <option key={s} value={s}>{s.replace("_", " ")}</option>
+                    <option key={s} value={s} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{s.replace("_", " ")}</option>
                   ))}
                 </select>
               </div>
@@ -205,8 +205,8 @@ export default function AISalesCopilot() {
           {mode === "objection" && (
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Select the buyer's objection</label>
-              <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none">
-                {COMMON_OBJECTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+              <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-purple-500">
+                {COMMON_OBJECTIONS.map((o) => <option key={o} value={o} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{o}</option>)}
               </select>
               <div className="mt-2">
                 <label className="text-xs text-muted-foreground mb-1 block">Or type a custom objection</label>
