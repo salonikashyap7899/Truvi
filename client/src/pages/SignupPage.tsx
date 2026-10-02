@@ -221,7 +221,7 @@ export default function SignupPage() {
 
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
+    <main className="relative flex min-h-screen items-center justify-center px-4 pt-10 [padding-bottom:calc(7rem+env(safe-area-inset-bottom))]">
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
