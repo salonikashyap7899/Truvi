@@ -34,7 +34,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
   }, []);
 
   return (
-    <div ref={ref} className="relative w-[8.5rem] shrink-0">
+    <div ref={ref} className="relative w-[6.75rem] shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -300,7 +300,7 @@ export default function SignupPage() {
                       {...register("phone")}
                       inputMode="tel"
                       placeholder={countryCode === "+91" ? "98765 43210" : "Mobile number"}
-                      className={`${FIELD_INPUT} flex-1`}
+                      className={`${FIELD_INPUT} min-w-0 flex-1`}
                     />
                   </div>
                 </Field>
