@@ -45,7 +45,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
         <ChevronDown size={14} className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute left-0 z-[60] mt-1 w-[min(20rem,calc(100vw-5rem))] -translate-x-12 overflow-hidden rounded-xl border border-white/15 bg-[#0d1219] shadow-2xl shadow-black/60">
+        <div className="absolute left-0 z-[60] mt-1 w-[min(20rem,calc(100vw-5rem))] -translate-x-16 overflow-hidden rounded-xl border border-white/15 bg-[#0d1219] shadow-2xl shadow-black/60">
           <div className="border-b border-white/10 p-2">
             <div className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.05] px-2.5 py-1.5">
               <Search size={14} className="shrink-0 text-white/40" />
@@ -82,7 +82,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
 /** Transparent input styling used inside an icon Field (no border/bg of its
  *  own — the Field container provides the frame and focus ring). */
 const FIELD_INPUT =
-  "h-10 w-full rounded-none border-0 bg-transparent p-0 text-base text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
+  "h-8 w-full rounded-none border-0 bg-transparent p-0 text-[15px] text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
 
 /** A compact field row: an icon chip on the left, label + control stacked. */
 function Field({
@@ -100,8 +100,8 @@ function Field({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3.5 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
-        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-2.5 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
         <div className="min-w-0 flex-1">
           <label className="block text-[11px] font-medium text-muted-foreground">{label}</label>
           {children}
@@ -239,12 +239,7 @@ export default function SignupPage() {
               />
             ) : (
             <>
-            {/* Brand lockup */}
-            <div className="flex items-center justify-center gap-2">
-              <img src="/brand/icon.png" alt="" className="h-7 w-7 object-contain" />
-              <span className="font-display text-xl font-semibold tracking-tight text-white">Truvi</span>
-            </div>
-            <h1 className="mt-2 text-center font-display text-[22px] font-semibold leading-tight tracking-tight">
+            <h1 className="text-center font-display text-[22px] font-semibold leading-tight tracking-tight">
               <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
             </h1>
             <p className="mx-auto mt-1 max-w-[19rem] text-center text-xs text-muted-foreground">
@@ -252,7 +247,7 @@ export default function SignupPage() {
             </p>
 
             {/* Premium role selector — sliding highlight, icon over label */}
-            <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+            <div className="mt-3 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
               {ROLE_OPTIONS.map((opt) => {
                 const active = role === opt.id;
                 return (
@@ -260,7 +255,7 @@ export default function SignupPage() {
                     key={opt.id}
                     type="button"
                     onClick={() => setValue("role", opt.id)}
-                    className="relative flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2.5 text-center text-[11.5px] font-medium leading-tight"
+                    className="relative flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11.5px] font-medium leading-tight"
                   >
                     {active && (
                       <motion.span
@@ -276,7 +271,7 @@ export default function SignupPage() {
               })}
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-2.5">
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-3 space-y-2">
                 <Field icon={<User size={16} />} label="Full name" error={errors.name?.message}>
                   <Input {...register("name")} placeholder="e.g. Priya Sharma" className={FIELD_INPUT} />
                 </Field>
@@ -294,9 +289,8 @@ export default function SignupPage() {
                     <CountrySelect
                       value={countryCode}
                       onChange={(d) => setValue("countryCode", d, { shouldValidate: true })}
-                      inputCls="flex items-center gap-1 text-[15px] font-medium text-white"
+                      inputCls="flex items-center gap-1.5 rounded-lg bg-white/[0.07] px-2.5 py-1.5 text-[15px] font-medium text-white"
                     />
-                    <span className="h-5 w-px shrink-0 bg-white/15" />
                     <Input
                       {...register("phone")}
                       inputMode="tel"
