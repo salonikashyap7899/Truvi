@@ -1,0 +1,39 @@
+import { z } from "zod";
+
+export const createLeadSchema = z.object({
+  projectId: z.string().min(1),
+  clientName: z.string().min(2),
+  clientPhone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+  clientEmail: z.string().email().optional().or(z.literal("")),
+  source: z.string().min(1),
+  notes: z.string().optional(),
+  confirmDuplicate: z.boolean().optional(),
+});
+export type CreateLeadInput = z.infer<typeof createLeadSchema>;
+
+export const updateLeadStageSchema = z.object({
+  stage: z.enum(["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"]),
+  /** Optional reason captured when a lead is marked LOST (founder analytics). */
+  lostReason: z.string().max(200).optional(),
+});
+
+export const createSiteVisitSchema = z.object({
+  leadId: z.string().min(1).optional(),
+  projectId: z.string().min(1),
+  scheduledAt: z.string().min(1),
+  timeSlot: z.string().optional(),
+  contactNumber: z
+    .string()
+    .regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number")
+    .optional()
+    .or(z.literal("")),
+  notes: z.string().optional(),
+});
+
+export const confirmAttendanceSchema = z.object({ lat: z.number(), lng: z.number() });
+
+export const siteVisitReportSchema = z.object({
+  reportNotes: z.string().min(1),
+  nextSteps: z.string().optional(),
+  newLeadStage: z.enum(["NEGOTIATION", "BOOKING", "REGISTRATION", "LOST", "CONTACTED"]).optional(),
+});

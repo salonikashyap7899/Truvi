@@ -1,0 +1,61 @@
+import { z } from "zod";
+
+/** Selectable project/asset types (+ legacy values kept for back-compat). */
+export const PROJECT_TYPE_VALUES = [
+  "APARTMENT",
+  "VILLA",
+  "PLOTTED",
+  "COMMERCIAL",
+  "INDUSTRIAL",
+  "LAND",
+  "MIXED",
+  "RESIDENTIAL",
+  "MIXED_USE",
+] as const;
+
+export const createProjectSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().min(10),
+  city: z.string().min(2),
+  location: z.string().min(2),
+  reraNumber: z.string().optional(),
+  approvalAuthority: z.enum(["RERA", "DISTRICT_PANCHAYAT", "DTCP"]).optional(),
+  totalUnits: z.number().int().min(0).max(100000).optional(),
+  possessionDate: z.string().optional(),
+  salesContact: z
+    .object({
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+    })
+    .optional(),
+  commissionPercent: z.number().min(0).max(20).default(3),
+  projectType: z.enum(PROJECT_TYPE_VALUES).optional(),
+  brochureUrl: z.string().url().optional().or(z.literal("")),
+  priceListUrl: z.string().url().optional().or(z.literal("")),
+  // Admin-only: assign the new project to an existing developer. Ignored for
+  // developer requests (they always create under their own account).
+  developerId: z.string().optional(),
+});
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
+export const createUnitSchema = z.object({
+  projectId: z.string().min(1),
+  unitNumber: z.string().min(1),
+  type: z.string().min(1),
+  areaSqft: z.number().positive(),
+  plotSize: z.string().max(60).optional(),
+  price: z.number().positive(),
+});
+export type CreateUnitInput = z.infer<typeof createUnitSchema>;
+
+export const updatePriceSchema = z.object({ price: z.number().positive() });
+
+/** Editing an existing plot/unit's details (any subset of fields). */
+export const editUnitSchema = z.object({
+  unitNumber: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
+  areaSqft: z.number().positive().optional(),
+  plotSize: z.string().max(60).nullable().optional(),
+  price: z.number().positive().optional(),
+});

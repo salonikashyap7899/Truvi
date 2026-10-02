@@ -1,0 +1,128 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
+import PresentationManager from "@/components/PresentationManager";
+import UnitsManager from "@/components/UnitsManager";
+import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
+import BrochureManager from "@/components/BrochureManager";
+import RiskAssessmentEditor from "@/components/RiskAssessmentEditor";
+import OwnershipGrowthEditor from "@/components/OwnershipGrowthEditor";
+import ProjectProgressEditor from "@/components/ProjectProgressEditor";
+import NearbyAmenities from "@/components/NearbyAmenities";
+import type { Project } from "@/types";
+
+export default function AdminProjectManagePage() {
+  const { id } = useParams<{ id: string }>();
+  const [project, setProject] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get(`/presentation/${id}`)
+      .then((res) => setProject(res.data.project))
+      .catch((err: any) => toast.error(err?.response?.data?.error || "Failed to load project"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <div className="min-h-screen p-10 text-white">Loading…</div>;
+  if (!project) {
+    return (
+      <main className="min-h-screen p-10 text-white">
+        <p className="text-muted-foreground">Project not found.</p>
+        <Link to="/admin/listings" className="mt-3 inline-block text-sm text-blue-400 hover:underline">← Back to Listings</Link>
+      </main>
+    );
+  }
+
+  const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
+
+  return (
+    <main className="min-h-screen p-6 text-white md:p-10 pb-28">
+      <Link to="/admin/listings" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white transition-colors">
+        <ArrowLeft size={14} /> Back to Listings
+      </Link>
+
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">{project.name}</h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><MapPin size={13} /> {project.location}, {project.city}</span>
+            {devName && <span className="inline-flex items-center gap-1.5"><Building2 size={13} /> by {devName}</span>}
+          </p>
+        </div>
+        <Link
+          to={`/inventory/${project._id}/presentation`}
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-4 py-2 text-sm text-blue-300 hover:border-blue-500/50 hover:text-blue-200"
+        >
+          Preview public page <ExternalLink size={13} />
+        </Link>
+      </div>
+
+      <p className="mt-4 rounded-lg border border-white/10 glass px-4 py-3 text-sm text-muted-foreground">
+        As an admin you can edit and manage everything buyers see here: project details, plots &amp; pricing, project images,
+        videos, plans, 3D renders, documents, and the features/amenities list.
+      </p>
+
+      {/* Editable core details: name, location, RERA, possession, contact, plans */}
+      <ProjectDetailsEditor project={project} onUpdated={setProject} />
+
+      {/* Brochure — upload / replace / delete a PDF + view analytics */}
+      <div className="mt-4">
+        <BrochureManager projectId={project._id} projectName={project.name} />
+      </div>
+
+      {/* Physical site-visit toggle (admin-only) — adds +20 to the Trust Score */}
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 glass p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Physical site visit by Truvi team</p>
+          <p className="text-xs text-muted-foreground">Confirms the team visited &amp; inspected the site — adds <b>+20</b> to the Truvi Trust Score.</p>
+        </div>
+        <button
+          onClick={async () => {
+            const next = !project.teamSiteVisited;
+            try {
+              await api.patch(`/projects/${project._id}`, { teamSiteVisited: next });
+              await api.post(`/verify/${project._id}`).catch(() => {});
+              setProject({ ...project, teamSiteVisited: next });
+              toast.success(next ? "Marked as site-visited — Trust Score updated" : "Site visit removed");
+            } catch (e: any) {
+              toast.error(e?.response?.data?.error || "Failed to update");
+            }
+          }}
+          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${project.teamSiteVisited ? "border border-emerald-400/40 bg-emerald-500/20 text-emerald-300" : "border border-white/15 text-white/70 hover:bg-white/10"}`}
+        >
+          {project.teamSiteVisited ? "✓ Visited" : "Mark as visited"}
+        </button>
+      </div>
+
+      {/* Truvi-verified risk levels (admin-only) shown on the intelligence cards */}
+      <RiskAssessmentEditor project={project} onUpdated={setProject} />
+
+      {/* Truvi-verified ownership history + appreciation forecast (admin-only) */}
+      <OwnershipGrowthEditor project={project} onUpdated={setProject} />
+
+      {/* Construction phase, percent complete and milestones */}
+      <ProjectProgressEditor project={project} onUpdated={setProject} />
+
+      {/* Plots / units */}
+      <UnitsManager projectId={project._id} />
+
+      {/* Nearby amenities buyers see — curate real places & distances */}
+      <div className="mt-8">
+        <NearbyAmenities
+          projectId={project._id}
+          amenities={project.presentationInfo?.nearbyAmenities}
+          editable
+          onSaved={(nearbyAmenities) =>
+            setProject((p) => (p ? { ...p, presentationInfo: { ...(p.presentationInfo ?? {}), nearbyAmenities } } : p))
+          }
+        />
+      </div>
+
+      {/* Images, videos, plans, documents + structured info */}
+      <PresentationManager project={project} onProjectUpdated={setProject} />
+    </main>
+  );
+}

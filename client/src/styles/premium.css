@@ -1,0 +1,85 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Truvi · premium micro-interactions
+   Reusable animation + surface utilities shared across the admin, revenue,
+   finance, payments and community workspaces. Kept framework-agnostic so any
+   page can opt in with a class name.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Card hover lift — subtle elevation + brighter hairline on hover. */
+.tv-lift {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+  will-change: transform;
+}
+@media (hover: hover) {
+  .tv-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 24px 60px -28px oklch(0.65 0.22 295 / 0.55);
+    border-color: oklch(0.65 0.19 250 / 0.45);
+  }
+}
+
+/* Staggered entrance — fade + rise. Pair with inline animation-delay. */
+@keyframes tvFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tv-fade-up {
+  animation: tvFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Skeleton shimmer — for loading placeholders. */
+@keyframes tvShimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+.tv-skeleton {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    90deg,
+    oklch(1 0 0 / 0.04) 25%,
+    oklch(1 0 0 / 0.09) 50%,
+    oklch(1 0 0 / 0.04) 75%
+  );
+  background-size: 800px 100%;
+  animation: tvShimmer 1.4s ease-in-out infinite;
+}
+
+/* Soft top glow for hero KPI strips. */
+.tv-glow-top {
+  position: relative;
+  overflow: hidden;
+}
+.tv-glow-top::before {
+  content: "";
+  position: absolute;
+  inset: -40% 20% auto 20%;
+  height: 120px;
+  background: radial-gradient(
+    60% 100% at 50% 0,
+    oklch(0.65 0.22 295 / 0.22),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* Respect reduced-motion preferences everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  .tv-lift,
+  .tv-fade-up,
+  .tv-skeleton {
+    animation: none !important;
+    transition: none !important;
+  }
+}

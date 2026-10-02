@@ -1,0 +1,90 @@
+@import "tailwindcss";
+@import "./styles/landing.css";
+@import "./styles/premium.css";
+
+:root {
+  color-scheme: dark;
+}
+
+/* Tailwind v4 preflight sets buttons to cursor: default — restore the
+   pointer cursor on every enabled interactive element app-wide. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  select:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+}
+
+/* ── Truvi premium brand cursor (navy/gold shield — TruviPremiumCursor spec).
+   Unlayered so it outranks the @layer base pointer rules; every element,
+   including buttons and links, shares the same branded cursor. ── */
+* {
+  cursor: url("/brand/cursor.png") 18 2, auto;
+}
+
+html, body, #root {
+  height: 100%;
+  /* Paint the root dark so third-party overlays (e.g. the Razorpay checkout)
+     never reveal a white page behind them. */
+  background-color: var(--background);
+}
+
+/* Installed app: the WebView runs edge-to-edge under the status bar (clock,
+   battery, signal). Reserve that safe-area height at the very top so EVERY
+   page's content — dashboards, inventory, etc., not just the landing nav —
+   starts below the status bar instead of hiding behind it. Fixed headers keep
+   their own inset; this handles the normal-flow pages. In a browser, and once
+   the native app sets overlaysWebView:false, env() is 0 — so this adds space
+   only where it's actually needed and never double-pads. */
+body {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* When an assistant opens as a full-width bottom sheet (Ask Truvi / AI Copilot),
+   the other floating buttons would sit on top of its input and hide what the
+   user types. Fade them out (and disable them) while a panel is open. */
+body.ask-truvi-open [data-fab="invest"],
+body.ask-truvi-open [data-fab="copilot"],
+body.copilot-open [data-fab="invest"],
+body.copilot-open [data-fab="ask"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* The first-run onboarding tour is a fullscreen overlay; hide every floating
+   button while it is open so none of them sits above it and intercepts taps on
+   the Next / Get Started button. */
+body.onboarding-open [data-fab] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Responsive safety net: decorative glows, wide diagrams and animated
+   elements must never introduce sideways page scroll on small screens. */
+html, body {
+  overflow-x: clip;
+}
+
+/* Keep long URLs, emails and IDs from forcing horizontal overflow. */
+body {
+  overflow-wrap: break-word;
+}
+
+/* ── Site-wide typeface: Playfair Display everywhere (headings + body + UI). ──
+   Set on the root so every element inherits it; individual components can still
+   opt into a different family, but the default across the whole app is Playfair. */
+html, body, #root {
+  font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+}
+
+/* ── Media quality: ask the browser for its best downscaling filter so
+   full-bleed posters and the hero clip are rendered as crisply as their
+   native resolution allows (bicubic rather than a cheaper nearest-neighbour). */
+img, video {
+  image-rendering: auto;           /* UA default = high-quality (bicubic) scaler */
+  image-rendering: high-quality;   /* honoured where supported */
+}

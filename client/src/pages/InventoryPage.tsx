@@ -1,0 +1,508 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
+import { getInventory, peekInventory } from "@/lib/inventoryCache";
+import { toast } from "sonner";
+import {
+  Search, Star, ShieldCheck, MapPin, ArrowRight, Heart,
+  MessageCircle, SlidersHorizontal, X, Eye, Navigation,
+} from "lucide-react";
+import VisitorGateModal from "@/components/VisitorGateModal";
+import ListingIntelligence from "@/components/ListingIntelligence";
+import MediaCarousel from "@/components/MediaCarousel";
+import { shareProjectOnWhatsApp } from "@/components/ShareProjectButton";
+import WhatsAppGlyph from "@/components/WhatsAppGlyph";
+import { SiteNav } from "@/components/SiteNav";
+import { formatCompactINR } from "@/lib/utils";
+import { haversineKm, formatDistance } from "@/lib/geo";
+import { useLocationStore } from "@/store/locationStore";
+import type { Project, ProjectType } from "@/types";
+import { useAuth } from "@/hooks/useAuth";
+
+const WA_NUMBER = "917054280101";
+
+/* ── Category filter (kept for the Saved view + ?cat= deep links) ───────────── */
+type CategoryKey = "ALL" | "SAVED" | "APARTMENT" | "VILLA" | "PLOT" | "COMMERCIAL" | "LAND";
+
+function matchesCategory(type: ProjectType | undefined, cat: CategoryKey): boolean {
+  if (cat === "ALL" || cat === "SAVED") return true;
+  const t = type ?? "";
+  switch (cat) {
+    case "APARTMENT": return t === "APARTMENT" || t === "RESIDENTIAL" || t === "MIXED";
+    case "VILLA": return t === "VILLA";
+    case "PLOT": return t === "PLOTTED";
+    case "COMMERCIAL": return t === "COMMERCIAL" || t === "INDUSTRIAL";
+    case "LAND": return t === "LAND";
+    default: return true;
+  }
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  APARTMENT: "Apartment", VILLA: "Villa", PLOTTED: "Plot", COMMERCIAL: "Commercial",
+  INDUSTRIAL: "Industrial", LAND: "Land", MIXED: "Mixed-use", RESIDENTIAL: "Residential",
+};
+
+type SortKey = "RECOMMENDED" | "PRICE_LOW" | "PRICE_HIGH" | "TRUST";
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "RECOMMENDED", label: "Recommended" },
+  { key: "PRICE_LOW", label: "Price: Low to High" },
+  { key: "PRICE_HIGH", label: "Price: High to Low" },
+  { key: "TRUST", label: "Trust Score" },
+];
+
+/* ── Shortlist (localStorage, scoped PER ACCOUNT) ───────────────────────────
+   Saving requires an account. The saved list is keyed strictly by the signed-in
+   user's id, so switching accounts on the same device never shows one account's
+   saves under another — and once you log out, you have NO saved list (the
+   feature belongs to the account, not the device). There is deliberately no
+   "guest" bucket: a signed-out visitor sees an empty Saved tab. */
+const shortlistKey = (userId: string) => `truvi-shortlist:${userId}`;
+function loadShortlist(userId?: string | null): Set<string> {
+  if (!userId) return new Set(); // signed out → nothing saved
+  try {
+    return new Set(JSON.parse(localStorage.getItem(shortlistKey(userId)) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+const CATEGORY_KEYS = new Set<CategoryKey>(["ALL", "SAVED", "APARTMENT", "VILLA", "PLOT", "COMMERCIAL", "LAND"]);
+
+export default function InventoryPage() {
+  const [params] = useSearchParams();
+  // Derived from the URL so switching the bottom "Saved" tab (?cat=SAVED) takes
+  // effect even while this page is already mounted.
+  const urlCat = params.get("cat") as CategoryKey | null;
+  const category: CategoryKey = urlCat && CATEGORY_KEYS.has(urlCat) ? urlCat : "ALL";
+  const [projects, setProjects] = useState<Project[]>(() => peekInventory() ?? []);
+  const [search, setSearch] = useState(() => params.get("q") ?? "");
+  const [sort, setSort] = useState<SortKey>("RECOMMENDED");
+  const [nearMe, setNearMe] = useState(params.get("near") === "1");
+  const [loading, setLoading] = useState(() => peekInventory() === null);
+  const [showGate, setShowGate] = useState(false);
+  const { user } = useAuth();
+  // The signed-in user's id — read both keys: /auth/me returns `_id` while a
+  // freshly-logged-in session may carry `id`. Missing this made saving fail
+  // right after login ("Please log in to save").
+  const uid = user ? (user._id ?? (user as unknown as { id?: string }).id ?? null) : null;
+  const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(uid));
+  const [scoreProject, setScoreProject] = useState<Project | null>(null);
+  const coords = useLocationStore((s) => s.coords);
+  const locStatus = useLocationStore((s) => s.status);
+  const requestLocation = useLocationStore((s) => s.request);
+
+  // One-time cleanup: earlier builds stored signed-out saves in a shared
+  // "guest" bucket, which is why a saved property could linger after logout on
+  // this device. Remove it so those stale saves disappear for good.
+  useEffect(() => {
+    try { localStorage.removeItem("truvi-shortlist:guest"); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    document.title = "TRUVI — Inventory";
+    getInventory()
+      .then((list) => setProjects(list))
+      .catch((err: any) => {
+        // Only alarm the user when there's genuinely nothing to show. If we
+        // already have a (possibly cached) list on screen, a background refresh
+        // failure shouldn't pop a scary "Failed to load" toast over a working
+        // page.
+        if (peekInventory() === null) {
+          toast.error(err?.response?.data?.error || "Failed to load inventory");
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!user && localStorage.getItem("truvi-welcome-seen")) {
+      const t = setTimeout(() => setShowGate(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [user]);
+
+  // Toggle "Near Me" — when switching on, get a location fix first and tell the
+  // user if it's unavailable, so the button never silently does nothing.
+  async function toggleNearMe() {
+    const next = !nearMe;
+    setNearMe(next);
+    if (next) {
+      const c = coords ?? (await requestLocation());
+      if (!c) toast.error("Turn on location access to sort properties nearest to you.");
+    }
+  }
+
+  // Reload the shortlist whenever the signed-in account changes (login, logout
+  // or switching users) so each account only ever sees its own saved projects.
+  useEffect(() => {
+    setSaved(loadShortlist(uid));
+  }, [uid]);
+
+  const toggleSaved = (id: string) => {
+    // Saving is an account feature — a signed-out visitor cannot save (so a
+    // save can never leak across accounts or survive logout on a shared device).
+    if (!uid) {
+      toast.error("Please log in to save properties.");
+      return;
+    }
+    setSaved((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try { localStorage.setItem(shortlistKey(uid), JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const priceOf = (p: Project) => p.minPrice ?? (p.minRate ? p.minRate * 1000 : Number.POSITIVE_INFINITY);
+  const distOf = (p: Project) =>
+    coords && typeof p.lat === "number" && typeof p.lng === "number"
+      ? haversineKm(coords, { lat: p.lat, lng: p.lng })
+      : Number.POSITIVE_INFINITY;
+  // The Truvi Score shown on each card (falls back to the legacy trust_score).
+  const scoreOf = (p: Project) => (p as { truviScore?: number }).truviScore ?? p.trustScore ?? 0;
+
+  const results = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = projects.filter((p) => {
+      if (q && !(p.name.toLowerCase().includes(q) || p.city.toLowerCase().includes(q) || p.location.toLowerCase().includes(q))) return false;
+      if (category === "SAVED") return saved.has(p._id);
+      return matchesCategory(p.projectType, category);
+    });
+    list = [...list].sort((a, b) => {
+      // "Near Me" overrides other sorting — nearest first (unlocated last).
+      if (nearMe && coords) return distOf(a) - distOf(b);
+      if (sort === "PRICE_LOW") return priceOf(a) - priceOf(b);
+      if (sort === "PRICE_HIGH") return priceOf(b) - priceOf(a);
+      // Use the score actually shown on the card (truviScore), not the legacy
+      // trust_score DB column which is almost always null.
+      if (sort === "TRUST") return scoreOf(b) - scoreOf(a);
+      // Recommended: Prime first, then Truvi Score.
+      if (a.isPrimeListing && !b.isPrimeListing) return -1;
+      if (!a.isPrimeListing && b.isPrimeListing) return 1;
+      return scoreOf(b) - scoreOf(a);
+    });
+    return list;
+  }, [projects, search, category, sort, saved, nearMe, coords]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      {showGate && !user && <VisitorGateModal onClose={() => setShowGate(false)} />}
+
+      <SiteNav />
+
+      <main
+        className="min-h-screen px-4 pb-28 pt-[calc(5rem+env(safe-area-inset-top))] text-white sm:px-6 md:px-10 md:pt-32"
+      >
+        {/* ── Header + search ── */}
+        <div className="mx-auto max-w-3xl text-center">
+          <h1 className="font-display text-2xl font-medium tracking-tight md:text-4xl">
+            Find your <span className="text-gradient-trust">property</span>
+          </h1>
+          <p className="mx-auto mt-1.5 max-w-xl text-sm text-muted-foreground">
+            Verified, RERA-checked and trust-scored listings — search, shortlist and connect.
+          </p>
+
+          <div className="relative mx-auto mt-4 max-w-xl">
+            <Search size={19} strokeWidth={2.2} className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-sky-300" />
+            <input
+              type="text"
+              placeholder="Search city, locality or project…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-12 w-full rounded-full border border-white/12 bg-white/[0.05] pl-11 pr-11 text-sm text-white placeholder:text-white/30 outline-none backdrop-blur transition focus:border-[var(--trust)]/60 focus:shadow-[0_0_24px_rgba(59,130,246,0.15)]"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 grid size-7 place-items-center rounded-full text-white/50 hover:bg-white/10">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Quick action: Near Me — sort listings by distance from the user. */}
+          <div className="mx-auto mt-3 flex max-w-xl justify-center">
+            <button
+              onClick={toggleNearMe}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition ${
+                nearMe
+                  ? "border-[var(--trust)]/60 bg-[var(--trust)]/15 text-sky-200"
+                  : "border-white/12 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+              }`}
+            >
+              <Navigation size={13} className={nearMe && locStatus === "loading" ? "animate-pulse" : ""} />
+              {nearMe ? "Nearest to you" : "Near Me"}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Result count + sort ── */}
+        <div className="mx-auto mt-6 max-w-7xl">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              {category === "SAVED" && <span className="mr-2 text-sky-200">Saved · </span>}
+              <span className="font-semibold text-white">{results.length}</span> propert{results.length !== 1 ? "ies" : "y"}
+            </p>
+            <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
+              <SlidersHorizontal size={13} className="text-white/50" />
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
+              >
+                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {/* ── Results ── */}
+        {loading ? (
+          <div className="mt-20 flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-[var(--trust)]" />
+            <p className="text-sm">Loading properties…</p>
+          </div>
+        ) : results.length === 0 ? (
+          <p className="mt-16 text-center text-sm text-muted-foreground">
+            {category === "SAVED"
+              ? user
+                ? "No saved properties yet — tap the heart on a listing to save it."
+                : "Log in to save properties and see them here."
+              : "No properties match your search."}
+          </p>
+        ) : (
+          <div className="mx-auto mt-6 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {results.map((project) => (
+              <ListingCard
+                key={project._id}
+                project={project}
+                isPrime={!!project.isPrimeListing}
+                saved={saved.has(project._id)}
+                onToggleSaved={() => toggleSaved(project._id)}
+                onOpenScore={() => setScoreProject(project)}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Truvi Score breakdown — opens as a popup right on the inventory page. */}
+      {scoreProject && (
+        <ScoreModal project={scoreProject} onClose={() => setScoreProject(null)} />
+      )}
+    </>
+  );
+}
+
+/* ── Truvi Score popup (opened from a card's score badge) ──────────────────── */
+function ScoreModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#0a0d14]/97 shadow-2xl backdrop-blur-xl sm:rounded-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 px-5 py-3.5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300/80">Truvi Score</p>
+            <p className="truncate font-display text-sm font-semibold text-white">{project.name}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-white/80 hover:bg-white/10">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-4 py-4">
+          <ListingIntelligence projectId={project._id} />
+          <Link
+            to={`/inventory/${project._id}/presentation`}
+            onClick={onClose}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+          >
+            Open full listing <ArrowRight size={13} />
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Marketplace listing card (99acres / MagicBricks style, Truvi dark) ─────── */
+
+function priceBadge(project: Project): string {
+  if (project.minPrice) return formatCompactINR(project.minPrice);
+  if (project.minRate) return `₹${project.minRate.toLocaleString("en-IN")}/sq ft`;
+  return "Price on request";
+}
+
+function ListingCard({
+  project, isPrime, saved, onToggleSaved, onOpenScore,
+}: {
+  project: Project;
+  isPrime: boolean;
+  saved: boolean;
+  onToggleSaved: () => void;
+  onOpenScore: () => void;
+}) {
+  const navigate = useNavigate();
+  const coords = useLocationStore((s) => s.coords);
+  const distanceKm =
+    coords && typeof project.lat === "number" && typeof project.lng === "number"
+      ? haversineKm(coords, { lat: project.lat, lng: project.lng })
+      : null;
+
+  const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
+  const typeLabel = project.projectType ? TYPE_LABEL[project.projectType] : null;
+  const possessionYear = project.possessionDate ? new Date(project.possessionDate).getFullYear() : null;
+
+  const waText = encodeURIComponent(
+    `Hi Truvi Ventures, I'm interested in ${project.name} at ${project.location}, ${project.city}. Please share the details.`,
+  );
+
+  const frame = isPrime
+    ? "linear-gradient(160deg, rgba(251,191,36,0.65), rgba(251,191,36,0.12) 45%, rgba(255,255,255,0.06) 85%)"
+    : "linear-gradient(160deg, rgba(255,255,255,0.18), rgba(59,130,246,0.18) 45%, rgba(255,255,255,0.04) 85%)";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className="group relative min-w-0 rounded-[22px] p-px transition-transform duration-300 hover:-translate-y-1"
+      style={{ background: frame }}
+    >
+      <div className="overflow-hidden rounded-[21px] bg-[#0a0d14]">
+        {/* Media carousel (images + videos) → details */}
+        <div className="relative aspect-[16/11] w-full overflow-hidden">
+          <MediaCarousel
+            media={project.media}
+            fallback={project.coverImageUrl}
+            alt={project.name}
+            onOpen={() => navigate(`/inventory/${project._id}/presentation`)}
+            className="absolute inset-0 h-full w-full"
+            thumb
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
+
+          {/* Top badges */}
+          <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
+            {isPrime && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
+                <Star size={9} fill="currentColor" /> Prime
+              </span>
+            )}
+            {project.reraNumber && (
+              <span className="inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
+                RERA
+              </span>
+            )}
+          </div>
+
+          {/* Shortlist heart */}
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSaved(); }}
+            title={saved ? "Remove from shortlist" : "Add to shortlist"}
+            aria-label={saved ? "Remove from shortlist" : "Add to shortlist"}
+            className="absolute right-3 top-3 z-10 grid size-9 place-items-center rounded-full border border-white/20 bg-black/50 text-white backdrop-blur transition hover:bg-black/70"
+          >
+            <Heart size={16} className={saved ? "fill-rose-400 text-rose-400" : ""} />
+          </button>
+
+          {/* Price + distance + verified on the media */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
+            <span className="inline-flex items-center rounded-full bg-white/95 px-3 py-1 font-display text-sm font-bold text-[#0a0d14] shadow-lg">
+              {priceBadge(project)}
+            </span>
+            <div className="flex flex-col items-end gap-1">
+              {distanceKm != null && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/25 bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
+                  <Navigation size={10} /> {formatDistance(distanceKm)}
+                </span>
+              )}
+              {project.isVerified && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-black/55 px-2.5 py-1 text-[11px] font-medium text-emerald-300 backdrop-blur">
+                  <ShieldCheck size={11} /> Verified
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Body → details */}
+        <Link to={`/inventory/${project._id}/presentation`} className="block">
+          <div className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
+              {(() => {
+                const score = project.truviScore ?? project.trustScore;
+                if (typeof score !== "number") return null;
+                // Tapping the badge opens the Truvi Score breakdown popup in place.
+                return (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenScore(); }}
+                    className="inline-flex shrink-0 flex-col items-center rounded-xl border border-sky-400/30 bg-sky-500/10 px-2 py-1 leading-none text-sky-200 transition hover:bg-sky-500/20"
+                    title="Truvi Score — tap to see why"
+                  >
+                    <span className="text-[8px] font-semibold uppercase tracking-[0.14em] text-sky-300/80">Truvi Score</span>
+                    <span className="mt-0.5 font-display text-sm font-bold text-white">{score}</span>
+                  </button>
+                );
+              })()}
+            </div>
+            <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/65">
+              <MapPin size={12} className="shrink-0" />
+              <span className="min-w-0 truncate">{project.location}, {project.city}{devName ? ` · ${devName}` : ""}</span>
+            </p>
+
+            {/* Meta chips */}
+            <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] text-white/70">
+              {typeLabel && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{typeLabel}</span>}
+              {possessionYear && <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">Possession {possessionYear}</span>}
+              {(() => {
+                // Server-computed: declared total → largest unit number entered →
+                // counted rows. Label as "plots" for plotted/land projects.
+                const count = project.plotCount ?? project.totalUnits ?? project.unitCount ?? 0;
+                if (count <= 0) return null;
+                const noun = project.projectType === "PLOTTED" || project.projectType === "LAND" ? "plots" : "units";
+                return <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{count} {noun}</span>;
+              })()}
+              {typeof project.viewCount === "number" && project.viewCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5"><Eye size={10} /> {project.viewCount}</span>
+              )}
+            </div>
+          </div>
+        </Link>
+
+        {/* Actions row */}
+        <div className="flex items-center gap-2 border-t border-white/8 p-3">
+          <a
+            href={`https://wa.me/${WA_NUMBER}?text=${waText}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[var(--trust)] to-[#2563eb] py-2.5 text-xs font-semibold text-white transition hover:shadow-[0_0_22px_rgba(59,130,246,0.35)]"
+          >
+            <MessageCircle size={14} /> Contact
+          </a>
+          <Link
+            to={`/inventory/${project._id}/presentation`}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.04] py-2.5 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+          >
+            View <ArrowRight size={13} />
+          </Link>
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); shareProjectOnWhatsApp(project); }}
+            title="Share on WhatsApp"
+            aria-label="Share on WhatsApp"
+            className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#25D366]/35 bg-[#25D366]/10 transition hover:bg-[#25D366]/20"
+          >
+            <WhatsAppGlyph size={17} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}

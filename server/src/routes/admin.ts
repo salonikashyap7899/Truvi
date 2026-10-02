@@ -1,0 +1,2362 @@
+import { Router } from "express";
+import { zodMessage } from "../lib/validationError";
+import { z } from "zod";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { getSqlClient } from "../db/index";
+import {
+  users,
+  userPushTokens,
+  projects,
+  units,
+  leads,
+  siteVisits,
+  commissions,
+  enquiries,
+  sharedDocuments,
+  projectAssets,
+  legalDocuments,
+  buyerDocuments,
+  notifications,
+  payments,
+  subscriptions,
+  leadPurchases,
+  leadFollowUps,
+  leadActivities,
+  crmTasks,
+  ambassadorTasks,
+  financeEntries,
+  marketingCampaigns,
+  customerFeedback,
+  developerReferrals,
+  cpCommissionPayments,
+  cpManualCommissions,
+  auditLogs,
+  platformSettings,
+  IPlatformSettings,
+  LeadStage,
+  Role,
+  ApprovalStatus,
+  VerificationDetails,
+  OnboardingChecks,
+  UserVerification,
+  DEFAULT_ONBOARDING_CHECKS,
+  isOnboardingComplete,
+} from "../db/schema";
+import { isValidId } from "../lib/ids";
+import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
+import { emitNotification } from "../sockets";
+import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
+import { isPushEnabled } from "../services/pushService";
+import { logAudit } from "../services/audit";
+import { runLifecycleReminders } from "../services/lifecycleEmails";
+import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
+
+const router = Router();
+router.use(authenticate);
+
+// POST /api/admin/lifecycle/run-reminders — trigger the onboarding-reminder
+// sweep on demand (verify account / complete KYC / activate a plan). The same
+// sweep also runs automatically once a day; this lets a founder fire it now.
+router.post("/lifecycle/run-reminders", requireRole("ADMIN"), async (_req, res) => {
+  const result = await runLifecycleReminders();
+  res.json({ ok: true, ...result });
+});
+
+// GET /api/admin/investor-metrics — the live valuation-driving numbers
+// (users, MRR/ARR, LTV, CAC, churn, revenue, conversion) for the admin /
+// investor dashboard.
+router.get("/investor-metrics", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [allUsers, allSubs, allPays, allCommissions, allLeads] = await Promise.all([
+    db.select({ _id: users._id, role: users.role, createdAt: users.createdAt, onboardingChecks: users.onboardingChecks }).from(users),
+    db.select().from(subscriptions),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select().from(commissions),
+    db.select({ _id: leads._id, updatedAt: leads.updatedAt }).from(leads),
+  ]);
+
+  const byRole = (role: Role) => allUsers.filter((u) => u.role === role).length;
+  const activeSubs = allSubs.filter((s) => s.status === "ACTIVE");
+  const monthlyPaise = (s: (typeof allSubs)[number]) =>
+    s.interval === "yearly" ? Math.round((s.basePaise + s.gstPaise) / 12) : s.basePaise + s.gstPaise;
+
+  const mrrPaise = activeSubs.reduce((sum, s) => sum + monthlyPaise(s), 0);
+  const oneTimeRevenuePaise = allPays.reduce((sum, p) => sum + p.amountPaise + p.gstPaise, 0);
+  const platformFeePaise = Math.round(allCommissions.reduce((sum, c) => sum + c.platformFeeAmount, 0) * 100);
+
+  const payingUserIds = new Set([
+    ...allPays.map((p) => p.userId).filter(Boolean),
+    ...activeSubs.map((s) => s.userId).filter(Boolean),
+  ]);
+  const cancelled = allSubs.filter((s) => s.status === "CANCELLED").length;
+
+  res.json({
+    metrics: {
+      totalBuyers: byRole("BUYER"),
+      totalDevelopers: byRole("DEVELOPER"),
+      totalCPs: byRole("CP"),
+      activeUsers: new Set(allLeads.filter((l) => l.updatedAt >= thirtyDaysAgo).map((l) => l._id)).size + activeSubs.length,
+      newUsers30d: allUsers.filter((u) => u.createdAt >= thirtyDaysAgo).length,
+      mrrPaise,
+      arrPaise: mrrPaise * 12,
+      totalRevenuePaise: oneTimeRevenuePaise + platformFeePaise,
+      ltvPaise: payingUserIds.size ? Math.round((oneTimeRevenuePaise + platformFeePaise) / payingUserIds.size) : 0,
+      // No paid-acquisition spend is tracked yet, so CAC is organic (₹0).
+      cacPaise: 0,
+      churnPercent: allSubs.length ? Math.round((cancelled / allSubs.length) * 100) : 0,
+      conversionPercent: allUsers.length ? Math.round((payingUserIds.size / allUsers.length) * 100) : 0,
+      payingUsers: payingUserIds.size,
+      gmvPaise: Math.round(allCommissions.reduce((sum, c) => sum + c.bookingValue, 0) * 100),
+    },
+  });
+});
+
+// GET /api/admin/kpi-trends — month-over-month growth % for the dashboard's
+// headline cards. "Growth this month" = value added since the 1st, relative to
+// the total that existed before this month — so it reads as "↑X% this month"
+// next to a running total. All from real dated records; no fabricated numbers.
+router.get("/kpi-trends", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [userRows, projectRows, commissionRows, purchaseRows] = await Promise.all([
+    db.select({ createdAt: users.createdAt }).from(users),
+    db.select({ createdAt: projects.createdAt }).from(projects),
+    db.select({ createdAt: commissions.createdAt, platformFeeAmount: commissions.platformFeeAmount }).from(commissions),
+    db.select({ createdAt: leadPurchases.createdAt, amountPaid: leadPurchases.amountPaid }).from(leadPurchases),
+  ]);
+
+  const growth = (thisMonth: number, before: number) =>
+    before > 0 ? Math.round((thisMonth / before) * 100) : thisMonth > 0 ? 100 : 0;
+
+  const countGrowth = (rows: { createdAt: Date }[]) => {
+    const thisMonth = rows.filter((r) => new Date(r.createdAt) >= startOfMonth).length;
+    return growth(thisMonth, rows.length - thisMonth);
+  };
+  const sumGrowth = (rows: { createdAt: Date }[], amount: (r: any) => number) => {
+    let thisMonth = 0, before = 0;
+    for (const r of rows) {
+      const v = amount(r);
+      if (new Date(r.createdAt) >= startOfMonth) thisMonth += v;
+      else before += v;
+    }
+    return growth(thisMonth, before);
+  };
+
+  res.json({
+    trends: {
+      users: countGrowth(userRows),
+      projects: countGrowth(projectRows),
+      platformFeeRevenue: sumGrowth(commissionRows, (r) => Number(r.platformFeeAmount || 0)),
+      leadRevenue: sumGrowth(purchaseRows, (r) => Number(r.amountPaid || 0)),
+    },
+  });
+});
+
+// GET /api/admin/founder-overview — the Founder Dashboard ("CEO Operating
+// System") aggregate. Every number here is derived from ACTUAL platform data
+// (users, projects, leads, site visits, commissions, payments, subscriptions,
+// lead purchases). Sections that have no data source yet (finance ledger,
+// legal/ROC, team/HR, marketing, land bank, investor/cap-table) are NOT
+// invented here — they are returned as `tracked: false` so the client renders
+// an honest "awaiting data source" state instead of fake numbers.
+router.get("/founder-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [
+    allUsers, allProjects, allUnits, allLeads, allSiteVisits,
+    allCommissions, allPurchases, paidPayments, allSubs, allEnquiries,
+    pendingLegal, openFollowUps, allCampaigns, allFeedback,
+  ] = await Promise.all([
+    db.select({ _id: users._id, name: users.name, role: users.role, createdAt: users.createdAt, disabled: users.disabled, lastActiveAt: users.lastActiveAt, onboardingVerified: users.onboardingVerified, onboardingChecks: users.onboardingChecks }).from(users),
+    db.select().from(projects),
+    db.select({ _id: units._id, status: units.status, price: units.price }).from(units),
+    db.select({ _id: leads._id, projectId: leads.projectId, stage: leads.stage, createdAt: leads.createdAt, updatedAt: leads.updatedAt, lostReason: leads.lostReason, assignedToId: leads.assignedToId, clientPhone: leads.clientPhone, firstContactedAt: leads.firstContactedAt }).from(leads),
+    db.select({ _id: siteVisits._id, status: siteVisits.status, scheduledAt: siteVisits.scheduledAt }).from(siteVisits),
+    db.select().from(commissions),
+    db.select().from(leadPurchases),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select().from(subscriptions),
+    db.select({ _id: enquiries._id, createdAt: enquiries.createdAt }).from(enquiries),
+    db.select({ _id: legalDocuments._id }).from(legalDocuments).where(eq(legalDocuments.verified, false)),
+    db.select({ _id: leadFollowUps._id, dueAt: leadFollowUps.dueAt, status: leadFollowUps.status }).from(leadFollowUps),
+    db.select({ spend: marketingCampaigns.spend }).from(marketingCampaigns),
+    db.select().from(customerFeedback),
+  ]);
+
+  const byRole = (r: Role) => allUsers.filter((u) => u.role === r).length;
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  // ---- Revenue (rupees) from real, dated sources -------------------------
+  // Commission platform fee (fee is booked when the commission row is created),
+  // lead-marketplace purchases, and one-off / subscription payments.
+  const feeInRange = (from: Date) =>
+    allCommissions.filter((c) => c.createdAt >= from).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+  const purchasesInRange = (from: Date) =>
+    allPurchases.filter((p) => p.createdAt >= from).reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+  const paymentsInRange = (from: Date) =>
+    paidPayments.filter((p) => p.createdAt >= from).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+  const revenueSince = (from: Date) => rupees(feeInRange(from) + purchasesInRange(from) + paymentsInRange(from));
+
+  const platformFeeAll = allCommissions.reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+  const leadServiceAll = allPurchases.reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+  const paymentsAll = paidPayments.reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+  const totalRevenue = rupees(platformFeeAll + leadServiceAll + paymentsAll);
+  const gmv = rupees(allCommissions.reduce((s, c) => s + Number(c.bookingValue || 0), 0));
+
+  // ---- Sales pipeline (real lead stages) ---------------------------------
+  const stageCount = (st: LeadStage) => allLeads.filter((l) => l.stage === st).length;
+  const leadsToday = allLeads.filter((l) => l.createdAt >= startOfToday).length;
+  const qualifiedLeads = allLeads.filter((l) => !["GENERATED", "LOST"].includes(l.stage)).length;
+  const bookings = stageCount("BOOKING");
+  const registrations = stageCount("REGISTRATION") + stageCount("COMPLETED");
+  const siteVisitCount = allSiteVisits.length;
+  const closedWon = bookings + registrations;
+  const conversionRate = allLeads.length ? Math.round((closedWon / allLeads.length) * 100) : 0;
+
+  const funnel = [
+    { stage: "Generated", count: stageCount("GENERATED") + stageCount("ASSIGNED") },
+    { stage: "Contacted", count: stageCount("CONTACTED") },
+    { stage: "Interested", count: stageCount("INTERESTED") },
+    { stage: "Site Visit", count: stageCount("SITE_VISIT") },
+    { stage: "Negotiation", count: stageCount("NEGOTIATION") },
+    { stage: "Booking", count: bookings },
+    { stage: "Registration", count: registrations },
+  ];
+
+  // Revenue by project = booking value routed through that project's leads.
+  const projectName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const leadProject = new Map(allLeads.map((l) => [String(l._id), String(l.projectId)]));
+  const revByProject = new Map<string, number>();
+  for (const c of allCommissions) {
+    const pid = leadProject.get(String(c.leadId));
+    if (!pid) continue;
+    revByProject.set(pid, (revByProject.get(pid) || 0) + Number(c.bookingValue || 0));
+  }
+  const revenueByProject = [...revByProject.entries()]
+    .map(([pid, value]) => ({ project: projectName.get(pid) || "Unknown", value: rupees(value) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  // ---- Projects ----------------------------------------------------------
+  const approvedProjects = allProjects.filter((p) => p.approvalStatus === "APPROVED");
+  const verifiedProjects = allProjects.filter((p) => p.isVerified);
+  const pendingProjects = allProjects.filter((p) => p.approvalStatus === "PENDING");
+  const projectRows = allProjects
+    .map((p) => ({
+      id: String(p._id),
+      name: p.name,
+      city: p.city,
+      approvalStatus: p.approvalStatus,
+      verified: Boolean(p.isVerified),
+      listingTier: p.listingTier,
+      constructionStatus: p.constructionStatus ?? null,
+      constructionProgress: typeof p.constructionProgress === "number" ? p.constructionProgress : null,
+    }))
+    .slice(0, 12);
+
+  // ---- Verification queue ------------------------------------------------
+  // KYC is a Channel Partner / Ambassador requirement only. Count submissions
+  // actually awaiting manual review (docs submitted → kycStatus PENDING) from
+  // those two roles, matching exactly what GET /admin/kyc/pending returns.
+  const pendingKyc = allUsers.filter(
+    (u) => (u.role === "CP" || u.role === "AMBASSADOR") && u.onboardingChecks?.kycStatus === "PENDING",
+  ).length;
+
+  // ---- CRM (real) --------------------------------------------------------
+  const newCustomers30d = allUsers.filter((u) => u.role === "BUYER" && u.createdAt >= thirtyDaysAgo).length;
+  const activeCustomers = byRole("BUYER");
+  const followUpsDue = openFollowUps.filter((f) => f.status === "PENDING" && f.dueAt <= now).length;
+
+  // ---- Subscriptions / MRR ----------------------------------------------
+  const activeSubs = allSubs.filter((s) => s.status === "ACTIVE");
+  const mrr = rupees(activeSubs.reduce((s, x) => s + (x.interval === "yearly" ? (x.basePaise + x.gstPaise) / 12 : x.basePaise + x.gstPaise) / 100, 0));
+
+  // ---- Company Health Score (0-100) from real signals only --------------
+  const verifiedRatio = approvedProjects.length ? verifiedProjects.length / approvedProjects.length : 0;
+  const pipelineActivity = allLeads.length ? allLeads.filter((l) => l.updatedAt >= thirtyDaysAgo).length / allLeads.length : 0;
+  const verifBacklog = approvedProjects.length ? 1 - Math.min(pendingProjects.length / approvedProjects.length, 1) : 1;
+  const healthScore = Math.round(
+    verifiedRatio * 30 +
+    Math.min(conversionRate / 100, 1) * 25 +
+    pipelineActivity * 20 +
+    (totalRevenue > 0 ? 15 : 0) +
+    verifBacklog * 10
+  );
+
+  const pendingActions = pendingProjects.length + pendingLegal.length + pendingKyc + allEnquiries.length;
+
+  // ---- Derived founder metrics (all from real, dated sources) ------------
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const revenueBetween = (from: Date, to: Date) =>
+    rupees(
+      allCommissions.filter((c) => c.createdAt >= from && c.createdAt < to).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0) +
+        allPurchases.filter((p) => p.createdAt >= from && p.createdAt < to).reduce((s, p) => s + Number(p.amountPaid || 0), 0) +
+        paidPayments.filter((p) => p.createdAt >= from && p.createdAt < to).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0),
+    );
+  const revenueThisMonth = revenueSince(startOfMonth);
+  const revenueLastMonth = revenueBetween(startOfLastMonth, startOfMonth);
+  const revenueGrowthMoM = revenueLastMonth > 0 ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100) : null;
+  const dealCount = allCommissions.length;
+  const totalDevelopers = byRole("DEVELOPER");
+  const totalCPs = byRole("CP");
+  const metrics = {
+    avgDealSize: dealCount ? rupees(gmv / dealCount) : 0,
+    dealCount,
+    revenuePerDeveloper: totalDevelopers ? rupees(totalRevenue / totalDevelopers) : 0,
+    revenuePerCP: totalCPs ? rupees(totalRevenue / totalCPs) : 0,
+    revenueThisMonth,
+    revenueLastMonth,
+    revenueGrowthMoM,
+    arr: rupees(mrr * 12),
+  };
+
+  // ---- Efficiency & growth (CAC, LTV, sales cycle, lost-deal reasons) ----
+  // All from real data; each returns null/0 when its inputs are absent so the
+  // client can show an honest "—" instead of a fabricated ratio.
+  const marketingSpend = rupees(allCampaigns.reduce((s, c) => s + Number(c.spend || 0), 0));
+  // Distinct paying accounts = subscribers + CPs who bought commissions/leads.
+  const payingIds = new Set<string>([
+    ...activeSubs.map((s) => String(s.userId)),
+    ...allCommissions.map((c) => String(c.cpId)),
+    ...allPurchases.map((p) => String(p.cpId)),
+  ]);
+  const payingCustomers = payingIds.size;
+  const cac = marketingSpend > 0 && activeCustomers > 0 ? rupees(marketingSpend / activeCustomers) : null;
+  const ltv = payingCustomers > 0 ? rupees(totalRevenue / payingCustomers) : null;
+
+  // Average sales cycle = mean days from lead creation to reaching a closed-won
+  // stage (updatedAt is the last transition, a fair proxy for the close date).
+  const wonLeads = allLeads.filter((l) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage));
+  const cycleDays = wonLeads
+    .map((l) => (l.updatedAt.getTime() - l.createdAt.getTime()) / (24 * 60 * 60 * 1000))
+    .filter((d) => d >= 0);
+  const avgSalesCycleDays = cycleDays.length ? Math.round(cycleDays.reduce((s, d) => s + d, 0) / cycleDays.length) : null;
+
+  // Lost deals + reasons (from the lostReason captured in the CRM).
+  const lostLeads = allLeads.filter((l) => l.stage === "LOST");
+  const lostReasonMap = new Map<string, number>();
+  for (const l of lostLeads) {
+    if (!l.lostReason) continue;
+    lostReasonMap.set(l.lostReason, (lostReasonMap.get(l.lostReason) || 0) + 1);
+  }
+  const lostByReason = [...lostReasonMap.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+  const totalClosed = closedWon + lostLeads.length;
+  const efficiency = {
+    cac, ltv,
+    marketingSpend,
+    avgSalesCycleDays,
+    lostDeals: lostLeads.length,
+    winRate: totalClosed ? Math.round((closedWon / totalClosed) * 100) : null,
+    lostByReason,
+    lostReasonsTracked: lostReasonMap.size > 0,
+  };
+
+  // ---- Marketplace KPIs (the two-sided-network health at a glance) -------
+  const activeOf = (r: Role) => allUsers.filter((u) => u.role === r && !u.disabled).length;
+  const rejectedProjects = allProjects.filter((p) => p.approvalStatus === "REJECTED");
+  // Returning buyers = phone numbers that appear on more than one lead
+  // (someone who came back for a second property enquiry).
+  const phoneCounts = new Map<string, number>();
+  for (const l of allLeads) if (l.clientPhone) phoneCounts.set(l.clientPhone, (phoneCounts.get(l.clientPhone) || 0) + 1);
+  const returningBuyers = [...phoneCounts.values()].filter((c) => c > 1).length;
+  const marketplace = {
+    activeDevelopers: activeOf("DEVELOPER"),
+    activeCPs: activeOf("CP"),
+    activeBuyers: activeOf("BUYER"),
+    activeProjects: approvedProjects.length,
+    verifiedProjects: verifiedProjects.length,
+    suspendedProjects: rejectedProjects.length,
+    newBuyers30d: newCustomers30d,
+    returningBuyers,
+  };
+
+  // ---- Sales team performance (leaderboard + first-response time) --------
+  const userName = new Map(allUsers.map((u) => [String(u._id), u.name]));
+  const cpRevenue = new Map<string, number>();
+  for (const c of allCommissions) cpRevenue.set(String(c.cpId), (cpRevenue.get(String(c.cpId)) || 0) + Number(c.platformFeeAmount || 0) + Number(c.cpCommissionAmount || 0));
+  const repStats = new Map<string, { leads: number; conversions: number }>();
+  for (const l of allLeads) {
+    if (!l.assignedToId) continue;
+    const id = String(l.assignedToId);
+    const cur = repStats.get(id) || { leads: 0, conversions: 0 };
+    cur.leads += 1;
+    if (["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)) cur.conversions += 1;
+    repStats.set(id, cur);
+  }
+  const salesLeaderboard = [...repStats.entries()]
+    .map(([id, s]) => ({
+      name: userName.get(id) || "Unknown",
+      leads: s.leads,
+      conversions: s.conversions,
+      conversionRate: s.leads ? Math.round((s.conversions / s.leads) * 100) : 0,
+      revenue: rupees(cpRevenue.get(id) || 0),
+    }))
+    .sort((a, b) => b.conversions - a.conversions || b.leads - a.leads)
+    .slice(0, 8);
+  // Average first-response time (hours) across leads that were worked.
+  const responded = allLeads.filter((l) => l.firstContactedAt);
+  const avgResponseHours = responded.length
+    ? Math.round((responded.reduce((s, l) => s + (l.firstContactedAt!.getTime() - l.createdAt.getTime()) / 3600000, 0) / responded.length) * 10) / 10
+    : null;
+  const salesTeam = {
+    leaderboard: salesLeaderboard,
+    avgResponseHours,
+    respondedCount: responded.length,
+    tracked: salesLeaderboard.length > 0,
+  };
+
+  // ---- Operations queues (what the team must clear today) ----------------
+  const svToday = allSiteVisits.filter((s) => s.scheduledAt && s.scheduledAt >= startOfToday && s.scheduledAt < new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000));
+  const operations = {
+    siteVisitsToday: svToday.length,
+    siteVisitsCompleted: allSiteVisits.filter((s) => s.status === "COMPLETED").length,
+    kycPending: pendingKyc,
+    verificationPending: pendingProjects.length,
+    legalPending: pendingLegal.length,
+    agreementPending: stageCount("BOOKING"),
+    registrationPending: stageCount("REGISTRATION"),
+    followUpsDue,
+  };
+
+  // ---- Active users (MAU / DAU) — real, from last-active tracking --------
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const activeUsers = {
+    dau: allUsers.filter((u) => u.lastActiveAt && u.lastActiveAt >= oneDayAgo).length,
+    mau: allUsers.filter((u) => u.lastActiveAt && u.lastActiveAt >= thirtyDaysAgo).length,
+    tracked: allUsers.some((u) => u.lastActiveAt),
+  };
+
+  // ---- Customer experience (NPS / complaints) — from logged feedback -----
+  const npsRows = allFeedback.filter((f) => f.kind === "NPS" && typeof f.score === "number");
+  const promoters = npsRows.filter((f) => (f.score as number) >= 9).length;
+  const detractors = npsRows.filter((f) => (f.score as number) <= 6).length;
+  const nps = npsRows.length ? Math.round(((promoters - detractors) / npsRows.length) * 100) : null;
+  const avgRating = npsRows.length ? Math.round((npsRows.reduce((s, f) => s + (f.score as number), 0) / npsRows.length) * 10) / 10 : null;
+  const complaints = allFeedback.filter((f) => f.kind === "COMPLAINT");
+  const complaintsOpen = complaints.filter((c) => c.status === "OPEN").length;
+  const resolved = complaints.filter((c) => c.status === "RESOLVED" && c.resolvedAt);
+  const avgResolutionHours = resolved.length
+    ? Math.round(resolved.reduce((s, c) => s + (c.resolvedAt!.getTime() - c.createdAt.getTime()) / 3600000, 0) / resolved.length)
+    : null;
+  const cx = {
+    nps, avgRating,
+    responses: npsRows.length,
+    complaintsOpen,
+    complaintsResolved: resolved.length,
+    avgResolutionHours,
+    tracked: allFeedback.length > 0,
+  };
+
+  // ---- Live notifications feed (computed from what actually needs the
+  // founder's attention — no fabricated events). Highest-urgency first.
+  const notifications: { tone: string; icon: string; text: string }[] = [];
+  if (pendingKyc > 0) notifications.push({ tone: "amber", icon: "shield", text: `${pendingKyc} channel-partner KYC awaiting review` });
+  if (pendingProjects.length > 0) notifications.push({ tone: "amber", icon: "building", text: `${pendingProjects.length} project${pendingProjects.length > 1 ? "s" : ""} awaiting approval` });
+  if (pendingLegal.length > 0) notifications.push({ tone: "red", icon: "doc", text: `${pendingLegal.length} legal document${pendingLegal.length > 1 ? "s" : ""} unverified` });
+  if (followUpsDue > 0) notifications.push({ tone: "red", icon: "phone", text: `${followUpsDue} lead follow-up${followUpsDue > 1 ? "s" : ""} overdue` });
+  if (allEnquiries.length > 0) notifications.push({ tone: "blue", icon: "mail", text: `${allEnquiries.length} enquir${allEnquiries.length > 1 ? "ies" : "y"} to respond to` });
+  if (leadsToday > 0) notifications.push({ tone: "green", icon: "user", text: `${leadsToday} new lead${leadsToday > 1 ? "s" : ""} generated today` });
+  if (metrics.revenueGrowthMoM !== null) notifications.push({ tone: metrics.revenueGrowthMoM >= 0 ? "green" : "amber", icon: "trendUp", text: `Revenue ${metrics.revenueGrowthMoM >= 0 ? "up" : "down"} ${Math.abs(metrics.revenueGrowthMoM)}% vs last month` });
+
+  res.json({
+    generatedAt: now.toISOString(),
+    executive: {
+      totalRevenue, gmv,
+      totalDevelopers: byRole("DEVELOPER"),
+      totalCPs: byRole("CP"),
+      totalBuyers: byRole("BUYER"),
+      activeListings: approvedProjects.length,
+      todaysBookings: allLeads.filter((l) => l.stage === "BOOKING" && l.updatedAt >= startOfToday).length,
+      pendingActions,
+    },
+    companyHealth: {
+      revenueToday: revenueSince(startOfToday),
+      revenueMTD: revenueSince(startOfMonth),
+      revenueYTD: revenueSince(startOfYear),
+      activeProjects: approvedProjects.length,
+      healthScore,
+      mrr,
+    },
+    sales: {
+      leadsToday, qualifiedLeads,
+      siteVisits: siteVisitCount,
+      bookings, agreements: bookings, registrations,
+      conversionRate, funnel, revenueByProject,
+    },
+    projects: {
+      total: allProjects.length,
+      approved: approvedProjects.length,
+      verified: verifiedProjects.length,
+      pending: pendingProjects.length,
+      rows: projectRows,
+    },
+    crm: {
+      newCustomers: newCustomers30d,
+      activeCustomers,
+      followUpsDue,
+      enquiries: allEnquiries.length,
+    },
+    verification: {
+      pendingProjects: pendingProjects.length,
+      pendingLegal: pendingLegal.length,
+      pendingKyc,
+    },
+    kpi: {
+      totalRevenue, gmv, mrr, conversionRate, healthScore,
+      totalUnits: allUnits.length,
+      soldUnits: allUnits.filter((u) => u.status === "SOLD").length,
+    },
+    metrics,
+    efficiency,
+    marketplace,
+    operations,
+    activeUsers,
+    cx,
+    salesTeam,
+    notifications,
+    // Investor-facing snapshot — the numbers we can derive honestly from
+    // platform data. Ratios that need cost/usage tracking (CAC, LTV, MAU/DAU,
+    // burn multiple) are left to the client to combine with the finance ledger
+    // or flagged as awaiting a data source.
+    investor: {
+      mrr, arr: metrics.arr, gmv,
+      totalRevenue,
+      growthMoM: metrics.revenueGrowthMoM,
+      payingAccounts: activeSubs.length,
+      totalCustomers: activeCustomers,
+      mau: activeUsers.mau,
+      dau: activeUsers.dau,
+      activeUsersTracked: activeUsers.tracked,
+    },
+    // Sections with no data source yet — the client shows an honest
+    // "connect a data source" state; NEVER fabricated numbers (rule #6).
+    untracked: {
+      finance: false, legal: false, team: false,
+      marketing: false, landBank: false, investor: false,
+    },
+  });
+});
+
+// GET /api/admin/founder-analytics — live analytics for the Founder Dashboard
+// charts. Every series is computed from REAL platform data (commissions,
+// payments, lead purchases, leads, projects, units) — no mock numbers.
+router.get("/founder-analytics", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  const [allCommissions, allPurchases, paidPayments, allLeads, allProjects, allUnits] = await Promise.all([
+    db.select().from(commissions),
+    db.select().from(leadPurchases),
+    db.select().from(payments).where(eq(payments.status, "PAID")),
+    db.select({ _id: leads._id, source: leads.source, createdAt: leads.createdAt, projectId: leads.projectId, stage: leads.stage }).from(leads),
+    db.select({ _id: projects._id, name: projects.name, city: projects.city }).from(projects),
+    db.select({ _id: units._id, status: units.status }).from(units),
+  ]);
+
+  // ---- Monthly revenue / GMV / bookings trend (last 6 months) --------------
+  const months: { label: string; start: Date; end: Date }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    months.push({ label: start.toLocaleString("en-US", { month: "short" }), start, end });
+  }
+  const inRange = (d: Date, m: { start: Date; end: Date }) => d >= m.start && d < m.end;
+  const revenueTrend = months.map((m) => {
+    const fee = allCommissions.filter((c) => inRange(c.createdAt, m)).reduce((s, c) => s + Number(c.platformFeeAmount || 0), 0);
+    const purch = allPurchases.filter((p) => inRange(p.createdAt, m)).reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+    const pay = paidPayments.filter((p) => inRange(p.createdAt, m)).reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0);
+    const gmv = allCommissions.filter((c) => inRange(c.createdAt, m)).reduce((s, c) => s + Number(c.bookingValue || 0), 0);
+    const bookings = allCommissions.filter((c) => inRange(c.createdAt, m)).length;
+    return { month: m.label, revenue: rupees(fee + purch + pay), gmv: rupees(gmv), bookings };
+  });
+
+  // ---- Leads by source + conversion rate by source -------------------------
+  const sourceMap = new Map<string, { count: number; converted: number }>();
+  for (const l of allLeads) {
+    const cur = sourceMap.get(l.source) || { count: 0, converted: 0 };
+    cur.count += 1;
+    if (["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)) cur.converted += 1;
+    sourceMap.set(l.source, cur);
+  }
+  const leadsBySource = [...sourceMap.entries()].map(([source, v]) => ({ source, count: v.count })).sort((a, b) => b.count - a.count);
+  const conversionBySource = [...sourceMap.entries()]
+    .map(([source, v]) => ({ source, leads: v.count, converted: v.converted, rate: v.count ? Math.round((v.converted / v.count) * 100) : 0 }))
+    .sort((a, b) => b.leads - a.leads);
+
+  // ---- GMV & bookings by city ----------------------------------------------
+  const projCity = new Map(allProjects.map((p) => [String(p._id), p.city]));
+  const leadProj = new Map(allLeads.map((l) => [String(l._id), String(l.projectId)]));
+  const cityMap = new Map<string, { gmv: number; bookings: number }>();
+  for (const c of allCommissions) {
+    const pid = leadProj.get(String(c.leadId));
+    const city = pid ? projCity.get(pid) : undefined;
+    if (!city) continue;
+    const cur = cityMap.get(city) || { gmv: 0, bookings: 0 };
+    cur.gmv += Number(c.bookingValue || 0);
+    cur.bookings += 1;
+    cityMap.set(city, cur);
+  }
+  const revenueByCity = [...cityMap.entries()]
+    .map(([city, v]) => ({ city, gmv: rupees(v.gmv), bookings: v.bookings }))
+    .sort((a, b) => b.gmv - a.gmv)
+    .slice(0, 8);
+
+  // ---- Inventory by status --------------------------------------------------
+  const invMap = new Map<string, number>();
+  for (const u of allUnits) invMap.set(u.status, (invMap.get(u.status) || 0) + 1);
+  const inventoryByStatus = ["AVAILABLE", "RESERVED", "LOCKED", "SOLD"].map((status) => ({ status, count: invMap.get(status) || 0 }));
+
+  res.json({ revenueTrend, leadsBySource, conversionBySource, revenueByCity, inventoryByStatus, totalUnits: allUnits.length });
+});
+
+// GET /api/admin/cp-performance — live Channel Partner network dashboard.
+router.get("/cp-performance", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [cpUsers, allCommissions, allLeads] = await Promise.all([
+    db.select({ _id: users._id, name: users.name, email: users.email, cpTier: users.cpTier, onboardingChecks: users.onboardingChecks, createdAt: users.createdAt })
+      .from(users).where(inArray(users.role, ["CP", "AMBASSADOR"])),
+    db.select({ cpId: commissions.cpId, cpCommissionAmount: commissions.cpCommissionAmount, bookingValue: commissions.bookingValue }).from(commissions),
+    db.select({ assignedToId: leads.assignedToId }).from(leads),
+  ]);
+
+  const commByCp = new Map<string, { earned: number; gmv: number; bookings: number }>();
+  for (const c of allCommissions) {
+    const k = String(c.cpId);
+    const cur = commByCp.get(k) || { earned: 0, gmv: 0, bookings: 0 };
+    cur.earned += Number(c.cpCommissionAmount || 0);
+    cur.gmv += Number(c.bookingValue || 0);
+    cur.bookings += 1;
+    commByCp.set(k, cur);
+  }
+  const leadsByCp = new Map<string, number>();
+  for (const l of allLeads) {
+    if (!l.assignedToId) continue;
+    const k = String(l.assignedToId);
+    leadsByCp.set(k, (leadsByCp.get(k) || 0) + 1);
+  }
+
+  const partners = cpUsers.map((u) => {
+    const c = commByCp.get(String(u._id)) || { earned: 0, gmv: 0, bookings: 0 };
+    return {
+      id: String(u._id), name: u.name, email: u.email,
+      tier: u.cpTier || "SILVER",
+      kycStatus: u.onboardingChecks?.kycStatus || "PENDING",
+      leads: leadsByCp.get(String(u._id)) || 0,
+      bookings: c.bookings, gmv: rupees(c.gmv), earned: rupees(c.earned),
+    };
+  }).sort((a, b) => b.earned - a.earned || b.bookings - a.bookings);
+
+  const tierMap = new Map<string, number>();
+  for (const p of partners) tierMap.set(p.tier, (tierMap.get(p.tier) || 0) + 1);
+  res.json({
+    summary: {
+      total: partners.length,
+      active: partners.filter((p) => p.bookings > 0).length,
+      pendingKyc: partners.filter((p) => p.kycStatus === "PENDING").length,
+      totalEarned: rupees(partners.reduce((s, p) => s + p.earned, 0)),
+      totalGmv: rupees(partners.reduce((s, p) => s + p.gmv, 0)),
+      byTier: ["DIAMOND", "PLATINUM", "GOLD", "SILVER"].map((tier) => ({ tier, count: tierMap.get(tier) || 0 })),
+    },
+    partners: partners.slice(0, 50),
+  });
+});
+
+// GET /api/admin/developer-performance — live Developer network dashboard.
+router.get("/developer-performance", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const [devUsers, allProjects] = await Promise.all([
+    db.select({ _id: users._id, name: users.name, email: users.email, developerProfile: users.developerProfile, approvalStatus: users.approvalStatus, createdAt: users.createdAt })
+      .from(users).where(eq(users.role, "DEVELOPER")),
+    db.select({ _id: projects._id, developerId: projects.developerId, approvalStatus: projects.approvalStatus, isVerified: projects.isVerified }).from(projects),
+  ]);
+
+  const byDev = new Map<string, { total: number; approved: number; verified: number; pending: number }>();
+  for (const p of allProjects) {
+    const k = String(p.developerId);
+    const cur = byDev.get(k) || { total: 0, approved: 0, verified: 0, pending: 0 };
+    cur.total += 1;
+    if (p.approvalStatus === "APPROVED") cur.approved += 1;
+    if (p.isVerified) cur.verified += 1;
+    if (p.approvalStatus === "PENDING") cur.pending += 1;
+    byDev.set(k, cur);
+  }
+
+  const developers = devUsers.map((u) => {
+    const s = byDev.get(String(u._id)) || { total: 0, approved: 0, verified: 0, pending: 0 };
+    return {
+      id: String(u._id), name: u.name, email: u.email,
+      company: u.developerProfile?.companyName || u.name,
+      rera: u.developerProfile?.reraNumber || null,
+      status: u.approvalStatus, ...s,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  res.json({
+    summary: {
+      total: developers.length,
+      totalProjects: allProjects.length,
+      verified: allProjects.filter((p) => p.isVerified).length,
+      pending: allProjects.filter((p) => p.approvalStatus === "PENDING").length,
+    },
+    developers: developers.slice(0, 50),
+  });
+});
+
+// GET /api/admin/inventory-overview — live unit inventory across all projects.
+router.get("/inventory-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [allUnits, allProjects] = await Promise.all([
+    db.select({ _id: units._id, projectId: units.projectId, unitNumber: units.unitNumber, type: units.type, areaSqft: units.areaSqft, price: units.price, status: units.status }).from(units),
+    db.select({ _id: projects._id, name: projects.name, city: projects.city }).from(projects),
+  ]);
+  const projInfo = new Map(allProjects.map((p) => [String(p._id), { name: p.name, city: p.city }]));
+  const statusCount = (s: string) => allUnits.filter((u) => u.status === s).length;
+
+  const byProjMap = new Map<string, { total: number; available: number; sold: number; value: number }>();
+  for (const u of allUnits) {
+    const k = String(u.projectId);
+    const cur = byProjMap.get(k) || { total: 0, available: 0, sold: 0, value: 0 };
+    cur.total += 1;
+    if (u.status === "AVAILABLE") cur.available += 1;
+    if (u.status === "SOLD") cur.sold += 1;
+    cur.value += Number(u.price || 0);
+    byProjMap.set(k, cur);
+  }
+  const byProject = [...byProjMap.entries()]
+    .map(([pid, v]) => ({ project: projInfo.get(pid)?.name || "Unknown", city: projInfo.get(pid)?.city || "", total: v.total, available: v.available, sold: v.sold, value: rupees(v.value) }))
+    .sort((a, b) => b.total - a.total);
+
+  res.json({
+    summary: {
+      total: allUnits.length,
+      available: statusCount("AVAILABLE"),
+      reserved: statusCount("RESERVED"),
+      locked: statusCount("LOCKED"),
+      sold: statusCount("SOLD"),
+      totalValue: rupees(allUnits.reduce((s, u) => s + Number(u.price || 0), 0)),
+      soldValue: rupees(allUnits.filter((u) => u.status === "SOLD").reduce((s, u) => s + Number(u.price || 0), 0)),
+    },
+    byProject,
+    units: allUnits.slice(0, 80).map((u) => ({
+      id: String(u._id), project: projInfo.get(String(u.projectId))?.name || "Unknown",
+      unitNumber: u.unitNumber, type: u.type, areaSqft: u.areaSqft, price: rupees(Number(u.price || 0)), status: u.status,
+    })),
+  });
+});
+
+// GET /api/admin/bookings-overview — live booking activity (from commissions).
+router.get("/bookings-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+  const [allCommissions, allLeads, allProjects, allUsers] = await Promise.all([
+    db.select().from(commissions),
+    db.select({ _id: leads._id, projectId: leads.projectId, clientName: leads.clientName }).from(leads),
+    db.select({ _id: projects._id, name: projects.name }).from(projects),
+    db.select({ _id: users._id, name: users.name }).from(users),
+  ]);
+  const projName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const userName = new Map(allUsers.map((u) => [String(u._id), u.name]));
+  const leadInfo = new Map(allLeads.map((l) => [String(l._id), { projectId: String(l.projectId), client: l.clientName }]));
+
+  const bookings = allCommissions.map((c) => {
+    const li = leadInfo.get(String(c.leadId));
+    const ms = c.milestones || [];
+    return {
+      id: String(c._id),
+      date: c.createdAt,
+      project: li ? projName.get(li.projectId) || "Unknown" : "Unknown",
+      client: li?.client || "—",
+      cp: userName.get(String(c.cpId)) || "—",
+      bookingValue: rupees(Number(c.bookingValue || 0)),
+      commission: rupees(Number(c.cpCommissionAmount || 0)),
+      status: c.status,
+      milestones: ms.length,
+      released: ms.filter((m) => m.isReleased).length,
+    };
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const statusMap = new Map<string, number>();
+  for (const b of bookings) statusMap.set(b.status, (statusMap.get(b.status) || 0) + 1);
+  res.json({
+    summary: {
+      total: bookings.length,
+      totalGmv: rupees(bookings.reduce((s, b) => s + b.bookingValue, 0)),
+      totalCommission: rupees(bookings.reduce((s, b) => s + b.commission, 0)),
+      paid: bookings.filter((b) => b.status === "PAID").length,
+      pending: bookings.filter((b) => b.status !== "PAID").length,
+      byStatus: [...statusMap.entries()].map(([status, count]) => ({ status, count })),
+    },
+    bookings: bookings.slice(0, 60),
+  });
+});
+
+// GET /api/admin/legal-overview — live legal-document register & verification.
+router.get("/legal-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const [allDocs, allProjects] = await Promise.all([
+    db.select({ _id: legalDocuments._id, projectId: legalDocuments.projectId, title: legalDocuments.title, docType: legalDocuments.docType, verified: legalDocuments.verified, verifiedAt: legalDocuments.verifiedAt, createdAt: legalDocuments.createdAt }).from(legalDocuments),
+    db.select({ _id: projects._id, name: projects.name }).from(projects),
+  ]);
+  const projName = new Map(allProjects.map((p) => [String(p._id), p.name]));
+  const typeMap = new Map<string, number>();
+  for (const d of allDocs) typeMap.set(d.docType, (typeMap.get(d.docType) || 0) + 1);
+  res.json({
+    summary: {
+      total: allDocs.length,
+      verified: allDocs.filter((d) => d.verified).length,
+      pending: allDocs.filter((d) => !d.verified).length,
+      byType: [...typeMap.entries()].map(([type, count]) => ({ type, count })),
+    },
+    docs: allDocs
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 60)
+      .map((d) => ({ id: String(d._id), project: projName.get(String(d.projectId)) || "Unknown", title: d.title, docType: d.docType, verified: d.verified, date: d.createdAt })),
+  });
+});
+
+// GET /api/admin/support-overview — live customer enquiries / support queue.
+router.get("/support-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const allEnquiries = await db.select().from(enquiries);
+  const purposeMap = new Map<string, number>();
+  for (const e of allEnquiries) purposeMap.set(e.purposeType, (purposeMap.get(e.purposeType) || 0) + 1);
+  res.json({
+    summary: {
+      total: allEnquiries.length,
+      thisWeek: allEnquiries.filter((e) => e.createdAt >= weekAgo).length,
+      byPurpose: [...purposeMap.entries()].map(([purpose, count]) => ({ purpose, count })),
+    },
+    tickets: allEnquiries
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 60)
+      .map((e) => ({ id: String(e._id), name: e.name, email: e.email, purpose: e.purposeType, project: e.projectName || null, message: e.message || null, date: e.createdAt })),
+  });
+});
+
+// GET /api/admin/ops-overview — consolidated operations queues (live).
+router.get("/ops-overview", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const now = new Date();
+  const [tasks, followUps, crm, pendingProjects, pendingLegalDocs] = await Promise.all([
+    db.select({ _id: ambassadorTasks._id, title: ambassadorTasks.title, status: ambassadorTasks.status, deadline: ambassadorTasks.deadline }).from(ambassadorTasks),
+    db.select({ _id: leadFollowUps._id, dueAt: leadFollowUps.dueAt, status: leadFollowUps.status }).from(leadFollowUps),
+    db.select({ _id: crmTasks._id, status: crmTasks.status }).from(crmTasks),
+    db.select({ _id: projects._id }).from(projects).where(eq(projects.approvalStatus, "PENDING")),
+    db.select({ _id: legalDocuments._id }).from(legalDocuments).where(eq(legalDocuments.verified, false)),
+  ]);
+  const taskStatusMap = new Map<string, number>();
+  for (const t of tasks) taskStatusMap.set(t.status, (taskStatusMap.get(t.status) || 0) + 1);
+  res.json({
+    summary: {
+      siteTasks: tasks.length,
+      siteTasksOpen: tasks.filter((t) => t.status === "AVAILABLE" || t.status === "LOCKED").length,
+      followUpsPending: followUps.filter((f) => f.status === "PENDING").length,
+      followUpsOverdue: followUps.filter((f) => f.status === "PENDING" && f.dueAt <= now).length,
+      crmTasksOpen: crm.filter((c) => c.status === "OPEN").length,
+      pendingApprovals: pendingProjects.length,
+      pendingLegal: pendingLegalDocs.length,
+      byTaskStatus: [...taskStatusMap.entries()].map(([status, count]) => ({ status, count })),
+    },
+    siteVisitTasks: tasks
+      .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+      .slice(0, 40)
+      .map((t) => ({ id: String(t._id), title: t.title, status: t.status, deadline: t.deadline })),
+  });
+});
+
+// GET /api/admin/users?role=&approvalStatus=
+router.get("/users", requireRole("ADMIN"), async (req, res) => {
+  const { role, approvalStatus, all } = req.query;
+
+  const conditions = [];
+  if (typeof role === "string" && role) {
+    conditions.push(eq(users.role, role as Role));
+  } else if (all !== "true") {
+    // Default view stays scoped to the marketplace-facing roles; the user
+    // management screen passes ?all=true to include every account.
+    conditions.push(inArray(users.role, ["DEVELOPER", "CP", "BUYER"]));
+  }
+
+  if (typeof approvalStatus === "string" && approvalStatus) {
+    conditions.push(eq(users.approvalStatus, approvalStatus as ApprovalStatus));
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(users)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(users.createdAt));
+
+  // Attach a TRUTHFUL subscription summary per user so the admin UI only offers
+  // "Cancel subscription" to users who actually have one. Two real signals:
+  //   1) a `subscriptions` row that reached ACTIVE (a paid Razorpay plan), and
+  //   2) live CP Premium (cpProfile.isPremium, not past its expiry).
+  const now = Date.now();
+  const activeSubs = await db
+    .select({ userId: subscriptions.userId, planLabel: subscriptions.planLabel, createdAt: subscriptions.createdAt })
+    .from(subscriptions)
+    .where(eq(subscriptions.status, "ACTIVE"))
+    .orderBy(desc(subscriptions.createdAt));
+  const subsByUser = new Map<string, { count: number; label: string }>();
+  for (const s of activeSubs) {
+    if (!s.userId) continue;
+    const prev = subsByUser.get(s.userId);
+    subsByUser.set(s.userId, { count: (prev?.count ?? 0) + 1, label: prev?.label ?? s.planLabel });
+  }
+
+  const safeUsers = rows.map(({ password, ...u }) => {
+    const paid = subsByUser.get(u._id);
+    const premiumExpiry = u.cpProfile?.premiumExpiresAt ? Date.parse(u.cpProfile.premiumExpiresAt) : null;
+    const premiumActive = Boolean(u.cpProfile?.isPremium) && (premiumExpiry === null || Number.isNaN(premiumExpiry) || premiumExpiry > now);
+    const active = Boolean(paid) || premiumActive;
+    return {
+      ...u,
+      subscription: {
+        active,
+        count: paid?.count ?? 0,
+        label: paid?.label ?? (premiumActive ? "CP Premium" : null),
+        premiumExpiresAt: premiumActive ? u.cpProfile?.premiumExpiresAt ?? null : null,
+      },
+    };
+  });
+  res.json({ users: safeUsers });
+});
+
+// PATCH /api/admin/users/:id — deactivate ("remove") or reactivate an account.
+// The row is kept so its history/financial records stay intact; a disabled
+// user simply can't log in and drops out of active counts. Admins can't
+// disable themselves or another admin.
+const userStatusSchema = z
+  .object({
+    disabled: z.boolean().optional(),
+    approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]).optional(),
+  })
+  .refine((d) => d.disabled !== undefined || d.approvalStatus !== undefined, { message: "Nothing to update" });
+router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = userStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (userId === req.user!.userId) return res.status(400).json({ error: "You can't change your own account status" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.role === "ADMIN") return res.status(403).json({ error: "Admin accounts can't be changed here" });
+
+  const update: { disabled?: boolean; approvalStatus?: ApprovalStatus } = {};
+  if (parsed.data.disabled !== undefined) update.disabled = parsed.data.disabled;
+  if (parsed.data.approvalStatus !== undefined) update.approvalStatus = parsed.data.approvalStatus as ApprovalStatus;
+
+  const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
+  const { password: _pw, ...safeUser } = updated;
+  const action = parsed.data.approvalStatus
+    ? `user.${parsed.data.approvalStatus.toLowerCase()}`
+    : parsed.data.disabled
+      ? "user.disable"
+      : "user.enable";
+  await logAudit({ userId: req.user!.userId, action, resourceType: "user", resourceId: userId, metadata: { name: target.name, role: target.role } });
+  res.json({ user: safeUser });
+});
+
+// DELETE /api/admin/users/:id — PERMANENTLY delete a user and every record tied
+// to them. This is irreversible and destroys their projects, leads, commissions,
+// documents, payments links, etc. Gated to ADMIN (founders are admins). The
+// whole thing runs in ONE transaction: if any linked record can't be removed,
+// nothing is deleted (clean rollback), so the account is never left half-broken.
+router.delete("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (userId === req.user!.userId) {
+    return res.status(400).json({ error: "You cannot delete your own account." });
+  }
+
+  const db = getDb();
+  const [target] = await db
+    .select({ _id: users._id, name: users.name, email: users.email, role: users.role })
+    .from(users)
+    .where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const sqlc = getSqlClient();
+  try {
+    await sqlc.begin(async (tx) => {
+      const U = userId;
+      // 1) Detach nullable references — these rows survive, just lose the link.
+      await tx`UPDATE units SET locked_by_cp_id = NULL WHERE locked_by_cp_id = ${U}`;
+      await tx`UPDATE leads SET assigned_to_id = NULL WHERE assigned_to_id = ${U}`;
+      await tx`UPDATE site_visits SET cp_id = NULL WHERE cp_id = ${U}`;
+      await tx`UPDATE site_visits SET buyer_id = NULL WHERE buyer_id = ${U}`;
+      await tx`UPDATE notifications SET actor_user_id = NULL WHERE actor_user_id = ${U}`;
+      await tx`UPDATE legal_documents SET verified_by_id = NULL WHERE verified_by_id = ${U}`;
+      await tx`UPDATE academy_content SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE ambassador_tasks SET accepted_by_id = NULL WHERE accepted_by_id = ${U}`;
+      await tx`UPDATE employee_payments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE customer_feedback SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE command_investments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE command_revenues SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE recurring_expenses SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE payments SET user_id = NULL WHERE user_id = ${U}`;
+      await tx`UPDATE subscriptions SET user_id = NULL WHERE user_id = ${U}`;
+      await tx`UPDATE cp_commission_payments SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE cp_manual_commissions SET created_by_id = NULL WHERE created_by_id = ${U}`;
+      await tx`UPDATE project_investment_terms SET updated_by_id = NULL WHERE updated_by_id = ${U}`;
+      await tx`UPDATE ambassador_knowledge_materials SET created_by_id = NULL WHERE created_by_id = ${U}`;
+
+      // 2) Children of leads on the user's projects OR submitted by the user.
+      await tx`DELETE FROM commissions    WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM site_visits     WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM lead_activities WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM lead_follow_ups WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+      await tx`DELETE FROM crm_tasks       WHERE lead_id IN (SELECT id FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U})`;
+
+      // 3) CRM/commission rows the user owns directly (cp_id).
+      await tx`DELETE FROM commissions    WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_activities WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_follow_ups WHERE cp_id = ${U}`;
+      await tx`DELETE FROM crm_tasks       WHERE cp_id = ${U}`;
+      await tx`DELETE FROM lead_purchases  WHERE cp_id = ${U}`;
+
+      // 4) The leads themselves.
+      await tx`DELETE FROM leads WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U}) OR submitted_by_id = ${U}`;
+
+      // 5) Children of the user's projects, then the projects.
+      await tx`DELETE FROM site_visits             WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM units                   WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_assets           WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM shared_documents         WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM enquiries                WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM legal_documents          WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM finance_entries          WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_comments         WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_investments      WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM project_investment_terms WHERE project_id IN (SELECT id FROM projects WHERE developer_id = ${U})`;
+      await tx`DELETE FROM projects WHERE developer_id = ${U}`;
+
+      // 6) Everything else the user owns directly (NOT NULL FKs → must delete).
+      await tx`DELETE FROM developer_referrals           WHERE cp_id = ${U}`;
+      await tx`DELETE FROM developer_commission_accruals WHERE cp_id = ${U} OR developer_id = ${U}`;
+      await tx`DELETE FROM cp_commission_payments        WHERE cp_id = ${U}`;
+      await tx`DELETE FROM cp_manual_commissions         WHERE cp_id = ${U}`;
+      await tx`DELETE FROM project_investments           WHERE investor_id = ${U}`;
+      await tx`DELETE FROM project_comments              WHERE user_id = ${U}`;
+      await tx`DELETE FROM buyer_documents               WHERE buyer_id = ${U}`;
+      await tx`DELETE FROM shared_documents              WHERE uploaded_by_id = ${U}`;
+      await tx`DELETE FROM project_assets                WHERE uploaded_by = ${U}`;
+      await tx`DELETE FROM legal_documents               WHERE uploaded_by_id = ${U}`;
+      await tx`DELETE FROM ambassador_tasks              WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM finance_entries               WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM loans                         WHERE created_by_id = ${U}`;
+      await tx`DELETE FROM loan_checks                   WHERE user_id = ${U}`;
+      await tx`DELETE FROM investments                   WHERE user_id = ${U}`;
+      await tx`DELETE FROM posts                         WHERE author_id = ${U}`;
+      await tx`DELETE FROM course_progress               WHERE user_id = ${U}`;
+      await tx`DELETE FROM notification_preferences      WHERE user_id = ${U}`;
+      await tx`DELETE FROM user_push_tokens              WHERE user_id = ${U}`;
+      await tx`DELETE FROM notifications                 WHERE user_id = ${U}`;
+
+      // 7) Finally the account (kyc_data / kyc_documents cascade automatically).
+      await tx`DELETE FROM users WHERE id = ${U}`;
+    });
+  } catch (err) {
+    console.error("Failed to permanently delete user", userId, err);
+    return res.status(500).json({
+      error: "Could not delete this user — they have linked records that failed to remove. No changes were made.",
+    });
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "user.delete", resourceType: "user", resourceId: userId, metadata: { name: target.name, email: target.email, role: target.role } });
+  res.json({ ok: true, deleted: target.name || target.email });
+});
+
+// POST /api/admin/users/:id/cancel-subscription — cancel a user's paid plan.
+// Marks their active/pending subscription rows CANCELLED and clears the
+// premium flags (CP premium + tier). Truthful state only — no fake numbers.
+router.post("/users/:id/cancel-subscription", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const cancelled = await db
+    .update(subscriptions)
+    .set({ status: "CANCELLED", updatedAt: new Date() })
+    .where(and(eq(subscriptions.userId, userId), inArray(subscriptions.status, ["CREATED", "ACTIVE"])))
+    .returning({ _id: subscriptions._id });
+
+  // Reset any premium entitlement carried on the user record.
+  const cpProfile = { ...(target.cpProfile ?? {}), isPremium: false, premiumExpiresAt: null };
+  const [updated] = await db
+    .update(users)
+    .set({ cpProfile: cpProfile as typeof target.cpProfile, cpTier: "SILVER" })
+    .where(eq(users._id, userId))
+    .returning();
+  const { password: _pw, ...safeUser } = updated;
+
+  res.json({ cancelledCount: cancelled.length, user: safeUser });
+});
+
+// GET /api/admin/users/:id/profile — the complete, admin-only detailed profile
+// of ANY user. This is the data behind the "tap a user → see everything" view:
+// basic details, verification status, full KYC + every uploaded document,
+// delivery / booking / referral / transaction stats, account dates, and the
+// verification & approval history. Locked to ADMIN (requireRole) — no other
+// role can read another user's complete profile or identity documents.
+router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
+  const userId = req.params.id;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [target] = await db.select().from(users).where(eq(users._id, userId));
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const rupees = (n: number) => Math.round(n * 100) / 100;
+
+  const [
+    userCommissions,
+    submittedLeads,
+    assignedLeads,
+    userSiteVisits,
+    deliveryTasks,
+    userPayments,
+    userSubscriptions,
+    userLeadPurchases,
+    userBuyerDocs,
+    userLegalDocs,
+    userAssets,
+    registeredReferrals,
+    enrolledReferrals,
+    historyRows,
+  ] = await Promise.all([
+    db.select().from(commissions).where(eq(commissions.cpId, userId)),
+    db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.submittedById, userId)),
+    db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.assignedToId, userId)),
+    db.select({ _id: siteVisits._id, status: siteVisits.status }).from(siteVisits).where(eq(siteVisits.cpId, userId)),
+    db
+      .select({ _id: ambassadorTasks._id, status: ambassadorTasks.status, payoutAmount: ambassadorTasks.payoutAmount, payoutPaid: ambassadorTasks.payoutPaid, completedAt: ambassadorTasks.completedAt })
+      .from(ambassadorTasks)
+      .where(eq(ambassadorTasks.acceptedById, userId)),
+    db.select().from(payments).where(eq(payments.userId, userId)),
+    db.select().from(subscriptions).where(eq(subscriptions.userId, userId)),
+    db.select().from(leadPurchases).where(eq(leadPurchases.cpId, userId)),
+    db.select().from(buyerDocuments).where(eq(buyerDocuments.buyerId, userId)),
+    db
+      .select({ doc: legalDocuments, project: { name: projects.name } })
+      .from(legalDocuments)
+      .leftJoin(projects, eq(legalDocuments.projectId, projects._id))
+      .where(eq(legalDocuments.uploadedById, userId)),
+    db
+      .select({ doc: projectAssets, project: { name: projects.name } })
+      .from(projectAssets)
+      .leftJoin(projects, eq(projectAssets.projectId, projects._id))
+      .where(eq(projectAssets.uploadedBy, userId)),
+    db
+      .select({ _id: users._id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.referredBy, userId)),
+    db.select().from(developerReferrals).where(eq(developerReferrals.cpId, userId)),
+    db
+      .select({ log: auditLogs, actorName: users.name })
+      .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.userId, users._id))
+      .where(and(eq(auditLogs.resourceType, "user"), eq(auditLogs.resourceId, userId)))
+      .orderBy(desc(auditLogs.createdAt)),
+  ]);
+
+  // ---- Referral earnings — 2% of booking value on the sales of developers
+  // this user referred (commission → lead → project → referred developer),
+  // matching the incentive logic in the onboarding referral endpoint. A
+  // referred developer counts as "successful" once they have listed a project.
+  const REFERRAL_RATE = 0.02;
+  let referralSalesValue = 0;
+  let referralTransactions = 0;
+  const activatedReferralIds = new Set<string>();
+  const devIds = registeredReferrals.map((r) => String(r._id));
+  if (devIds.length) {
+    const devProjects = await db
+      .select({ _id: projects._id, developerId: projects.developerId })
+      .from(projects)
+      .where(inArray(projects.developerId, devIds));
+    const projectToDev = new Map(devProjects.map((p) => [String(p._id), String(p.developerId)]));
+    for (const p of devProjects) activatedReferralIds.add(String(p.developerId));
+    const projectIds = devProjects.map((p) => String(p._id));
+    if (projectIds.length) {
+      const projLeads = await db
+        .select({ _id: leads._id, projectId: leads.projectId })
+        .from(leads)
+        .where(inArray(leads.projectId, projectIds));
+      const leadToProject = new Map(projLeads.map((l) => [String(l._id), String(l.projectId)]));
+      const leadIds = projLeads.map((l) => String(l._id));
+      if (leadIds.length) {
+        const txns = await db
+          .select({ leadId: commissions.leadId, bookingValue: commissions.bookingValue })
+          .from(commissions)
+          .where(inArray(commissions.leadId, leadIds));
+        for (const t of txns) {
+          const devId = projectToDev.get(leadToProject.get(String(t.leadId)) ?? "");
+          if (!devId) continue;
+          referralTransactions += 1;
+          referralSalesValue += Number(t.bookingValue || 0);
+        }
+      }
+    }
+  }
+
+  // ---- Uploaded documents (identity images stream through the authenticated
+  // KYC file route; nothing is exposed as a public URL). ----------------------
+  const v = target.verification;
+  type ProfileDoc = {
+    category: string;
+    kind: "KYC" | "BUYER" | "LEGAL" | "ASSET";
+    fileName?: string | null;
+    fileUrl?: string | null;
+    streamUrl?: string | null;
+    mime?: string | null;
+    project?: string | null;
+    status?: string | null;
+    createdAt?: Date | null;
+  };
+  const documents: ProfileDoc[] = [];
+  if (v?.kycFiles?.aadhaar) documents.push({ category: "Aadhaar", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/aadhaar`, mime: v.kycFiles.aadhaar.mime, status: "SUBMITTED" });
+  if (v?.kycFiles?.pan) documents.push({ category: "PAN", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/pan`, mime: v.kycFiles.pan.mime, status: "SUBMITTED" });
+  if (v?.kycFiles?.selfie) documents.push({ category: "Selfie", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/selfie`, mime: v.kycFiles.selfie.mime, status: "SUBMITTED" });
+  for (const d of userBuyerDocs) {
+    documents.push({
+      category: d.docType.replace(/_/g, " "),
+      kind: "BUYER",
+      fileName: d.fileName,
+      fileUrl: d.fileUrl,
+      status: d.status === "VERIFIED" ? "APPROVED" : d.status === "REJECTED" ? "REJECTED" : "PENDING",
+      createdAt: d.createdAt,
+    });
+  }
+  for (const r of userLegalDocs) {
+    documents.push({
+      category: r.doc.docType,
+      kind: "LEGAL",
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      project: r.project?.name ?? null,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of userAssets) {
+    documents.push({
+      category: r.doc.category.replace(/_/g, " "),
+      kind: "ASSET",
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      project: r.project?.name ?? null,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      createdAt: r.doc.createdAt,
+    });
+  }
+
+  // ---- Verification status (same rule the admin user list uses). ------------
+  const kycStatus =
+    target.onboardingVerified || target.onboardingChecks?.kycStatus === "APPROVED"
+      ? "VERIFIED"
+      : target.onboardingChecks?.kycStatus === "PENDING"
+        ? "PENDING"
+        : target.onboardingChecks?.kycStatus === "REJECTED"
+          ? "REJECTED"
+          : "NONE";
+
+  // ---- Aggregated stats ------------------------------------------------------
+  const bookings = userCommissions.length;
+  const commissionEarned = rupees(userCommissions.reduce((s, c) => s + Number(c.cpCommissionAmount || 0), 0));
+  const gmv = rupees(userCommissions.reduce((s, c) => s + Number(c.bookingValue || 0), 0));
+  const deliveriesCompleted = deliveryTasks.filter((t) => t.status === "COMPLETED").length;
+  const deliveryEarnings = rupees(deliveryTasks.filter((t) => t.payoutPaid).reduce((s, t) => s + Number(t.payoutAmount || 0), 0));
+  const paidPayments = userPayments.filter((p) => p.status === "PAID");
+  const paymentsTotal = rupees(paidPayments.reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0));
+  const leadSpend = rupees(userLeadPurchases.reduce((s, p) => s + Number(p.amountPaid || 0), 0));
+
+  const { password: _pw, verification: _v, ...rest } = target;
+  res.json({
+    profile: {
+      ...rest,
+      // Only KYC-relevant verification metadata is exposed — never OTPs, reset
+      // codes or raw document bytes (those stream through the admin file route).
+      verification: {
+        panNumberMasked: v?.panNumberMasked ?? null,
+        kycSubmittedAt: v?.kycSubmittedAt ?? null,
+        hasAadhaar: Boolean(v?.kycFiles?.aadhaar),
+        hasPan: Boolean(v?.kycFiles?.pan),
+        hasSelfie: Boolean(v?.kycFiles?.selfie),
+      },
+      kycStatus,
+      lastLoginAt: target.lastActiveAt ?? null,
+      documents,
+      stats: {
+        deliveries: { completed: deliveriesCompleted, accepted: deliveryTasks.length, earnings: deliveryEarnings },
+        bookings: { total: bookings, gmv, commissionEarned },
+        leads: { submitted: submittedLeads.length, assigned: assignedLeads.length },
+        siteVisits: { total: userSiteVisits.length, completed: userSiteVisits.filter((s) => s.status === "COMPLETED").length },
+        referrals: {
+          registered: registeredReferrals.length,
+          successful: activatedReferralIds.size,
+          enrolled: enrolledReferrals.length,
+          enrolledActive: enrolledReferrals.filter((r) => r.status === "ACTIVE" || r.status === "VERIFIED").length,
+          transactions: referralTransactions,
+          salesValue: rupees(referralSalesValue),
+          earnings: rupees(referralSalesValue * REFERRAL_RATE),
+        },
+        transactions: {
+          paymentsCount: paidPayments.length,
+          paymentsTotal,
+          subscriptions: userSubscriptions.length,
+          activeSubscriptions: userSubscriptions.filter((s) => s.status === "ACTIVE").length,
+          leadPurchases: userLeadPurchases.length,
+          leadSpend,
+        },
+      },
+      referredList: registeredReferrals.map((r) => ({ ...r, activated: activatedReferralIds.has(String(r._id)) })),
+      enrolledReferralList: enrolledReferrals.map((r) => ({
+        _id: r._id,
+        developerName: r.developerName,
+        companyName: r.companyName,
+        city: r.city,
+        status: r.status,
+        createdAt: r.createdAt,
+      })),
+      history: historyRows.map((h) => ({
+        _id: h.log._id,
+        action: h.log.action,
+        metadata: h.log.metadata,
+        actorName: h.actorName ?? null,
+        createdAt: h.log.createdAt,
+      })),
+    },
+  });
+});
+
+// Admin account-approval has been removed — accounts self-approve on signup
+// and are gated by email OTP verification instead, so there is no longer a
+// user approval/rejection endpoint here.
+
+// GET /api/admin/projects?approvalStatus=
+router.get("/projects", requireRole("ADMIN"), async (req, res) => {
+  const { approvalStatus } = req.query;
+
+  const conditions = [];
+  if (typeof approvalStatus === "string" && approvalStatus) {
+    conditions.push(eq(projects.approvalStatus, approvalStatus as ApprovalStatus));
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select({
+      project: projects,
+      developer: { _id: users._id, name: users.name },
+    })
+    .from(projects)
+    .leftJoin(users, eq(projects.developerId, users._id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(projects.createdAt));
+
+  const result = rows.map(({ project, developer }) => ({
+    ...project,
+    developerId: developer ? { _id: String(developer._id), name: developer.name } : null,
+  }));
+
+  res.json({ projects: result });
+});
+
+const verificationDetailsSchema = z.object({
+  reraVerified: z.boolean().optional(),
+  titleClearance: z.boolean().optional(),
+  encumbranceFree: z.boolean().optional(),
+  constructionApproval: z.boolean().optional(),
+  verificationSource: z.string().optional(),
+  portfolioVerified: z.boolean().optional(),
+  lastVerifiedAt: z.string().datetime().optional().nullable(),
+  notes: z.string().optional(),
+}).optional();
+
+const patchProjectSchema = z.object({
+  projectId: z.string().min(1),
+  approvalStatus: z.enum(["APPROVED", "REJECTED", "PENDING"]).optional(),
+  listingTier: z.enum(["STANDARD", "FEATURED"]).optional(),
+  featuredUntil: z.string().datetime().optional().nullable(),
+  isVerified: z.boolean().optional(),
+  isPrimeListing: z.boolean().optional(),
+  threeDModelUrl: z.string().url().or(z.literal("")).nullable().optional(),
+  masterPlanUrl: z.string().min(1).or(z.literal("")).nullable().optional(),
+  verificationDetails: verificationDetailsSchema,
+});
+
+router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = patchProjectSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const { projectId, ...data } = parsed.data;
+  if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
+
+  const db = getDb();
+  const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
+  if (!existing) return res.status(404).json({ error: "Project not found" });
+
+  const update: Record<string, unknown> = {};
+  if (data.approvalStatus) update.approvalStatus = data.approvalStatus;
+  if (data.listingTier) update.listingTier = data.listingTier;
+  if (data.featuredUntil !== undefined) update.featuredUntil = data.featuredUntil ? new Date(data.featuredUntil) : null;
+  if (data.isVerified !== undefined) {
+    update.isVerified = data.isVerified;
+    update.verifiedAt = data.isVerified ? new Date() : null;
+  }
+  if (data.isPrimeListing !== undefined) update.isPrimeListing = data.isPrimeListing;
+  if (data.threeDModelUrl !== undefined) update.threeDModelUrl = data.threeDModelUrl || null;
+  if (data.masterPlanUrl !== undefined) update.masterPlanUrl = data.masterPlanUrl || null;
+  if (data.verificationDetails !== undefined) {
+    const merged = {
+      reraVerified: false,
+      titleClearance: false,
+      encumbranceFree: false,
+      constructionApproval: false,
+      portfolioVerified: false,
+      ...(existing.verificationDetails ?? {}),
+      ...data.verificationDetails,
+    } as VerificationDetails;
+
+    if (data.verificationDetails.lastVerifiedAt !== undefined) {
+      merged.lastVerifiedAt = data.verificationDetails.lastVerifiedAt;
+    }
+
+    update.verificationDetails = merged;
+  }
+
+  if (Object.keys(update).length === 0) {
+    return res.json({ project: existing });
+  }
+
+  const [project] = await db
+    .update(projects)
+    .set(update)
+    .where(eq(projects._id, projectId))
+    .returning();
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  await logAudit({ userId: req.user!.userId, action: "project.update", resourceType: "project", resourceId: projectId, metadata: { fields: Object.keys(update), approvalStatus: data.approvalStatus, isVerified: data.isVerified } });
+
+  // Real-time notifications on an approval-status transition. The transition
+  // guard (only when the status actually changes) keeps a double-click from
+  // notifying twice. Never let a notification failure fail the request.
+  if (data.approvalStatus && data.approvalStatus !== existing.approvalStatus) {
+    try {
+      if (data.approvalStatus === "APPROVED") {
+        // Developer: your project is approved & live.
+        await notifyUser(String(project.developerId), {
+          type: NotificationType.PROJECT_APPROVED,
+          title: "Project approved 🎉",
+          message: `Your project "${project.name}" has been approved and is now live on Truvi.`,
+          priority: "high",
+          data: { href: `/developer/projects/${project._id}` },
+        });
+        // Channel Partners + Buyers: a new project just went live.
+        await notifyRole(["CP", "BUYER"], {
+          type: NotificationType.NEW_PROJECT,
+          title: "New project available",
+          message: `A new project "${project.name}"${project.city ? ` in ${project.city}` : ""} is now available on Truvi.`,
+          data: { href: `/inventory/${project._id}/presentation` },
+        });
+      } else if (data.approvalStatus === "REJECTED") {
+        await notifyUser(String(project.developerId), {
+          type: NotificationType.PROJECT_REJECTED,
+          title: "Project needs changes",
+          message: `Your project "${project.name}" needs changes before it can go live. Please review and resubmit.`,
+          priority: "high",
+          data: { href: `/developer/projects/${project._id}` },
+        });
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  // Truvi-Verified badge just granted → congratulate the developer.
+  if (data.isVerified === true && existing.isVerified !== true) {
+    try {
+      await notifyUser(String(project.developerId), {
+        type: "project_approved",
+        title: "Project verified ✅",
+        message: `Your project "${project.name}" is now Truvi-Verified — buyers trust verified listings more.`,
+        data: { href: `/developer/projects/${project._id}` },
+      });
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  res.json({ project });
+});
+
+// DELETE /api/admin/projects/:id — permanently delete ANY project (admin only).
+// Removes the project and every dependent row (units, leads, visits,
+// commissions, enquiries, shared docs, assets, legal docs). This cannot be
+// undone, so it is gated to ADMIN.
+router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const projectId = req.params.id;
+  if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
+
+  const db = getDb();
+  const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
+  if (!existing) return res.status(404).json({ error: "Project not found" });
+
+  // Delete every dependent row before the project itself. Postgres enforces the
+  // foreign keys, so a single missed child table (e.g. a lead's CRM
+  // activities/follow-ups/tasks) makes the whole delete fail with a FK
+  // violation — which is exactly the error this endpoint used to raise. The
+  // work runs inside ONE transaction so a partial delete can never leave
+  // orphaned units/leads behind (those orphans inflated the dashboard counts).
+  try {
+    await db.transaction(async (tx) => {
+      const projectLeads = await tx.select({ _id: leads._id }).from(leads).where(eq(leads.projectId, projectId));
+      const leadIds = projectLeads.map((l) => l._id);
+      if (leadIds.length) {
+        await tx.delete(commissions).where(inArray(commissions.leadId, leadIds));
+        await tx.delete(siteVisits).where(inArray(siteVisits.leadId, leadIds));
+        await tx.delete(leadActivities).where(inArray(leadActivities.leadId, leadIds));
+        await tx.delete(leadFollowUps).where(inArray(leadFollowUps.leadId, leadIds));
+        await tx.delete(crmTasks).where(inArray(crmTasks.leadId, leadIds));
+      }
+      await tx.delete(siteVisits).where(eq(siteVisits.projectId, projectId));
+      await tx.delete(leads).where(eq(leads.projectId, projectId));
+      await tx.delete(units).where(eq(units.projectId, projectId));
+      await tx.delete(projectAssets).where(eq(projectAssets.projectId, projectId));
+      await tx.delete(sharedDocuments).where(eq(sharedDocuments.projectId, projectId));
+      await tx.delete(enquiries).where(eq(enquiries.projectId, projectId));
+      await tx.delete(legalDocuments).where(eq(legalDocuments.projectId, projectId));
+      await tx.delete(financeEntries).where(eq(financeEntries.projectId, projectId));
+      await tx.delete(projects).where(eq(projects._id, projectId));
+    });
+  } catch (err) {
+    console.error("Failed to delete project", projectId, err);
+    return res.status(500).json({ error: "Could not delete project — please retry." });
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "project.delete", resourceType: "project", resourceId: projectId, metadata: { name: existing.name, city: existing.city } });
+  res.json({ ok: true, deleted: existing.name });
+});
+
+// Cached platform-fee for any synchronous caller; kept in sync on read/write.
+let cachedFeePercent = DEFAULT_PLATFORM_FEE_PERCENT;
+
+/** Ensure the single platform-settings row exists and return it. */
+async function loadSettings(): Promise<IPlatformSettings> {
+  const db = getDb();
+  const [row] = await db.select().from(platformSettings).limit(1);
+  if (row) return row;
+  const [created] = await db.insert(platformSettings).values({}).returning();
+  return created;
+}
+
+function settingsResponse(s: IPlatformSettings) {
+  cachedFeePercent = s.platformFeePercent;
+  return {
+    platformFeePercent: s.platformFeePercent,
+    gstPercent: s.gstPercent,
+    defaultCommissionPercent: s.defaultCommissionPercent,
+    notifications: { email: s.notifyEmail, sms: s.notifySms, whatsapp: s.notifyWhatsapp },
+    // Read-only integration status derived from server env (never the secrets),
+    // so admins can see at a glance what's wired up.
+    integrations: {
+      razorpay: Boolean(process.env.RAZORPAY_KEY_ID),
+      email: Boolean(process.env.SMTP_HOST),
+      sms: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      ai: Boolean(process.env.ANTHROPIC_API_KEY),
+    },
+  };
+}
+
+router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (_req, res) => {
+  res.json(settingsResponse(await loadSettings()));
+});
+
+const settingsPatchSchema = z.object({
+  platformFeePercent: z.number().min(0).max(100).optional(),
+  gstPercent: z.number().min(0).max(100).optional(),
+  defaultCommissionPercent: z.number().min(0).max(100).optional(),
+  notifications: z
+    .object({ email: z.boolean().optional(), sms: z.boolean().optional(), whatsapp: z.boolean().optional() })
+    .optional(),
+});
+
+router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = settingsPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  const d = parsed.data;
+
+  const current = await loadSettings();
+  const update: Partial<IPlatformSettings> = { updatedAt: new Date() };
+  if (d.platformFeePercent !== undefined) update.platformFeePercent = d.platformFeePercent;
+  if (d.gstPercent !== undefined) update.gstPercent = d.gstPercent;
+  if (d.defaultCommissionPercent !== undefined) update.defaultCommissionPercent = d.defaultCommissionPercent;
+  if (d.notifications?.email !== undefined) update.notifyEmail = d.notifications.email;
+  if (d.notifications?.sms !== undefined) update.notifySms = d.notifications.sms;
+  if (d.notifications?.whatsapp !== undefined) update.notifyWhatsapp = d.notifications.whatsapp;
+
+  const db = getDb();
+  const [saved] = await db.update(platformSettings).set(update).where(eq(platformSettings._id, current._id)).returning();
+  void logAudit({ userId: req.user!.userId, action: "settings.update", resourceType: "settings", metadata: { fields: Object.keys(d) } });
+  res.json(settingsResponse(saved));
+});
+
+export function getPlatformFeePercent(): number {
+  return cachedFeePercent;
+}
+
+// ── CP identity (KYC) review ────────────────────────────────────────────────
+
+// GET /api/admin/kyc/pending — CP/Ambassador submissions awaiting manual review.
+// KYC is a Channel Partner / Ambassador requirement only, so the queue is scoped
+// to those roles.
+router.get("/kyc/pending", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({
+      _id: users._id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      onboardingChecks: users.onboardingChecks,
+      verification: users.verification,
+    })
+    .from(users)
+    .where(inArray(users.role, ["CP", "AMBASSADOR"]));
+
+  const pending = rows
+    .filter((u) => u.onboardingChecks?.kycStatus === "PENDING")
+    .map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      panNumberMasked: u.verification?.panNumberMasked ?? null,
+      // Presence flags only — the actual images are fetched through the
+      // authenticated file route below, never exposed as public URLs.
+      hasAadhaar: Boolean(u.verification?.kycFiles?.aadhaar),
+      hasPan: Boolean(u.verification?.kycFiles?.pan),
+      hasSelfie: Boolean(u.verification?.kycFiles?.selfie),
+      submittedAt: u.verification?.kycSubmittedAt ?? null,
+    }));
+
+  res.json({ submissions: pending });
+});
+
+// GET /api/admin/kyc/:userId/file/:type — stream a KYC document (from the DB) to
+// an admin. This is the ONLY way to view identity docs; they are not statically
+// served. Available for as long as the document is retained (i.e. after approval
+// too, so an admin can re-check a verified user's identity).
+router.get("/kyc/:userId/file/:type", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = String(req.params.userId);
+  const type = String(req.params.type);
+  if (!isValidId(userId)) return res.status(404).json({ error: "Not found" });
+  // `type` is validated against this fixed set before it's used as a column
+  // name, so the interpolation below can't be an injection vector.
+  if (!["aadhaar", "pan", "selfie"].includes(type)) return res.status(400).json({ error: "Bad type" });
+
+  const sqlc = getSqlClient();
+  const rows = await sqlc.unsafe(
+    `SELECT ${type}_data AS data, ${type}_mime AS mime FROM kyc_documents WHERE user_id = $1`,
+    [userId],
+  );
+  const row = rows?.[0] as unknown as { data: Uint8Array | null; mime: string | null } | undefined;
+  if (!row?.data) return res.status(404).json({ error: "Not found" });
+
+  res.setHeader("Content-Type", row.mime || "application/octet-stream");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.end(Buffer.from(row.data));
+});
+
+// GET /api/admin/kyc/records — EVERY Channel Partner & Ambassador with their KYC
+// status, including those who have not submitted yet (status NOT_SUBMITTED), so
+// the admin/founder can see the full roster: who's verified, who's pending, who
+// was rejected and who still owes KYC. Documents stay viewable after approval.
+router.get("/kyc/records", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({
+      _id: users._id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      disabled: users.disabled,
+      onboardingChecks: users.onboardingChecks,
+      verification: users.verification,
+    })
+    .from(users)
+    .where(inArray(users.role, ["CP", "AMBASSADOR"]));
+
+  // PENDING first (needs a decision), then REJECTED, then NOT_SUBMITTED (needs a
+  // nudge), then APPROVED (all clear) — so the actionable rows float to the top.
+  const statusRank: Record<string, number> = { PENDING: 0, REJECTED: 1, NOT_SUBMITTED: 2, APPROVED: 3 };
+  const records = rows
+    .filter((u) => !u.disabled)
+    .map((u) => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      kycStatus: u.onboardingChecks?.kycStatus ?? "NOT_SUBMITTED",
+      panNumberMasked: u.verification?.panNumberMasked ?? null,
+      hasAadhaar: Boolean(u.verification?.kycFiles?.aadhaar),
+      hasPan: Boolean(u.verification?.kycFiles?.pan),
+      hasSelfie: Boolean(u.verification?.kycFiles?.selfie),
+      submittedAt: u.verification?.kycSubmittedAt ?? null,
+    }))
+    .sort((a, b) => (statusRank[a.kycStatus] ?? 9) - (statusRank[b.kycStatus] ?? 9)
+      || (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
+
+  const counts = {
+    total: records.length,
+    approved: records.filter((r) => r.kycStatus === "APPROVED").length,
+    pending: records.filter((r) => r.kycStatus === "PENDING").length,
+    rejected: records.filter((r) => r.kycStatus === "REJECTED").length,
+    notSubmitted: records.filter((r) => r.kycStatus === "NOT_SUBMITTED").length,
+  };
+
+  res.json({ records, counts });
+});
+
+const kycDecisionSchema = z.object({ approve: z.boolean(), reason: z.string().max(300).optional() });
+
+// POST /api/admin/kyc/:userId/decision — approve or reject a submission.
+router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const { userId } = req.params;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  const parsed = kycDecisionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users._id, userId));
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const { approve, reason } = parsed.data;
+  const onboardingChecks: OnboardingChecks = {
+    ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+    // Reflect the account's real email/phone verification (verified at signup)
+    // — CP accounts don't carry these on onboardingChecks, so without this the
+    // approval below could never satisfy isOnboardingComplete and the workspace
+    // would stay locked even after we mark the KYC approved.
+    emailVerified: user.emailVerified || (user.onboardingChecks?.emailVerified ?? false),
+    phoneVerified: user.phoneVerified || (user.onboardingChecks?.phoneVerified ?? false),
+    aadhaarVerified: approve,
+    panVerified: approve,
+    kycStatus: approve ? "APPROVED" : "REJECTED",
+    kycRejectionReason: approve ? null : reason ?? "Documents could not be verified.",
+  };
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
+
+  // Identity documents are retained (in the kyc_documents table) after the
+  // decision so an admin can re-view a verified user's Aadhaar/PAN/selfie from
+  // the panel. Only the review outcome changes here.
+  await db
+    .update(users)
+    .set({ onboardingChecks, onboardingVerified })
+    .where(eq(users._id, user._id));
+
+  // Tell the CP the outcome in real time.
+  try {
+    const message = approve
+      ? "Your identity has been verified — full access is now unlocked."
+      : `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`;
+    const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
+    emitNotification(String(user._id), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  await logAudit({ userId: req.user!.userId, action: approve ? "kyc.approve" : "kyc.reject", resourceType: "user", resourceId: String(user._id), metadata: { reason: approve ? undefined : reason } });
+  res.json({ ok: true, userId: user._id, kycStatus: onboardingChecks.kycStatus, onboardingVerified });
+});
+
+// DELETE /api/admin/kyc/:userId — remove/reset a user's KYC. Deletes the stored
+// identity documents and un-verifies the account so they must submit KYC again.
+// Backs the admin identity page's "Remove KYC" action (e.g. wrong/fraudulent docs).
+router.delete("/kyc/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const userId = String(req.params.userId);
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+
+  const db = getDb();
+  const [user] = await db.select().from(users).where(eq(users._id, userId));
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Delete the stored document bytes.
+  try {
+    await getSqlClient()`DELETE FROM kyc_documents WHERE user_id = ${userId}`;
+  } catch {
+    /* non-fatal */
+  }
+
+  // Reset identity checks (email/phone verification is preserved). Clearing
+  // kycStatus sends the user back to the "submit your KYC" screen.
+  const prev = user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS;
+  const onboardingChecks: OnboardingChecks = {
+    ...prev,
+    aadhaarVerified: false,
+    panVerified: false,
+    kycStatus: undefined,
+    kycRejectionReason: null,
+  };
+  const onboardingVerified = isOnboardingComplete(onboardingChecks);
+
+  // Clear the KYC metadata on the verification blob (undefined → dropped from JSONB).
+  const verification: UserVerification = {
+    ...(user.verification ?? {}),
+    kycFiles: undefined,
+    panNumberMasked: undefined,
+    kycSubmittedAt: undefined,
+    aadhaarVerifiedAt: undefined,
+  };
+
+  await db.update(users).set({ onboardingChecks, verification, onboardingVerified }).where(eq(users._id, userId));
+
+  try {
+    const message = "Your identity verification was removed by an admin. Please re-submit your KYC to regain full access.";
+    const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
+    emitNotification(String(user._id), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "kyc.remove", resourceType: "user", resourceId: userId, metadata: { name: user.name, role: user.role } });
+  res.json({ ok: true, userId });
+});
+
+// ---------------------------------------------------------------------------
+// Documents console — every uploaded document across the platform in one list
+// so an admin can review and approve/reject each. Aggregates four sources:
+//   BUYER  → buyerDocuments  (buyer KYC: ID / address / income proof)
+//   LEGAL  → legalDocuments  (RERA cert, approvals, NOCs, title docs)
+//   ASSET  → projectAssets   (developer Vault uploads)
+//   SHARED → sharedDocuments (brochures, floor plans, price lists)
+// Each row carries a normalised status so the UI is uniform regardless of the
+// underlying table's own state model.
+// ---------------------------------------------------------------------------
+
+type DocStatus = "APPROVED" | "PENDING" | "REJECTED";
+type DocSource = "BUYER" | "LEGAL" | "ASSET" | "SHARED";
+interface AdminDocument {
+  _id: string;
+  source: DocSource;
+  category: string;
+  fileName: string;
+  fileUrl: string;
+  status: DocStatus;
+  approvable: boolean;
+  uploader: { name: string; role: string } | null;
+  project: { name: string } | null;
+  createdAt: Date | null;
+}
+
+// GET /api/admin/documents — unified list of every document, newest first.
+router.get("/documents", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+
+  const [buyerRows, legalRows, assetRows, sharedRows] = await Promise.all([
+    db
+      .select({ doc: buyerDocuments, uploader: { name: users.name, role: users.role } })
+      .from(buyerDocuments)
+      .leftJoin(users, eq(buyerDocuments.buyerId, users._id)),
+    db
+      .select({ doc: legalDocuments, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(legalDocuments)
+      .leftJoin(projects, eq(legalDocuments.projectId, projects._id))
+      .leftJoin(users, eq(legalDocuments.uploadedById, users._id)),
+    db
+      .select({ doc: projectAssets, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(projectAssets)
+      .leftJoin(projects, eq(projectAssets.projectId, projects._id))
+      .leftJoin(users, eq(projectAssets.uploadedBy, users._id)),
+    db
+      .select({ doc: sharedDocuments, project: { name: projects.name }, uploader: { name: users.name, role: users.role } })
+      .from(sharedDocuments)
+      .leftJoin(projects, eq(sharedDocuments.projectId, projects._id))
+      .leftJoin(users, eq(sharedDocuments.uploadedById, users._id)),
+  ]);
+
+  const docs: AdminDocument[] = [];
+
+  for (const r of buyerRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "BUYER",
+      category: r.doc.docType.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.status === "VERIFIED" ? "APPROVED" : r.doc.status === "REJECTED" ? "REJECTED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of legalRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "LEGAL",
+      category: r.doc.docType,
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of assetRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "ASSET",
+      category: r.doc.category.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: r.doc.verified ? "APPROVED" : "PENDING",
+      approvable: true,
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+  for (const r of sharedRows) {
+    docs.push({
+      _id: r.doc._id,
+      source: "SHARED",
+      category: r.doc.fileType.replace(/_/g, " "),
+      fileName: r.doc.fileName,
+      fileUrl: r.doc.fileUrl,
+      status: "APPROVED",
+      approvable: false, // brochures/price lists have no gated state
+      uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
+      project: r.project?.name ? { name: r.project.name } : null,
+      createdAt: r.doc.createdAt,
+    });
+  }
+
+  docs.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
+  res.json({ documents: docs });
+});
+
+// PATCH /api/admin/documents/:source/:id — approve or reject one document.
+const docDecisionSchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) });
+router.patch("/documents/:source/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const source = req.params.source as DocSource;
+  const id = req.params.id;
+  if (!isValidId(id)) return res.status(404).json({ error: "Document not found" });
+  const parsed = docDecisionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  const approve = parsed.data.status === "APPROVED";
+
+  const db = getDb();
+  let ok = false;
+  if (source === "BUYER") {
+    const [row] = await db.update(buyerDocuments).set({ status: approve ? "VERIFIED" : "REJECTED" }).where(eq(buyerDocuments._id, id)).returning({ _id: buyerDocuments._id });
+    ok = Boolean(row);
+  } else if (source === "LEGAL") {
+    const [row] = await db.update(legalDocuments).set({ verified: approve, verifiedById: req.user!.userId, verifiedAt: new Date() }).where(eq(legalDocuments._id, id)).returning({ _id: legalDocuments._id });
+    ok = Boolean(row);
+  } else if (source === "ASSET") {
+    const [row] = await db.update(projectAssets).set({ verified: approve }).where(eq(projectAssets._id, id)).returning({ _id: projectAssets._id });
+    ok = Boolean(row);
+  } else {
+    return res.status(400).json({ error: "This document type has no approval state" });
+  }
+
+  if (!ok) return res.status(404).json({ error: "Document not found" });
+  await logAudit({ userId: req.user!.userId, action: approve ? "document.approve" : "document.reject", resourceType: "document", resourceId: id, metadata: { source } });
+  res.json({ ok: true, status: parsed.data.status });
+});
+
+// ---------------------------------------------------------------------------
+// Channel Partner commission wallet — admin view + payouts.
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/commissions/partners — every CP/Ambassador with their
+// developer + sale commission, total, paid and pending. Accrues the current
+// month's developer commission first so figures are current.
+router.get("/commissions/partners", requireRole("ADMIN"), async (_req, res) => {
+  await accrueDeveloperCommissions().catch((e) => console.error("accrue failed:", e));
+  const partners = await getPartnersSummary();
+  res.json({ partners });
+});
+
+// GET /api/admin/commissions/partners/:id — one partner's full detail: CRM
+// stats (leads / site visits / bookings), bank details, wallet totals and every
+// manual commission (so the admin can add / approve / pay from one screen).
+router.get("/commissions/partners/:id", requireRole("ADMIN"), async (req, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Partner not found" });
+  const detail = await getPartnerDetail(req.params.id);
+  if (!detail) return res.status(404).json({ error: "Partner not found" });
+  res.json({ detail, wallet: detail.wallet });
+});
+
+// POST /api/admin/commissions/accrue — run the monthly developer-commission
+// accrual on demand (also runs lazily on the two GETs above).
+router.post("/commissions/accrue", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const monthKey = typeof req.body?.monthKey === "string" && /^\d{4}-\d{2}$/.test(req.body.monthKey) ? req.body.monthKey : undefined;
+  const result = await accrueDeveloperCommissions(monthKey);
+  res.json({ ok: true, ...result });
+});
+
+// POST /api/admin/commissions/pay — record a payout to a Channel Partner. This
+// reduces their pending balance (pending = earned − paid) and notifies them.
+const commissionPaySchema = z.object({
+  cpId: z.string(),
+  amount: z.number().positive(),
+  mode: z.enum(["UPI", "BANK_TRANSFER", "CASH", "CHEQUE", "OTHER"]).optional(),
+  transactionId: z.string().max(120).optional(),
+  paymentDate: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+router.post("/commissions/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = commissionPaySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  const { cpId, amount, mode, transactionId, paymentDate, notes } = parsed.data;
+  if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
+
+  const db = getDb();
+  const [cp] = await db.select().from(users).where(eq(users._id, cpId));
+  if (!cp) return res.status(404).json({ error: "Partner not found" });
+
+  const [payment] = await db
+    .insert(cpCommissionPayments)
+    .values({
+      cpId,
+      amount,
+      mode: mode ?? "BANK_TRANSFER",
+      transactionId: transactionId || null,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      notes: notes || null,
+      createdById: req.user!.userId,
+    })
+    .returning();
+
+  try {
+    const message = `A commission payout of ₹${amount.toLocaleString("en-IN")} has been recorded to your account${transactionId ? ` (Txn ${transactionId})` : ""}.`;
+    const [n] = await db.insert(notifications).values({ userId: cpId, message }).returning();
+    emitNotification(String(cpId), n);
+  } catch {
+    /* non-fatal */
+  }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.pay", resourceType: "user", resourceId: cpId, metadata: { amount, mode: mode ?? "BANK_TRANSFER", transactionId } });
+
+  // Return the updated wallet so the admin UI reflects new paid/pending at once.
+  const wallet = await getCpWallet(cpId);
+  res.json({ ok: true, payment, wallet });
+});
+
+// ---------------------------------------------------------------------------
+// Manual commission management — the system NEVER auto-creates these. Once a
+// lead reaches Booking Confirmed, an admin adds the commission, approves it and
+// marks it paid. (The developer-referral 2% stays fully automatic elsewhere.)
+// ---------------------------------------------------------------------------
+
+const manualAddSchema = z.object({
+  cpId: z.string(),
+  amount: z.number().nonnegative(),
+  percent: z.number().min(0).max(100).optional(),
+  bookingValue: z.number().nonnegative().optional(),
+  leadId: z.string().optional(),
+  label: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+// POST /api/admin/commissions/manual — add a commission for a Channel Partner.
+router.post("/commissions/manual", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = manualAddSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  const { cpId, amount, percent, bookingValue, leadId, label, notes } = parsed.data;
+  if (!isValidId(cpId)) return res.status(404).json({ error: "Partner not found" });
+
+  const db = getDb();
+  const [cp] = await db.select({ _id: users._id, role: users.role, name: users.name }).from(users).where(eq(users._id, cpId));
+  if (!cp) return res.status(404).json({ error: "Partner not found" });
+  if (cp.role !== "CP" && cp.role !== "AMBASSADOR") return res.status(400).json({ error: "Commissions apply to Channel Partners and Ambassadors only" });
+
+  const [row] = await db
+    .insert(cpManualCommissions)
+    .values({
+      cpId,
+      amount,
+      percent: percent ?? null,
+      bookingValue: bookingValue ?? null,
+      leadId: leadId && isValidId(leadId) ? leadId : null,
+      label: label || null,
+      notes: notes || null,
+      status: "PENDING",
+      createdById: req.user!.userId,
+    })
+    .returning();
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.add", resourceType: "user", resourceId: cpId, metadata: { amount, label } });
+  const detail = await getPartnerDetail(cpId);
+  res.status(201).json({ ok: true, commission: row, detail });
+});
+
+const manualEditSchema = z.object({
+  amount: z.number().nonnegative().optional(),
+  percent: z.number().min(0).max(100).nullable().optional(),
+  bookingValue: z.number().nonnegative().nullable().optional(),
+  label: z.string().max(200).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+// PATCH /api/admin/commissions/manual/:id — edit a commission (not once it's paid).
+router.patch("/commissions/manual/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const parsed = manualEditSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "A paid commission can't be edited" });
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.edit", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+// POST /api/admin/commissions/manual/:id/approve — mark a commission Approved.
+router.post("/commissions/manual/:id/approve", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "Already paid" });
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ status: "APPROVED", updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  try {
+    const [n] = await db.insert(notifications).values({ userId: existing.cpId, message: `Your commission ${existing.label ? `"${existing.label}" ` : ""}of ₹${Number(existing.amount).toLocaleString("en-IN")} has been approved.` }).returning();
+    emitNotification(String(existing.cpId), n);
+  } catch { /* non-fatal */ }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.approve", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+const manualPaySchema = z.object({
+  paidAmount: z.number().positive().optional(),
+  paymentDate: z.string().optional(),
+  transactionRef: z.string().max(120).optional(),
+  paymentMode: z.enum(["UPI", "BANK_TRANSFER", "CASH", "CHEQUE", "OTHER"]).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+// POST /api/admin/commissions/manual/:id/pay — mark a commission Paid. This also
+// records a payout row so the wallet's paid/pending update, and notifies the CP.
+router.post("/commissions/manual/:id/pay", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const parsed = manualPaySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "Already marked paid" });
+
+  const amount = Number(existing.amount);
+  const paidAmount = parsed.data.paidAmount ?? amount;
+  // A commission can never be paid for more than it's worth — this is what kept
+  // the wallet's pending from going negative.
+  if (paidAmount > amount + 0.01) return res.status(400).json({ error: `Amount can't exceed the commission value of ₹${amount.toLocaleString("en-IN")}` });
+  const mode = parsed.data.paymentMode ?? "BANK_TRANSFER";
+  const when = parsed.data.paymentDate ? new Date(parsed.data.paymentDate) : new Date();
+
+  const [row] = await db
+    .update(cpManualCommissions)
+    .set({ status: "PAID", paidAmount, paymentDate: when, transactionRef: parsed.data.transactionRef || null, paymentMode: mode, notes: parsed.data.notes ?? existing.notes, updatedAt: new Date() })
+    .where(eq(cpManualCommissions._id, req.params.id))
+    .returning();
+
+  // Mirror into the payout ledger so wallet paid/pending stay the single source
+  // of truth (paid is always summed from cp_commission_payments).
+  await db.insert(cpCommissionPayments).values({
+    cpId: existing.cpId,
+    amount: paidAmount,
+    mode,
+    transactionId: parsed.data.transactionRef || null,
+    paymentDate: when,
+    notes: existing.label ? `Commission: ${existing.label}` : "Sale commission",
+    createdById: req.user!.userId,
+  });
+
+  try {
+    const [n] = await db.insert(notifications).values({ userId: existing.cpId, message: `A commission payment of ₹${paidAmount.toLocaleString("en-IN")} has been made to you${parsed.data.transactionRef ? ` (Ref ${parsed.data.transactionRef})` : ""}.` }).returning();
+    emitNotification(String(existing.cpId), n);
+  } catch { /* non-fatal */ }
+
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.pay", resourceType: "commission", resourceId: req.params.id, metadata: { paidAmount, mode } });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, commission: row, detail });
+});
+
+// DELETE /api/admin/commissions/manual/:id — remove a commission (not if paid).
+router.delete("/commissions/manual/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Commission not found" });
+  const db = getDb();
+  const [existing] = await db.select().from(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Commission not found" });
+  if (existing.status === "PAID") return res.status(409).json({ error: "A paid commission can't be deleted" });
+
+  await db.delete(cpManualCommissions).where(eq(cpManualCommissions._id, req.params.id));
+  await logAudit({ userId: req.user!.userId, action: "commission.manual.delete", resourceType: "commission", resourceId: req.params.id });
+  const detail = await getPartnerDetail(String(existing.cpId));
+  res.json({ ok: true, detail });
+});
+
+// ── Notification / push diagnostics & test tools ───────────────────────────
+// Lets a founder confirm the whole pipeline (bell + real-time + FCM push) is
+// working, and see whether FCM is configured and whether their own device has
+// registered a push token.
+
+// GET /api/admin/notifications/diagnostics — is push configured, and does this
+// admin have any registered device tokens?
+router.get("/notifications/diagnostics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const myTokens = await db
+    .select({ token: userPushTokens.token, platform: userPushTokens.platform, updatedAt: userPushTokens.updatedAt })
+    .from(userPushTokens)
+    .where(eq(userPushTokens.userId, req.user!.userId));
+  const [{ total } = { total: 0 }] = await db
+    .select({ total: sql<number>`COUNT(*)::int` })
+    .from(userPushTokens);
+  res.json({
+    pushEnabled: isPushEnabled(),
+    myDeviceTokens: myTokens.length,
+    totalDeviceTokens: Number(total ?? 0),
+    myTokens: myTokens.map((t) => ({ platform: t.platform, updatedAt: t.updatedAt, tokenPreview: t.token.slice(0, 12) + "…" })),
+  });
+});
+
+// POST /api/admin/notifications/test — send a test notification to a user
+// (defaults to the calling admin). Flows through the bell, the real-time
+// socket toast, AND FCM push if configured.
+const testNotifSchema = z.object({
+  userId: z.string().optional(),
+  email: z.string().optional(),
+  title: z.string().optional(),
+  message: z.string().optional(),
+});
+router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = testNotifSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+  const db = getDb();
+
+  // Resolve the target: explicit userId, else by email, else the caller.
+  let targetId = req.user!.userId;
+  let target: { _id: string; name: string; email: string } | undefined;
+  if (parsed.data.userId && isValidId(parsed.data.userId)) {
+    targetId = parsed.data.userId;
+  } else if (parsed.data.email?.trim()) {
+    const [u] = await db
+      .select({ _id: users._id, name: users.name, email: users.email })
+      .from(users)
+      .where(eq(users.email, parsed.data.email.trim().toLowerCase()))
+      .limit(1);
+    if (!u) return res.status(404).json({ error: "No user with that email" });
+    targetId = String(u._id);
+    target = { _id: String(u._id), name: u.name, email: u.email };
+  }
+  if (!target) {
+    const [u] = await db.select({ _id: users._id, name: users.name, email: users.email }).from(users).where(eq(users._id, targetId)).limit(1);
+    if (u) target = { _id: String(u._id), name: u.name, email: u.email };
+  }
+
+  // How many devices does the target have registered? This is the key signal —
+  // 0 devices means FCM has nothing to push to (the user hasn't opened the
+  // installed app / granted notification permission on a device).
+  const [{ n } = { n: 0 }] = await db
+    .select({ n: sql<number>`COUNT(*)::int` })
+    .from(userPushTokens)
+    .where(eq(userPushTokens.userId, targetId));
+  const targetDeviceTokens = Number(n ?? 0);
+
+  const rows = await notifyUser(targetId, {
+    type: NotificationType.SYSTEM_ANNOUNCEMENT,
+    title: parsed.data.title?.trim() || "Test notification 🔔",
+    message: parsed.data.message?.trim() || "If you can see this pop-up, your Truvi notifications are working.",
+    data: { href: "/" },
+    priority: "high",
+  });
+  res.json({
+    ok: true,
+    delivered: rows.length,
+    pushEnabled: isPushEnabled(),
+    targetName: target?.name ?? null,
+    targetEmail: target?.email ?? null,
+    targetDeviceTokens,
+  });
+});
+
+// POST /api/admin/notifications/broadcast — send an announcement to a role (or
+// everyone). Reaches the bell + real-time toast + FCM push for each recipient.
+const broadcastSchema = z.object({
+  title: z.string().min(1),
+  message: z.string().min(1),
+  target: z.enum(["ALL", "ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]).optional(),
+  href: z.string().optional(),
+});
+router.post("/notifications/broadcast", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = broadcastSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
+  const target = parsed.data.target ?? "ALL";
+  const input = {
+    type: NotificationType.SYSTEM_ANNOUNCEMENT,
+    title: parsed.data.title.trim(),
+    message: parsed.data.message.trim(),
+    data: parsed.data.href?.startsWith("/") ? { href: parsed.data.href } : undefined,
+    priority: "high" as const,
+  };
+  const roles = target === "ALL" ? ["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"] : [target];
+  const rows = await notifyRole(roles, input);
+  await logAudit({
+    userId: req.user!.userId,
+    action: "notification.broadcast",
+    resourceType: "notification",
+    metadata: { target, title: input.title, recipients: rows.length },
+  });
+  res.json({ ok: true, recipients: rows.length, pushEnabled: isPushEnabled() });
+});
+
+export default router;

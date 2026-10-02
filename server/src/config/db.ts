@@ -1,0 +1,646 @@
+import type { Db } from "../db";
+import { connectDb, closeDb, getDb } from "../db";
+import { VERIFICATION_BOOT_SQL, ensureVerificationDefaults } from "../db/verificationBootSql";
+import { ensureDefaultFounder } from "../db/bootstrapFounder";
+
+let isConnected = false;
+let connectionError: Error | null = null;
+
+/**
+ * Idempotent, additive schema reconciliation run on every boot so a deploy
+ * doesn't require a manual `drizzle-kit push` for newly-added columns. Only
+ * ever ADDs columns with `IF NOT EXISTS` (never drops/alters), so it's safe to
+ * run repeatedly and can't lose data. Keep each statement in sync with the
+ * Drizzle schema (same column name/type/default) so a later `drizzle-kit push`
+ * sees them as already-present.
+ */
+async function ensureSchema(db: Db): Promise<void> {
+  const statements = [
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_verified" boolean NOT NULL DEFAULT true`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_verified" boolean NOT NULL DEFAULT true`,
+    // Admin can deactivate ("remove") an account without destroying its history.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "disabled" boolean NOT NULL DEFAULT false`,
+    // Personal profile: avatar image URL + short bio, editable from dashboard settings.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
+    // Mandatory WhatsApp-updates-channel join for Channel Partners (gates the CP
+    // workspace alongside KYC).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "whatsapp_channel_joined" boolean NOT NULL DEFAULT false`,
+    // Developer-managed project details + legal-doc verification gate.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    // Which body approved the project (RERA / District Panchayat / DTCP), so a
+    // non-RERA-registered but validly-approved layout can still be listed.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "approval_authority" text`,
+    // Developer-declared total plots/units, shown when per-unit inventory is sparse.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "total_units" integer`,
+    // GIS map coordinates (pin picker on the project form).
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
+    // Admin-curated, Truvi-verified ownership history + appreciation forecast.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "owner_history" jsonb`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "appreciation_forecast" jsonb`,
+    // Developer-reported construction progress + milestones.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "construction_status" text`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "construction_progress" integer`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "milestones" jsonb`,
+    // Admin marks this once the Truvi team has physically visited the site;
+    // feeds a +20 verification check into the Trust Score (seeded just below).
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "team_site_visited" boolean NOT NULL DEFAULT false`,
+    // Seed the physical-site-visit Trust Score check once (weight 20). Idempotent
+    // via NOT EXISTS so it is never duplicated; admins can edit its weight later.
+    `INSERT INTO verification_checks (name, category, weight, enabled, sql_query, description)
+     SELECT 'Physical Site Visit (Truvi Team)', 'physical', 20, true,
+            'SELECT coalesce((SELECT team_site_visited FROM projects WHERE id=$1), false) AS passed',
+            'The Truvi team has physically visited and inspected the site.'
+     WHERE NOT EXISTS (SELECT 1 FROM verification_checks WHERE name = 'Physical Site Visit (Truvi Team)')`,
+    `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "verified" boolean NOT NULL DEFAULT true`,
+    // AI visual-quality score (0–100) for gallery images → automatic best-cover.
+    `ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "ai_score" double precision`,
+    // Optional plot size / dimensions per unit (e.g. "30x40 ft", "200 sq.yd").
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "plot_size" text`,
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "map_x" double precision`,
+    `ALTER TABLE "units" ADD COLUMN IF NOT EXISTS "map_y" double precision`,
+    // CP CRM (paid tier): lead tags + activity/follow-up/task tables.
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "tags" jsonb`,
+    // Founder analytics: lost-deal reason + first-response time on leads.
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lost_reason" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "first_contacted_at" timestamptz`,
+    // Active-user tracking (MAU/DAU) and customer-experience (NPS/complaints).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_active_at" timestamptz`,
+    // Lifecycle emails: welcome (sent once on first full verification) and the
+    // throttled "finish your setup" reminder (verification / KYC / plan).
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "welcome_email_sent_at" timestamptz`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "last_reminder_at" timestamptz`,
+    `CREATE TABLE IF NOT EXISTS "customer_feedback" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "kind" text NOT NULL DEFAULT 'NPS',
+       "customer_name" text,
+       "score" integer,
+       "note" text,
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "resolved_at" timestamptz,
+       "created_by_id" uuid,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "lead_activities" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "lead_id" uuid NOT NULL REFERENCES "leads"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "type" text NOT NULL,
+       "content" text NOT NULL,
+       "metadata" jsonb,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "lead_activities_lead_idx" ON "lead_activities" ("lead_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "lead_activities_cp_idx" ON "lead_activities" ("cp_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "lead_follow_ups" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "lead_id" uuid NOT NULL REFERENCES "leads"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "due_at" timestamptz NOT NULL,
+       "channel" text NOT NULL DEFAULT 'CALL',
+       "note" text,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "lead_follow_ups_cp_status_idx" ON "lead_follow_ups" ("cp_id", "status", "due_at")`,
+    `CREATE INDEX IF NOT EXISTS "lead_follow_ups_lead_idx" ON "lead_follow_ups" ("lead_id")`,
+    `CREATE TABLE IF NOT EXISTS "crm_tasks" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "lead_id" uuid REFERENCES "leads"("id"),
+       "title" text NOT NULL,
+       "due_at" timestamptz,
+       "priority" text NOT NULL DEFAULT 'MEDIUM',
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "crm_tasks_cp_status_idx" ON "crm_tasks" ("cp_id", "status")`,
+    // Admin-managed Learning Academy content (videos + PDFs) shown to CPs.
+    `CREATE TABLE IF NOT EXISTS "academy_content" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "course_id" text NOT NULL,
+       "title" text NOT NULL,
+       "type" text NOT NULL,
+       "url" text NOT NULL,
+       "description" text,
+       "duration" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "academy_content_course_idx" ON "academy_content" ("course_id", "sort_order")`,
+    // English transcript for Hindi voice-note lessons.
+    `ALTER TABLE "academy_content" ADD COLUMN IF NOT EXISTS "transcript_en" text`,
+    // Per-listing discussion (channel partners / team). Name stays private — the
+    // UI shows an avatar + short user id only.
+    `CREATE TABLE IF NOT EXISTS "project_comments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "parent_id" uuid REFERENCES "project_comments"("id"),
+       "body" text NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "project_comments_project_idx" ON "project_comments" ("project_id", "created_at")`,
+    // Brochure view/download analytics (the brochure file itself is a
+    // project_assets row of category "BROCHURE").
+    `CREATE TABLE IF NOT EXISTS "brochure_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "asset_id" uuid,
+       "user_id" uuid REFERENCES "users"("id"),
+       "role" text,
+       "event_type" text NOT NULL,
+       "platform" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "brochure_events_project_idx" ON "brochure_events" ("project_id", "event_type", "created_at")`,
+    // Masked-call log (CP → Developer via a Truvi virtual number). Real numbers
+    // are never stored — only the provider's call id + the virtual number.
+    `CREATE TABLE IF NOT EXISTS "calls" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "developer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "provider" text NOT NULL DEFAULT 'exotel',
+       "provider_call_id" text,
+       "virtual_number" text,
+       "status" text NOT NULL DEFAULT 'INITIATED',
+       "started_at" timestamptz,
+       "ended_at" timestamptz,
+       "duration_sec" integer,
+       "recording_url" text,
+       "recording_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "calls_project_idx" ON "calls" ("project_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_developer_idx" ON "calls" ("developer_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_cp_idx" ON "calls" ("cp_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "calls_provider_call_idx" ON "calls" ("provider_call_id")`,
+    // Discount vouchers (coupon codes) + the columns that record a voucher on a
+    // payment. Validated & applied server-side so a discount can't be forged.
+    `CREATE TABLE IF NOT EXISTS "vouchers" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "code" text NOT NULL,
+       "description" text,
+       "discount_type" text NOT NULL DEFAULT 'PERCENT',
+       "discount_value" integer NOT NULL DEFAULT 0,
+       "max_discount_paise" integer,
+       "plan_ids" jsonb,
+       "category" text,
+       "max_redemptions" integer,
+       "redeemed_count" integer NOT NULL DEFAULT 0,
+       "min_amount_paise" integer NOT NULL DEFAULT 0,
+       "active" boolean NOT NULL DEFAULT true,
+       "expires_at" timestamptz,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "vouchers_code_idx" ON "vouchers" ("code")`,
+    `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "voucher_code" text`,
+    `ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "discount_paise" integer NOT NULL DEFAULT 0`,
+    // Project landing-page leads are phone-first: add a phone column and drop the
+    // NOT NULL on email so a lead can arrive with only name + phone.
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "phone" text`,
+    `ALTER TABLE "enquiries" ALTER COLUMN "email" DROP NOT NULL`,
+    // Config tables ensureVerificationDefaults depends on — created here too so
+    // a deploy without `drizzle-kit push` never spams boot warnings.
+    `CREATE TABLE IF NOT EXISTS "score_thresholds" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "verified_min" integer NOT NULL DEFAULT 85,
+       "pending_min" integer NOT NULL DEFAULT 50,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "ai_prompts" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "system_prompt" text NOT NULL,
+       "active" boolean NOT NULL DEFAULT false,
+       "version" integer NOT NULL DEFAULT 1,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // Founder-only operating modules (Team, Marketing, Land Bank, Investor).
+    `CREATE TABLE IF NOT EXISTS "employees" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "title" text,
+       "department" text NOT NULL DEFAULT 'General',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "present_today" boolean NOT NULL DEFAULT true,
+       "performance_score" integer NOT NULL DEFAULT 0,
+       "tasks_pending" integer NOT NULL DEFAULT 0,
+       "monthly_ctc" double precision NOT NULL DEFAULT 0,
+       "joined_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "marketing_campaigns" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "channel" text NOT NULL DEFAULT 'Other',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spend" double precision NOT NULL DEFAULT 0,
+       "leads" integer NOT NULL DEFAULT 0,
+       "conversions" integer NOT NULL DEFAULT 0,
+       "revenue" double precision NOT NULL DEFAULT 0,
+       "started_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "land_parcels" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "location" text NOT NULL,
+       "area" double precision NOT NULL DEFAULT 0,
+       "area_unit" text NOT NULL DEFAULT 'ACRE',
+       "status" text NOT NULL DEFAULT 'OPPORTUNITY',
+       "estimated_value" double precision NOT NULL DEFAULT 0,
+       "due_diligence_done" boolean NOT NULL DEFAULT false,
+       "priority" text NOT NULL DEFAULT 'MEDIUM',
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "cap_table_entries" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "holder_name" text NOT NULL,
+       "holder_type" text NOT NULL DEFAULT 'INVESTOR',
+       "equity_percent" double precision NOT NULL DEFAULT 0,
+       "invested_amount" double precision NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "fundraise_rounds" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "target_amount" double precision NOT NULL DEFAULT 0,
+       "committed_amount" double precision NOT NULL DEFAULT 0,
+       "valuation" double precision NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "close_date" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE TABLE IF NOT EXISTS "investor_updates" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "body" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // Command Center financials: salary-payment tracking on employees + the
+    // founder-entered investment / revenue / recurring-payment ledgers.
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_paid_for_month" text`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_due_day" integer NOT NULL DEFAULT 1`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "salary_start_date" timestamptz`,
+    `ALTER TABLE "employees" ADD COLUMN IF NOT EXISTS "notes" text`,
+    `CREATE TABLE IF NOT EXISTS "employee_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "employee_id" uuid NOT NULL REFERENCES "employees"("id"),
+       "month_key" text NOT NULL,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "note" text,
+       "paid_at" timestamptz NOT NULL DEFAULT now(),
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "employee_payments_employee_idx" ON "employee_payments" ("employee_id", "month_key")`,
+    `CREATE TABLE IF NOT EXISTS "command_investments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_investments_date_idx" ON "command_investments" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "command_revenues" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'General',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "command_revenues_date_idx" ON "command_revenues" ("date")`,
+    `CREATE TABLE IF NOT EXISTS "recurring_expenses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "label" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'Other',
+       "amount" double precision NOT NULL DEFAULT 0,
+       "due_day" integer NOT NULL DEFAULT 1,
+       "paid_for_month" text,
+       "paid_date" timestamptz,
+       "notes" text,
+       "active" boolean NOT NULL DEFAULT true,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // Monthly Costing payment tracking (added after the table's first release).
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "due_day" integer NOT NULL DEFAULT 1`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_for_month" text`,
+    `ALTER TABLE "recurring_expenses" ADD COLUMN IF NOT EXISTS "paid_date" timestamptz`,
+    // Pending signups — accounts are held here until email + phone OTPs are
+    // verified, then promoted into `users`. Created idempotently on boot.
+    `CREATE TABLE IF NOT EXISTS "pending_signups" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "email" text NOT NULL,
+       "password" text NOT NULL,
+       "phone" text,
+       "role" text NOT NULL,
+       "company_name" text,
+       "rera_number" text,
+       "referred_by" uuid,
+       "email_otp" text,
+       "email_otp_expiry" timestamptz,
+       "phone_otp" text,
+       "phone_otp_expiry" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "pending_signups_email_unique" ON "pending_signups" ("email")`,
+    // CP commission wallet — developer-onboarding 2% accruals + admin payouts.
+    `CREATE TABLE IF NOT EXISTS "developer_commission_accruals" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "developer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "month_key" text NOT NULL,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "subscription_amount" double precision NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "dev_commission_dev_month_unique" ON "developer_commission_accruals" ("developer_id", "month_key")`,
+    `CREATE INDEX IF NOT EXISTS "dev_commission_cp_idx" ON "developer_commission_accruals" ("cp_id")`,
+    `CREATE TABLE IF NOT EXISTS "cp_commission_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "amount" double precision NOT NULL DEFAULT 0,
+       "mode" text NOT NULL DEFAULT 'BANK_TRANSFER',
+       "transaction_id" text,
+       "payment_date" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "cp_commission_payments_cp_idx" ON "cp_commission_payments" ("cp_id", "created_at")`,
+    // Admin-managed (manual) Channel Partner commissions — add / approve / pay.
+    `CREATE TABLE IF NOT EXISTS "cp_manual_commissions" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "cp_id" uuid NOT NULL REFERENCES "users"("id"),
+       "lead_id" uuid REFERENCES "leads"("id"),
+       "label" text,
+       "booking_value" double precision,
+       "percent" double precision,
+       "amount" double precision NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "paid_amount" double precision,
+       "payment_date" timestamptz,
+       "transaction_ref" text,
+       "payment_mode" text,
+       "notes" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "cp_manual_commissions_cp_idx" ON "cp_manual_commissions" ("cp_id", "created_at")`,
+    // Channel Partner payout / bank details for commission payouts.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "payout_details" jsonb`,
+    // Truvi Invest — admin-set investment terms per project + investments.
+    `CREATE TABLE IF NOT EXISTS "project_investment_terms" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "is_open" boolean NOT NULL DEFAULT false,
+       "min_amount" double precision NOT NULL DEFAULT 100000,
+       "max_amount" double precision,
+       "target_annual_return_percent" double precision NOT NULL DEFAULT 0,
+       "tenure_months" integer NOT NULL DEFAULT 12,
+       "monthly_payout_percent" double precision,
+       "notes" text,
+       "updated_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "project_investment_terms_project_unique" ON "project_investment_terms" ("project_id")`,
+    `CREATE TABLE IF NOT EXISTS "project_investments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "investor_id" uuid NOT NULL REFERENCES "users"("id"),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "amount_paise" integer NOT NULL,
+       "target_annual_return_percent" double precision NOT NULL DEFAULT 0,
+       "tenure_months" integer NOT NULL DEFAULT 12,
+       "monthly_payout_percent" double precision,
+       "status" text NOT NULL DEFAULT 'CREATED',
+       "razorpay_order_id" text,
+       "razorpay_payment_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "project_investments_investor_idx" ON "project_investments" ("investor_id")`,
+    `CREATE INDEX IF NOT EXISTS "project_investments_project_idx" ON "project_investments" ("project_id")`,
+    // Ambassador Knowledge Hub — admin-managed training content.
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_topics" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "title" text NOT NULL,
+       "description" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_knowledge_topics_sort_idx" ON "ambassador_knowledge_topics" ("sort_order")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_materials" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "topic_id" uuid NOT NULL REFERENCES "ambassador_knowledge_topics"("id"),
+       "kind" text NOT NULL DEFAULT 'VIDEO',
+       "title" text NOT NULL,
+       "url" text NOT NULL,
+       "file_name" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_knowledge_materials_topic_idx" ON "ambassador_knowledge_materials" ("topic_id", "sort_order")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_knowledge_config" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "help_contact" text,
+       "help_text" text,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // ── Notification engine columns + push tables (auto-applied on boot so a
+    // plain restart is enough — no separate `npm run db:notify` needed). The
+    // `pushed_at` column in particular is what lets a new user's welcome /
+    // role-onboarding notifications be delivered to their phone tray once
+    // their device registers; without it, tray push for new users fails. ──
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "type" text NOT NULL DEFAULT 'general'`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "title" text`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "actor_user_id" uuid REFERENCES users(id)`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "data" jsonb`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "priority" text NOT NULL DEFAULT 'normal'`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" timestamptz`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "expires_at" timestamptz`,
+    `ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "pushed_at" timestamptz`,
+    `CREATE INDEX IF NOT EXISTS "notifications_user_created_idx" ON "notifications" ("user_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "notifications_type_idx" ON "notifications" ("type")`,
+    `CREATE TABLE IF NOT EXISTS "notification_preferences" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "category" text NOT NULL,
+       "enabled" boolean NOT NULL DEFAULT true,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "notification_prefs_user_category_idx" ON "notification_preferences" ("user_id", "category")`,
+    `CREATE TABLE IF NOT EXISTS "user_push_tokens" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "token" text NOT NULL,
+       "platform" text NOT NULL DEFAULT 'android',
+       "device_id" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "user_push_tokens_token_idx" ON "user_push_tokens" ("token")`,
+    `CREATE INDEX IF NOT EXISTS "user_push_tokens_user_idx" ON "user_push_tokens" ("user_id")`,
+
+    // ── Marketing module tables (auto-applied on boot; same rationale as above
+    // — a plain restart is enough, no separate `npm run db:marketing`). ──
+    `CREATE TABLE IF NOT EXISTS "marketing_access" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "package_name" text NOT NULL DEFAULT 'Marketing Access',
+       "budget_paise" integer NOT NULL DEFAULT 0,
+       "valid_from" timestamptz NOT NULL DEFAULT now(),
+       "valid_until" timestamptz,
+       "granted_by_id" uuid REFERENCES users(id),
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "marketing_access_user_idx" ON "marketing_access" ("user_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_payments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "partner_name" text NOT NULL,
+       "partner_email" text,
+       "partner_phone" text,
+       "package_name" text NOT NULL DEFAULT 'Marketing Access',
+       "amount_paise" integer NOT NULL DEFAULT 0,
+       "gst_percent" double precision NOT NULL DEFAULT 18,
+       "gst_paise" integer NOT NULL DEFAULT 0,
+       "total_paise" integer NOT NULL DEFAULT 0,
+       "method" text NOT NULL DEFAULT 'OTHER',
+       "reference" text,
+       "status" text NOT NULL DEFAULT 'VERIFIED',
+       "paid_at" timestamptz NOT NULL DEFAULT now(),
+       "verified_by_id" uuid REFERENCES users(id),
+       "notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_payments_user_idx" ON "marketing_payments" ("user_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_expenses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "activity" text NOT NULL,
+       "amount_paise" integer NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spent_at" timestamptz NOT NULL DEFAULT now(),
+       "notes" text,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_expenses_user_idx" ON "marketing_expenses" ("user_id", "spent_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_leads" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "name" text NOT NULL,
+       "phone" text,
+       "email" text,
+       "source" text NOT NULL DEFAULT 'Marketing',
+       "status" text NOT NULL DEFAULT 'NEW',
+       "value_paise" integer NOT NULL DEFAULT 0,
+       "notes" text,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_leads_user_idx" ON "marketing_leads" ("user_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "marketing_leads_status_idx" ON "marketing_leads" ("status")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_partner_campaigns" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "name" text NOT NULL,
+       "channel" text NOT NULL DEFAULT 'Other',
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "spend_paise" integer NOT NULL DEFAULT 0,
+       "leads_count" integer NOT NULL DEFAULT 0,
+       "started_at" timestamptz,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_campaigns_user_idx" ON "marketing_partner_campaigns" ("user_id")`,
+
+    // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
+    ...VERIFICATION_BOOT_SQL,
+  ];
+  for (const stmt of statements) {
+    try {
+      await db.execute(stmt);
+    } catch (err) {
+      console.warn(`ensureSchema failed for "${stmt.split("\n")[0]}…":`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Seed single-row config defaults (thresholds + active AI prompt). Depends on
+  // the Drizzle tables existing (`drizzle-kit push`); best-effort until then.
+  try {
+    await ensureVerificationDefaults(db);
+  } catch (err) {
+    console.warn("ensureVerificationDefaults skipped:", err instanceof Error ? err.message : err);
+  }
+}
+
+export async function connectDB(url: string): Promise<boolean> {
+  if (isConnected) return true;
+
+  if (!url || url.trim() === "") {
+    connectionError = new Error("No DATABASE_URL configured. Set it in server/.env to enable the database-backed API routes.");
+    console.warn(connectionError.message);
+    return false;
+  }
+
+  try {
+    const db = connectDb(url);
+    await db.execute("select 1");
+    await ensureSchema(db);
+    // Provision the default Founder (CEO OS) account if it doesn't exist yet, so
+    // a fresh deploy is reachable without running the destructive seed.
+    await ensureDefaultFounder(db);
+    isConnected = true;
+    connectionError = null;
+    console.log("Supabase (Postgres) connected");
+    return true;
+  } catch (error) {
+    connectionError = error instanceof Error ? error : new Error(String(error));
+    isConnected = false;
+    await closeDb();
+    console.warn(`Database connection unavailable; continuing without it: ${connectionError.message}`);
+    return false;
+  }
+}
+
+export async function disconnectDB(): Promise<void> {
+  if (!isConnected) return;
+  await closeDb();
+  isConnected = false;
+  connectionError = null;
+}
+
+export function getDatabaseStatus(): { connected: boolean; error: string | null } {
+  return {
+    connected: isConnected,
+    error: connectionError?.message ?? null,
+  };
+}
+
+export { getDb };

@@ -1,0 +1,28 @@
+# Truvi Ventures — https://www.truviventures.com
+User-agent: *
+Allow: /$
+Allow: /home
+Allow: /about
+Allow: /intelligence
+Allow: /join
+Allow: /inventory
+Allow: /legal
+Allow: /terms
+Allow: /privacy
+Allow: /refund-policy
+
+# Keep authenticated app surfaces out of the index
+Disallow: /admin
+Disallow: /founder
+Disallow: /cp
+Disallow: /developer
+Disallow: /buyer
+Disallow: /ambassador
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /verify-email
+Disallow: /payment-success
+Disallow: /payment-failed
+
+Sitemap: https://www.truviventures.com/sitemap.xml

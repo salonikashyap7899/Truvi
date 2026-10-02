@@ -1,0 +1,454 @@
+import { and, count, eq, ilike, inArray, lte, or, sql, desc, SQL } from "drizzle-orm";
+import { getDb } from "../config/db";
+import { projects, units, users, siteVisits, IProject } from "../db/schema";
+import { CATEGORY_TABLES } from "../db/verificationSchema";
+
+/* ============================================================
+   Ask Truvi AI — Decision Intelligence data layer
+   Every fact handed to the model carries a source label and,
+   where known, a last-updated date. The model is instructed to
+   surface these verbatim (spec features 6, 8, 15).
+   ============================================================ */
+
+export type SourceLabel =
+  | "TRUVI_VERIFIED"
+  | "PUBLIC_RECORD"
+  | "BUILDER_SUBMITTED"
+  | "USER_SUBMITTED";
+
+export type Intent =
+  | "PROJECT_SEARCH"
+  | "COMPARE"
+  | "BUILDER"
+  | "LOCATION"
+  | "BUDGET_SEARCH"
+  | "VERIFICATION"
+  | "SCORE_EXPLAIN"
+  | "DOCUMENTS"
+  | "RED_FLAGS"
+  | "INVESTMENT"
+  | "GENERAL";
+
+export interface RetrievedContext {
+  intent: Intent;
+  projects: ProjectFacts[];
+  builders: BuilderFacts[];
+  location: LocationFacts | null;
+  budgetQuery: BudgetQuery | null;
+  retrievalNotes: string[];
+  /** Compact list of EVERY approved project, so the assistant always has full
+   *  visibility into what's available (cities, locations, prices, verification)
+   *  and never falsely claims it can't see the catalog. */
+  catalog: CatalogItem[];
+}
+
+export interface CatalogItem {
+  name: string;
+  city: string;
+  location: string;
+  projectType: string | null;
+  isVerified: boolean;
+  trustScore: number | null;
+  rera: boolean;
+  priceMin: number | null;
+  priceMax: number | null;
+  availableUnits: number;
+  possession: string | null;
+}
+
+interface FactValue {
+  value: string | number | boolean | null;
+  source: SourceLabel;
+  lastUpdated?: string;
+}
+
+export interface ProjectFacts {
+  id: string;
+  name: string;
+  facts: Record<string, FactValue>;
+}
+
+export interface BuilderFacts {
+  id: string;
+  name: string;
+  companyName?: string;
+  projectCount: number;
+  verifiedProjectCount: number;
+  avgTrustScore: number | null;
+  projects: string[];
+  source: SourceLabel;
+}
+
+export interface LocationFacts {
+  query: string;
+  projectCount: number;
+  verifiedCount: number;
+  avgTrustScore: number | null;
+  priceRange: { min: number; max: number } | null;
+  projectNames: string[];
+  source: SourceLabel;
+}
+
+export interface BudgetQuery {
+  maxBudget: number | null;
+  bhk: string | null;
+  city: string | null;
+}
+
+/* ---------------- Intent detection (spec: Conversational Interface) ---------------- */
+
+export function detectIntent(message: string): Intent {
+  const m = message.toLowerCase();
+  const has = (...words: string[]) => words.some((w) => m.includes(w));
+
+  if (has(" vs ", "compare", "comparison", "muqabla", "beech mein", "better hai ya")) return "COMPARE";
+  if (parseBudgetQuery(message).maxBudget !== null && has("bhk", "flat", "apartment", "ghar", "home", "budget"))
+    return "BUDGET_SEARCH";
+  if (has("builder", "developer ke", "developer ka", "track record", "kaun bana raha", "who is building"))
+    return "BUILDER";
+  if (has("verify kiya", "verification", "verified kaise", "how was", "kaise check")) return "VERIFICATION";
+  if (has("score kyun", "score why", "trust score", "score explain", "score ka matlab")) return "SCORE_EXPLAIN";
+  if (has("document", "rera", "brochure", "approval", "papers", "kagaz")) return "DOCUMENTS";
+  if (has("red flag", "risk", "concern", "problem", "dikkat", "issue", "safe hai")) return "RED_FLAGS";
+  if (has("investment", "rental", "appreciation", "returns", "roi", "self-use", "self use", "kiraya"))
+    return "INVESTMENT";
+  if (has("area", "location kaisa", "kaisa hai", "locality", "neighbourhood", "neighborhood", "invest ke liye"))
+    return "LOCATION";
+  return "PROJECT_SEARCH";
+}
+
+/* ---------------- Budget parsing: "₹70 lakh, 3BHK, Lucknow" ---------------- */
+
+export function parseBudgetQuery(message: string): BudgetQuery {
+  const m = message.toLowerCase();
+  let maxBudget: number | null = null;
+
+  const lakh = m.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|lakhs|l\b)/);
+  const cr = m.match(/(\d+(?:\.\d+)?)\s*(?:crore|cr\b|crores)/);
+  const plain = m.match(/(?:₹|rs\.?|inr)\s*([\d,]{5,})/);
+  if (cr) maxBudget = Math.round(parseFloat(cr[1]) * 1_00_00_000);
+  else if (lakh) maxBudget = Math.round(parseFloat(lakh[1]) * 1_00_000);
+  else if (plain) maxBudget = parseInt(plain[1].replace(/,/g, ""), 10);
+
+  const bhkMatch = m.match(/(\d)\s*bhk/);
+  const bhk = bhkMatch ? `${bhkMatch[1]}BHK` : null;
+
+  return { maxBudget, bhk, city: null };
+}
+
+/* ---------------- Helpers ---------------- */
+
+function fmtDate(d?: Date | string | null): string | undefined {
+  return d ? new Date(d).toISOString().slice(0, 10) : undefined;
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "kaise", "kaisa", "kya", "hai", "mein", "ke", "ka", "ki", "ko",
+  "baare", "batao", "about", "tell", "compare", "karo", "project", "projects", "builder",
+  "investment", "liye", "better", "budget", "bhk", "flat", "lakh", "crore", "this", "that",
+  "score", "trust", "verify", "verification", "document", "documents", "location", "area",
+]);
+
+function meaningfulTokens(message: string): string[] {
+  return message
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t.toLowerCase()));
+}
+
+/* ---------------- Fact assembly ---------------- */
+
+async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
+  const db = getDb();
+  const unitRows = await db.select().from(units).where(eq(units.projectId, project._id));
+  const [developer] = await db.select().from(users).where(eq(users._id, project.developerId));
+  const [visitRow] = await db
+    .select({ count: count() })
+    .from(siteVisits)
+    .where(and(eq(siteVisits.projectId, project._id), eq(siteVisits.attendanceConfirmed, true)));
+  const visitCount = visitRow?.count ?? 0;
+
+  const prices = unitRows.map((u) => u.price).filter((p) => p > 0);
+  const psf = unitRows.filter((u) => u.areaSqft > 0).map((u) => u.price / u.areaSqft);
+  const available = unitRows.filter((u) => u.status === "AVAILABLE").length;
+  const types = [...new Set(unitRows.map((u) => u.type))];
+  const verifiedDate = fmtDate(project.verifiedAt) ?? fmtDate(project.createdAt);
+
+  const facts: Record<string, FactValue> = {
+    city: { value: project.city, source: "BUILDER_SUBMITTED" },
+    location: { value: project.location, source: "BUILDER_SUBMITTED" },
+    description: { value: project.description?.slice(0, 400) ?? null, source: "BUILDER_SUBMITTED" },
+    truviVerified: { value: project.isVerified, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    trustScore: { value: project.trustScore ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    legalRiskLevel: { value: project.legalRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    floodRiskLevel: { value: project.floodRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    crimeIndexLevel: { value: project.crimeIndexLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    reraStatus: { value: project.reraStatus ?? null, source: "PUBLIC_RECORD" },
+    reraNumber: { value: project.reraNumber ?? null, source: "PUBLIC_RECORD" },
+    reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: "PUBLIC_RECORD" },
+    unitTypes: { value: types.join(", ") || null, source: "BUILDER_SUBMITTED" },
+    priceMin: { value: prices.length ? Math.min(...prices) : null, source: "BUILDER_SUBMITTED" },
+    priceMax: { value: prices.length ? Math.max(...prices) : null, source: "BUILDER_SUBMITTED" },
+    avgPricePerSqft: {
+      value: psf.length ? Math.round(psf.reduce((a, b) => a + b, 0) / psf.length) : null,
+      source: "BUILDER_SUBMITTED",
+    },
+    availableUnits: { value: available, source: "BUILDER_SUBMITTED" },
+    totalUnits: { value: unitRows.length, source: "BUILDER_SUBMITTED" },
+    builderName: { value: developer?.name ?? null, source: "BUILDER_SUBMITTED" },
+    builderCompany: {
+      value: developer?.developerProfile?.companyName ?? null,
+      source: "BUILDER_SUBMITTED",
+    },
+    confirmedSiteVisits: { value: visitCount, source: "USER_SUBMITTED" },
+    brochureAvailable: { value: Boolean(project.brochureUrl), source: "BUILDER_SUBMITTED" },
+    priceListAvailable: { value: Boolean(project.priceListUrl), source: "BUILDER_SUBMITTED" },
+  };
+
+  // Merge in any ADMIN-INGESTED verification data for this project (the RAG
+  // category tables: government_legal / RERA / infrastructure / …). This is the
+  // same data admins upload via Verification → Ingest Data, so the public
+  // assistant surfaces HMDA/RERA/etc. with each fact's VERIFIED/UNVERIFIED
+  // state and source. Non-fatal: a project with no ingested rows is unchanged.
+  try {
+    const clip = (s: string) => (s.length > 300 ? s.slice(0, 300) + "…" : s);
+    let ingested = 0;
+    for (const [cat, table] of Object.entries(CATEGORY_TABLES)) {
+      if (ingested >= 15) break; // cap to keep the prompt lean
+      const rows = await db.select().from(table as any).where(eq((table as any).projectId, project._id));
+      for (const r of rows as any[]) {
+        if (ingested >= 15) break;
+        const detail = clip(JSON.stringify(r.rawData ?? {}));
+        facts[`${cat}:${r.dataKey}`] = {
+          value:
+            `${r.label} — ${r.verified ? "VERIFIED" : "UNVERIFIED"}` +
+            `${r.sourceType ? ` (source: ${r.sourceType})` : ""}: ${detail}`,
+          source: r.verified ? "TRUVI_VERIFIED" : "PUBLIC_RECORD",
+          lastUpdated: fmtDate(r.sourceDate) ?? fmtDate(r.updatedAt),
+        };
+        ingested++;
+      }
+    }
+  } catch (err) {
+    console.error("Ask Truvi: ingested-data merge failed:", err instanceof Error ? err.message : err);
+  }
+
+  return { id: String(project._id), name: project.name, facts };
+}
+
+/* ---------------- Retrieval orchestration ---------------- */
+
+async function findProjectsInMessage(message: string, limit = 4): Promise<IProject[]> {
+  const tokens = meaningfulTokens(message);
+  if (tokens.length === 0) return [];
+
+  const db = getDb();
+  // Match a token against the project NAME, CITY or LOCATION — so "projects in
+  // Hyderabad" or "plots on Sultanpur Road" find the right project, not just a
+  // name search.
+  const tokenConditions = tokens.flatMap((t) => [
+    ilike(projects.name, `%${t}%`),
+    ilike(projects.city, `%${t}%`),
+    ilike(projects.location, `%${t}%`),
+  ]);
+  const candidates = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.approvalStatus, "APPROVED"), or(...tokenConditions)))
+    .limit(20);
+
+  // Rank by how many tokens hit the name/city/location.
+  const scored = candidates
+    .map((p) => {
+      const hay = `${p.name} ${p.city} ${p.location}`.toLowerCase();
+      return { p, score: tokens.filter((t) => hay.includes(t.toLowerCase())).length };
+    })
+    .sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((s) => s.p);
+}
+
+/** Compact summary of every approved project — always sent to the model. */
+async function buildCatalog(): Promise<CatalogItem[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.approvalStatus, "APPROVED"))
+    .limit(200);
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((p) => p._id);
+  const agg = await db
+    .select({
+      projectId: units.projectId,
+      min: sql<number | null>`min(${units.price})`,
+      max: sql<number | null>`max(${units.price})`,
+      avail: sql<number>`count(*) filter (where ${units.status} = 'AVAILABLE')`,
+    })
+    .from(units)
+    .where(inArray(units.projectId, ids))
+    .groupBy(units.projectId);
+  const byId = new Map(agg.map((a) => [String(a.projectId), a]));
+
+  return rows.map((p) => {
+    const a = byId.get(String(p._id));
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    return {
+      name: p.name,
+      city: p.city,
+      location: p.location,
+      projectType: p.projectType ?? null,
+      isVerified: !!p.isVerified,
+      trustScore: p.trustScore ?? null,
+      rera: !!p.reraNumber,
+      priceMin: num(a?.min),
+      priceMax: num(a?.max),
+      availableUnits: Number(a?.avail ?? 0),
+      possession: fmtDate(p.possessionDate) ?? null,
+    };
+  });
+}
+
+async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]> {
+  const tokens = meaningfulTokens(message);
+  if (tokens.length === 0) return [];
+
+  const db = getDb();
+  const tokenConditions: SQL[] = [];
+  for (const t of tokens) {
+    tokenConditions.push(ilike(users.name, `%${t}%`));
+    tokenConditions.push(sql`${users.developerProfile}->>'companyName' ilike ${`%${t}%`}`);
+  }
+  const devs = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.role, "DEVELOPER"), or(...tokenConditions)))
+    .limit(limit);
+
+  const out: BuilderFacts[] = [];
+  for (const d of devs) {
+    const devProjects = await db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.developerId, d._id), eq(projects.approvalStatus, "APPROVED")));
+    const scores = devProjects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
+    out.push({
+      id: String(d._id),
+      name: d.name,
+      companyName: d.developerProfile?.companyName,
+      projectCount: devProjects.length,
+      verifiedProjectCount: devProjects.filter((p) => p.isVerified).length,
+      avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+      projects: devProjects.map((p) => p.name).slice(0, 8),
+      source: "TRUVI_VERIFIED",
+    });
+  }
+  return out;
+}
+
+async function detectCity(message: string): Promise<string | null> {
+  const db = getDb();
+  const cityRows = await db
+    .selectDistinct({ city: projects.city })
+    .from(projects)
+    .where(eq(projects.approvalStatus, "APPROVED"));
+  const cities = cityRows.map((r) => r.city);
+  const m = message.toLowerCase();
+  const hit = cities.find((c) => c && m.includes(String(c).toLowerCase()));
+  return hit ?? null;
+}
+
+async function buildLocationFacts(city: string): Promise<LocationFacts> {
+  const db = getDb();
+  const cityProjects = await db
+    .select()
+    .from(projects)
+    .where(and(eq(projects.approvalStatus, "APPROVED"), ilike(projects.city, city)));
+  const ids = cityProjects.map((p) => p._id);
+  const unitRows = ids.length ? await db.select().from(units).where(inArray(units.projectId, ids)) : [];
+  const prices = unitRows.map((u) => u.price).filter((p) => p > 0);
+  const scores = cityProjects.map((p) => p.trustScore).filter((s): s is number => typeof s === "number");
+  return {
+    query: city,
+    projectCount: cityProjects.length,
+    verifiedCount: cityProjects.filter((p) => p.isVerified).length,
+    avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+    priceRange: prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null,
+    projectNames: cityProjects.map((p) => p.name).slice(0, 10),
+    source: "TRUVI_VERIFIED",
+  };
+}
+
+async function budgetSearch(q: BudgetQuery, city: string | null, limit = 5): Promise<IProject[]> {
+  const db = getDb();
+  const unitConditions: SQL[] = [eq(units.status, "AVAILABLE")];
+  if (q.maxBudget) unitConditions.push(lte(units.price, q.maxBudget));
+  if (q.bhk) unitConditions.push(ilike(units.type, `%${q.bhk.replace("BHK", "")}%BHK%`));
+
+  const projectIdRows = await db
+    .selectDistinct({ projectId: units.projectId })
+    .from(units)
+    .where(and(...unitConditions));
+  const projectIds = projectIdRows.map((r) => r.projectId);
+  if (projectIds.length === 0) return [];
+
+  const conditions = [inArray(projects._id, projectIds), eq(projects.approvalStatus, "APPROVED")];
+  if (city) conditions.push(ilike(projects.city, city));
+  return db
+    .select()
+    .from(projects)
+    .where(and(...conditions))
+    .orderBy(desc(projects.trustScore))
+    .limit(limit);
+}
+
+export async function retrieveContext(message: string): Promise<RetrievedContext> {
+  const intent = detectIntent(message);
+  const notes: string[] = [];
+  const city = await detectCity(message).catch(() => null);
+  const budgetQuery = parseBudgetQuery(message);
+  budgetQuery.city = city;
+
+  let matchedProjects: IProject[] = [];
+  let builders: BuilderFacts[] = [];
+  let location: LocationFacts | null = null;
+
+  try {
+    if (intent === "BUDGET_SEARCH" && budgetQuery.maxBudget) {
+      matchedProjects = await budgetSearch(budgetQuery, city);
+      if (matchedProjects.length === 0)
+        notes.push("No available units matched the budget/requirements in Truvi data.");
+    } else {
+      matchedProjects = await findProjectsInMessage(message);
+      if (matchedProjects.length === 0 && intent !== "GENERAL" && intent !== "LOCATION")
+        notes.push("No project in Truvi's approved listings matched the query by name.");
+    }
+
+    if (intent === "BUILDER" || builders.length === 0) {
+      builders = await findBuilders(message);
+    }
+
+    if (city) {
+      location = await buildLocationFacts(city);
+    } else if (intent === "LOCATION") {
+      notes.push("The mentioned area is not a city Truvi currently has approved projects in.");
+    }
+  } catch (err) {
+    notes.push("Some Truvi data could not be retrieved for this query.");
+    console.error("Ask Truvi retrieval error:", err);
+  }
+
+  const projectFacts: ProjectFacts[] = [];
+  for (const p of matchedProjects.slice(0, 4)) {
+    projectFacts.push(await buildProjectFacts(p));
+  }
+
+  // Always attach the full catalog so the assistant can answer "which cities",
+  // location and availability questions even when no single project matched.
+  const catalog = await buildCatalog().catch((err) => {
+    console.error("Ask Truvi catalog build failed:", err instanceof Error ? err.message : err);
+    return [] as CatalogItem[];
+  });
+
+  return { intent, projects: projectFacts, builders, location, budgetQuery, retrievalNotes: notes, catalog };
+}

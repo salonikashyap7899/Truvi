@@ -1,0 +1,452 @@
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
+export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
+
+export interface AmbassadorTaskChecklist {
+  gpsOn: boolean;
+  internetOn: boolean;
+  liveLocation?: { lat: number; lng: number; capturedAt: string } | null;
+}
+
+export interface AmbassadorTaskDocument {
+  url: string;
+  label?: string;
+  uploadedAt: string;
+}
+
+export interface AmbassadorTask {
+  _id: string;
+  title: string;
+  address: string;
+  mapUrl?: string | null;
+  deadline: string;
+  payoutAmount: number;
+  instructions?: string | null;
+  status: AmbassadorTaskStatus;
+  acceptedById?: string | null;
+  acceptedAt?: string | null;
+  lockExpiresAt?: string | null;
+  checklist?: AmbassadorTaskChecklist | null;
+  documents: AmbassadorTaskDocument[];
+  completedAt?: string | null;
+  payoutPaid: boolean;
+  createdById: string;
+  createdAt: string;
+}
+export type CPTier = "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
+export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
+export type LeadStage =
+  | "GENERATED" | "ASSIGNED" | "CONTACTED" | "INTERESTED" | "SITE_VISIT"
+  | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "COMPLETED" | "LOST";
+export type ListingTier = "STANDARD" | "FEATURED";
+
+export type ProjectType =
+  | "APARTMENT"
+  | "VILLA"
+  | "PLOTTED"
+  | "COMMERCIAL"
+  | "INDUSTRIAL"
+  | "LAND"
+  | "MIXED"
+  // Legacy values still present on older projects.
+  | "RESIDENTIAL"
+  | "MIXED_USE";
+
+export type NearbyAmenityCategory = "school" | "hospital" | "transit" | "mall" | "restaurant";
+export interface NearbyAmenity {
+  category: NearbyAmenityCategory;
+  name: string;
+  distance: string;
+}
+
+export interface PresentationInfo {
+  amenities?: string[];
+  securityFeatures?: string[];
+  smartHomeFeatures?: string[];
+  fireSafetySystems?: string[];
+  greenBuildingFeatures?: string[];
+  connectivityNotes?: string;
+  constructionProgressNote?: string;
+  paymentPlans?: string[];
+  offers?: string;
+  nearbyAmenities?: NearbyAmenity[];
+}
+
+export interface ProjectAsset {
+  _id: string;
+  projectId: string;
+  category: string;
+  title: string;
+  description?: string;
+  fileUrl: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  verified?: boolean;
+  createdAt: string;
+}
+
+export interface SalesContact {
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface PaymentPlan {
+  name: string;
+  description?: string;
+}
+
+export interface OwnerHistoryEntry {
+  ownerLabel: string;
+  startYear: number;
+  endYear: number | null;
+}
+
+export interface AppreciationForecast {
+  fiveYearPct: number;
+  outlook?: "Strong" | "Moderate" | "Stable";
+  note?: string;
+}
+
+export type ConstructionStatus =
+  | "PLANNING" | "EXCAVATION" | "FOUNDATION" | "STRUCTURE" | "FINISHING" | "COMPLETED";
+
+export interface ProjectMilestone {
+  label: string;
+  targetDate?: string | null;
+  done: boolean;
+}
+
+export interface VerificationDetails {
+  reraVerified: boolean;
+  titleClearance: boolean;
+  encumbranceFree: boolean;
+  constructionApproval: boolean;
+  verificationSource?: string;
+  portfolioVerified: boolean;
+  lastVerifiedAt?: string;
+  notes?: string;
+}
+
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: Role;
+  /** Server-stamped: true for Truvi founders (lands on the CEO OS). */
+  isFounder?: boolean;
+  approvalStatus: ApprovalStatus;
+  disabled?: boolean;
+  phone?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  onboardingVerified?: boolean;
+  /** CP has confirmed joining the mandatory Truvi WhatsApp updates channel. */
+  whatsappChannelJoined?: boolean;
+  onboardingChecks?: {
+    aadhaarVerified?: boolean;
+    phoneVerified?: boolean;
+    emailVerified?: boolean;
+    panVerified?: boolean;
+    kycStatus?: "PENDING" | "APPROVED" | "REJECTED";
+    kycRejectionReason?: string | null;
+  };
+  cpTier?: CPTier;
+  cpProfile?: {
+    isPremium: boolean;
+    premiumExpiresAt?: string | null;
+    conversionRatio: number;
+    totalBookings: number;
+  };
+  developerProfile?: {
+    companyName: string;
+    reraNumber?: string;
+  };
+  createdAt?: string;
+  /** Truthful subscription summary computed by the admin users endpoint. */
+  subscription?: {
+    active: boolean;
+    count: number;
+    label: string | null;
+    premiumExpiresAt?: string | null;
+  };
+}
+
+export interface Project {
+  _id: string;
+  developerId: string | { _id: string; name: string };
+  name: string;
+  description: string;
+  city: string;
+  location: string;
+  lat?: number | null;
+  lng?: number | null;
+  threeDModelUrl?: string | null;
+  masterPlanUrl?: string | null;
+  viewCount?: number;
+  brochureUrl?: string;
+  priceListUrl?: string;
+  reraNumber?: string;
+  approvalAuthority?: "RERA" | "DISTRICT_PANCHAYAT" | "DTCP";
+  approvalStatus: ApprovalStatus;
+  listingTier: ListingTier;
+  featuredUntil?: string | null;
+  commissionPercent: number;
+  unitCount?: number;
+  /** Developer-declared total plots/units (shown when per-unit inventory is sparse). */
+  totalUnits?: number | null;
+  /** Plots/units to display: declared total → largest unit number → row count. */
+  plotCount?: number;
+  leadCount?: number;
+  coverImageUrl?: string | null;
+  isSaved?: boolean;
+  isCompared?: boolean;
+  trustScore?: number;
+  /** Live Truvi Score (0–100) computed from verification + uploaded data. */
+  truviScore?: number;
+  legalRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  floodRiskLevel?: "LOW" | "MEDIUM" | "HIGH";
+  crimeIndexLevel?: "LOW" | "MEDIUM" | "HIGH";
+  reraStatus?: "REGISTERED" | "PENDING" | "NOT_REGISTERED";
+  reraValidityDate?: string;
+  teamSiteVisited?: boolean;
+  isVerified?: boolean;
+  verifiedAt?: string;
+  isPrimeListing?: boolean;
+  verificationDetails?: VerificationDetails;
+  projectType?: ProjectType;
+  presentationInfo?: PresentationInfo;
+  // Developer-managed commercial details
+  possessionDate?: string | null;
+  salesContact?: SalesContact | null;
+  paymentPlans?: PaymentPlan[] | null;
+  // Admin-curated, Truvi-verified intelligence
+  ownerHistory?: OwnerHistoryEntry[] | null;
+  appreciationForecast?: AppreciationForecast | null;
+  // Developer-reported construction progress
+  constructionStatus?: ConstructionStatus | null;
+  constructionProgress?: number | null;
+  milestones?: ProjectMilestone[] | null;
+  // Live unit aggregates attached by GET /api/inventory
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  minRate?: number | null;
+  // Verified gallery media for the card carousel (images first, then videos).
+  media?: { url: string; type: "image" | "video" }[];
+}
+
+export interface PriceHistoryEntry {
+  price: number;
+  changedAt: string;
+}
+
+export interface Unit {
+  _id: string;
+  projectId: string;
+  unitNumber: string;
+  type: string;
+  areaSqft: number;
+  plotSize?: string | null;
+  price: number;
+  status: UnitStatus;
+  lockedByCPId?: string | null;
+  lockExpiresAt?: string | null;
+  priceHistory: PriceHistoryEntry[];
+  // Marker position on the project's uploaded layout (0–1 of width/height).
+  mapX?: number | null;
+  mapY?: number | null;
+}
+
+export interface Lead {
+  _id: string;
+  projectId: string | { _id: string; name: string };
+  submittedById: string | { _id: string; name: string };
+  assignedToId?: string | { _id: string; name: string } | null;
+  clientName: string;
+  clientPhone: string;
+  clientEmail?: string;
+  stage: LeadStage;
+  source: string;
+  notes?: string;
+  lostReason?: string | null;
+  tags?: string[] | null;
+  isDuplicate: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── CP CRM (paid tier) ──────────────────────────────────────────────────────
+
+export type CpPlanTier = "FREE" | "CRM_LITE" | "CP_PRO" | "ENTERPRISE";
+
+export interface CpEntitlement {
+  tier: CpPlanTier;
+  crm: boolean;
+  ai: boolean;
+  analytics: boolean;
+  team: boolean;
+  expiresAt: string | null;
+}
+
+// ── Developer OS (paid add-ons) ──────────────────────────────────────────────
+
+export type DeveloperPlanTier = "FREE" | "VERIFIED" | "CRM" | "AI" | "PRO";
+
+export interface DeveloperEntitlement {
+  tier: DeveloperPlanTier;
+  verified: boolean; // Verified Developer Badge + prime listing
+  crm: boolean; // Developer CRM — pipeline, notes, tasks, team, finance
+  ai: boolean; // AI Analytics — demand, pricing, competitor, forecasts
+  campaign: boolean; // Fully-managed marketing campaign
+  threeDMapping: boolean; // 3D mapping add-on
+  pro: boolean; // Developer Pro — everything unlocked
+  expiresAt: string | null;
+}
+
+export type LeadActivityType =
+  | "CALL" | "WHATSAPP" | "EMAIL" | "NOTE" | "STAGE_CHANGE"
+  | "SITE_VISIT" | "FOLLOW_UP" | "DOCUMENT" | "AI_REPORT" | "SYSTEM";
+
+export interface LeadActivity {
+  _id: string;
+  leadId: string;
+  cpId: string;
+  type: LeadActivityType;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export type FollowUpChannel = "CALL" | "WHATSAPP" | "EMAIL" | "MEETING";
+
+export interface LeadFollowUp {
+  _id: string;
+  leadId: string;
+  cpId: string;
+  dueAt: string;
+  channel: FollowUpChannel;
+  note?: string | null;
+  status: "PENDING" | "DONE" | "MISSED";
+  createdAt: string;
+  lead?: { _id: string; clientName: string; clientPhone: string; stage: LeadStage } | null;
+}
+
+export interface CrmTask {
+  _id: string;
+  cpId: string;
+  leadId?: string | null;
+  title: string;
+  dueAt?: string | null;
+  priority: "LOW" | "MEDIUM" | "HIGH";
+  status: "OPEN" | "DONE";
+  createdAt: string;
+}
+
+export interface CrmSummary {
+  today: {
+    calls: number;
+    whatsapp: number;
+    followUpsDue: number;
+    followUpsPending: number;
+    siteVisits: number;
+    closings: number;
+    earnings: number;
+  };
+  kpis: {
+    totalLeads: number;
+    activeLeads: number;
+    conversionPercent: number;
+    siteVisitPercent: number;
+    avgDealSize: number;
+    lifetimeEarnings: number;
+    pendingCommission: number;
+    paidCommission: number;
+    ltvGenerated: number;
+  };
+  monthlyEarnings: { month: string; earned: number; paid: number }[];
+}
+
+export interface SiteVisit {
+  _id: string;
+  leadId?: string | { _id: string; clientName: string; clientPhone: string };
+  projectId: string | { _id: string; name: string };
+  cpId?: string | { _id: string; name: string };
+  buyerId?: string | { _id: string; name: string };
+  scheduledAt: string;
+  timeSlot?: string;
+  contactNumber?: string;
+  status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  geoVerifiedLat?: number;
+  geoVerifiedLng?: number;
+  attendanceConfirmed: boolean;
+  reportNotes?: string;
+  nextSteps?: string;
+}
+
+export interface CommissionMilestone {
+  _id: string;
+  label: string;
+  percentOfTotal: number;
+  amount: number;
+  isReleased: boolean;
+  releasedAt?: string | null;
+}
+
+export interface Commission {
+  _id: string;
+  leadId: string | Lead;
+  cpId: string | { _id: string; name: string };
+  bookingValue: number;
+  commissionPercent: number;
+  cpCommissionAmount: number;
+  platformFeeAmount: number;
+  tdsAmount: number;
+  status: "PENDING" | "MILESTONE_DUE" | "INVOICED" | "PAID";
+  milestones: CommissionMilestone[];
+  invoiceUrl?: string;
+  createdAt: string;
+}
+
+export type SharedDocFileType = "BROCHURE" | "FLOOR_PLAN" | "PRICE_LIST" | "LEGAL" | "OTHER";
+export type BuyerDocType = "ID_PROOF" | "ADDRESS_PROOF" | "INCOME_PROOF";
+export type BuyerDocStatus = "UPLOADED" | "UNDER_REVIEW" | "VERIFIED";
+
+export interface SharedDocument {
+  _id: string;
+  projectId: string | { _id: string; name: string };
+  uploadedById?: string | { _id: string; name: string };
+  fileName: string;
+  fileUrl: string;
+  fileType: SharedDocFileType;
+  description?: string;
+  createdAt: string | null;
+}
+
+export interface BuyerDocument {
+  _id: string;
+  buyerId: string;
+  docType: BuyerDocType;
+  fileName: string;
+  fileUrl: string;
+  status: BuyerDocStatus;
+  createdAt: string;
+}
+
+export interface Notification {
+  _id: string;
+  userId: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  /** Engine fields (optional so old/plain rows still type-check). */
+  type?: string;
+  title?: string | null;
+  actorUserId?: string | null;
+  data?: Record<string, unknown> | null;
+  priority?: "low" | "normal" | "high" | "critical";
+  readAt?: string | null;
+  expiresAt?: string | null;
+}

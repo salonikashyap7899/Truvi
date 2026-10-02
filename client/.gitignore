@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.local
+*.tsbuildinfo
+
+# Capacitor native projects (generated locally, built in Android Studio)
+/android
+/ios
