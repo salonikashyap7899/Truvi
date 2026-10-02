@@ -6,11 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
-import { Input, Label, PasswordInput } from "@/components/ui/primitives";
+import { Input, PasswordInput } from "@/components/ui/primitives";
 import { OtpStep } from "@/components/auth/OtpStep";
 import { AuthCard } from "@/components/auth/AuthShell";
 import { VoiceGuideButton } from "@/components/VoiceGuideButton";
-import { User, Handshake, Building2, Loader2, ArrowRight, ChevronDown, Search } from "lucide-react";
+import { User, Handshake, Building2, Loader2, ArrowRight, ChevronDown, Search, Mail, Phone, Lock, Gift } from "lucide-react";
 import { COUNTRY_CODES } from "@/lib/countryCodes";
 
 /** Searchable country dial-code picker (native <select> can't be searched).
@@ -75,6 +75,43 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Transparent input styling used inside an icon Field (no border/bg of its
+ *  own — the Field container provides the frame and focus ring). */
+const FIELD_INPUT =
+  "h-8 w-full rounded-none border-0 bg-transparent p-0 text-sm text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
+
+/** A compact field row: an icon chip on the left, label + control stacked. */
+function Field({
+  icon,
+  label,
+  error,
+  hint,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: React.ReactNode;
+  error?: string;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-3 py-2 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
+        <div className="min-w-0 flex-1">
+          <label className="block text-[11px] font-medium text-muted-foreground">{label}</label>
+          {children}
+        </div>
+      </div>
+      {error ? (
+        <p className="mt-1 text-xs text-red-400">{error}</p>
+      ) : hint ? (
+        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+      ) : null}
     </div>
   );
 }
@@ -182,8 +219,6 @@ export default function SignupPage() {
     }
   }
 
-  const inputCls =
-    "h-11 border-white/12 bg-white/[0.04] text-white placeholder:text-white/30 transition-all focus:border-[var(--trust)]/50 focus:bg-white/[0.06] focus:ring-2 focus:ring-[var(--trust)]/20";
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
@@ -204,15 +239,20 @@ export default function SignupPage() {
               />
             ) : (
             <>
-            <h1 className="text-center font-display text-[26px] font-semibold leading-tight tracking-tight">
+            {/* Brand lockup */}
+            <div className="flex items-center justify-center gap-2">
+              <img src="/brand/icon.png" alt="" className="h-7 w-7 object-contain" />
+              <span className="font-display text-xl font-semibold tracking-tight text-white">Truvi</span>
+            </div>
+            <h1 className="mt-2 text-center font-display text-[22px] font-semibold leading-tight tracking-tight">
               <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
             </h1>
-            <p className="mx-auto mt-1.5 max-w-[19rem] text-center text-sm text-muted-foreground">
+            <p className="mx-auto mt-1 max-w-[19rem] text-center text-xs text-muted-foreground">
               We&apos;ll send 6-digit codes to your email and phone to verify your account.
             </p>
 
             {/* Premium role selector — sliding highlight, icon over label */}
-            <div className="mt-6 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+            <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
               {ROLE_OPTIONS.map((opt) => {
                 const active = role === opt.id;
                 return (
@@ -220,7 +260,7 @@ export default function SignupPage() {
                     key={opt.id}
                     type="button"
                     onClick={() => setValue("role", opt.id)}
-                    className="relative flex flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-3 text-center text-[11.5px] font-medium leading-tight"
+                    className="relative flex flex-col items-center justify-center gap-1 rounded-xl px-1 py-2.5 text-center text-[11.5px] font-medium leading-tight"
                   >
                     {active && (
                       <motion.span
@@ -236,68 +276,61 @@ export default function SignupPage() {
               })}
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
-                <div>
-                  <Label>Full name</Label>
-                  <Input {...register("name")} placeholder="Priya Sharma" className={inputCls} />
-                  {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>}
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input type="email" {...register("email")} placeholder="you@example.com" className={inputCls} />
-                  {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
-                </div>
-                <div>
-                  <Label>Phone</Label>
-                  <div className="flex gap-2">
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-2.5">
+                <Field icon={<User size={16} />} label="Full name" error={errors.name?.message}>
+                  <Input {...register("name")} placeholder="e.g. Priya Sharma" className={FIELD_INPUT} />
+                </Field>
+                <Field icon={<Mail size={16} />} label="Email" error={errors.email?.message}>
+                  <Input type="email" {...register("email")} placeholder="you@example.com" className={FIELD_INPUT} />
+                </Field>
+                <Field
+                  icon={<Phone size={16} />}
+                  label="Phone"
+                  error={errors.phone?.message}
+                  hint={countryCode !== "+91" ? `We'll text your OTP to ${countryCode}. Standard international SMS may apply.` : undefined}
+                >
+                  <div className="flex items-center gap-2">
                     <input type="hidden" {...register("countryCode")} />
                     <CountrySelect
                       value={countryCode}
                       onChange={(d) => setValue("countryCode", d, { shouldValidate: true })}
-                      inputCls={inputCls}
+                      inputCls="flex items-center gap-1 rounded-lg border border-white/12 bg-white/[0.05] px-2 py-1.5 text-sm text-white outline-none"
                     />
                     <Input
                       {...register("phone")}
                       inputMode="tel"
                       placeholder={countryCode === "+91" ? "98765 43210" : "Mobile number"}
-                      className={`${inputCls} flex-1`}
+                      className={`${FIELD_INPUT} flex-1`}
                     />
                   </div>
-                  {errors.phone && <p className="mt-1 text-xs text-red-400">{errors.phone.message}</p>}
-                  {countryCode !== "+91" && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      We'll text your OTP to {countryCode}. Standard international SMS may apply.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label>Password</Label>
-                  <PasswordInput {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className={inputCls} />
-                  {errors.password ? (
-                    <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">At least 8 characters with an uppercase, lowercase, number and special character.</p>
-                  )}
-                </div>
+                </Field>
+                <Field
+                  icon={<Lock size={16} />}
+                  label="Password"
+                  error={errors.password?.message}
+                  hint={!errors.password ? "8+ chars with an uppercase, lowercase, number and symbol." : undefined}
+                >
+                  <PasswordInput {...register("password")} placeholder="Create a strong password" className={`${FIELD_INPUT} pr-9`} />
+                </Field>
                 {role === "DEVELOPER" && (
-                  <div>
-                    <Label>Company name</Label>
-                    <Input {...register("companyName")} placeholder="Skyline Developers Pvt Ltd" className={inputCls} />
-                    {errors.companyName && <p className="mt-1 text-xs text-red-400">{errors.companyName.message}</p>}
-                  </div>
+                  <Field icon={<Building2 size={16} />} label="Company name" error={errors.companyName?.message}>
+                    <Input {...register("companyName")} placeholder="Skyline Developers Pvt Ltd" className={FIELD_INPUT} />
+                  </Field>
                 )}
-                <div>
-                  <Label>Referral code <span className="text-muted-foreground">(optional)</span></Label>
-                  <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${inputCls} uppercase placeholder:normal-case`} />
-                  <p className="mt-1 text-xs text-muted-foreground">Got a code from a Channel Partner, Ambassador or Developer? Enter it to link your account.</p>
-                </div>
+                <Field
+                  icon={<Gift size={16} />}
+                  label={<>Referral code <span className="text-muted-foreground/70">(optional)</span></>}
+                  hint="Got a code from a Channel Partner, Ambassador or Developer? Enter it to link your account."
+                >
+                  <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${FIELD_INPUT} uppercase placeholder:normal-case`} />
+                </Field>
                 {serverError && (
                   <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>
                 )}
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="group relative mt-1 flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[var(--trust)] via-[#3b82f6] to-[#2563eb] py-3.5 text-sm font-semibold text-white shadow-[0_12px_32px_-8px_rgba(59,130,246,0.7)] transition-all hover:shadow-[0_16px_40px_-6px_rgba(59,130,246,0.9)] active:scale-[0.99] disabled:opacity-60"
+                  className="group relative mt-2 flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-[var(--trust)] via-[#3b82f6] to-[#2563eb] py-3 text-sm font-semibold text-white shadow-[0_12px_32px_-8px_rgba(59,130,246,0.7)] transition-all hover:shadow-[0_16px_40px_-6px_rgba(59,130,246,0.9)] active:scale-[0.99] disabled:opacity-60"
                 >
                   <span aria-hidden className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
                   {isSubmitting && <Loader2 size={15} className="relative z-10 animate-spin" />}
