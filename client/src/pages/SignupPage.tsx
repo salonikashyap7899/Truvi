@@ -34,7 +34,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
   }, []);
 
   return (
-    <div ref={ref} className="relative w-[6.75rem] shrink-0">
+    <div ref={ref} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -82,7 +82,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
 /** Transparent input styling used inside an icon Field (no border/bg of its
  *  own — the Field container provides the frame and focus ring). */
 const FIELD_INPUT =
-  "h-8 w-full rounded-none border-0 bg-transparent p-0 text-sm text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
+  "h-9 w-full rounded-none border-0 bg-transparent p-0 text-[15px] text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
 
 /** A compact field row: an icon chip on the left, label + control stacked. */
 function Field({
@@ -100,8 +100,8 @@ function Field({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-3 py-2 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
         <div className="min-w-0 flex-1">
           <label className="block text-[11px] font-medium text-muted-foreground">{label}</label>
           {children}
@@ -221,7 +221,7 @@ export default function SignupPage() {
 
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 pt-10 [padding-bottom:calc(7rem+env(safe-area-inset-bottom))]">
+    <main className="relative flex min-h-[100dvh] items-center justify-center px-4 pt-6 [padding-bottom:calc(5.5rem+env(safe-area-inset-bottom))]">
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -289,13 +289,14 @@ export default function SignupPage() {
                   error={errors.phone?.message}
                   hint={countryCode !== "+91" ? `We'll text your OTP to ${countryCode}. Standard international SMS may apply.` : undefined}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     <input type="hidden" {...register("countryCode")} />
                     <CountrySelect
                       value={countryCode}
                       onChange={(d) => setValue("countryCode", d, { shouldValidate: true })}
-                      inputCls="flex items-center gap-1 rounded-lg border border-white/12 bg-white/[0.05] px-2 py-1.5 text-sm text-white outline-none"
+                      inputCls="flex items-center gap-1 text-[15px] font-medium text-white"
                     />
+                    <span className="h-5 w-px shrink-0 bg-white/15" />
                     <Input
                       {...register("phone")}
                       inputMode="tel"
