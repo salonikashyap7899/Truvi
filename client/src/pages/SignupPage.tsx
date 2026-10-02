@@ -45,7 +45,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
         <ChevronDown size={14} className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="absolute z-[60] mt-1 w-64 overflow-hidden rounded-xl border border-white/15 bg-[#0d1219] shadow-2xl shadow-black/60">
+        <div className="absolute left-0 z-[60] mt-1 w-[min(20rem,calc(100vw-5rem))] -translate-x-12 overflow-hidden rounded-xl border border-white/15 bg-[#0d1219] shadow-2xl shadow-black/60">
           <div className="border-b border-white/10 p-2">
             <div className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.05] px-2.5 py-1.5">
               <Search size={14} className="shrink-0 text-white/40" />
@@ -82,7 +82,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
 /** Transparent input styling used inside an icon Field (no border/bg of its
  *  own — the Field container provides the frame and focus ring). */
 const FIELD_INPUT =
-  "h-9 w-full rounded-none border-0 bg-transparent p-0 text-[15px] text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
+  "h-10 w-full rounded-none border-0 bg-transparent p-0 text-base text-white placeholder:text-white/30 outline-none backdrop-blur-none focus:border-0 focus:ring-0";
 
 /** A compact field row: an icon chip on the left, label + control stacked. */
 function Field({
@@ -100,8 +100,8 @@ function Field({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
+      <div className="flex items-center gap-3 rounded-2xl border border-white/12 bg-white/[0.04] px-4 py-3.5 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--trust)]/12 text-sky-300">{icon}</span>
         <div className="min-w-0 flex-1">
           <label className="block text-[11px] font-medium text-muted-foreground">{label}</label>
           {children}
@@ -221,7 +221,7 @@ export default function SignupPage() {
 
 
   return (
-    <main className="relative flex min-h-[100dvh] items-center justify-center px-4 pt-6 [padding-bottom:calc(5.5rem+env(safe-area-inset-bottom))]">
+    <main className="relative flex min-h-[100dvh] items-center justify-center px-4 pt-6 [padding-bottom:calc(7rem+env(safe-area-inset-bottom))]">
 
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
