@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -25,6 +26,7 @@ import { isValidId } from "../lib/ids";
 import { signupSchema, loginSchema, verifyAccountSchema, resendOtpSchema, forgotPasswordSchema, resetPasswordSchema } from "../lib/validations/auth";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { authenticate, AuthedRequest } from "../middleware/auth";
+import { loginLimiter, otpSendLimiter, otpVerifyLimiter } from "../middleware/security";
 import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
@@ -94,8 +96,43 @@ async function findUserById(userId: string): Promise<IUser | null> {
 }
 
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  // Cryptographically secure 6-digit code (crypto.randomInt is unbiased over
+  // the range). Never Math.random() — a predictable PRNG would let an attacker
+  // anticipate OTPs.
+  return crypto.randomInt(100000, 1000000).toString();
 }
+
+// ── Per-identity OTP guessing cap ──────────────────────────────────────────
+// A second line of defence beyond the IP rate limiter: it caps how many times a
+// SINGLE account's code can be guessed, so a distributed brute-force (many IPs)
+// against one victim's reset/verify code is stopped too. In-memory is fine for
+// the single app process; counts auto-expire with the 10-minute OTP window and
+// clear the moment a correct code is accepted.
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
+const otpAttempts = new Map<string, { count: number; first: number }>();
+function otpAttemptBlocked(key: string): boolean {
+  const rec = otpAttempts.get(key);
+  if (!rec) return false;
+  if (Date.now() - rec.first > OTP_ATTEMPT_WINDOW_MS) {
+    otpAttempts.delete(key);
+    return false;
+  }
+  return rec.count >= OTP_MAX_ATTEMPTS;
+}
+function recordOtpFailure(key: string): void {
+  const now = Date.now();
+  const rec = otpAttempts.get(key);
+  if (!rec || now - rec.first > OTP_ATTEMPT_WINDOW_MS) {
+    otpAttempts.set(key, { count: 1, first: now });
+  } else {
+    rec.count += 1;
+  }
+}
+function clearOtpAttempts(key: string): void {
+  otpAttempts.delete(key);
+}
+const TOO_MANY_OTP = "Too many incorrect codes. Please wait a few minutes and request a fresh code.";
 
 function maskPhone(phone?: string | null): string {
   if (!phone) return "";
@@ -304,7 +341,7 @@ function issueSession(res: import("express").Response, user: IUser) {
   };
 }
 
-router.post("/signup", async (req, res) => {
+router.post("/signup", otpSendLimiter, async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -375,7 +412,7 @@ router.post("/signup", async (req, res) => {
   });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -422,7 +459,7 @@ router.post("/login", async (req, res) => {
 
 // Public: confirm BOTH the emailed and texted OTPs, mark the account verified
 // and log in.
-router.post("/verify-account", async (req, res) => {
+router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
   const parsed = verifyAccountSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -430,6 +467,8 @@ router.post("/verify-account", async (req, res) => {
 
   const { email, emailOtp, phoneOtp } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
+  const attemptKey = `verify:${normalizedEmail}`;
+  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
   const db = getDb();
   const now = new Date();
 
@@ -447,8 +486,9 @@ router.post("/verify-account", async (req, res) => {
     if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
       return res.status(400).json({ error: "Codes expired. Please resend new codes." });
     }
-    if (v.emailOtp !== emailOtp) return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
-    if (v.phoneOtp !== phoneOtp) return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
+    if (v.emailOtp !== emailOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+    if (v.phoneOtp !== phoneOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+    clearOtpAttempts(attemptKey);
 
     const verification: UserVerification = {
       ...(user.verification ?? {}),
@@ -478,8 +518,9 @@ router.post("/verify-account", async (req, res) => {
   if (pending.emailOtpExpiry < now || pending.phoneOtpExpiry < now) {
     return res.status(400).json({ error: "Codes expired. Please resend new codes." });
   }
-  if (pending.emailOtp !== emailOtp) return res.status(400).json({ error: "Invalid email code", field: "emailOtp" });
-  if (pending.phoneOtp !== phoneOtp) return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" });
+  if (pending.emailOtp !== emailOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+  if (pending.phoneOtp !== phoneOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+  clearOtpAttempts(attemptKey);
 
   // Guard against a race where a real account for this email appeared meanwhile.
   const [already] = await db.select({ _id: users._id }).from(users).where(eq(users.email, normalizedEmail));
@@ -495,7 +536,7 @@ router.post("/verify-account", async (req, res) => {
 });
 
 // Public: resend BOTH verification OTPs for an unverified account.
-router.post("/resend-otp", async (req, res) => {
+router.post("/resend-otp", otpSendLimiter, async (req, res) => {
   const parsed = resendOtpSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -543,7 +584,7 @@ router.post("/resend-otp", async (req, res) => {
 
 // Public: request a password-reset code. Emails a 6-digit code to the account.
 // Available to every role. Never reveals whether an email exists.
-router.post("/forgot-password", async (req, res) => {
+router.post("/forgot-password", otpSendLimiter, async (req, res) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -577,15 +618,18 @@ router.post("/forgot-password", async (req, res) => {
 
 // Public: confirm the emailed reset code and set a new password. On success the
 // code is cleared and all reset state is wiped.
-router.post("/reset-password", async (req, res) => {
+router.post("/reset-password", otpVerifyLimiter, async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, otp, password } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
+  const attemptKey = `reset:${normalizedEmail}`;
+  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
   const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
   if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
 
   const v = user.verification;
@@ -596,8 +640,10 @@ router.post("/reset-password", async (req, res) => {
     return res.status(400).json({ error: "Reset code expired. Please request a new one." });
   }
   if (v.resetPasswordOtp !== otp) {
+    recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid reset code", field: "otp" });
   }
+  clearOtpAttempts(attemptKey);
 
   const hashedPassword = await bcrypt.hash(password, 12);
   const verification: UserVerification = {
@@ -747,7 +793,7 @@ router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) 
   });
 });
 
-router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) => {
+router.post("/request-phone-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
@@ -755,7 +801,7 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   if (!user) return res.status(404).json({ error: "User not found" });
   if (!user.phone) return res.status(400).json({ error: "Phone number not set" });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = generateOtp();
   const verification: UserVerification = {
     ...(user.verification ?? {}),
     phoneOtp: otp,
@@ -781,7 +827,7 @@ router.post("/request-phone-otp", authenticate, async (req: AuthedRequest, res) 
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
 
-router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) => {
+router.post("/verify-phone-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
@@ -790,6 +836,9 @@ router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) =
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
+
+  const attemptKey = `phone:${userId}`;
+  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
 
   if (!user.verification?.phoneOtp || !user.verification?.phoneOtpExpiry) {
     return res.status(400).json({ error: "No OTP requested" });
@@ -800,8 +849,10 @@ router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) =
   }
 
   if (user.verification.phoneOtp !== otp) {
+    recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid OTP" });
   }
+  clearOtpAttempts(attemptKey);
 
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
@@ -831,14 +882,14 @@ router.post("/verify-phone-otp", authenticate, async (req: AuthedRequest, res) =
   });
 });
 
-router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) => {
+router.post("/request-email-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = generateOtp();
   const verification: UserVerification = {
     ...(user.verification ?? {}),
     emailOtp: otp,
@@ -857,7 +908,7 @@ router.post("/request-email-otp", authenticate, async (req: AuthedRequest, res) 
   return res.json({ message: "OTP sent to email", email: user.email });
 });
 
-router.post("/verify-email-otp", authenticate, async (req: AuthedRequest, res) => {
+router.post("/verify-email-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
@@ -866,6 +917,9 @@ router.post("/verify-email-otp", authenticate, async (req: AuthedRequest, res) =
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
+
+  const attemptKey = `email:${userId}`;
+  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
 
   if (!user.verification?.emailOtp || !user.verification?.emailOtpExpiry) {
     return res.status(400).json({ error: "No OTP requested" });
@@ -876,8 +930,10 @@ router.post("/verify-email-otp", authenticate, async (req: AuthedRequest, res) =
   }
 
   if (user.verification.emailOtp !== otp) {
+    recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid OTP" });
   }
+  clearOtpAttempts(attemptKey);
 
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),

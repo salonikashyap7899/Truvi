@@ -32,3 +32,14 @@ export const askLimiter = makeLimiter(10); // 10/min per user
 export const verifyLimiter = makeLimiter(5); // 5/min
 export const ingestLimiter = makeLimiter(100); // 100/min (admin bulk uploads)
 export const adminLimiter = makeLimiter(60); // general admin CRUD
+
+// ── Auth / OTP limiters ────────────────────────────────────────────────────
+// Protect the pre-auth endpoints (login, signup, OTP send/verify, password
+// reset) that otherwise have no throttle. Keyed by the signed-in user when one
+// exists (the authenticated OTP endpoints) and otherwise by client IP, so a
+// shared NAT is limited together. Limits are set well above normal human use —
+// a real person signing in or verifying a code never hits them; an automated
+// brute-force or SMS-spam run does.
+export const loginLimiter = makeLimiter(10, 15 * 60_000); // 10 login attempts / 15 min
+export const otpSendLimiter = makeLimiter(6, 60 * 60_000); // 6 code sends / hour (SMS + email cost)
+export const otpVerifyLimiter = makeLimiter(20, 15 * 60_000); // 20 verify attempts / 15 min
