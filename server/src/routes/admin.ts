@@ -1525,6 +1525,19 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
   const [existing] = await db.select().from(projects).where(eq(projects._id, projectId));
   if (!existing) return res.status(404).json({ error: "Project not found" });
 
+  // Real investor money is never silently erased: a project with PAID
+  // investments must have them refunded/settled (or the project unlisted)
+  // instead of being deleted.
+  const paidRows = await db.execute(
+    sql`SELECT count(*)::int AS n FROM project_investments WHERE project_id = ${projectId} AND status = 'PAID'`,
+  );
+  const paidCount = Number((paidRows as unknown as Array<{ n: number }>)[0]?.n ?? 0);
+  if (paidCount > 0) {
+    return res.status(409).json({
+      error: `This project has ${paidCount} paid investment${paidCount === 1 ? "" : "s"}, so it can't be deleted. Settle or refund them first, or unlist the project instead.`,
+    });
+  }
+
   // Delete every dependent row before the project itself. Postgres enforces the
   // foreign keys, so a single missed child table (e.g. a lead's CRM
   // activities/follow-ups/tasks) makes the whole delete fail with a FK
@@ -1541,6 +1554,11 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
         await tx.delete(leadActivities).where(inArray(leadActivities.leadId, leadIds));
         await tx.delete(leadFollowUps).where(inArray(leadFollowUps.leadId, leadIds));
         await tx.delete(crmTasks).where(inArray(crmTasks.leadId, leadIds));
+        // Admin payout records are kept (they track money owed/paid to a
+        // partner); only their link to the deleted lead is cleared.
+        await tx.execute(
+          sql`UPDATE cp_manual_commissions SET lead_id = NULL WHERE lead_id IN (${sql.join(leadIds.map((id) => sql`${id}`), sql`, `)})`,
+        );
       }
       await tx.delete(siteVisits).where(eq(siteVisits.projectId, projectId));
       await tx.delete(leads).where(eq(leads.projectId, projectId));
@@ -1550,10 +1568,27 @@ router.delete("/projects/:id", requireRole("ADMIN"), async (req: AuthedRequest, 
       await tx.delete(enquiries).where(eq(enquiries.projectId, projectId));
       await tx.delete(legalDocuments).where(eq(legalDocuments.projectId, projectId));
       await tx.delete(financeEntries).where(eq(financeEntries.projectId, projectId));
+      // Tables added after this endpoint was written (created in config/db.ts).
+      // Comments are removed in one statement, so replies and their parents go
+      // together without tripping the parent_id self-reference.
+      await tx.execute(sql`DELETE FROM project_comments WHERE project_id = ${projectId}`);
+      await tx.execute(sql`DELETE FROM brochure_events WHERE project_id = ${projectId}`);
+      await tx.execute(sql`DELETE FROM calls WHERE project_id = ${projectId}`);
+      await tx.execute(sql`DELETE FROM project_investments WHERE project_id = ${projectId}`); // only unpaid remain (checked above)
+      await tx.execute(sql`DELETE FROM project_investment_terms WHERE project_id = ${projectId}`);
+      // Verification data, fraud flags and Ask-Truvi chats cascade automatically.
       await tx.delete(projects).where(eq(projects._id, projectId));
     });
   } catch (err) {
     console.error("Failed to delete project", projectId, err);
+    // Name the blocking table on a foreign-key failure so a future new table
+    // that references projects is obvious instead of a silent "please retry".
+    const pgErr = ((err as { cause?: unknown })?.cause ?? err) as { code?: string; table_name?: string };
+    if (pgErr?.code === "23503") {
+      return res.status(409).json({
+        error: `Could not delete project: it is still linked to records in "${pgErr.table_name ?? "another table"}".`,
+      });
+    }
     return res.status(500).json({ error: "Could not delete project — please retry." });
   }
 
