@@ -67,12 +67,16 @@ export const uploadMedia = multer({
   },
 });
 
+/** Absolute base URL of this API server, as seen by browsers and the app. */
+export function publicBaseUrl(): string {
+  return process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:5000";
+}
+
 /**
  * Storage abstraction: returns the public-facing URL for an uploaded file.
  * Swap this implementation to return an S3 URL later without touching
  * any calling code.
  */
 export function fileUrl(filename: string): string {
-  const base = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "http://localhost:5000";
-  return `${base}/uploads/${filename}`;
+  return `${publicBaseUrl()}/uploads/${filename}`;
 }

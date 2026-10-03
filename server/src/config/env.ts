@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { DEV_JWT_ACCESS_DEFAULT, DEV_JWT_REFRESH_DEFAULT } from "../lib/jwt";
 
 dotenv.config();
 
@@ -125,10 +126,41 @@ export function isRazorpayConfigured(): boolean {
   return Boolean(env.razorpayKeyId && env.razorpayKeySecret);
 }
 
+/**
+ * Boot-time security guard. Fails closed: the app refuses to start in any
+ * environment that is not an explicit local `development`/`test` run unless the
+ * JWT signing secrets and the database URL are set to real, non-default values.
+ *
+ * This deliberately does NOT key off `NODE_ENV === "production"` alone. A common
+ * production misconfiguration is a process manager that never sets
+ * `NODE_ENV=production`; previously that silently skipped these checks and let
+ * the app sign tokens with the public dev-default secret (full auth bypass). Now
+ * anything other than an explicit `development`/`test` run is treated as live
+ * and must carry real secrets.
+ *
+ * Local development keeps working: run with `NODE_ENV=development` (the `dev`
+ * script sets it) or `test` to use the built-in dev fallbacks.
+ */
 export function assertRequiredEnvForProduction(): void {
-  if (getEnv().nodeEnv !== "production") return;
+  // Read NODE_ENV raw (not getEnv().nodeEnv, which defaults an UNSET value to
+  // "development"). An unset/blank NODE_ENV must be treated as live and fail
+  // closed — that unset case on the VPS is the exact misconfiguration this
+  // guard exists to catch. Only an explicit "development"/"test" is local.
+  const nodeEnv = (process.env.NODE_ENV || "").trim().toLowerCase();
+  const isLocalDevOrTest = nodeEnv === "development" || nodeEnv === "test";
+  if (isLocalDevOrTest) return;
 
-  requireEnv("JWT_ACCESS_SECRET");
-  requireEnv("JWT_REFRESH_SECRET");
+  const accessSecret = requireEnv("JWT_ACCESS_SECRET");
+  const refreshSecret = requireEnv("JWT_REFRESH_SECRET");
   requireEnv("DATABASE_URL");
+
+  if (accessSecret === DEV_JWT_ACCESS_DEFAULT || refreshSecret === DEV_JWT_REFRESH_DEFAULT) {
+    throw new Error(
+      "Refusing to start: JWT_ACCESS_SECRET / JWT_REFRESH_SECRET are still set to the built-in development defaults. " +
+        "Set them to long random secrets (e.g. `openssl rand -hex 32`) before running outside local development.",
+    );
+  }
+  if (accessSecret === refreshSecret) {
+    throw new Error("Refusing to start: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different values.");
+  }
 }

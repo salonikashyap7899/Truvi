@@ -24,7 +24,8 @@ import uploadRoutes from "./routes/uploads";
 import revenueRoutes from "./routes/revenue";
 import notificationRoutes from "./routes/notifications";
 import leaderboardRoutes from "./routes/leaderboard";
-import documentRoutes from "./routes/documents";
+import documentRoutes, { buyerDocFileHandler } from "./routes/documents";
+import { PRIVATE_UPLOAD_DIR } from "./services/privateFiles";
 import investmentRoutes from "./routes/investments";
 import loanCheckRoutes from "./routes/loanChecks";
 import aiChatRoutes from "./routes/aiChat";
@@ -66,6 +67,17 @@ export function createApp() {
     : path.resolve(__dirname, "../../uploads");
   const clientDistDir = path.resolve(__dirname, "../../client/dist");
 
+  // Private documents must never sit inside a statically served directory, or
+  // /uploads (or the SPA host) would hand them out publicly. Fail closed on
+  // that misconfiguration (e.g. UPLOAD_DIR pointed at a parent folder).
+  for (const servedDir of [uploadsDir, clientDistDir]) {
+    if (PRIVATE_UPLOAD_DIR === servedDir || PRIVATE_UPLOAD_DIR.startsWith(servedDir + path.sep)) {
+      throw new Error(
+        `Refusing to start: PRIVATE_UPLOAD_DIR (${PRIVATE_UPLOAD_DIR}) is inside a publicly served directory (${servedDir}). Move it outside.`,
+      );
+    }
+  }
+
   // Render (and most PaaS) terminate TLS at a proxy in front of the app —
   // trust the first hop so req.secure/req.ip and secure cookies work.
   app.set("trust proxy", 1);
@@ -85,6 +97,12 @@ export function createApp() {
   // it is mounted with express.raw BEFORE the global JSON parser.
   app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
 
+  // Private buyer documents are opened through short-lived signed links (a
+  // plain link can't carry a Bearer token). Registered before every /api
+  // router because several of them apply `authenticate` to all requests that
+  // reach them; the signed link itself is the authorization here.
+  app.get("/api/documents/file/:id", buyerDocFileHandler);
+
   app.use(express.json());
   app.use(cookieParser());
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
@@ -95,6 +113,13 @@ export function createApp() {
   // re-downloading every image on every screen. This is the single biggest win
   // for perceived app speed on repeat views. `immutable` tells the browser it
   // never needs to revalidate a cached file within that window.
+  // Identity documents must never be publicly reachable. The legacy Aadhaar
+  // upload route that wrote into /uploads/aadhaar has been removed; this also
+  // stops any files it left behind from being served (or cached by a CDN).
+  app.use("/uploads/aadhaar", (_req, res) => {
+    res.status(404).end();
+  });
+
   app.use(
     "/uploads",
     express.static(uploadsDir, {

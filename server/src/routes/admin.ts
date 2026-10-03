@@ -50,6 +50,7 @@ import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
 import { isPushEnabled } from "../services/pushService";
 import { logAudit } from "../services/audit";
+import { presentBuyerDocUrl } from "../services/privateFiles";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
 
@@ -1245,7 +1246,7 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
       category: d.docType.replace(/_/g, " "),
       kind: "BUYER",
       fileName: d.fileName,
-      fileUrl: d.fileUrl,
+      fileUrl: presentBuyerDocUrl(d._id, d.fileUrl),
       status: d.status === "VERIFIED" ? "APPROVED" : d.status === "REJECTED" ? "REJECTED" : "PENDING",
       createdAt: d.createdAt,
     });
@@ -1909,7 +1910,7 @@ router.get("/documents", requireRole("ADMIN"), async (_req, res) => {
       source: "BUYER",
       category: r.doc.docType.replace(/_/g, " "),
       fileName: r.doc.fileName,
-      fileUrl: r.doc.fileUrl,
+      fileUrl: presentBuyerDocUrl(r.doc._id, r.doc.fileUrl),
       status: r.doc.status === "VERIFIED" ? "APPROVED" : r.doc.status === "REJECTED" ? "REJECTED" : "PENDING",
       approvable: true,
       uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
