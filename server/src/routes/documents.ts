@@ -1,13 +1,50 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
+import fs from "fs";
 import path from "path";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { buyerDocuments, projects, sharedDocuments, users } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { upload, fileUrl } from "../services/uploadService";
+import {
+  privateUpload,
+  privateRef,
+  privateFilePath,
+  presentBuyerDocUrl,
+  verifyBuyerDocSignature,
+} from "../services/privateFiles";
 import { isValidId } from "../lib/ids";
+
+/**
+ * GET /api/documents/file/:id?exp=…&sig=… — stream one privately-stored buyer
+ * document. The signed, expiring link is the authorization: it is only ever
+ * issued to the document's owner (GET /my) or an admin. Mounted in app.ts
+ * ahead of the authenticated routers because a plain link can't carry a Bearer
+ * token. Never cached (`private, no-store`).
+ */
+export async function buyerDocFileHandler(req: Request, res: Response) {
+  const id = String(req.params.id);
+  if (!isValidId(id) || !verifyBuyerDocSignature(id, String(req.query.exp ?? ""), String(req.query.sig ?? ""))) {
+    return res.status(403).json({ error: "This document link is invalid or has expired. Open it again from your documents list." });
+  }
+
+  const db = getDb();
+  const [doc] = await db
+    .select({ fileUrl: buyerDocuments.fileUrl, fileName: buyerDocuments.fileName })
+    .from(buyerDocuments)
+    .where(eq(buyerDocuments._id, id));
+  const full = doc ? privateFilePath(doc.fileUrl) : null;
+  if (!doc || !full || !fs.existsSync(full)) return res.status(404).json({ error: "Document not found" });
+
+  const safeName = (doc.fileName || "document").replace(/[^\w.\- ]+/g, "_").slice(0, 100);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+  res.sendFile(full, { dotfiles: "deny" }, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "Document not found" });
+  });
+}
 
 const router = Router();
 router.use(authenticate);
@@ -102,7 +139,8 @@ router.post(
 router.get("/my", requireRole("BUYER"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const docs = await db.select().from(buyerDocuments).where(eq(buyerDocuments.buyerId, req.user!.userId)).orderBy(desc(buyerDocuments.createdAt));
-  res.json({ documents: docs });
+  // Private files get a fresh signed link; legacy public files keep their URL.
+  res.json({ documents: docs.map((d) => ({ ...d, fileUrl: presentBuyerDocUrl(d._id, d.fileUrl) })) });
 });
 
 const docTypeSchema = z.enum(["ID_PROOF", "ADDRESS_PROOF", "INCOME_PROOF"]);
@@ -110,12 +148,16 @@ const docTypeSchema = z.enum(["ID_PROOF", "ADDRESS_PROOF", "INCOME_PROOF"]);
 router.post(
   "/my",
   requireRole("BUYER"),
-  upload.single("file"),
+  // Identity / address / income proofs are stored privately — never under the
+  // public, CDN-cached /uploads path.
+  privateUpload.single("file"),
   async (req: AuthedRequest, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
     const parsed = docTypeSchema.safeParse(req.body.docType);
     if (!parsed.success) {
+      // Don't leave an orphaned private file behind on a rejected request.
+      fs.promises.unlink(req.file.path).catch(() => {});
       return res.status(400).json({ error: "Invalid docType. Must be ID_PROOF, ADDRESS_PROOF, or INCOME_PROOF." });
     }
 
@@ -126,12 +168,12 @@ router.post(
         buyerId: req.user!.userId,
         docType: parsed.data,
         fileName: req.file.originalname || path.basename(req.file.filename),
-        fileUrl: fileUrl(req.file.filename),
+        fileUrl: privateRef(req.file.filename),
         status: "UPLOADED",
       })
       .returning();
 
-    res.status(201).json({ document: doc });
+    res.status(201).json({ document: { ...doc, fileUrl: presentBuyerDocUrl(doc._id, doc.fileUrl) } });
   }
 );
 
@@ -142,6 +184,9 @@ router.delete("/my/:id", requireRole("BUYER"), async (req: AuthedRequest, res) =
   const [doc] = await db.delete(buyerDocuments).where(and(eq(buyerDocuments._id, req.params.id), eq(buyerDocuments.buyerId, req.user!.userId))).returning();
 
   if (!doc) return res.status(404).json({ error: "Document not found" });
+  // Remove the stored file too, so a deleted identity document is really gone.
+  const full = privateFilePath(doc.fileUrl);
+  if (full) fs.promises.unlink(full).catch(() => {});
   res.json({ success: true });
 });
 

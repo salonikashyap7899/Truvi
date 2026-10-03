@@ -24,6 +24,7 @@
     "db:push": "drizzle-kit push",
     "db:notify": "tsx src/scripts/apply-notification-migration.ts",
     "db:marketing": "tsx src/scripts/apply-marketing-migration.ts",
+    "db:private-docs": "tsx src/scripts/migrate-buyer-docs-private.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

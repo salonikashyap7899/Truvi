@@ -3,8 +3,6 @@ import { zodMessage } from "../lib/validationError";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { eq } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { getSqlClient } from "../db/index";
@@ -36,25 +34,6 @@ import { notifyUser, notifyRole } from "../services/notificationService";
 import { isFounderEmail } from "../config/env";
 
 const router = Router();
-
-// Setup multer for Aadhaar document upload
-const uploadDir = path.join(process.cwd(), "uploads", "aadhaar");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const aadhaarUpload = multer({
-  dest: uploadDir,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only PDF and image files allowed"));
-    }
-  },
-});
 
 // KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP/Ambassador
 // identity. Held in memory (not on disk) and persisted durably to the
@@ -963,43 +942,10 @@ router.post("/verify-email-otp", authenticate, otpVerifyLimiter, async (req: Aut
   });
 });
 
-router.post("/upload-aadhaar", authenticate, aadhaarUpload.single("aadhaar"), async (req: AuthedRequest, res) => {
-  const userId = req.user!.userId;
-  if (!req.file) return res.status(400).json({ error: "Aadhaar document required" });
-  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
-
-  const user = await findUserById(userId);
-  if (!user) return res.status(404).json({ error: "User not found" });
-
-  const aadhaarDocumentUrl = `/uploads/aadhaar/${req.file.filename}`;
-  const onboardingChecks: OnboardingChecks = {
-    ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
-    aadhaarVerified: true,
-  };
-  const verification: UserVerification = {
-    ...(user.verification ?? {}),
-    aadhaarDocumentUrl,
-    aadhaarVerifiedAt: new Date().toISOString(),
-  };
-  const onboardingVerified = isOnboardingComplete(onboardingChecks);
-
-  const db = getDb();
-  await db
-    .update(users)
-    .set({
-      onboardingChecks,
-      verification,
-      ...(onboardingVerified ? { onboardingVerified: true } : {}),
-    })
-    .where(eq(users._id, user._id));
-
-  return res.json({
-    message: "Aadhaar document uploaded and verified",
-    onboardingChecks,
-    onboardingVerified: onboardingVerified || user.onboardingVerified,
-    aadhaarUrl: aadhaarDocumentUrl,
-  });
-});
+// (The legacy POST /upload-aadhaar route was removed: no client called it, it
+// wrote Aadhaar images to the public /uploads path, and it marked Aadhaar
+// "verified" for any single uploaded file — a weaker shortcut around the real
+// KYC flow below. Identity documents now go only through /submit-kyc.)
 
 // CP / Ambassador identity submission: Aadhaar + PAN + live selfie in one go.
 // KYC is required only for Channel Partners and Ambassadors, so the endpoint is

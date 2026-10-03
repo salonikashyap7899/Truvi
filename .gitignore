@@ -6,6 +6,9 @@ dist/
 *.log
 .DS_Store
 
+# Private user documents (buyer ID / address / income proofs) — never commit.
+private_uploads/
+
 # Replit scratch / paste folder (dev artifacts)
 attached_assets/
 .replit_integration_files/
