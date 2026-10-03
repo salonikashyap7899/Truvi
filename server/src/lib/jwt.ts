@@ -7,8 +7,18 @@ export interface TokenPayload {
   onboardingVerified?: boolean;
 }
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me";
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev-refresh-secret-change-me";
+/**
+ * Insecure fallbacks used ONLY for local development and tests. The boot-time
+ * guard `assertRequiredEnvForProduction()` refuses to start any non-dev/test
+ * environment that is still using these, so they can never sign real tokens in
+ * production. Exported so that guard has a single source of truth to compare
+ * against.
+ */
+export const DEV_JWT_ACCESS_DEFAULT = "dev-access-secret-change-me";
+export const DEV_JWT_REFRESH_DEFAULT = "dev-refresh-secret-change-me";
+
+const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || DEV_JWT_ACCESS_DEFAULT;
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || DEV_JWT_REFRESH_DEFAULT;
 
 export function signAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, ACCESS_SECRET, { expiresIn: "15m" });
