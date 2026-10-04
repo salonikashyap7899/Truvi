@@ -11,6 +11,7 @@ import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { getEnv } from "../config/env";
 import { emitToRole } from "../sockets";
+import { randomFileStem } from "../services/uploadService";
 
 const router = Router();
 
@@ -25,7 +26,7 @@ const storage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: (_req, file, cb) => cb(null, `legal-${Date.now()}${path.extname(file.originalname)}`),
+  filename: (_req, file, cb) => cb(null, `legal-${randomFileStem()}${path.extname(file.originalname).toLowerCase()}`),
 });
 const upload = multer({
   storage,

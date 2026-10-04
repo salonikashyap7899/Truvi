@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
+import { PaymentsUnavailableError } from "../services/paymentService";
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof multer.MulterError) {
@@ -7,6 +8,9 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   }
   if (err instanceof Error && err.message.startsWith("Unsupported file type")) {
     return res.status(400).json({ error: err.message });
+  }
+  if (err instanceof PaymentsUnavailableError) {
+    return res.status(503).json({ error: err.message });
   }
 
   console.error("Unhandled error:", err);

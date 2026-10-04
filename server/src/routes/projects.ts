@@ -8,6 +8,7 @@ import { isValidId } from "../lib/ids";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
+import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { notifyRole, NotificationType } from "../services/notificationService";
 
 const router = Router();
@@ -108,7 +109,7 @@ router.get("/", async (req: AuthedRequest, res) => {
     );
 
     return {
-      ...project,
+      ...withoutPrivateProjectFields(project, user, project.developerId),
       developerId: developer,
       unitCount: unitCountMap.get(String(project._id)) || 0,
       leadCount: leadCountMap.get(String(project._id)) || 0,
@@ -132,7 +133,10 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   if (userRole === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  if (userRole && userRole !== "ADMIN" && userRole !== "DEVELOPER" && project.approvalStatus !== "APPROVED") {
+  // Unapproved (draft/pending/rejected) projects are visible only to their
+  // own developer and admins — not to other developers.
+  const isOwner = String(project.developerId) === req.user?.userId;
+  if (project.approvalStatus !== "APPROVED" && userRole !== "ADMIN" && !isOwner) {
     return res.status(404).json({ error: "Project not found" });
   }
 
@@ -146,7 +150,10 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .where(eq(units.projectId, project._id))
     .orderBy(asc(units.unitNumber));
 
-  res.json({ project: { ...project, developerId: developer || project.developerId }, units: unitRows });
+  res.json({
+    project: { ...withoutPrivateProjectFields(project, req.user, project.developerId), developerId: developer || project.developerId },
+    units: unitRows,
+  });
 });
 
 const updateProjectSchema = z.object({

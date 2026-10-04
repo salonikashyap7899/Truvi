@@ -14,6 +14,7 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
  *   DEVELOPER → docs belonging to their own projects + academy PDFs.
  *   CP        → shared docs on approved projects, their own commission
  *               invoices + academy PDFs.
+ *   Others    → shared docs on approved projects + academy PDFs (no invoices).
  * Private KYC identity images are deliberately excluded — they are
  * data-retention-minimised and never surfaced through the vault.
  */
@@ -124,8 +125,13 @@ router.get("/", async (req: AuthedRequest, res) => {
     .orderBy(desc(commissions.createdAt));
   for (const { commission: c, lead, cp } of invoiceRows) {
     if (!c.invoiceUrl) continue;
-    if (user.role === "CP" && String(c.cpId) !== user.userId) continue;
-    if (user.role === "DEVELOPER" && (!lead || !nameById.has(String(lead.projectId)))) continue;
+    // Default-deny: only admins, the partner who earned it, and the project's
+    // developer may see an invoice.
+    if (user.role === "DEVELOPER") {
+      if (!lead || !nameById.has(String(lead.projectId))) continue;
+    } else if (user.role !== "ADMIN" && String(c.cpId) !== user.userId) {
+      continue;
+    }
     docs.push({
       id: `invoice-${c._id}`,
       category: "INVOICE",

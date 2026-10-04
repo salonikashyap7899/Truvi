@@ -46,8 +46,20 @@ export function emitUnitUpdate(projectId: string, unit: unknown) {
   getIO().emit("unit:update", { projectId, unit });
 }
 
-export function emitLeadUpdate(lead: unknown) {
-  getIO().emit("lead:update", lead);
+/**
+ * A lead carries a client's name, phone and notes, so it is pushed only to
+ * the people already allowed to see it: its CP(s), the project's developer
+ * (passed in by the caller) and admins — never broadcast to every socket.
+ */
+export function emitLeadUpdate(
+  lead: { assignedToId?: string | null; submittedById?: string | null },
+  developerId?: string | null,
+) {
+  const rooms = new Set<string>(["role:ADMIN"]);
+  for (const id of [lead.assignedToId, lead.submittedById, developerId]) {
+    if (id) rooms.add(`user:${id}`);
+  }
+  getIO().to([...rooms]).emit("lead:update", lead);
 }
 
 export function emitNotification(userId: string, notification: unknown) {

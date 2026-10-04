@@ -1,6 +1,7 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { authenticate, AuthedRequest } from "../middleware/auth";
+import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { aiChatLimiter, aiChatDailyLimiter } from "../middleware/security";
 import { retrieveContext } from "../services/askTruviService";
 
 const router = Router();
@@ -128,54 +129,66 @@ function logAnthropicError(label: string, err: unknown) {
 }
 
 /**
- * GET /api/ai/chat/health — self-service diagnostic for the AI setup.
- * Open it in a browser to see whether ANTHROPIC_API_KEY is present in
- * this server's environment and whether Anthropic accepts it (validated
- * via the free models-list endpoint — no tokens spent).
+ * GET /api/ai/chat/health — admin-only diagnostic for the AI setup: is
+ * ANTHROPIC_API_KEY present, and does Anthropic accept it (validated via the
+ * free models-list endpoint — no tokens spent). Never returns any part of the
+ * key. The result is cached briefly so repeated hits don't call Anthropic.
  */
-router.get("/health", async (_req, res) => {
+let healthCache: { at: number; body: Record<string, unknown> } | null = null;
+const HEALTH_TTL_MS = 60_000;
+
+router.get("/health", authenticate, requireRole("ADMIN"), async (_req, res) => {
+  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return res.json(healthCache.body);
+
   const { key: apiKey, sanitized } = getAnthropicKey();
+  let body: Record<string, unknown>;
   if (!apiKey) {
-    return res.json({
+    body = {
       configured: false,
       ok: false,
-      hint: "ANTHROPIC_API_KEY is not set in this server's environment. Add it in the Render dashboard → Environment, then let the service restart.",
-    });
+      hint: "ANTHROPIC_API_KEY is not set in this server's environment. Add it to server/.env, then restart the server.",
+    };
+  } else {
+    try {
+      const client = new Anthropic({ apiKey });
+      await client.models.list();
+      body = {
+        configured: true,
+        ok: true,
+        sanitized,
+        hint: sanitized
+          ? "Key is valid (extra spaces/quotes around the stored value were cleaned automatically) — Ask Truvi should work."
+          : "Key is valid — Ask Truvi should work.",
+      };
+    } catch (err: unknown) {
+      const status = err instanceof Anthropic.APIError ? err.status : undefined;
+      logAnthropicError("AI health", err);
+      body = {
+        configured: true,
+        ok: false,
+        sanitized,
+        status,
+        hint:
+          status === 401
+            ? "The key set on this server is being rejected by Anthropic (401). Re-paste the key, or generate a fresh one at console.anthropic.com."
+            : "The key is set but the Anthropic API call failed — check the server logs.",
+      };
+    }
   }
-
-  const keyPreview = `${apiKey.slice(0, 14)}…${apiKey.slice(-4)} (${apiKey.length} chars)`;
-  try {
-    const client = new Anthropic({ apiKey });
-    await client.models.list();
-    return res.json({
-      configured: true,
-      ok: true,
-      keyPreview,
-      sanitized,
-      hint: sanitized
-        ? "Key is valid (extra spaces/quotes around the stored value were cleaned automatically) — Ask Truvi should work."
-        : "Key is valid — Ask Truvi should work.",
-    });
-  } catch (err: unknown) {
-    const status = err instanceof Anthropic.APIError ? err.status : undefined;
-    const message = err instanceof Anthropic.APIError ? err.message : String(err);
-    return res.json({
-      configured: true,
-      ok: false,
-      keyPreview,
-      sanitized,
-      status,
-      error: message,
-      hint:
-        status === 401
-          ? "The key set on this server is being rejected by Anthropic (401). Compare keyPreview with your real key — if it differs, re-paste the key; otherwise generate a fresh key at console.anthropic.com."
-          : "The key is set but the Anthropic API call failed — see status/error above.",
-    });
-  }
+  healthCache = { at: Date.now(), body };
+  return res.json(body);
 });
 
+/** Client-supplied JSON is capped so one request can't inflate the prompt (and the bill). */
+const MAX_CONTEXT_CHARS = 4000;
+function boundedJson(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Object.keys(value as object).length === 0) return null;
+  const json = JSON.stringify(value, null, 1);
+  return json.length > MAX_CONTEXT_CHARS ? `${json.slice(0, MAX_CONTEXT_CHARS)}\n…(truncated)` : json;
+}
+
 // Ask Truvi requires a signed-in account — signup completes access.
-router.post("/", authenticate, async (req: AuthedRequest, res) => {
+router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: AuthedRequest, res) => {
   const { message, propertyContext, mode, history, advisorProfile } = req.body as {
     message?: string;
     propertyContext?: Record<string, unknown>;
@@ -205,9 +218,8 @@ router.post("/", authenticate, async (req: AuthedRequest, res) => {
   /* -------- Sales Copilot path -------- */
   if (mode && COPILOT_PROMPTS[mode]) {
     let systemPrompt = COPILOT_PROMPTS[mode];
-    if (propertyContext && Object.keys(propertyContext).length > 0) {
-      systemPrompt += `\n\nContext:\n${JSON.stringify(propertyContext, null, 2)}`;
-    }
+    const contextJson = boundedJson(propertyContext);
+    if (contextJson) systemPrompt += `\n\nContext:\n${contextJson}`;
     try {
       const response = await client.messages.create({
         model: AI_MODEL,
@@ -245,11 +257,13 @@ router.post("/", authenticate, async (req: AuthedRequest, res) => {
       null,
       1,
     )}`;
-    if (propertyContext && Object.keys(propertyContext).length > 0) {
-      dataBlock += `\n\nPAGE CONTEXT (project the user is currently viewing):\n${JSON.stringify(propertyContext, null, 1)}`;
+    const pageJson = boundedJson(propertyContext);
+    if (pageJson) {
+      dataBlock += `\n\nPAGE CONTEXT (project the user is currently viewing):\n${pageJson}`;
     }
-    if (advisorProfile && Object.keys(advisorProfile).length > 0) {
-      dataBlock += `\n\nUSER PROFILE (saved by the user for personalized advisory — tailor recommendations to this):\n${JSON.stringify(advisorProfile, null, 1)}`;
+    const profileJson = boundedJson(advisorProfile);
+    if (profileJson) {
+      dataBlock += `\n\nUSER PROFILE (saved by the user for personalized advisory — tailor recommendations to this):\n${profileJson}`;
     }
 
     // Build alternating user/assistant history for Claude (must start with user, alternate strictly,
