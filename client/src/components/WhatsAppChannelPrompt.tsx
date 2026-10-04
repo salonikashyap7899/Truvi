@@ -22,6 +22,9 @@ export default function WhatsAppChannelPrompt() {
 
   useEffect(() => {
     if (!user?._id) return;
+    // Ambassadors follow their own (mandatory) TRUVI Students Ambassador
+    // Program channel on the dashboard — don't point them at the CP channel.
+    if (user.role === "AMBASSADOR") return;
 
     const key = `${SEEN_PREFIX}${user._id}`;
     if (firedFor.current === user._id) return;

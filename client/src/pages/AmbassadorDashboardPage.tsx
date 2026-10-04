@@ -4,6 +4,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { CpKycOnboarding } from "@/components/CpKycOnboarding";
+import { CpWhatsAppGate } from "@/components/CpWhatsAppGate";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
@@ -81,6 +82,10 @@ export default function AmbassadorDashboardPage() {
   }
 
   if (!user) return null;
+
+  // First step for every ambassador, right after signup: follow the mandatory
+  // TRUVI Students Ambassador Program WhatsApp channel.
+  if (!user.whatsappChannelJoined) return <CpWhatsAppGate audience="AMBASSADOR" />;
 
   // Identity gate — same full KYC (Aadhaar + PAN + live selfie → admin review)
   // as Channel Partners. Ambassadors can't access tasks until verified.
