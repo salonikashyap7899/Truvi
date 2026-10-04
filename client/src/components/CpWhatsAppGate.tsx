@@ -5,17 +5,31 @@ import { toast } from "sonner";
 import { MessageCircle, CheckCircle2, Loader2, Megaphone, ExternalLink } from "lucide-react";
 import UserMenu from "@/components/UserMenu";
 
-/** Official Truvi Ventures Channel Partners updates channel. */
-const WHATSAPP_CHANNEL_URL = "https://whatsapp.com/channel/0029Vb8UCCs4IBhCSVZBHK1h";
+/** Official WhatsApp channels, one per audience. */
+const CHANNELS = {
+  CP: {
+    url: "https://whatsapp.com/channel/0029Vb8UCCs4IBhCSVZBHK1h",
+    name: "Truvi Ventures Channel Partners Updates",
+    workspace: "Channel Partner workspace",
+    benefits: "new project launches, price updates, offers and important announcements",
+  },
+  AMBASSADOR: {
+    url: "https://whatsapp.com/channel/0029VbDeJxv60eBnLime0l0z",
+    name: "TRUVI Students Ambassador Program",
+    workspace: "Ambassador dashboard",
+    benefits: "new site-verification tasks, payout updates, training and important announcements",
+  },
+} as const;
 
 /**
- * Mandatory WhatsApp-channel gate for Channel Partners. Shown in place of the
- * CP dashboard once KYC is done but the CP hasn't yet confirmed following the
- * Truvi Ventures Channel Partners updates channel. WhatsApp exposes no API to
- * verify membership, so the CP opens the channel and then confirms — the
- * confirmation unlocks the workspace and is remembered on their account.
+ * Mandatory WhatsApp-channel gate. Shown in place of the dashboard until the
+ * user confirms following their audience's official channel (Channel Partners
+ * after KYC; Ambassadors right after creating their account). WhatsApp exposes
+ * no API to verify membership, so the user opens the channel and then confirms
+ * — the confirmation unlocks the workspace and is remembered on their account.
  */
-export function CpWhatsAppGate() {
+export function CpWhatsAppGate({ audience = "CP" }: { audience?: keyof typeof CHANNELS }) {
+  const channel = CHANNELS[audience];
   const user = useAuthStore((s) => s.user);
   const [opened, setOpened] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,9 +65,8 @@ export function CpWhatsAppGate() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Join our WhatsApp updates channel</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Following the <b className="text-white">Truvi Ventures Channel Partners Updates</b> channel is required to use
-            the Channel Partner workspace. You'll get new project launches, price updates, offers and important
-            announcements — the moment they go live.
+            Following the <b className="text-white">{channel.name}</b> channel is required to use the{" "}
+            {channel.workspace}. You'll get {channel.benefits} — the moment they go live.
           </p>
 
           <ol className="mt-6 space-y-3 text-sm">
@@ -68,7 +81,7 @@ export function CpWhatsAppGate() {
           </ol>
 
           <a
-            href={WHATSAPP_CHANNEL_URL}
+            href={channel.url}
             target="_blank"
             rel="noreferrer"
             onClick={() => setOpened(true)}
