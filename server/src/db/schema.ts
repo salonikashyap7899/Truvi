@@ -457,6 +457,11 @@ export const projects = pgTable(
     teamSiteVisited: boolean("team_site_visited").notNull().default(false),
     isVerified: boolean("is_verified").notNull().default(false),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    // Admin's manual Truvi Score adjustment (points, −100…+100) applied on top
+    // of the computed score, with the internal reason and when it was set.
+    scoreAdjustment: integer("score_adjustment").notNull().default(0),
+    scoreAdjustmentReason: text("score_adjustment_reason"),
+    scoreAdjustedAt: timestamp("score_adjusted_at", { withTimezone: true, mode: "date" }),
     verificationDetails: jsonb("verification_details").$type<VerificationDetails>().default(DEFAULT_VERIFICATION_DETAILS),
     projectType: text("project_type").$type<ProjectType>(),
     presentationInfo: jsonb("presentation_info").$type<PresentationInfo>(),

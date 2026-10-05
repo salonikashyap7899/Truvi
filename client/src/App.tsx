@@ -48,6 +48,7 @@ const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").th
 const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
 const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePage"));
 const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
+const AdminScoresPage = lazy(() => import("@/pages/admin/AdminScoresPage"));
 const AdminProjectManagePage = lazy(() => import("@/pages/admin/AdminProjectManagePage"));
 const AdminRevenuePage = lazy(() => import("@/pages/admin/AdminRevenuePage"));
 const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
@@ -332,6 +333,7 @@ export default function App() {
           <Route path="users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
           <Route path="listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
+          <Route path="scores" element={<ProtectedRoute roles={["ADMIN"]}><AdminScoresPage /></ProtectedRoute>} />
           <Route path="listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
           <Route path="enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
           <Route path="calls" element={<ProtectedRoute roles={["ADMIN"]}><AdminCallsPage /></ProtectedRoute>} />

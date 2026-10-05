@@ -43,6 +43,8 @@ interface IntelligenceProfile {
     fraudSignals: string[];
     confidenceScore: number;
     scoreBreakdown?: ScoreSignal[];
+    /** Points the Truvi team added (+) or removed (−) after review. */
+    adjustment?: number;
     overallStatus: IntelStatus;
     decisionSummary: string;
   };
@@ -185,6 +187,14 @@ export default function ListingIntelligence({ projectId }: { projectId: string }
                           </div>
                         );
                       })}
+                      {!!ai.adjustment && (
+                        <div className="flex items-center justify-between border-t border-white/10 pt-2 text-[11px]">
+                          <span className="text-white/85">Truvi team review</span>
+                          <span className={`font-semibold ${ai.adjustment > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                            {ai.adjustment > 0 ? `+${ai.adjustment}` : ai.adjustment} points
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

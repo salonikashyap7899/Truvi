@@ -283,6 +283,10 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     if (d.appreciationForecast !== undefined) update.appreciationForecast = d.appreciationForecast;
   }
 
+  // Nothing this caller may change was sent (e.g. only admin-only fields from
+  // a developer) — say so instead of failing on an empty update.
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: "Nothing to update." });
+
   const [updated] = await db
     .update(projects)
     .set(update)

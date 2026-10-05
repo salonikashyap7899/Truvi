@@ -69,6 +69,7 @@ function activityText(a: ActivityLog): string {
       if (m.isVerified === true) return "marked a project verified";
       return "updated a project";
     case "project.delete": return `deleted project ${m.name ?? ""}`.trim();
+    case "project.score.adjust": return `set the Truvi Score adjustment of ${m.name ?? "a project"} to ${Number(m.to) > 0 ? "+" : ""}${m.to ?? 0}`;
     case "kyc.approve": return "approved a CP's KYC";
     case "kyc.reject": return "rejected a CP's KYC";
     case "user.disable": return `deactivated ${m.name ?? "a user"}`;
@@ -97,6 +98,7 @@ function timeAgo(iso: string): string {
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Users", icon: "users", path: "/admin/users" },
   { label: "Listings", icon: "building", path: "/admin/listings" },
+  { label: "Truvi Scores", icon: "chart", path: "/admin/scores" },
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },
   { label: "Call Management", icon: "spark", path: "/admin/calls" },
   { label: "Verification", icon: "shield", path: "/admin/verification" },

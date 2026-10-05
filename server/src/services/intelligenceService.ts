@@ -46,6 +46,10 @@ export interface AIVerification {
   riskFlags: string[];
   fraudSignals: string[];
   confidenceScore: number;
+  /** Score from the data alone, before the Truvi team's adjustment. */
+  baseScore: number;
+  /** Points added (+) or removed (−) by the Truvi team after review; 0 if none. */
+  adjustment: number;
   /** The per-signal contributions that add up to the Truvi Score. */
   scoreBreakdown: ScoreSignal[];
   overallStatus: IntelStatus;
@@ -271,6 +275,11 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   let confidence = scoreBreakdown.reduce((sum, s) => sum + s.score, 0);
   confidence -= riskFlags.length * 4; // each open risk flag costs points
   confidence = Math.max(0, Math.min(100, confidence));
+  // The Truvi team can raise or lower a project's score after review; the
+  // result still stays within 0–100.
+  const baseScore = confidence;
+  const adjustment = project.scoreAdjustment ?? 0;
+  confidence = Math.max(0, Math.min(100, baseScore + adjustment));
 
   const allItems = categories.flatMap((c) => c.items);
   const verified = allItems.filter((i) => i.status === "VERIFIED").length;
@@ -298,6 +307,8 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
       riskFlags,
       fraudSignals,
       confidenceScore: confidence,
+      baseScore,
+      adjustment,
       scoreBreakdown,
       overallStatus,
       decisionSummary,
