@@ -3,7 +3,7 @@ import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, units, leads, users, projectAssets } from "../db/schema";
+import { projects, units, leads, users, projectAssets, IProject } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -321,29 +321,94 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
       brochureUrl: parsed.data.brochureUrl || undefined,
       priceListUrl: parsed.data.priceListUrl || undefined,
       developerId,
-      approvalStatus: "PENDING",
+      // A developer's new listing is saved as a DRAFT: it only goes to the
+      // admin review queue once they've added the essentials and submitted it
+      // (POST /:id/submit), so a half-finished listing never lands there. An
+      // admin creating a project is the reviewer, so theirs goes straight to
+      // PENDING as before.
+      approvalStatus: req.user!.role === "ADMIN" ? "PENDING" : "DRAFT",
     })
     .returning();
 
-  // Notify admins/founders when a DEVELOPER submits a project for review. (An
-  // admin creating a project on their own doesn't need to alert admins.)
-  // Never let a notification failure block project creation.
-  if (req.user!.role === "DEVELOPER") {
-    try {
-      const [actor] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
-      await notifyRole("ADMIN", {
-        type: NotificationType.PROJECT_SUBMITTED,
-        title: "New project submitted",
-        message: `${actor?.name ?? "A developer"} submitted "${project.name}" for review.`,
-        actorUserId: req.user!.userId,
-        data: { href: `/admin/listings/${project._id}` },
-      });
-    } catch {
-      /* non-fatal */
-    }
+  res.status(201).json({ project });
+});
+
+/**
+ * What a listing still needs before it can be sent for admin review. The
+ * step-1 form already guarantees name, description, city and location.
+ */
+async function missingForSubmission(project: IProject): Promise<string[]> {
+  const db = getDb();
+  const [[photo], [unit]] = await Promise.all([
+    db
+      .select({ _id: projectAssets._id })
+      .from(projectAssets)
+      .where(and(eq(projectAssets.projectId, project._id), eq(projectAssets.category, "GALLERY_IMAGE")))
+      .limit(1),
+    db.select({ _id: units._id }).from(units).where(eq(units.projectId, project._id)).limit(1),
+  ]);
+  const missing: string[] = [];
+  if (!project.projectType) missing.push("Project type");
+  if (!photo) missing.push("At least one project photo");
+  if (!unit && !(project.totalUnits && project.totalUnits > 0)) missing.push("Inventory (add units or the total plots/units)");
+  return missing;
+}
+
+/** GET /api/projects/:id/submission — the draft checklist for the owner. */
+router.get("/:id/submission", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  if (req.user!.role !== "ADMIN" && String(project.developerId) !== req.user!.userId) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  res.json({ approvalStatus: project.approvalStatus, missing: await missingForSubmission(project) });
+});
+
+/**
+ * POST /api/projects/:id/submit — send a DRAFT (or a REJECTED listing that's
+ * been fixed) to the admin review queue, once its essentials are complete.
+ */
+router.post("/:id/submit", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
+  const db = getDb();
+  const [project] = await db.select().from(projects).where(eq(projects._id, req.params.id));
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  if (req.user!.role !== "ADMIN" && String(project.developerId) !== req.user!.userId) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  if (project.approvalStatus !== "DRAFT" && project.approvalStatus !== "REJECTED") {
+    return res.status(409).json({ error: `This project is already ${project.approvalStatus.toLowerCase()}.` });
   }
 
-  res.status(201).json({ project });
+  const missing = await missingForSubmission(project);
+  if (missing.length) {
+    return res.status(400).json({ error: `Add these before submitting: ${missing.join(", ")}.`, missing });
+  }
+
+  const [updated] = await db
+    .update(projects)
+    .set({ approvalStatus: "PENDING" })
+    .where(eq(projects._id, project._id))
+    .returning();
+
+  // Notify admins/founders that a listing is ready for review. Never let a
+  // notification failure block the submission.
+  try {
+    const [actor] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
+    await notifyRole("ADMIN", {
+      type: NotificationType.PROJECT_SUBMITTED,
+      title: "New project submitted",
+      message: `${actor?.name ?? "A developer"} submitted "${project.name}" for review.`,
+      actorUserId: req.user!.userId,
+      data: { href: `/admin/listings/${project._id}` },
+    });
+  } catch {
+    /* non-fatal */
+  }
+
+  res.json({ project: updated });
 });
 
 export default router;

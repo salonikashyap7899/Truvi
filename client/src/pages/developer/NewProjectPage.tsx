@@ -50,28 +50,69 @@ function validationMessage(data: any): string | null {
   return `${FIELD_LABELS[field] ?? field}: ${msgs[0]}`;
 }
 
+const EMPTY_FORM = {
+  name: "",
+  description: "",
+  city: "",
+  location: "",
+  projectType: "",
+  approvalAuthority: "RERA" as "RERA" | "DISTRICT_PANCHAYAT" | "DTCP",
+  reraNumber: "",
+  totalUnits: "",
+  possessionDate: "",
+  salesName: "",
+  salesPhone: "",
+  salesEmail: "",
+  commissionPercent: 3,
+  developerId: "",
+};
+type ProjectForm = typeof EMPTY_FORM;
+
+/** The half-filled form is kept per account in this browser, so leaving the
+ *  page (or the tab closing) never loses what was typed. */
+const DRAFT_KEY = (userId: string) => `truvi-new-project-draft:${userId}`;
+
+function loadFormDraft(userId: string | undefined): ProjectForm | null {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY(userId));
+    return raw ? { ...EMPTY_FORM, ...JSON.parse(raw) } : null;
+  } catch {
+    return null;
+  }
+}
+
+function isBlank(form: ProjectForm): boolean {
+  return (Object.keys(EMPTY_FORM) as (keyof ProjectForm)[]).every((k) => form[k] === EMPTY_FORM[k]);
+}
+
 export default function NewProjectPage() {
   const navigate = useNavigate();
   const isAdmin = useAuthStore((s) => s.user?.role === "ADMIN");
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    city: "",
-    location: "",
-    projectType: "",
-    approvalAuthority: "RERA" as "RERA" | "DISTRICT_PANCHAYAT" | "DTCP",
-    reraNumber: "",
-    totalUnits: "",
-    possessionDate: "",
-    salesName: "",
-    salesPhone: "",
-    salesEmail: "",
-    commissionPercent: 3,
-    developerId: "",
-  });
+  const userId = useAuthStore((s) => s.user?._id);
+  const [restored] = useState(() => loadFormDraft(userId));
+  const [form, setForm] = useState<ProjectForm>(() => restored ?? EMPTY_FORM);
+  const [draftRestored, setDraftRestored] = useState(!!restored && !isBlank(restored));
   const [developers, setDevelopers] = useState<DeveloperOption[]>([]);
   const [photos, setPhotos] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Auto-save the form as a draft on every change (cleared once the project
+  // is created). Photos can't be stored in the browser, so they're re-picked.
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      if (isBlank(form)) localStorage.removeItem(DRAFT_KEY(userId));
+      else localStorage.setItem(DRAFT_KEY(userId), JSON.stringify(form));
+    } catch {
+      /* storage unavailable — nothing to save */
+    }
+  }, [form, userId]);
+
+  function discardDraft() {
+    setForm(EMPTY_FORM);
+    setDraftRestored(false);
+  }
 
   // Admins can assign the new listing to an existing developer.
   useEffect(() => {
@@ -103,6 +144,12 @@ export default function NewProjectPage() {
         commissionPercent: Number(form.commissionPercent),
         developerId: isAdmin && form.developerId ? form.developerId : undefined,
       });
+      // The project now exists on the server (as a draft) — drop the local copy.
+      try {
+        if (userId) localStorage.removeItem(DRAFT_KEY(userId));
+      } catch {
+        /* ignore */
+      }
       // Upload any project photos/videos chosen here as public gallery assets,
       // so the listing card is media-forward from the moment it's created.
       if (photos.length) {
@@ -120,9 +167,18 @@ export default function NewProjectPage() {
             /* skip a failed file, keep going */
           }
         }
-        toast.success(`Project created${uploaded ? ` with ${uploaded} file${uploaded === 1 ? "" : "s"}` : ""} — now add plans, inventory and documents.`);
+        const files = uploaded ? ` with ${uploaded} file${uploaded === 1 ? "" : "s"}` : "";
+        toast.success(
+          isAdmin
+            ? `Project created${files} — now add plans, inventory and documents.`
+            : `Draft saved${files} — add the remaining details, then submit for approval.`,
+        );
       } else {
-        toast.success("Project created — now add plans, photos, inventory and documents.");
+        toast.success(
+          isAdmin
+            ? "Project created — now add plans, photos, inventory and documents."
+            : "Draft saved — add photos and inventory, then submit for approval.",
+        );
       }
       // Straight into the full project workspace so every remaining detail
       // (floor plans, photos, inventory, amenities, payment plans, progress,
@@ -141,9 +197,17 @@ export default function NewProjectPage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">New Project</h1>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Step 1 — core details. After this you land on the project workspace to upload everything
-        else. The listing goes public only after admin approval.
+        Step 1 — core details. Your project is saved as a draft: add everything else on the project
+        workspace, then submit it for approval. The listing goes public only after admin approval.
       </p>
+      {draftRestored && (
+        <div className="mt-4 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/30 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-100">
+          <span>We restored the details you entered last time — continue where you left off.</span>
+          <button type="button" onClick={discardDraft} className="text-xs font-medium text-amber-200 underline underline-offset-2 hover:text-white">
+            Start fresh
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card className="border-white/10 glass text-white">
@@ -321,7 +385,7 @@ export default function NewProjectPage() {
             )}
 
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Creating…" : "Create project & continue"}
+              {loading ? "Saving…" : isAdmin ? "Create project & continue" : "Save draft & continue"}
             </Button>
           </form>
         </Card>

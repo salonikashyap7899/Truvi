@@ -257,9 +257,13 @@ export default function DeveloperDashboardPage() {
               <Link to={`/developer/projects/${p._id}`} className="min-w-0 flex-1">
                 <p className="font-medium">
                   {p.name}{" "}
-                  <Badge variant={p.approvalStatus === "APPROVED" ? "success" : p.approvalStatus === "PENDING" ? "warning" : "danger"}>
-                    {p.approvalStatus}
-                  </Badge>
+                  {p.approvalStatus === "DRAFT" ? (
+                    <Badge variant="default">Draft · finish &amp; submit</Badge>
+                  ) : (
+                    <Badge variant={p.approvalStatus === "APPROVED" ? "success" : p.approvalStatus === "PENDING" ? "warning" : "danger"}>
+                      {p.approvalStatus === "PENDING" ? "In review" : p.approvalStatus}
+                    </Badge>
+                  )}
                   {p.isVerified && <Badge variant="info" className="ml-1">Verified</Badge>}
                 </p>
                 <p className="text-sm text-muted-foreground">

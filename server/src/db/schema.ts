@@ -30,6 +30,9 @@ import {
 export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+/** A project additionally starts as DRAFT: saved but not yet sent for admin
+ *  review, until the developer completes the essentials and submits it. */
+export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
 /** Which government body approved/registered the project. Not every project is
  *  RERA-registered — many layouts are cleared by the District Panchayat or a
  *  development authority (DTCP) instead, so the listing accepts any of these. */
@@ -434,7 +437,7 @@ export const projects = pgTable(
     // developer list a project cleared by the District Panchayat or a
     // development authority (DTCP) — not only RERA-registered ones.
     approvalAuthority: text("approval_authority").$type<ApprovalAuthority>(),
-    approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("PENDING"),
+    approvalStatus: text("approval_status").$type<ProjectApprovalStatus>().notNull().default("PENDING"),
     listingTier: text("listing_tier").$type<ListingTier>().notNull().default("STANDARD"),
     featuredUntil: timestamp("featured_until", { withTimezone: true, mode: "date" }),
     isPrimeListing: boolean("is_prime_listing").notNull().default(false),
