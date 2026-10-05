@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -99,13 +100,22 @@ export default function AmbassadorDashboardPage() {
         </div>
         <div className="space-y-1 text-right">
           <div className="flex items-center justify-end gap-3"><NotificationBell /><UserMenu /></div>
-          <button
-            onClick={() => setShowQRCode(true)}
-            className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-white/10 transition"
-          >
-            <QrCode size={16} />
-            Share Access QR
-          </button>
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+            <Link
+              to="/inventory"
+              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-white/10 transition"
+            >
+              <Building2 size={16} />
+              Inventory
+            </Link>
+            <button
+              onClick={() => setShowQRCode(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-blue-300 hover:bg-white/10 transition"
+            >
+              <QrCode size={16} />
+              Share Access QR
+            </button>
+          </div>
         </div>
       </div>
 
