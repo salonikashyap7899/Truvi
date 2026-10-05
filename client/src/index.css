@@ -44,15 +44,19 @@ body {
   padding-top: env(safe-area-inset-top);
 }
 
-/* When an assistant opens as a full-width bottom sheet (Ask Truvi / AI Copilot),
+/* When the assistant (Ask Truvi + Copilot) opens as a full-width bottom sheet,
    the other floating buttons would sit on top of its input and hide what the
-   user types. Fade them out (and disable them) while a panel is open. */
-body.ask-truvi-open [data-fab="invest"],
-body.ask-truvi-open [data-fab="copilot"],
-body.copilot-open [data-fab="invest"],
-body.copilot-open [data-fab="ask"] {
+   user types. Fade them out (and disable them) while the panel is open. */
+body.ask-truvi-open [data-fab="invest"] {
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Pages sized "one screen tall" sit below the shared fixed navbar (the page
+   wrapper pads for it), so they're one navbar shorter — otherwise every short
+   page would scroll by exactly the navbar's height. */
+.has-global-nav > .min-h-screen {
+  min-height: calc(100dvh - 4.75rem - env(safe-area-inset-top, 0px));
 }
 
 /* The first-run onboarding tour is a fullscreen overlay; hide every floating

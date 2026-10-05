@@ -7,7 +7,6 @@ import WelcomeGate from "@/components/WelcomeGate";
 import Onboarding from "@/components/Onboarding";
 import WhatsAppChannelPrompt from "@/components/WhatsAppChannelPrompt";
 import AskTruvi from "@/components/AskTruvi";
-import AISalesCopilot from "@/components/AISalesCopilot";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 
 const AmbientBackground = lazy(() =>
@@ -16,7 +15,7 @@ const AmbientBackground = lazy(() =>
 
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
-import GlobalNav from "@/components/GlobalNav";
+import GlobalNav, { GLOBAL_NAV_OFFSET, useGlobalNavVisible } from "@/components/GlobalNav";
 import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
@@ -31,6 +30,7 @@ import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/P
 // Every other route page is lazy-loaded, so the initial download is tiny and
 // the app opens fast; each page's code is fetched only when its route opens.
 const IntelligencePage = lazy(() => import("@/pages/IntelligencePage"));
+const AskTruviPage = lazy(() => import("@/pages/AskTruviPage"));
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const JoinPage = lazy(() => import("@/pages/JoinPage"));
 const AboutPage = lazy(() => import("@/pages/AboutPage"));
@@ -131,11 +131,11 @@ function FloatingAssistants() {
   if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
-      {/* All assistants stay available in the app too. The bottom "Ask Truvi"
-          tab also opens AskTruvi via the open-ask-truvi event; in the app the
-          floating buttons are lifted above the tab bar (see mobile-app.css). */}
+      {/* One assistant pop-up with two AIs (Ask Truvi + Copilot). The app's
+          bottom "Ask Truvi" tab / Menu open it via the open-ask-truvi and
+          open-copilot events; in the app the floating buttons are lifted above
+          the tab bar (see mobile-app.css). */}
       <AskTruvi />
-      <AISalesCopilot />
     </>
   );
 }
@@ -171,15 +171,20 @@ function PageTransition({ children }: { children: ReactNode }) {
   // The admin OS is one persistent shell: keep it mounted while moving between
   // its modules (only its content area changes), instead of re-animating.
   const transitionKey = pathname.startsWith("/admin/") ? "/admin" : pathname;
+  const navOffset = useGlobalNavVisible();
   return (
     <motion.div
       key={transitionKey}
       initial={{ opacity: 0, y: IS_TOUCH ? 0 : 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="relative z-10 min-h-full"
-      // Leave room for the app's bottom tab bar so it never covers content.
-      style={showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : undefined}
+      className={`relative z-10 min-h-full ${navOffset ? "has-global-nav" : ""}`}
+      // Leave room for the app-level navbar at the top (inside the page's
+      // height, so short pages don't scroll) and for the app's bottom tab bar.
+      style={{
+        ...(navOffset ? { paddingTop: GLOBAL_NAV_OFFSET } : {}),
+        ...(showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : {}),
+      }}
     >
       {children}
     </motion.div>
@@ -288,6 +293,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/welcome" element={<WelcomeRoute />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
+        <Route path="/ask-truvi" element={<AskTruviPage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
         <Route path="/join" element={<JoinPage />} />

@@ -578,12 +578,20 @@ function AskTruviShowcase() {
           <p className="text-[11px] text-muted-foreground">
             Not a chatbot — a property-intelligence assistant grounded in Truvi's data.
           </p>
-          <button
-            onClick={openAskTruvi}
-            className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
-          >
-            Try it now →
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/ask-truvi"
+              className="rounded-full border border-white/15 px-4 py-1.5 text-xs font-medium text-foreground/90 transition hover:bg-white/10"
+            >
+              Open full chat
+            </Link>
+            <button
+              onClick={openAskTruvi}
+              className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
+            >
+              Try it now →
+            </button>
+          </div>
         </div>
       </div>
     </div>
