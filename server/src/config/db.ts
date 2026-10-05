@@ -33,6 +33,10 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "approval_authority" text`,
     // Developer-declared total plots/units, shown when per-unit inventory is sparse.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "total_units" integer`,
+    // Admin's manual Truvi Score adjustment (+/− points) and its reason.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "score_adjustment" integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "score_adjustment_reason" text`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "score_adjusted_at" timestamptz`,
     // GIS map coordinates (pin picker on the project form).
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,

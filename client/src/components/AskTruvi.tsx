@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { IS_NATIVE } from "@/lib/native";
 import {
-  X, Send, Bot, User, Sparkles, SlidersHorizontal, ChevronRight,
+  X, Send, User, Sparkles, SlidersHorizontal, ChevronRight,
   Search, Scale, Building2, MapPin, Wallet, ShieldCheck, Star, TrendingUp,
   FolderOpen, ClipboardList, AlertTriangle, HelpCircle, Info, FileWarning, type LucideIcon,
 } from "lucide-react";
@@ -445,26 +445,25 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       {/* Panel */}
       <div
         className={`
-          fixed z-50 flex flex-col bg-card shadow-2xl shadow-black/60
+          fixed z-50 flex flex-col glass shadow-2xl shadow-black/60 backdrop-blur-2xl
           transition-all duration-300 ease-out
           bottom-3 inset-x-3 h-[62vh] max-h-[500px] rounded-2xl border border-white/10
           sm:bottom-6 sm:right-6 sm:left-auto sm:inset-x-auto sm:w-[420px] sm:h-[580px] sm:max-h-none
           ${open ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
-        style={{ maxHeight: "85vh" }}
+        style={{ maxHeight: "85vh", backgroundColor: "rgba(10,13,20,0.94)" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600/20">
-              <Sparkles size={14} className="text-blue-400" />
-            </div>
+            <span className="grid size-7 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
             <div>
-              <p className="text-sm font-semibold text-white">Ask Truvi AI</p>
-              <p className="text-[10px] text-muted-foreground">Decision Intelligence · Source-backed</p>
+              <p className="text-sm font-semibold text-white">Ask Truvi™</p>
+              <p className="text-[10px] text-muted-foreground">Property Intelligence · Source-backed</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <span className="mr-1 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
             <button
               onClick={() => setShowAdvisor((s) => !s)}
               className="relative rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
@@ -524,16 +523,10 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-4">
           {messages.map((msg) => (
             <div key={msg.id}>
-              <div className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+              <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white
-                    ${msg.role === "ai" ? "bg-blue-600/30" : "bg-white/15"}`}
-                >
-                  {msg.role === "ai" ? <Bot size={13} className="text-blue-300" /> : <User size={13} />}
-                </div>
-                <div
-                  className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed
-                    ${msg.role === "ai" ? "bg-white/10 text-foreground rounded-bl-sm" : "bg-blue-600 text-white rounded-br-sm"}`}
+                  className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed
+                    ${msg.role === "ai" ? "max-w-[92%] bg-white/10 text-foreground rounded-bl-sm" : "max-w-[85%] bg-[var(--trust)] text-white rounded-br-sm"}`}
                 >
                   <RichText text={msg.text} />
                   {msg.comparison && <ComparisonTable comparison={msg.comparison} />}
@@ -544,7 +537,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
 
               {/* Follow-up Intelligence (spec feature 14) */}
               {msg.role === "ai" && !!msg.followUps?.length && (
-                <div className="ml-9 mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex flex-wrap gap-1.5">
                   {msg.followUps.map((f, i) => (
                     <button
                       key={i}
@@ -563,7 +556,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
 
           {/* Quick-start feature grid on a fresh chat */}
           {fresh && !loading && (
-            <div className="ml-9 grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {QUICK_ACTIONS.map((a) => (
                 <button
                   key={a.label}
@@ -578,10 +571,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
           )}
 
           {loading && (
-            <div className="flex items-end gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600/30">
-                <Bot size={13} className="text-blue-300" />
-              </div>
+            <div className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm bg-white/10 px-1 py-0">
                 <TypingDots />
               </div>
@@ -611,8 +601,8 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <Send size={13} />
             </button>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-foreground/80">
-            Source-backed answers · Not legal or financial advice
+          <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+            Not a chatbot — a property-intelligence assistant grounded in Truvi's data · Not legal or financial advice
           </p>
         </div>
         </>

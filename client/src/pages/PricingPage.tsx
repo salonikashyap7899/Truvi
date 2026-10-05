@@ -75,18 +75,11 @@ export default function PricingPage() {
       <main className="mx-auto max-w-6xl px-4 pt-28 pb-24 sm:px-6">
         {/* Header */}
         <div className="text-center">
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--trust)]/25 bg-[var(--trust)]/10 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.25em] text-[var(--trust)]"
-          >
-            Pricing
-          </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="mx-auto mt-5 max-w-3xl font-display text-4xl font-semibold leading-[1.1] tracking-tight sm:text-6xl"
+            className="mx-auto max-w-3xl font-display text-4xl font-semibold leading-[1.1] tracking-tight sm:text-6xl"
           >
             Pricing built for how you{" "}
             <span className="bg-gradient-to-r from-[var(--trust)] to-sky-300 bg-clip-text text-transparent">grow</span>

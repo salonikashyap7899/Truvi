@@ -16,13 +16,14 @@ if (IS_NATIVE && typeof document !== "undefined") {
 
 /**
  * Routes that run as their own full-screen shell (immersive 3D, the pan/zoom
- * master plan, the map, and the founder/admin OS dashboards). The app's bottom
+ * master plan, the map, and the founder/admin OS dashboards — every /admin
+ * page sits inside the admin OS shell). The app's bottom
  * tab bar is hidden on these so it never covers their own controls.
  */
 export function isImmersiveRoute(pathname: string): boolean {
   return (
     pathname === "/map" ||
-    pathname === "/admin/dashboard" ||
+    pathname.startsWith("/admin/") ||
     pathname === "/founder/dashboard" ||
     /^\/inventory\/[^/]+\/(3d|presentation)$/.test(pathname)
   );

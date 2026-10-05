@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -16,6 +16,7 @@ const AmbientBackground = lazy(() =>
 
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
+import GlobalNav from "@/components/GlobalNav";
 import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
@@ -43,9 +44,11 @@ const LegalPage = lazy(() => import("@/pages/LegalPage"));
 const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
 
 const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
+const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").then((m) => ({ default: m.AdminOsLayout })));
 const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
 const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePage"));
 const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
+const AdminScoresPage = lazy(() => import("@/pages/admin/AdminScoresPage"));
 const AdminProjectManagePage = lazy(() => import("@/pages/admin/AdminProjectManagePage"));
 const AdminRevenuePage = lazy(() => import("@/pages/admin/AdminRevenuePage"));
 const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
@@ -147,7 +150,7 @@ function Ambience() {
   if (IS_TOUCH) return null;
   // The landing page renders its own richer CityCanvas scene; the Founder
   // Dashboard uses its own light Founder-OS surface.
-  if (pathname === "/" || pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
+  if (pathname === "/" || pathname.startsWith("/founder") || pathname.startsWith("/admin/")) return null;
   return (
     <>
       <Suspense fallback={null}>
@@ -165,9 +168,12 @@ function PageTransition({ children }: { children: ReactNode }) {
   // lag on each tap. There we use a quick opacity-only fade with no vertical
   // travel, so navigation feels instant and native. Desktop keeps the richer
   // motion.
+  // The admin OS is one persistent shell: keep it mounted while moving between
+  // its modules (only its content area changes), instead of re-animating.
+  const transitionKey = pathname.startsWith("/admin/") ? "/admin" : pathname;
   return (
     <motion.div
-      key={pathname}
+      key={transitionKey}
       initial={{ opacity: 0, y: IS_TOUCH ? 0 : 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
@@ -274,6 +280,7 @@ export default function App() {
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
       <InvestFab />
+      <GlobalNav />
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <Routes>
@@ -318,30 +325,36 @@ export default function App() {
         <Route path="/marketing" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MarketingDashboardPage /></ProtectedRoute>} />
 
         {/* Admin */}
-        <Route path="/admin/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
-        <Route path="/admin/users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
-        <Route path="/admin/listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
-        <Route path="/admin/listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
-        <Route path="/admin/enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
-        <Route path="/admin/calls" element={<ProtectedRoute roles={["ADMIN"]}><AdminCallsPage /></ProtectedRoute>} />
-        <Route path="/admin/vouchers" element={<ProtectedRoute roles={["ADMIN"]}><AdminVouchersPage /></ProtectedRoute>} />
-        <Route path="/admin/revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
-        <Route path="/admin/settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
-        <Route path="/admin/ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
-        <Route path="/admin/payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
-        <Route path="/admin/marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
-        <Route path="/admin/notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
-        <Route path="/admin/verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
-        <Route path="/admin/kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
-        <Route path="/admin/referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
-        <Route path="/admin/documents" element={<ProtectedRoute roles={["ADMIN"]}><AdminDocumentsPage /></ProtectedRoute>} />
-        <Route path="/admin/finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
-        <Route path="/admin/commissions" element={<ProtectedRoute roles={["ADMIN"]}><AdminCommissionsPage /></ProtectedRoute>} />
-        <Route path="/admin/investments" element={<ProtectedRoute roles={["ADMIN"]}><AdminInvestmentsPage /></ProtectedRoute>} />
-        <Route path="/admin/ambassador-knowledge" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorKnowledgePage /></ProtectedRoute>} />
-        <Route path="/admin/academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
-        <Route path="/admin/audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
+        {/* Admin — one persistent OS shell (sidebar + top bar); each module opens
+            inside it without leaving the page, like a single-page app. */}
+        <Route path="/admin" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminOsLayout /></ProtectedRoute>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
+          <Route path="users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
+          <Route path="users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
+          <Route path="listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
+          <Route path="scores" element={<ProtectedRoute roles={["ADMIN"]}><AdminScoresPage /></ProtectedRoute>} />
+          <Route path="listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
+          <Route path="enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
+          <Route path="calls" element={<ProtectedRoute roles={["ADMIN"]}><AdminCallsPage /></ProtectedRoute>} />
+          <Route path="vouchers" element={<ProtectedRoute roles={["ADMIN"]}><AdminVouchersPage /></ProtectedRoute>} />
+          <Route path="revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
+          <Route path="settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
+          <Route path="ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
+          <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
+          <Route path="marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
+          <Route path="notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
+          <Route path="verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
+          <Route path="kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
+          <Route path="referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
+          <Route path="documents" element={<ProtectedRoute roles={["ADMIN"]}><AdminDocumentsPage /></ProtectedRoute>} />
+          <Route path="finance" element={<ProtectedRoute roles={["ADMIN"]}><AdminFinancePage /></ProtectedRoute>} />
+          <Route path="commissions" element={<ProtectedRoute roles={["ADMIN"]}><AdminCommissionsPage /></ProtectedRoute>} />
+          <Route path="investments" element={<ProtectedRoute roles={["ADMIN"]}><AdminInvestmentsPage /></ProtectedRoute>} />
+          <Route path="ambassador-knowledge" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorKnowledgePage /></ProtectedRoute>} />
+          <Route path="academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
+          <Route path="audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
+        </Route>
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />

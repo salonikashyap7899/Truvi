@@ -50,6 +50,8 @@ import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
 import { isPushEnabled } from "../services/pushService";
 import { logAudit } from "../services/audit";
+import { buildIntelligenceProfile } from "../services/intelligenceService";
+import { fetchRagCountsForProjects } from "../services/ragIntel";
 import { presentBuyerDocUrl } from "../services/privateFiles";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
@@ -1358,6 +1360,86 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
 // user approval/rejection endpoint here.
 
 // GET /api/admin/projects?approvalStatus=
+// ── Truvi Score management ───────────────────────────────────────────────
+// The Truvi Score is computed from each project's data; the admin can raise or
+// lower it by a number of points (with an internal reason) after review. The
+// adjustment is applied wherever the score is shown (listing cards, the score
+// breakdown) and is kept within 0–100.
+
+/** Every project's computed score, admin adjustment and final score. */
+router.get("/project-scores", requireRole("ADMIN"), async (_req, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({ project: projects, developerName: users.name })
+    .from(projects)
+    .leftJoin(users, eq(projects.developerId, users._id))
+    .orderBy(desc(projects.createdAt));
+  const ragCounts = await fetchRagCountsForProjects(db, rows.map((r) => r.project._id));
+  res.json({
+    projects: rows.map(({ project, developerName }) => {
+      const { ai } = buildIntelligenceProfile(project, ragCounts.get(String(project._id)) ?? {});
+      return {
+        _id: project._id,
+        name: project.name,
+        city: project.city,
+        location: project.location,
+        approvalStatus: project.approvalStatus,
+        developerName: developerName ?? null,
+        baseScore: ai.baseScore,
+        adjustment: ai.adjustment,
+        finalScore: ai.confidenceScore,
+        reason: project.scoreAdjustmentReason ?? null,
+        adjustedAt: project.scoreAdjustedAt ?? null,
+      };
+    }),
+  });
+});
+
+const scoreAdjustSchema = z.object({
+  adjustment: z.number().int().min(-100).max(100),
+  reason: z.string().trim().max(300).optional(),
+});
+
+/** Set a project's Truvi Score adjustment (0 clears it). */
+router.patch("/projects/:id/score", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = scoreAdjustSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Project not found" });
+
+  const db = getDb();
+  const [existing] = await db.select().from(projects).where(eq(projects._id, req.params.id));
+  if (!existing) return res.status(404).json({ error: "Project not found" });
+
+  const { adjustment } = parsed.data;
+  const reason = adjustment === 0 ? null : parsed.data.reason || null;
+  const [updated] = await db
+    .update(projects)
+    .set({ scoreAdjustment: adjustment, scoreAdjustmentReason: reason, scoreAdjustedAt: new Date() })
+    .where(eq(projects._id, existing._id))
+    .returning();
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "project.score.adjust",
+    resourceType: "project",
+    resourceId: String(existing._id),
+    metadata: { name: existing.name, from: existing.scoreAdjustment ?? 0, to: adjustment, reason },
+  });
+
+  const ragCounts = await fetchRagCountsForProjects(db, [updated._id]);
+  const { ai } = buildIntelligenceProfile(updated, ragCounts.get(String(updated._id)) ?? {});
+  res.json({
+    score: {
+      _id: updated._id,
+      baseScore: ai.baseScore,
+      adjustment: ai.adjustment,
+      finalScore: ai.confidenceScore,
+      reason: updated.scoreAdjustmentReason ?? null,
+      adjustedAt: updated.scoreAdjustedAt ?? null,
+    },
+  });
+});
+
 router.get("/projects", requireRole("ADMIN"), async (req, res) => {
   const { approvalStatus } = req.query;
 

@@ -20,6 +20,7 @@ import PlotLayoutMap from "@/components/PlotLayoutMap";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
 import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import LegalDocsManager from "@/components/LegalDocsManager";
+import ProjectSubmitBanner from "@/components/ProjectSubmitBanner";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -217,8 +218,15 @@ export default function ProjectDetailPage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <h1 className="text-2xl font-semibold">{project.name}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {project.location}, {project.city} · <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>{project.approvalStatus}</Badge>
+        {project.location}, {project.city} ·{" "}
+        <Badge variant={project.approvalStatus === "APPROVED" ? "success" : project.approvalStatus === "DRAFT" ? "default" : "warning"}>
+          {project.approvalStatus === "PENDING" ? "IN REVIEW" : project.approvalStatus}
+        </Badge>
       </p>
+
+      {(project.approvalStatus === "DRAFT" || project.approvalStatus === "REJECTED") && (
+        <ProjectSubmitBanner project={project} unitCount={units.length} onSubmitted={(p) => setProject((cur) => (cur ? { ...cur, approvalStatus: p.approvalStatus } : cur))} />
+      )}
 
       <div className="mt-6 flex flex-wrap gap-4">
         <TrustScoreWidget score={trustScore} />

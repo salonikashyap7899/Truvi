@@ -30,6 +30,9 @@ import {
 export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+/** A project additionally starts as DRAFT: saved but not yet sent for admin
+ *  review, until the developer completes the essentials and submits it. */
+export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
 /** Which government body approved/registered the project. Not every project is
  *  RERA-registered — many layouts are cleared by the District Panchayat or a
  *  development authority (DTCP) instead, so the listing accepts any of these. */
@@ -434,7 +437,7 @@ export const projects = pgTable(
     // developer list a project cleared by the District Panchayat or a
     // development authority (DTCP) — not only RERA-registered ones.
     approvalAuthority: text("approval_authority").$type<ApprovalAuthority>(),
-    approvalStatus: text("approval_status").$type<ApprovalStatus>().notNull().default("PENDING"),
+    approvalStatus: text("approval_status").$type<ProjectApprovalStatus>().notNull().default("PENDING"),
     listingTier: text("listing_tier").$type<ListingTier>().notNull().default("STANDARD"),
     featuredUntil: timestamp("featured_until", { withTimezone: true, mode: "date" }),
     isPrimeListing: boolean("is_prime_listing").notNull().default(false),
@@ -454,6 +457,11 @@ export const projects = pgTable(
     teamSiteVisited: boolean("team_site_visited").notNull().default(false),
     isVerified: boolean("is_verified").notNull().default(false),
     verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    // Admin's manual Truvi Score adjustment (points, −100…+100) applied on top
+    // of the computed score, with the internal reason and when it was set.
+    scoreAdjustment: integer("score_adjustment").notNull().default(0),
+    scoreAdjustmentReason: text("score_adjustment_reason"),
+    scoreAdjustedAt: timestamp("score_adjusted_at", { withTimezone: true, mode: "date" }),
     verificationDetails: jsonb("verification_details").$type<VerificationDetails>().default(DEFAULT_VERIFICATION_DETAILS),
     projectType: text("project_type").$type<ProjectType>(),
     presentationInfo: jsonb("presentation_info").$type<PresentationInfo>(),

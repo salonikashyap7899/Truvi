@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Input, Label } from "@/components/ui/primitives";
 import type { User } from "@/types";
@@ -75,10 +75,7 @@ export function OtpStep({
   return (
     <>
       <div className="flex flex-col items-center text-center">
-        <span className="grid size-11 place-items-center rounded-2xl bg-white/10 text-sky-300 shadow-[0_0_36px_rgba(59,130,246,0.3)]">
-          <ShieldCheck size={20} />
-        </span>
-        <h1 className="mt-4 font-display text-2xl font-medium text-white">Verify your account</h1>
+        <h1 className="font-display text-2xl font-medium text-white">Verify your account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Enter the 6-digit codes we sent to{" "}
           <span className="text-white/90">{email || "your email"}</span>
