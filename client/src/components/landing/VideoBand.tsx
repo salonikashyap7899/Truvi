@@ -15,7 +15,6 @@ export function VideoBand({
   srcWebm,
   srcMp4,
   poster,
-  eyebrow,
   title,
   subtitle,
   align = "center",
@@ -32,7 +31,6 @@ export function VideoBand({
   /** mp4/H.264 source — the most compatible (plays on Safari/iOS too). */
   srcMp4?: string;
   poster: string;
-  eyebrow?: ReactNode;
   title?: ReactNode;
   subtitle?: ReactNode;
   align?: "center" | "left";
@@ -89,7 +87,7 @@ export function VideoBand({
 
   const zoomStyle = zoom !== 1 ? { transform: `scale(${zoom})`, transformOrigin: "center" as const } : undefined;
 
-  const hasText = Boolean(eyebrow || title || subtitle);
+  const hasText = Boolean(title || subtitle);
   const justify = overlayPos === "top" ? "justify-start pt-10 sm:pt-14" : overlayPos === "bottom" ? "justify-end pb-10 sm:pb-14" : "justify-center";
   const items = align === "center" ? "items-center text-center" : "items-start text-left";
 
@@ -113,7 +111,6 @@ export function VideoBand({
         </div>
         {hasText && (
           <div className="flex flex-col items-center gap-3 text-center">
-            {eyebrow && <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/90">{eyebrow}</span>}
             {title && <h2 className="font-display text-3xl font-semibold leading-[1.05] text-white sm:text-4xl md:text-5xl">{title}</h2>}
             {subtitle && <p className="max-w-xl text-sm text-white/80 sm:text-base">{subtitle}</p>}
           </div>
@@ -163,14 +160,6 @@ export function VideoBand({
 
       {hasText && (
         <div className={`absolute inset-0 z-10 flex flex-col gap-3 px-6 sm:px-12 ${justify} ${items}`}>
-          {eyebrow && (
-            <motion.span
-              initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/90 backdrop-blur-sm"
-            >
-              {eyebrow}
-            </motion.span>
-          )}
           {title && (
             <motion.h2
               initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.55, delay: 0.05 }}

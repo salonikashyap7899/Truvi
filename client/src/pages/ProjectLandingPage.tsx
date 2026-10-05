@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SiteNav } from "@/components/SiteNav";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Building2, MapPin, ShieldCheck, MessageCircle, CalendarClock, X, Phone,
+  Building2, MapPin, ShieldCheck, MessageCircle, CalendarClock, X, Phone,
   ChevronLeft, ChevronRight, CheckCircle2, Home, Leaf, Flame, Camera, Star,
   Navigation, LayoutGrid, PlayCircle, Loader2,
   Calculator, ChevronDown, Ruler, Route, Gauge,
@@ -530,15 +531,8 @@ export default function ProjectLandingPage() {
         />
       )}
 
-      {/* Floating header */}
-      <header className="fixed inset-x-0 top-0 z-[90] border-b border-white/5 bg-[#05070c]/70 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <Link to="/" className="flex items-center gap-2">
-            <img src="/brand/wordmark.png" alt="Truvi Ventures" className="h-6 w-auto" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-          </Link>
-          <a href="#enquire" className="hidden items-center gap-1.5 rounded-full bg-[var(--trust)] px-4 py-2 text-xs font-semibold text-white sm:inline-flex">Book Site Visit <ArrowRight size={13} /></a>
-        </div>
-      </header>
+      {/* Site navbar (with ← Back) — same as every other page */}
+      <SiteNav />
 
       {/* 1. Hero */}
       <section className="relative h-[92vh] min-h-[560px] w-full overflow-hidden">

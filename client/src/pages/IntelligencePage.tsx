@@ -22,14 +22,6 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
   );
 }
 
-function Eyebrow({ children }: { children: ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full glass px-3 py-1 text-xs uppercase tracking-widest text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-[var(--trust)] animate-pulse" />
-      {children}
-    </div>
-  );
-}
 
 function Section({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <section className={`mx-auto max-w-6xl px-6 py-16 md:px-10 md:py-24 ${className}`}>{children}</section>;
@@ -125,7 +117,6 @@ export default function IntelligencePage() {
       <SiteNav />
       {/* 1 ── HERO */}
       <Section className="pt-28 md:pt-36">
-        <Reveal><Eyebrow>AI Intelligence — Verified by Design</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h1 className="mt-6 max-w-3xl font-display text-4xl font-medium leading-[1.05] tracking-tight md:text-6xl">
             How Truvi's <span className="text-gradient-trust">AI</span> turns raw data into verified intelligence.
@@ -141,7 +132,6 @@ export default function IntelligencePage() {
 
       {/* 2 ── THE PROBLEM */}
       <Section>
-        <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
             Real estate data is scattered across <span className="text-gradient-trust">a hundred sources.</span>
@@ -184,7 +174,6 @@ export default function IntelligencePage() {
 
       {/* 3 ── HOW IT WORKS */}
       <Section>
-        <Reveal><Eyebrow>How It Works</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
             From raw records to <span className="text-gradient-trust">decision-ready intelligence.</span>
@@ -243,7 +232,6 @@ export default function IntelligencePage() {
 
       {/* 4 ── DATA VERIFICATION */}
       <Section>
-        <Reveal><Eyebrow>Data Verification</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
             What's verified, what's pending, <span className="text-gradient-trust">what's unavailable.</span>
@@ -293,7 +281,6 @@ export default function IntelligencePage() {
 
       {/* 5 ── SOURCE COVERAGE */}
       <Section>
-        <Reveal><Eyebrow>Data Team · Source Coverage</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
             Every source feeding the model <span className="text-gradient-trust">is verified by Truvi.</span>
@@ -333,7 +320,6 @@ export default function IntelligencePage() {
 
       {/* 6 ── THREE PILLARS */}
       <Section>
-        <Reveal><Eyebrow>The Three Pillars</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
             Organised. Understandable. <span className="text-gradient-trust">Decision-ready.</span>

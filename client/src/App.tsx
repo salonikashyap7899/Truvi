@@ -16,6 +16,7 @@ const AmbientBackground = lazy(() =>
 
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
+import GlobalNav from "@/components/GlobalNav";
 import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
@@ -274,6 +275,7 @@ export default function App() {
       <WhatsAppChannelPrompt />
       <FloatingAssistants />
       <InvestFab />
+      <GlobalNav />
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <Routes>

@@ -230,22 +230,6 @@ export default function AboutPage() {
               </p>
             </Reveal>
 
-            <Reveal delay={0.3}>
-              <div className="mt-8 flex flex-wrap gap-3">
-                {["Verified", "Trusted", "Intelligent"].map((chip, i) => (
-                  <motion.span
-                    key={chip}
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + i * 0.1, duration: 0.5 }}
-                    className="rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/85 backdrop-blur-sm"
-                    style={{ border: `1px solid ${BLUE_BORDER}`, background: GLASS }}
-                  >
-                    {chip}
-                  </motion.span>
-                ))}
-              </div>
-            </Reveal>
 
             {/* Stat strip */}
             <Reveal delay={0.4}>

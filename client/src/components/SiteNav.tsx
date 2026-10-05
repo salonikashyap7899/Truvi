@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
+import { InNavbarContext, showsNavBack, useNavChrome } from "@/lib/navChrome";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -154,10 +155,33 @@ function NavItem({
   );
 }
 
-export function SiteNav() {
+/**
+ * The site navbar. Pages may render it themselves (they pad their content
+ * for it); every other page gets it from <GlobalNav /> in App (`global`).
+ * `hideBack` drops the ← Back button on a page that has its own back link.
+ */
+export function SiteNav({ global = false, hideBack = false }: { global?: boolean; hideBack?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const mountNav = useNavChrome((s) => s.mount);
+  const unmountNav = useNavChrome((s) => s.unmount);
+
+  // Register before paint so the app-level navbar steps aside (no flash of two bars).
+  useLayoutEffect(() => {
+    mountNav(!global);
+    return () => unmountNav(!global);
+  }, [global, mountNav, unmountNav]);
+
+  const showBack = !hideBack && showsNavBack(pathname, user ? dashboardPath(user) : null);
+  // Go back within the site when there's history; a page opened directly
+  // (shared link, new tab) goes to the user's dashboard, or home.
+  const goBack = () => {
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) navigate(-1);
+    else navigate(user ? dashboardPath(user) : "/");
+  };
 
   // Close the mobile menu whenever the route changes
   useEffect(() => {
@@ -179,6 +203,7 @@ export function SiteNav() {
   const visibleLinks = navLinksForRole(user);
 
   return (
+    <InNavbarContext.Provider value={true}>
     <header
       className="fixed top-0 left-0 right-0 z-50 px-4 pb-4 sm:px-6 md:px-12 md:pb-5"
       /* On the native app / notched phones the WebView runs edge-to-edge under
@@ -194,13 +219,26 @@ export function SiteNav() {
            page heading bleed through on mobile). */
         style={{ backgroundColor: "rgba(10,13,20,0.9)" }}
       >
-        <Link
-          to="/"
-          onClick={close}
-          className="flex min-w-0 items-center gap-2 font-display text-sm font-semibold tracking-tight sm:text-base"
-        >
-          <BrandLogo />
-        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          {showBack && (
+            <button
+              onClick={() => { close(); goBack(); }}
+              aria-label="Go back"
+              title="Back"
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition hover:bg-white/10"
+            >
+              <ArrowLeft size={15} />
+              <span className="hidden sm:inline">Back</span>
+            </button>
+          )}
+          <Link
+            to="/"
+            onClick={close}
+            className="flex min-w-0 items-center gap-2 font-display text-sm font-semibold tracking-tight sm:text-base"
+          >
+            <BrandLogo />
+          </Link>
+        </div>
 
         {/* Desktop links — centered so the bar stays balanced whatever the count */}
         <nav className="hidden flex-1 items-center justify-center gap-5 text-xs uppercase tracking-[0.16em] text-muted-foreground lg:flex xl:gap-6">
@@ -324,6 +362,7 @@ export function SiteNav() {
         )}
       </AnimatePresence>
     </header>
+    </InNavbarContext.Provider>
   );
 }
 

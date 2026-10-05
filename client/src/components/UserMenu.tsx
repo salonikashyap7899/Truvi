@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, LogOut, Home, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import { IS_NATIVE } from "@/lib/native";
+import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 
 /**
  * Auth-aware account chip for the public site header. Signed-in users see
@@ -35,9 +36,15 @@ export function UserMenu() {
     navigate("/");
   }
 
+  const inNavbar = useContext(InNavbarContext);
+  const navbarShown = useNavChrome((s) => s.navs > 0);
+
   // In the installed app the header shows no account pop-up — every account
   // option (dashboard, logout, sign in, WhatsApp) lives in the bottom "Menu".
   if (IS_NATIVE) return null;
+  // A page's own header copy is redundant while the top navbar (which carries
+  // the same account menu) is on screen.
+  if (!inNavbar && navbarShown) return null;
 
   if (!isAuthenticated || !user) {
     return (

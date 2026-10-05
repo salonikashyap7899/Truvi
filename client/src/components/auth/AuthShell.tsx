@@ -54,7 +54,7 @@ export function AuthCard({
   children: React.ReactNode;
   className?: string;
   /** Optional element pinned to the card's top-left corner (e.g. a voice-guide
-   *  play button). It stays fixed while the card body scrolls. */
+   *  play button). */
   topLeft?: React.ReactNode;
 }) {
   return (
@@ -72,12 +72,11 @@ export function AuthCard({
         <div className="relative rounded-[27px] bg-[#0a0d14]/85 backdrop-blur-2xl">
           {/* Top sheen */}
           <div aria-hidden className="absolute inset-x-8 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-          {/* Pinned top-left slot (doesn't scroll with the body) */}
+          {/* Pinned top-left slot */}
           {topLeft && <div className="absolute left-4 top-4 z-20 sm:left-5 sm:top-5">{topLeft}</div>}
-          {/* Card body — scrolls inside the card so the page itself never scrolls */}
-          <div
-            className={`max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain rounded-[27px] px-6 pt-7 pb-7 sm:px-8 sm:pt-8 sm:pb-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className ?? ""}`}
-          >
+          {/* Card body — grows to fit the whole form (the page scrolls if it's
+              taller than the screen), so no field is ever cut off inside the card. */}
+          <div className={`rounded-[27px] px-6 pt-7 pb-7 sm:px-8 sm:pt-8 sm:pb-8 ${className ?? ""}`}>
             {children}
           </div>
         </div>

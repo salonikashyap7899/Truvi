@@ -39,14 +39,6 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
   );
 }
 
-function Eyebrow({ children }: { children: ReactNode }) {
-  return (
-    <div className="mb-6 inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-      <span className="size-1.5 rounded-full bg-[var(--trust)] animate-pulse-glow" />
-      {children}
-    </div>
-  );
-}
 
 function Section({
   id,
@@ -800,7 +792,6 @@ function LiveProjectsShowcase() {
 
   return (
     <Section id="verified-projects">
-      <Reveal><Eyebrow>Live on Truvi</Eyebrow></Reveal>
       <Reveal delay={0.1}>
         <h2 className="max-w-3xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
           Verified projects, <span className="text-gradient-trust">straight from developers.</span>
@@ -923,9 +914,6 @@ export default function LandingPage() {
             </Link>
           </Reveal>
         )}
-        <Reveal>
-          <Eyebrow>Property Intelligence · Verified by Design</Eyebrow>
-        </Reveal>
         <Reveal delay={0.1}>
           <h1 className="font-display text-3xl font-medium leading-[1.08] tracking-tight text-gradient-aurora sm:text-4xl md:text-5xl">
             The Intelligence Layer<br />for Indian Real Estate.
@@ -954,7 +942,6 @@ export default function LandingPage() {
       <VideoBand
         srcMp4="/media/intro.mp4"
         poster="/media/intro-poster.jpg"
-        eyebrow="Introducing"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
         muted={false}
@@ -973,7 +960,6 @@ export default function LandingPage() {
       <>
       {/* ---------- 2 · THE PROBLEM ---------- */}
       <Section id="the-problem">
-        <Reveal><Eyebrow>The Problem</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             India doesn't have a property discovery problem.{" "}
@@ -1001,7 +987,6 @@ export default function LandingPage() {
 
       {/* ---------- 3 · TRUVI INTELLIGENCE ENGINE ---------- */}
       <Section id="intelligence">
-        <Reveal><Eyebrow>Meet Truvi Intelligence</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Data goes in. <span className="text-gradient-trust">Intelligence comes out.</span>
@@ -1020,7 +1005,6 @@ export default function LandingPage() {
 
       {/* ---------- 4 · ASK TRUVI ---------- */}
       <Section id="ask-truvi" className="items-center text-center">
-        <Reveal><Eyebrow>Ask Truvi™</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-3xl font-medium leading-[1.02] sm:text-4xl md:text-6xl lg:text-7xl">
             Ask real estate questions.<br />
@@ -1042,7 +1026,6 @@ export default function LandingPage() {
 
       {/* ---------- 5 · TRUVI PROPERTY PASSPORT ---------- */}
       <Section id="passport">
-        <Reveal><Eyebrow>Truvi Property Passport™</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Every property gets a{" "}
@@ -1082,7 +1065,6 @@ export default function LandingPage() {
 
       {/* ---------- 6 · TRUVI SCORE ---------- */}
       <Section id="truvi-score">
-        <Reveal><Eyebrow>Truvi Score™</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             One number that says{" "}
@@ -1122,7 +1104,6 @@ export default function LandingPage() {
 
       {/* ---------- 7 · PRODUCT PROOF: DEMO PROPERTY ---------- */}
       <Section id="demo-property" className="items-center text-center">
-        <Reveal><Eyebrow>Live Example</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
             Not features. <span className="text-gradient-aurora">Output.</span>
@@ -1142,7 +1123,6 @@ export default function LandingPage() {
 
       {/* ---------- 8 · BEFORE / WITH TRUVI ---------- */}
       <Section id="before-after">
-        <Reveal><Eyebrow>The Difference</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Days of guesswork,{" "}
@@ -1184,7 +1164,6 @@ export default function LandingPage() {
       {/* "For Developers" — hidden only for signed-in buyers & CPs. */}
       {showDeveloperSection && (
         <Section id="developer-intelligence">
-          <Reveal><Eyebrow>Developer Intelligence</Eyebrow></Reveal>
           <Reveal delay={0.1}>
             <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
               The market, as your{" "}
@@ -1223,7 +1202,6 @@ export default function LandingPage() {
 
       {/* ---------- 11 · DATA MOAT ---------- */}
       <Section id="data-moat" className="items-center text-center">
-        <Reveal><Eyebrow>The Data Moat</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
             Every property analysed{" "}
@@ -1256,7 +1234,6 @@ export default function LandingPage() {
 
       {/* ---------- 12 · TRUST & METHODOLOGY ---------- */}
       <Section id="methodology">
-        <Reveal><Eyebrow>Trust & Methodology</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-4xl font-medium md:text-6xl">
             How Truvi <span className="text-gradient-trust">thinks.</span>
@@ -1298,7 +1275,6 @@ export default function LandingPage() {
 
       {/* About Truvi Ventures — mission, vision, purpose, values */}
       <Section id="about-truvi">
-        <Reveal><Eyebrow>Truvi Ventures Private Limited</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Building India's most trusted{" "}
@@ -1326,7 +1302,6 @@ export default function LandingPage() {
 
       {/* The Truvi ecosystem — every stakeholder */}
       <Section id="ecosystem" className="items-center text-center">
-        <Reveal><Eyebrow>The Truvi Ecosystem</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
             One platform. Every stakeholder.<br />
@@ -1346,7 +1321,6 @@ export default function LandingPage() {
 
       {/* The verification engine — 6 steps */}
       <Section id="verification-engine">
-        <Reveal><Eyebrow>The Truvi Verification Engine</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             AI-powered. Human-verified.{" "}
@@ -1368,7 +1342,6 @@ export default function LandingPage() {
 
       {/* Why Truvi wins — the 7 pillars */}
       <Section id="why-truvi-wins">
-        <Reveal><Eyebrow>Why Truvi Wins</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Seven pillars of a{" "}
@@ -1389,7 +1362,6 @@ export default function LandingPage() {
 
       {/* India's real-estate opportunity — headline stats */}
       <Section id="opportunity" className="items-center text-center">
-        <Reveal><Eyebrow>India's Real Estate Opportunity</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-3xl font-medium sm:text-4xl md:text-6xl">
             The world's fastest-growing market,{" "}
@@ -1410,7 +1382,6 @@ export default function LandingPage() {
 
       {/* Growth roadmap — long-term mission statement */}
       <Section id="roadmap" className="items-center text-center">
-        <Reveal><Eyebrow>Our Growth Roadmap</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="mt-2 max-w-4xl font-display text-3xl font-medium leading-[1.1] sm:text-4xl md:text-5xl">
             Our long-term mission is to build{" "}
@@ -1421,7 +1392,6 @@ export default function LandingPage() {
 
       {/* Why partner with Truvi */}
       <Section id="partner">
-        <Reveal><Eyebrow>Why Partner With Truvi</Eyebrow></Reveal>
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Building trust before{" "}
@@ -1453,7 +1423,6 @@ export default function LandingPage() {
       <VideoBand
         srcMp4="/media/vision.mp4"
         poster="/media/vision-poster.jpg"
-        eyebrow="The Truvi vision"
         title={<>Know the property before you buy it.</>}
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"

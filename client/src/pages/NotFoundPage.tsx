@@ -17,7 +17,7 @@ export default function NotFoundPage() {
       <AuthAurora />
 
       <div className="relative z-10">
-        <SiteNav />
+        <SiteNav hideBack />
         <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6 py-20">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
