@@ -5,6 +5,7 @@ import { projects, units, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagItemsForProject, fetchRagCountsForProjects } from "../services/ragIntel";
+import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 
 const router = Router();
 
@@ -114,7 +115,7 @@ router.get("/", async (_req, res) => {
     const stats = statsById.get(String(project._id));
     const profile = buildIntelligenceProfile(project, ragCounts.get(String(project._id)) ?? {});
     return {
-      ...project,
+      ...withoutPrivateProjectFields(project),
       developerId: developer ? { _id: developer._id, name: developer.name } : null,
       unitCount: stats?.unitCount ?? 0,
       plotCount: displayPlotCount(project.totalUnits, stats?.maxUnitNo ?? 0, stats?.unitCount ?? 0),

@@ -54,7 +54,7 @@ import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
 import verificationAdminRoutes from "./routes/verificationAdmin";
 import askRoutes from "./routes/ask";
-import { securityHeaders } from "./middleware/security";
+import { securityHeaders, setUploadHeaders } from "./middleware/security";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -125,8 +125,9 @@ export function createApp() {
     express.static(uploadsDir, {
       maxAge: "365d",
       immutable: true,
-      setHeaders: (res) => {
+      setHeaders: (res, filePath) => {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        setUploadHeaders(res, filePath);
       },
     }),
   );

@@ -84,7 +84,11 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
 
   switch (user.role) {
     case "AMBASSADOR":
-      return [dash("My Tasks"), { label: "For Developers", hash: "#developer-intelligence" }];
+      return [
+        dash("My Tasks"),
+        { label: "Inventory", to: "/inventory" },
+        { label: "For Developers", hash: "#developer-intelligence" },
+      ];
     case "BUYER":
       return [
         dash("Dashboard"),

@@ -6,6 +6,7 @@ import { getDb } from "../config/db";
 import { users, projects, units, BuyerProfile, IUser, IProject } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 
 const router = Router();
 router.use(authenticate);
@@ -16,7 +17,7 @@ const saveProjectSchema = z.object({ projectId: z.string().min(1) });
 // the `developerId` key becomes a nested `{ _id, name, developerProfile }` object.
 function withDeveloper(row: { project: IProject; developer: IUser | null }) {
   return {
-    ...row.project,
+    ...withoutPrivateProjectFields(row.project),
     developerId: row.developer
       ? {
           _id: row.developer._id,

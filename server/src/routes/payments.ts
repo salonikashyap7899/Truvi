@@ -10,7 +10,7 @@ import { getEnv, isRazorpayConfigured } from "../config/env";
 import { getPlan, withGst, intervalEnd } from "../config/pricing";
 import { evaluateVoucher, normalizeVoucherCode } from "../services/vouchers";
 import { sql } from "drizzle-orm";
-import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { authenticate, optionalAuthenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
 import { notifyUser, notifyRole } from "../services/notificationService";
 
@@ -95,7 +95,9 @@ const createOrderSchema = z.object({
   voucherCode: z.string().max(40).optional(),
 });
 
-router.post("/create-order", async (req: AuthedRequest, res: Response) => {
+// optionalAuthenticate links the order to the signed-in buyer's account (so
+// "My Plans" and paid entitlements unlock); guests can still check out.
+router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, res: Response) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 
@@ -277,7 +279,7 @@ const createSubSchema = z.object({
 // How many billing cycles Razorpay should schedule before auto-completing.
 const TOTAL_CYCLES = { monthly: 120, yearly: 10 } as const; // ~10 years either way
 
-router.post("/create-subscription", async (req: AuthedRequest, res: Response) => {
+router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequest, res: Response) => {
   const parsed = createSubSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
 

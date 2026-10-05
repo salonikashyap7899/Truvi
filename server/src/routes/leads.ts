@@ -35,6 +35,10 @@ router.get("/", async (req: AuthedRequest, res) => {
     const myProjectIds = myProjects.map((p) => p._id);
     if (myProjectIds.length === 0) return res.json({ leads: [] });
     conditions.push(inArray(leads.projectId, myProjectIds));
+  } else if (user.role !== "ADMIN") {
+    // Default-deny: buyers, ambassadors and verifiers have no leads of their
+    // own, and must never fall through to "every lead on the platform".
+    return res.json({ leads: [] });
   }
 
   const submitter = alias(users, "submitter");
@@ -76,15 +80,20 @@ router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const windowStart = new Date(Date.now() - DUPLICATE_LEAD_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const [possibleDuplicate] = await db
-    .select({ _id: leads._id })
+    .select({ _id: leads._id, assignedToId: leads.assignedToId, submittedById: leads.submittedById })
     .from(leads)
     .where(and(eq(leads.projectId, projectId), eq(leads.clientPhone, clientPhone), gte(leads.createdAt, windowStart)));
 
   if (possibleDuplicate && !confirmDuplicate) {
+    // Only reveal the existing lead's id to the CP who owns it — another CP's
+    // lead id must not leak (it was used to attach a site visit to it).
+    const ownsExisting =
+      String(possibleDuplicate.assignedToId) === req.user!.userId ||
+      String(possibleDuplicate.submittedById) === req.user!.userId;
     return res.status(409).json({
       warning: "DUPLICATE_DETECTED",
       message: "A lead with this phone number for this project was submitted recently. Submit again with confirmDuplicate: true to proceed anyway.",
-      existingLeadId: possibleDuplicate._id,
+      ...(ownsExisting ? { existingLeadId: possibleDuplicate._id } : {}),
     });
   }
 
@@ -102,15 +111,16 @@ router.post("/", requireRole("CP"), async (req: AuthedRequest, res) => {
     })
     .returning();
 
-  emitLeadUpdate(lead);
+  const [project] = await db
+    .select({ name: projects.name, developerId: projects.developerId })
+    .from(projects)
+    .where(eq(projects._id, projectId))
+    .catch(() => []);
+  emitLeadUpdate(lead, project?.developerId);
 
   // Notify the project's developer (and admins/founders) about the new lead.
   // Never let a notification failure fail lead creation.
   try {
-    const [project] = await db
-      .select({ name: projects.name, developerId: projects.developerId })
-      .from(projects)
-      .where(eq(projects._id, projectId));
     if (project) {
       await notifyUser(String(project.developerId), {
         type: NotificationType.NEW_LEAD,
@@ -147,11 +157,16 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   if (user.role === "CP" && String(lead.assignedToId) !== user.userId) {
     return res.status(403).json({ error: "You can only update leads assigned to you" });
   }
+  const [leadProject] = await db
+    .select({ developerId: projects.developerId })
+    .from(projects)
+    .where(eq(projects._id, lead.projectId));
   if (user.role === "DEVELOPER") {
-    const [project] = await db.select().from(projects).where(eq(projects._id, lead.projectId));
-    if (!project || String(project.developerId) !== user.userId) {
+    if (!leadProject || String(leadProject.developerId) !== user.userId) {
       return res.status(403).json({ error: "Not your project's lead" });
     }
+  } else if (user.role !== "CP" && user.role !== "ADMIN") {
+    return res.status(403).json({ error: "You can't update leads" });
   }
 
   const newStage = parsed.data.stage;
@@ -201,7 +216,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   }
 
   await logAudit({ userId: user.userId, action: "lead.stage.update", resourceType: "lead", resourceId: String(lead._id), metadata: { from: lead.stage, to: newStage, client: lead.clientName } });
-  emitLeadUpdate(updated);
+  emitLeadUpdate(updated, leadProject?.developerId);
 
   // Notify on a real stage change. Never fail the move on a notification.
   try {

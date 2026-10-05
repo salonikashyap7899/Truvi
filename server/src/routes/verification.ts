@@ -43,8 +43,12 @@ router.post("/verify/:projectId", verifyLimiter, requireRole("ADMIN", "VERIFIER"
   res.json({ verification, fraud });
 });
 
-/** GET /api/verification/:projectId — latest result + fraud flags. */
-router.get("/verification/:projectId", async (req, res) => {
+/**
+ * GET /api/verification/:projectId — latest result + fraud flags. Internal
+ * review data (fraud flags, raw check evidence, unapproved projects), so it is
+ * limited to the admin/verifier console that uses it.
+ */
+router.get("/verification/:projectId", requireRole("ADMIN", "VERIFIER"), async (req, res) => {
   const projectId = req.params.projectId;
   if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found" });
 
@@ -61,7 +65,7 @@ router.get("/verification/:projectId", async (req, res) => {
  * project, plus the verification result and fraud flags. Sections are never
  * hardcoded: whatever category has rows is returned, the rest are omitted.
  */
-router.get("/property/:id", async (req, res) => {
+router.get("/property/:id", requireRole("ADMIN", "VERIFIER"), async (req, res) => {
   const id = req.params.id;
   if (!isValidId(id)) return res.status(404).json({ error: "Property not found" });
 

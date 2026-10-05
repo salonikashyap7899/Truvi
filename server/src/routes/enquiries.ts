@@ -12,6 +12,8 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { notifyRole } from "../services/notificationService";
 import { emitToRole } from "../sockets";
 import { getEnv } from "../config/env";
+import { enquiryLimiter } from "../middleware/security";
+import { fileMatchesExtension, randomFileStem } from "../services/uploadService";
 
 const router = Router();
 
@@ -27,15 +29,17 @@ const enquiryStorage = multer.diskStorage({
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
+  // Random, unguessable name (the old ms-timestamp names could be guessed);
+  // the extension is lower-cased and checked against the allowlist below.
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `enquiry-${Date.now()}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `enquiry-${randomFileStem()}${ext}`);
   },
 });
 
 const enquiryUpload = multer({
   storage: enquiryStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 }, // 5 MB, one file
   fileFilter: (_req, file, cb) => {
     const allowed = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx"];
     const ext = path.extname(file.originalname).toLowerCase();
@@ -53,11 +57,22 @@ const enquirySchema = z.object({
   projectName: z.string().optional(),
 });
 
-// POST /api/enquiries  — public, no auth needed
-router.post("/", enquiryUpload.single("file"), async (req, res) => {
+/** Remove a just-uploaded attachment from a rejected enquiry (never stored data). */
+function discardUpload(file?: Express.Multer.File) {
+  if (file?.path) fs.promises.unlink(file.path).catch(() => {});
+}
+
+// POST /api/enquiries  — public, no auth needed. Rate-limited (it accepts a
+// file from anyone) and the file must really be the type its name claims.
+router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) => {
   const parsed = enquirySchema.safeParse(req.body);
   if (!parsed.success) {
+    discardUpload(req.file);
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  }
+  if (req.file && !fileMatchesExtension(req.file.path, path.extname(req.file.filename))) {
+    discardUpload(req.file);
+    return res.status(400).json({ error: "That file doesn't look like a valid PDF, image or Word document." });
   }
 
   const { email, name, purposeType, message, projectId, projectName } = parsed.data;
@@ -133,7 +148,7 @@ const leadSchema = z.object({
 });
 
 // POST /api/enquiries/lead  — public, no auth needed
-router.post("/lead", async (req, res) => {
+router.post("/lead", enquiryLimiter, async (req, res) => {
   const parsed = leadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });

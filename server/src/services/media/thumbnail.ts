@@ -58,9 +58,9 @@ export async function generateThumbnail(filePath: string, mimeType?: string): Pr
   if (!looksLikeImage(filePath, mimeType)) return null;
   if (isThumbName(filePath)) return null; // never thumbnail a thumbnail
 
-  let sharp: typeof import("sharp");
+  let sharp: typeof import("sharp").default;
   try {
-    sharp = (await import("sharp")).default as unknown as typeof import("sharp");
+    sharp = (await import("sharp")).default as unknown as typeof import("sharp").default;
   } catch {
     return null; // sharp not installed → skip quietly
   }

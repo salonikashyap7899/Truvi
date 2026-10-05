@@ -71,7 +71,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   const db = getDb();
 
   const conditions = [];
-  if (user.role === "CP") {
+  if (user.role === "CP" || user.role === "AMBASSADOR") {
     conditions.push(eq(commissions.cpId, user.userId));
   } else if (user.role === "DEVELOPER") {
     const myProjects = await db
@@ -87,6 +87,9 @@ router.get("/", async (req: AuthedRequest, res) => {
     const leadIds = myLeads.map((l) => l._id);
     if (leadIds.length === 0) return res.json({ commissions: [] });
     conditions.push(inArray(commissions.leadId, leadIds));
+  } else if (user.role !== "ADMIN") {
+    // Default-deny: buyers and verifiers have no commissions.
+    return res.json({ commissions: [] });
   }
 
   const rows = await db

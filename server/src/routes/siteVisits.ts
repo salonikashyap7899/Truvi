@@ -30,6 +30,9 @@ router.get("/", async (req: AuthedRequest, res) => {
     const myProjectIds = myProjects.map((p) => p._id);
     if (myProjectIds.length === 0) return res.json({ siteVisits: [] });
     conditions.push(inArray(siteVisits.projectId, myProjectIds));
+  } else if (user.role !== "ADMIN") {
+    // Default-deny: other roles (ambassador, verifier) have no site visits.
+    return res.json({ siteVisits: [] });
   }
 
   const cp = alias(users, "cp");
@@ -67,6 +70,22 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
   if (req.user!.role === "CP") {
     if (!parsed.data.leadId) return res.status(400).json({ error: "leadId is required for CP site visits" });
     if (!isValidId(parsed.data.leadId)) return res.status(404).json({ error: "Lead not found" });
+
+    // The lead must be this CP's own, on this project — otherwise a CP could
+    // attach a visit to another partner's lead and take it over.
+    const [lead] = await db
+      .select({ assignedToId: leads.assignedToId, submittedById: leads.submittedById, projectId: leads.projectId })
+      .from(leads)
+      .where(eq(leads._id, parsed.data.leadId));
+    const ownsLead =
+      !!lead &&
+      (lead.assignedToId
+        ? String(lead.assignedToId) === req.user!.userId
+        : String(lead.submittedById) === req.user!.userId);
+    if (!ownsLead) return res.status(404).json({ error: "Lead not found" });
+    if (String(lead.projectId) !== parsed.data.projectId) {
+      return res.status(400).json({ error: "This lead belongs to a different project" });
+    }
 
     const [siteVisit] = await db
       .insert(siteVisits)

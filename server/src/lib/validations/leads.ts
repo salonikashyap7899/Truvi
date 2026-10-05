@@ -35,5 +35,6 @@ export const confirmAttendanceSchema = z.object({ lat: z.number(), lng: z.number
 export const siteVisitReportSchema = z.object({
   reportNotes: z.string().min(1),
   nextSteps: z.string().optional(),
-  newLeadStage: z.enum(["NEGOTIATION", "BOOKING", "REGISTRATION", "LOST", "CONTACTED"]).optional(),
+  // Booked/Registered are set only by an Admin or Developer (PATCH /api/leads/:id).
+  newLeadStage: z.enum(["NEGOTIATION", "LOST", "CONTACTED"]).optional(),
 });

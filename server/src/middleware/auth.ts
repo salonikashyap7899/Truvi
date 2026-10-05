@@ -45,6 +45,25 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
 }
 
 /**
+ * For routes open to guests that should still know who a signed-in caller is
+ * (e.g. checkout, so a purchase is linked to the buyer's account). No token →
+ * continue as a guest. A token that is expired or invalid → 401, so the app
+ * refreshes its session and retries instead of silently acting as a guest.
+ */
+export function optionalAuthenticate(req: AuthedRequest, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) return next();
+  try {
+    req.user = verifyAccessToken(token);
+    touchActive(req.user.userId);
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
+/**
  * Restricts a route to the given roles. Must run after `authenticate`.
  *
  * Admin account-approval has been removed — accounts are gated at login by

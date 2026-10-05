@@ -39,10 +39,10 @@ export async function optimizeUploadedImage(filePath: string, mimeType?: string)
   const originalSize = safeSize(filePath);
   if (!looksLikeImage(filePath, mimeType)) return originalSize;
 
-  let sharp: typeof import("sharp");
+  let sharp: typeof import("sharp").default;
   try {
     // Lazy, optional require so the server still boots/builds if sharp is absent.
-    sharp = (await import("sharp")).default as unknown as typeof import("sharp");
+    sharp = (await import("sharp")).default as unknown as typeof import("sharp").default;
   } catch {
     return originalSize; // sharp not installed → leave the original file as-is
   }
