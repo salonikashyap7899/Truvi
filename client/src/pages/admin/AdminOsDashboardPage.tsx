@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { formatINR, nameOf } from "@/lib/utils";
@@ -9,15 +9,17 @@ import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
 import type { Project } from "@/types";
+import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import "@/styles/founder-os.css";
 
 /**
- * Admin Dashboard — the SAME founder-style OS interface (sidebar, top bar,
- * KPI cards, panels), but wrapping the admin panel's own existing features:
- * platform stats, live investor/SaaS metrics, pending project approvals with
- * approve/reject, and quick links into the admin workspaces. Nothing about the
- * admin feature set changes — only the UI is brought in line with the Founder
- * dashboard. Founder-only sections are not shown here.
+ * Admin OS — the SAME founder-style interface (sidebar, top bar, KPI cards,
+ * panels) wrapping the admin panel's own existing features. It works like a
+ * single-page app (think Gmail): `AdminOsLayout` stays on screen for every
+ * /admin route, and choosing a module in the sidebar swaps only the content
+ * area (`<Outlet />`), without leaving the dashboard. `AdminOsDashboardPage`
+ * is the home view (stats, approvals, activity). Founder-only sections are
+ * not shown here.
  */
 
 interface InvestorMetrics {
@@ -115,21 +117,153 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Settings", icon: "grid", path: "/admin/settings" },
 ];
 
-export default function AdminOsDashboardPage() {
+/** Persistent admin shell: sidebar + top bar around the current module. */
+export function AdminOsLayout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const clearAuth = useAuthStore((s) => s.clearAuth);
-  const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<Array<{ _id: string; name: string; email?: string; phone?: string; role?: string }>>([]);
+  const [searchLoaded, setSearchLoaded] = useState(false);
   const [q, setQ] = useState("");
+  const [light, setLight] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Bumped by the refresh button to reload whichever module is open.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const mountNav = useNavChrome((s) => s.mount);
+  const unmountNav = useNavChrome((s) => s.unmount);
+
+  // The shell's top bar carries the account menu, so a module's own header
+  // copy of it hides (same mechanism as the site navbar).
+  useLayoutEffect(() => {
+    mountNav(false);
+    return () => unmountNav(false);
+  }, [mountNav, unmountNav]);
+
+  const isHome = pathname === "/admin/dashboard";
+
+  function doLogout() { clearAuth(); navigate("/login"); }
+  function goto(path: string) { setNavOpen(false); setQ(""); navigate(path); }
+
+  // Search data is fetched the first time someone types in the search box.
+  function ensureSearchData() {
+    if (searchLoaded) return;
+    setSearchLoaded(true);
+    api.get("/admin/projects").then((res) => setAllProjects(res.data.projects ?? [])).catch(() => {});
+    api.get("/admin/users").then((res) => setAllUsers(res.data.users ?? [])).catch(() => {});
+  }
+
+  // Live search over projects + users; results open the right admin module.
+  // Needs ≥2 chars so it doesn't flash on a single keystroke.
+  const query = q.trim().toLowerCase();
+  const results = query.length >= 2
+    ? [
+        ...allProjects
+          .filter((p) => `${p.name} ${p.city ?? ""} ${p.location ?? ""}`.toLowerCase().includes(query))
+          .slice(0, 5)
+          .map((p) => ({ key: `p${p._id}`, kind: "Project", title: p.name, sub: [p.city, p.location].filter(Boolean).join(", "), href: `/admin/listings/${p._id}` })),
+        ...allUsers
+          .filter((u) => `${u.name} ${u.email ?? ""} ${u.phone ?? ""}`.toLowerCase().includes(query))
+          .slice(0, 5)
+          .map((u) => ({ key: `u${u._id}`, kind: u.role ? u.role.charAt(0) + u.role.slice(1).toLowerCase() : "User", title: u.name, sub: [u.email, u.phone].filter(Boolean).join(" · "), href: `/admin/users/${u._id}` })),
+      ].slice(0, 8)
+    : [];
+
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+
+  return (
+    // Light mode only restyles the home view; modules keep their dark design.
+    <div className={`founder-os ${light && isHome ? "light" : ""}`}>
+      <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${navOpen ? "open" : ""}`}>
+        <div className="brand">
+          <div className="brand-mark">T</div>
+          <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
+        </div>
+        <nav className="nav-scroll">
+          <div>
+            <div className="nav-group-label">Command</div>
+            <button className={`nav-item ${isHome ? "active" : ""}`} onClick={() => goto("/admin/dashboard")}><Ic n="grid" /><span>Dashboard</span></button>
+          </div>
+          <div>
+            <div className="nav-group-label">Workspaces</div>
+            {WORKSPACES.map((w) => (
+              <button key={w.path} className={`nav-item ${isActive(w.path) ? "active" : ""}`} onClick={() => goto(w.path)}>
+                <Ic n={w.icon} /><span>{w.label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+        <div className="sidebar-foot">
+          <button className="logout-btn" onClick={doLogout}><Ic n="logout" /> Sign out</button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="os-main">
+        <header className="topbar">
+          <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
+          <div className="search-wrap">
+            <Ic n="search" />
+            <input
+              value={q}
+              onFocus={ensureSearchData}
+              onChange={(e) => { ensureSearchData(); setQ(e.target.value); }}
+              placeholder="Search projects, users…"
+              onKeyDown={(e) => { if (e.key === "Enter" && results[0]) goto(results[0].href); }}
+            />
+            {results.length > 0 && (
+              <div className="search-results">
+                {results.map((r) => (
+                  <button key={r.key} className="search-result" onMouseDown={() => goto(r.href)}>
+                    <span className="sr-title">{r.title}</span>
+                    <span className="sr-sub">{r.kind}{r.sub ? ` · ${r.sub}` : ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="top-actions">
+            {isHome && (
+              <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
+            )}
+            <button className="icon-btn" onClick={() => setRefreshKey((k) => k + 1)} title="Refresh"><Ic n="refresh" /></button>
+            <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
+            <NotificationBell />
+            <div className="divider-v" />
+            <InNavbarContext.Provider value={true}>
+              <UserMenu />
+            </InNavbarContext.Provider>
+          </div>
+        </header>
+
+        <div className="content">
+          {/* Only this area changes when a module is picked — the shell stays. */}
+          <Suspense fallback={<p className="os-loading">Loading…</p>}>
+            <div key={`${pathname}:${refreshKey}`} className={isHome ? undefined : "os-embedded"}>
+              <Outlet />
+            </div>
+          </Suspense>
+        </div>
+      </div>
+
+      <ProfileSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </div>
+  );
+}
+
+/** Admin home: platform stats, live metrics, pending approvals and activity. */
+export default function AdminOsDashboardPage() {
+  const navigate = useNavigate();
+  const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [trends, setTrends] = useState<KpiTrends | null>(null);
-  const [light, setLight] = useState(false);
-  const [navOpen, setNavOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Each section loads independently and resiliently — the dashboard renders
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
@@ -138,9 +272,9 @@ export default function AdminOsDashboardPage() {
     api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
       .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
     api.get("/admin/users")
-      .then((res) => { setStats((s) => ({ ...s, totalUsers: res.data.users.length })); setAllUsers(res.data.users ?? []); }).catch(() => {});
+      .then((res) => setStats((s) => ({ ...s, totalUsers: res.data.users.length }))).catch(() => {});
     api.get("/admin/projects")
-      .then((res) => { setStats((s) => ({ ...s, totalProjects: res.data.projects.length })); setAllProjects(res.data.projects ?? []); }).catch(() => {});
+      .then((res) => setStats((s) => ({ ...s, totalProjects: res.data.projects.length }))).catch(() => {});
     api.get("/revenue")
       .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
     api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
@@ -160,191 +294,94 @@ export default function AdminOsDashboardPage() {
     }
   }
 
-  function doLogout() { clearAuth(); navigate("/login"); }
-  function goto(path: string) { setNavOpen(false); navigate(path); }
-
-  // Live search over the loaded projects + users; results deep-link to the
-  // right admin page. Needs ≥2 chars so it doesn't flash on a single keystroke.
-  const query = q.trim().toLowerCase();
-  const results = query.length >= 2
-    ? [
-        ...allProjects
-          .filter((p) => `${p.name} ${p.city ?? ""} ${p.location ?? ""}`.toLowerCase().includes(query))
-          .slice(0, 5)
-          .map((p) => ({ key: `p${p._id}`, kind: "Project", title: p.name, sub: [p.city, p.location].filter(Boolean).join(", "), href: `/admin/listings/${p._id}` })),
-        ...allUsers
-          .filter((u) => `${u.name} ${u.email ?? ""} ${u.phone ?? ""}`.toLowerCase().includes(query))
-          .slice(0, 5)
-          .map((u) => ({ key: `u${u._id}`, kind: u.role ? u.role.charAt(0) + u.role.slice(1).toLowerCase() : "User", title: u.name, sub: [u.email, u.phone].filter(Boolean).join(" · "), href: `/admin/users/${u._id}` })),
-      ].slice(0, 8)
-    : [];
-
   return (
-    <div className={`founder-os ${light ? "light" : ""}`}>
-      <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
-
-      {/* Sidebar */}
-      <aside className={`sidebar ${navOpen ? "open" : ""}`}>
-        <div className="brand">
-          <div className="brand-mark">T</div>
-          <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
-        </div>
-        <nav className="nav-scroll">
-          <div>
-            <div className="nav-group-label">Command</div>
-            <button className="nav-item active"><Ic n="grid" /><span>Dashboard</span></button>
-          </div>
-          <div>
-            <div className="nav-group-label">Workspaces</div>
-            {WORKSPACES.map((w) => (
-              <button key={w.path} className="nav-item" onClick={() => goto(w.path)}>
-                <Ic n={w.icon} /><span>{w.label}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
-        <div className="sidebar-foot">
-          <button className="logout-btn" onClick={doLogout}><Ic n="logout" /> Sign out</button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <div className="os-main">
-        <header className="topbar">
-          <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
-          <div className="search-wrap">
-            <Ic n="search" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search projects, users…"
-              onKeyDown={(e) => { if (e.key === "Enter" && results[0]) { setQ(""); navigate(results[0].href); } }}
-            />
-            {results.length > 0 && (
-              <div className="search-results">
-                {results.map((r) => (
-                  <button key={r.key} className="search-result" onMouseDown={() => { setQ(""); navigate(r.href); }}>
-                    <span className="sr-title">{r.title}</span>
-                    <span className="sr-sub">{r.kind}{r.sub ? ` · ${r.sub}` : ""}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="top-actions">
-            <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
-            <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
-            <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
-            <NotificationBell />
-            <div className="divider-v" />
-            <UserMenu />
-          </div>
-        </header>
-
-        <div className="content">
-          <section className="page">
-            <div className="page-header">
-              <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
-              <div className="header-actions">
-                <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
-                <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
-              </div>
-            </div>
-
-            {/* Platform stats */}
-            <div className="kpi-grid">
-              <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
-              <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} trend={trendBadge(trends?.projects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
-              <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
-              <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
-            </div>
-
-            {/* Operations today — live counts (from founder-overview) */}
-            {overview && (
-              <div className="kpi-grid">
-                <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
-                <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
-                <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
-                <Kpi icon="users" tone="blue" label="Pending CP KYC" value={String(overview.verification.pendingKyc)} foot="Review identities" onClick={() => navigate("/admin/kyc")} />
-                <Kpi icon="shield" tone="amber" label="Pending Verification" value={String(overview.verification.pendingProjects + overview.verification.pendingLegal)} foot="Projects + legal docs" onClick={() => navigate("/admin/verification")} />
-              </div>
-            )}
-
-            {/* Investor / SaaS metrics — admin's existing live numbers */}
-            {investor && (
-              <Panel title="Platform metrics" sub="Live SaaS + marketplace numbers">
-                <div className="kpi-grid" style={{ marginBottom: 0 }}>
-                  <div><div className="kpi-label">Total Buyers</div><div className="kpi-value">{investor.totalBuyers}</div></div>
-                  <div><div className="kpi-label">Total Developers</div><div className="kpi-value">{investor.totalDevelopers}</div></div>
-                  <div><div className="kpi-label">Total CPs</div><div className="kpi-value">{investor.totalCPs}</div></div>
-                  <div><div className="kpi-label">Active Users</div><div className="kpi-value">{investor.activeUsers}</div></div>
-                  <div><div className="kpi-label">Paying Users</div><div className="kpi-value">{investor.payingUsers}</div></div>
-                  <div><div className="kpi-label">New Users (30d)</div><div className="kpi-value">{investor.newUsers30d}</div></div>
-                  <div><div className="kpi-label">MRR</div><div className="kpi-value" style={{ color: "var(--green-600)" }}>{paise(investor.mrrPaise)}</div></div>
-                  <div><div className="kpi-label">ARR</div><div className="kpi-value" style={{ color: "var(--green-600)" }}>{paise(investor.arrPaise)}</div></div>
-                  <div><div className="kpi-label">Total Revenue</div><div className="kpi-value">{paise(investor.totalRevenuePaise)}</div></div>
-                  <div><div className="kpi-label">LTV / CAC</div><div className="kpi-value">{paise(investor.ltvPaise)} / {paise(investor.cacPaise)}</div></div>
-                  <div><div className="kpi-label">Churn</div><div className="kpi-value">{investor.churnPercent}%</div></div>
-                  <div><div className="kpi-label">Conversion</div><div className="kpi-value">{investor.conversionPercent}%</div></div>
-                </div>
-                <p style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" }}>GMV (booking value routed through Truvi): {paise(investor.gmvPaise)}</p>
-              </Panel>
-            )}
-
-            {/* Pending project approvals — admin's existing action */}
-            <Panel title={`Pending project approvals (${pendingProjects.length})`} sub="Approve or reject new listings">
-              {pendingProjects.length === 0
-                ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>🟢 Nothing pending.</p>
-                : pendingProjects.map((p) => (
-                    <div className="list-row" key={p._id}>
-                      <div className="mini-avatar">{initials(p.name)}</div>
-                      <div style={{ flex: 1, minWidth: 140 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{p.name}</div>
-                        <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>{p.city} · by {nameOf(p.developerId)}</div>
-                      </div>
-                      <div className="row-actions">
-                        <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
-                        <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
-                        <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
-                      </div>
-                    </div>
-                  ))}
-            </Panel>
-
-            {/* Recent activity — live audit trail across the platform */}
-            <Panel title="Recent activity" sub="Latest actions across the platform">
-              {activity.length === 0
-                ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No recent activity yet.</p>
-                : activity.map((a, i) => (
-                    <div className="list-row" key={i}>
-                      <div className="mini-avatar">{a.actor?.name ? initials(a.actor.name) : "•"}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: "var(--ink-700)" }}>
-                          <b>{a.actor?.name ?? "Someone"}</b> {activityText(a)}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>
-                          {a.actor?.role ? `${a.actor.role} · ` : ""}{timeAgo(a.createdAt)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-            </Panel>
-
-            {/* Quick links to the admin workspaces */}
-            <Panel title="Workspaces" sub="Jump into any admin module">
-              <div className="workspace-links">
-                {WORKSPACES.map((w) => (
-                  <button key={w.path} className="workspace-link" onClick={() => navigate(w.path)}>
-                    <Ic n={w.icon} /><span>{w.label}</span><Ic n="arrow" />
-                  </button>
-                ))}
-              </div>
-            </Panel>
-          </section>
+    <section className="page">
+      <div className="page-header">
+        <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
+        <div className="header-actions">
+          <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
+          <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
         </div>
       </div>
 
-      <ProfileSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </div>
+      {/* Platform stats */}
+      <div className="kpi-grid">
+        <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
+        <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} trend={trendBadge(trends?.projects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
+        <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
+        <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
+      </div>
+
+      {/* Operations today — live counts (from founder-overview) */}
+      {overview && (
+        <div className="kpi-grid">
+          <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
+          <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
+          <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
+          <Kpi icon="users" tone="blue" label="Pending CP KYC" value={String(overview.verification.pendingKyc)} foot="Review identities" onClick={() => navigate("/admin/kyc")} />
+          <Kpi icon="shield" tone="amber" label="Pending Verification" value={String(overview.verification.pendingProjects + overview.verification.pendingLegal)} foot="Projects + legal docs" onClick={() => navigate("/admin/verification")} />
+        </div>
+      )}
+
+      {/* Investor / SaaS metrics — admin's existing live numbers */}
+      {investor && (
+        <Panel title="Platform metrics" sub="Live SaaS + marketplace numbers">
+          <div className="kpi-grid" style={{ marginBottom: 0 }}>
+            <div><div className="kpi-label">Total Buyers</div><div className="kpi-value">{investor.totalBuyers}</div></div>
+            <div><div className="kpi-label">Total Developers</div><div className="kpi-value">{investor.totalDevelopers}</div></div>
+            <div><div className="kpi-label">Total CPs</div><div className="kpi-value">{investor.totalCPs}</div></div>
+            <div><div className="kpi-label">Active Users</div><div className="kpi-value">{investor.activeUsers}</div></div>
+            <div><div className="kpi-label">Paying Users</div><div className="kpi-value">{investor.payingUsers}</div></div>
+            <div><div className="kpi-label">New Users (30d)</div><div className="kpi-value">{investor.newUsers30d}</div></div>
+            <div><div className="kpi-label">MRR</div><div className="kpi-value" style={{ color: "var(--green-600)" }}>{paise(investor.mrrPaise)}</div></div>
+            <div><div className="kpi-label">ARR</div><div className="kpi-value" style={{ color: "var(--green-600)" }}>{paise(investor.arrPaise)}</div></div>
+            <div><div className="kpi-label">Total Revenue</div><div className="kpi-value">{paise(investor.totalRevenuePaise)}</div></div>
+            <div><div className="kpi-label">LTV / CAC</div><div className="kpi-value">{paise(investor.ltvPaise)} / {paise(investor.cacPaise)}</div></div>
+            <div><div className="kpi-label">Churn</div><div className="kpi-value">{investor.churnPercent}%</div></div>
+            <div><div className="kpi-label">Conversion</div><div className="kpi-value">{investor.conversionPercent}%</div></div>
+          </div>
+          <p style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" }}>GMV (booking value routed through Truvi): {paise(investor.gmvPaise)}</p>
+        </Panel>
+      )}
+
+      {/* Pending project approvals — admin's existing action */}
+      <Panel title={`Pending project approvals (${pendingProjects.length})`} sub="Approve or reject new listings">
+        {pendingProjects.length === 0
+          ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>🟢 Nothing pending.</p>
+          : pendingProjects.map((p) => (
+              <div className="list-row" key={p._id}>
+                <div className="mini-avatar">{initials(p.name)}</div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-700)" }}>{p.name}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>{p.city} · by {nameOf(p.developerId)}</div>
+                </div>
+                <div className="row-actions">
+                  <button className="chip" onClick={() => navigate(`/admin/listings/${p._id}`)}>Edit</button>
+                  <button className="btn btn-primary" onClick={() => approveProject(p._id, "APPROVED")}>Approve</button>
+                  <button className="chip" style={{ color: "var(--red-500)", borderColor: "var(--red-100)" }} onClick={() => approveProject(p._id, "REJECTED")}>Reject</button>
+                </div>
+              </div>
+            ))}
+      </Panel>
+
+      {/* Recent activity — live audit trail across the platform */}
+      <Panel title="Recent activity" sub="Latest actions across the platform">
+        {activity.length === 0
+          ? <p style={{ fontSize: 12.5, color: "var(--ink-500)" }}>No recent activity yet.</p>
+          : activity.map((a, i) => (
+              <div className="list-row" key={i}>
+                <div className="mini-avatar">{a.actor?.name ? initials(a.actor.name) : "•"}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: "var(--ink-700)" }}>
+                    <b>{a.actor?.name ?? "Someone"}</b> {activityText(a)}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-500)" }}>
+                    {a.actor?.role ? `${a.actor.role} · ` : ""}{timeAgo(a.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))}
+      </Panel>
+    </section>
   );
 }

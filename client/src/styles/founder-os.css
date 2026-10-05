@@ -183,11 +183,11 @@
 
 /* ---- Table ---- */
 .founder-os .table-wrap{overflow-x:auto;}
-.founder-os table{width:100%; border-collapse:collapse; font-size:12.8px;}
-.founder-os th{text-align:left; padding:9px 12px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-400); font-weight:700; border-bottom:1px solid var(--border);}
-.founder-os td{padding:11px 12px; border-bottom:1px solid var(--border); color:var(--ink-700); font-weight:500;}
-.founder-os tr:last-child td{border-bottom:none;}
-.founder-os tbody tr:hover{background:var(--bg);}
+.founder-os table:not(.os-embedded table){width:100%; border-collapse:collapse; font-size:12.8px;}
+.founder-os th:not(.os-embedded th){text-align:left; padding:9px 12px; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-400); font-weight:700; border-bottom:1px solid var(--border);}
+.founder-os td:not(.os-embedded td){padding:11px 12px; border-bottom:1px solid var(--border); color:var(--ink-700); font-weight:500;}
+.founder-os tr:last-child td:not(.os-embedded td){border-bottom:none;}
+.founder-os tbody tr:hover:not(.os-embedded tr){background:var(--bg);}
 .founder-os .name-cell{display:flex; align-items:center; gap:9px; font-weight:700; color:var(--ink-900);}
 .founder-os .mini-avatar{width:26px; height:26px; border-radius:7px; background:var(--brand-grad); color:#fff; font-size:10.5px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
 .founder-os .badge{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; display:inline-block;}
@@ -365,3 +365,12 @@
 .founder-os .hero-priority-text{font-size:13.5px; font-weight:600; color:var(--ink-900); line-height:1.45;}
 @media (max-width:1100px){ .founder-os .hero-grid{grid-template-columns:repeat(2,1fr);} }
 @media (max-width:560px){ .founder-os .hero-grid{grid-template-columns:1fr;} }
+
+/* ---- Admin modules opened inside the OS shell ----
+   Each admin page was built as a full page (its own min-height, padding and
+   background). Inside the shell's content area those are dropped so the module
+   sits flush under the top bar; its own dark styling is kept. The OS table
+   styles above skip embedded modules for the same reason. */
+.founder-os .os-embedded{animation:osFade .25s ease;}
+.founder-os .os-embedded > *{min-height:0 !important; padding:0 !important; background:transparent !important;}
+.founder-os .os-loading{font-size:13px; color:var(--ink-500); padding:8px 2px;}

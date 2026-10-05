@@ -29,14 +29,15 @@ export const useNavChrome = create<NavChromeState>((set) => ({
 export const InNavbarContext = createContext(false);
 
 /**
- * Full-screen shells with their own complete navigation (the admin/founder OS
- * with a fixed sidebar, the immersive 3D viewer, the first-run tour). The
- * shared navbar would cover their controls, so it isn't added there.
+ * Full-screen shells with their own complete navigation (the admin OS — every
+ * /admin page lives inside it — and the founder OS, both with a fixed sidebar;
+ * the immersive 3D viewer; the first-run tour). The shared navbar would cover
+ * their controls, so it isn't added there.
  */
 export function hasOwnShell(pathname: string): boolean {
   return (
     pathname === "/welcome" ||
-    pathname === "/admin/dashboard" ||
+    pathname.startsWith("/admin/") ||
     pathname === "/founder/dashboard" ||
     /^\/inventory\/[^/]+\/3d$/.test(pathname)
   );
@@ -58,8 +59,6 @@ const OWN_BACK_LINK: RegExp[] = [
   /^\/cp\/(guide|academy|connect)$/,
   /^\/developer\/guide$/,
   /^\/inventory\/[^/]+\/presentation$/,
-  /^\/admin\/(academy|ambassador-tasks|audit-logs|calls|documents|kyc|referral-leads|users|verification|vouchers)$/,
-  /^\/admin\/(listings|users)\/[^/]+$/,
 ];
 
 /** Whether the navbar should show its ← Back button on this page. */
