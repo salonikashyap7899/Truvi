@@ -60,7 +60,7 @@ export type NavLink = { label: string; to?: string; hash?: string };
 // to authenticated roles (see navLinksForRole).
 const NAV_LINKS: NavLink[] = [
   { label: "Intelligence", to: "/intelligence" },
-  { label: "Ask Truvi", hash: "#ask-truvi" },
+  { label: "Ask Truvi", to: "/ask-truvi" },
   { label: "Inventory", to: "/inventory" },
   { label: "For Developers", hash: "#developer-intelligence" },
   { label: "About", to: "/about" },
@@ -96,7 +96,7 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
         { label: "Inventory", to: "/inventory" },
         { label: "Intelligence", to: "/intelligence" },
         { label: "Pricing", to: "/pricing" },
-        { label: "Ask Truvi", hash: "#ask-truvi" },
+        { label: "Ask Truvi", to: "/ask-truvi" },
       ];
     case "CP":
       return [

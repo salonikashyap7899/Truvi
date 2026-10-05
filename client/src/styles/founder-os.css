@@ -145,6 +145,9 @@
 .founder-os .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:16px;}
 .founder-os .grid-2-even{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
 .founder-os .panel{padding:20px;}
+/* Panels stacked directly in a page (e.g. the admin home) get the same gap the
+   grid layouts use, so neighbouring cards never touch. */
+.founder-os .page > .card{margin-bottom:18px;}
 .founder-os .panel-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap;}
 .founder-os .panel-head-l{display:flex; align-items:center; gap:11px; min-width:0;}
 .founder-os .panel-icon{width:30px; height:30px; border-radius:8px; flex-shrink:0;}
