@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { IS_NATIVE } from "@/lib/native";
-import { Sparkles, SlidersHorizontal, X, Minus, Maximize2, ChevronUp } from "lucide-react";
+import { Sparkles, SlidersHorizontal, X, Minus, ChevronUp } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { AskTruviChat, AskTruviSignInGate, profileIsSet, useAskTruviChat } from "@/components/assistant/AskTruviChat";
 import CopilotTools from "@/components/assistant/CopilotTools";
@@ -77,8 +77,8 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
     <button
       key={id}
       onClick={() => setTab(id)}
-      className={`flex-1 py-2 text-xs font-semibold transition-colors ${
-        tab === id ? "border-b-2 border-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground/90"
+      className={`rounded-full py-1.5 text-xs font-semibold transition-colors ${
+        tab === id ? "bg-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground/90"
       }`}
     >
       {label}
@@ -119,74 +119,86 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       {/* Overlay — mobile only */}
       {expanded && <div className="fixed inset-0 z-40 bg-black/50 sm:hidden" onClick={() => setMinimized(true)} />}
 
-      {/* Panel */}
+      {/* Panel — the same card as the home-page "Ask Truvi" section: a padded
+          glass card with a soft aurora glow behind it, the ✦ header with the
+          Live badge, the same message bubbles, and the "Not a chatbot" footer. */}
       <div
         className={`
-          fixed z-50 flex flex-col glass shadow-2xl shadow-black/60 backdrop-blur-2xl
-          transition-all duration-300 ease-out
-          bottom-3 inset-x-3 h-[70vh] max-h-[560px] rounded-2xl border border-white/10
-          sm:bottom-6 sm:right-6 sm:left-auto sm:inset-x-auto sm:w-[420px] sm:h-[600px] sm:max-h-none
+          fixed z-50 transition-all duration-300 ease-out
+          bottom-3 inset-x-3 h-[72vh] max-h-[600px]
+          sm:bottom-6 sm:right-6 sm:left-auto sm:inset-x-auto sm:w-[440px] sm:h-[640px] sm:max-h-none
           ${expanded ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
-        style={{ maxHeight: "85vh", backgroundColor: "rgba(10,13,20,0.94)" }}
+        style={{ maxHeight: "85vh" }}
         aria-hidden={!expanded}
       >
-        {/* Header — same chrome as the home-page "Ask Truvi" card */}
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
-            <div>
-              <p className="text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot" : "Ask Truvi™"}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {tab === "copilot" ? "Sales scripts · WhatsApp · Objections" : "Property Intelligence · Source-backed"}
-              </p>
+        <div aria-hidden className="pointer-events-none absolute -inset-6 -z-10 opacity-40 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
+        <div
+          className="flex h-full flex-col rounded-2xl glass p-5 shadow-2xl shadow-black/60 backdrop-blur-2xl"
+          style={{ backgroundColor: "rgba(10,13,20,0.94)" }}
+        >
+          {/* Header — window chrome identical to the home card */}
+          <div className="flex shrink-0 items-center justify-between border-b border-white/10 pb-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot™" : "Ask Truvi™"}</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {tab === "copilot" ? "Sales scripts · WhatsApp · Objections" : "Property Intelligence · Source-backed"}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <span className="mr-1 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
+              {tab === "ask" && accessToken && (
+                <button
+                  onClick={() => setShowAdvisor((s) => !s)}
+                  className="relative rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
+                  aria-label="Personalize advice"
+                  title="Personalized Property Advisor"
+                >
+                  <SlidersHorizontal size={15} />
+                  {profileIsSet(profile) && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
+                </button>
+              )}
+              <button onClick={() => setMinimized(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors" aria-label="Minimize" title="Minimize">
+                <Minus size={15} />
+              </button>
+              <button onClick={() => { setOpen(false); setMinimized(false); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors" aria-label="Close" title="Close">
+                <X size={16} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-0.5">
-            <span className="mr-1 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
-            {tab === "ask" && accessToken && (
-              <button
-                onClick={() => setShowAdvisor((s) => !s)}
-                className="relative rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors"
-                aria-label="Personalize advice"
-                title="Personalized Property Advisor"
-              >
-                <SlidersHorizontal size={15} />
-                {profileIsSet(profile) && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-              </button>
-            )}
-            <button onClick={openFullPage} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors" aria-label="Open full page" title="Open full page">
-              <Maximize2 size={14} />
-            </button>
-            <button onClick={() => setMinimized(true)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors" aria-label="Minimize" title="Minimize">
-              <Minus size={15} />
-            </button>
-            <button onClick={() => { setOpen(false); setMinimized(false); }} className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-white transition-colors" aria-label="Close" title="Close">
-              <X size={16} />
-            </button>
-          </div>
+
+          {/* Two AIs, one card */}
+          {copilotAvailable && (
+            <div className="mt-4 grid shrink-0 grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
+              {tabBtn("ask", "1 · Ask Truvi")}
+              {tabBtn("copilot", "2 · Copilot")}
+            </div>
+          )}
+
+          {tab === "copilot" && copilotAvailable ? (
+            <CopilotTools />
+          ) : !accessToken ? (
+            <AskTruviSignInGate />
+          ) : (
+            <AskTruviChat
+              propertyContext={propertyContext}
+              showAdvisor={showAdvisor}
+              onCloseAdvisor={() => setShowAdvisor(false)}
+              autoFocus={expanded}
+              footerAction={
+                <button
+                  onClick={openFullPage}
+                  className="shrink-0 rounded-full border border-white/15 px-4 py-1.5 text-xs font-medium text-foreground/90 transition hover:bg-white/10"
+                >
+                  Open full chat
+                </button>
+              }
+            />
+          )}
         </div>
-
-        {/* Two AIs, one pop-up */}
-        {copilotAvailable && (
-          <div className="flex shrink-0 border-b border-white/10">
-            {tabBtn("ask", "1 · Ask Truvi")}
-            {tabBtn("copilot", "2 · Copilot")}
-          </div>
-        )}
-
-        {tab === "copilot" && copilotAvailable ? (
-          <CopilotTools />
-        ) : !accessToken ? (
-          <AskTruviSignInGate />
-        ) : (
-          <AskTruviChat
-            propertyContext={propertyContext}
-            showAdvisor={showAdvisor}
-            onCloseAdvisor={() => setShowAdvisor(false)}
-            autoFocus={expanded}
-          />
-        )}
       </div>
     </>
   );

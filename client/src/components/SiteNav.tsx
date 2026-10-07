@@ -36,7 +36,8 @@ function BrandLogo() {
       src="/brand/wordmark.png"
       alt="Truvi Ventures"
       onError={() => setWordmarkFailed(true)}
-      className="h-6 w-auto max-w-[150px] shrink-0 object-contain sm:h-7 sm:max-w-[175px]"
+      // Shrinks on narrow phones so it never runs into the account buttons.
+      className="h-5 w-auto min-w-0 max-w-full object-contain object-left min-[400px]:h-6 sm:h-7 sm:max-w-[175px]"
     />
   );
 }
@@ -247,7 +248,7 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
           ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-2 flex shrink-0 items-center gap-2">
           <motion.a
             href={WA_URL}
             target="_blank"
