@@ -243,12 +243,16 @@ export default function SignupPage() {
               />
             ) : (
             <>
+            {/* Side padding keeps the title and subtitle clear of the voice-guide
+                button pinned in the card's top-left corner (it overlapped on phones). */}
+            <div className="px-11 sm:px-12">
             <h1 className="text-center font-display text-xl font-semibold leading-tight tracking-tight">
               <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
             </h1>
             <p className="mx-auto mt-0.5 max-w-[22rem] text-center text-[11px] text-muted-foreground">
               We&apos;ll send 6-digit codes to your email and phone to verify your account.
             </p>
+            </div>
 
             {/* Premium role selector — sliding highlight, icon over label */}
             <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">

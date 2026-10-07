@@ -265,7 +265,7 @@ export function AdvisorPanel({
 }) {
   const field = "h-8 w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 text-xs text-white outline-none focus:border-[var(--trust)]";
   return (
-    <div className="border-b border-white/10 bg-white/[0.03] px-4 py-3 text-xs">
+    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs">
       <div className="mb-2 flex items-center justify-between">
         <p className="font-semibold text-white">Personalize my advice</p>
         <button onClick={onClose} className="text-muted-foreground hover:text-white" aria-label="Close personalization">
@@ -398,12 +398,15 @@ export function AskTruviChat({
   onCloseAdvisor,
   autoFocus,
   size = "panel",
+  footerAction,
 }: {
   propertyContext?: Record<string, unknown>;
   showAdvisor: boolean;
   onCloseAdvisor: () => void;
   autoFocus?: boolean;
   size?: "panel" | "page";
+  /** Shown at the right of the footer line (e.g. "Open full chat"). */
+  footerAction?: React.ReactNode;
 }) {
   const { messages, loading, profile, setProfile, send } = useAskTruviChat();
   const [input, setInput] = useState("");
@@ -411,8 +414,10 @@ export function AskTruviChat({
   const inputRef = useRef<HTMLInputElement>(null);
   const page = size === "page";
 
+  // Follow the conversation as it grows; a fresh chat stays at the top so the
+  // greeting is read from its first line.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 1 || loading) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages, loading]);
 
   useEffect(() => {
@@ -443,7 +448,6 @@ export function AskTruviChat({
   };
 
   const fresh = messages.length === 1;
-  const column = page ? "mx-auto w-full max-w-3xl" : "";
 
   return (
     <>
@@ -456,10 +460,11 @@ export function AskTruviChat({
 
       {showAdvisor && <AdvisorPanel profile={profile} onChange={setProfile} onClose={onCloseAdvisor} />}
 
-      {/* Messages — min-h-0 lets this flex child actually scroll inside the
-          container instead of growing and pushing the input bar off-screen. */}
-      <div className={`flex-1 min-h-0 overflow-y-auto overscroll-contain ${page ? "px-4 py-6 sm:px-6" : "px-4 py-4"}`}>
-        <div className={`${column} space-y-4`}>
+      {/* Messages — same bubbles as the home-page "Ask Truvi" card. min-h-0
+          lets this flex child scroll inside the card instead of growing and
+          pushing the input off-screen. */}
+      <div className="-mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pt-5 pb-4">
+        <div className="space-y-4">
           {messages.map((msg) => (
             <div key={msg.id}>
               <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -495,7 +500,7 @@ export function AskTruviChat({
 
           {/* Quick-start feature grid on a fresh chat */}
           {fresh && !loading && (
-            <div className={`grid gap-1.5 ${page ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"}`}>
+            <div className={`grid gap-1.5 ${page ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"}`}>
               {QUICK_ACTIONS.map((a) => (
                 <button
                   key={a.label}
@@ -520,10 +525,11 @@ export function AskTruviChat({
         </div>
       </div>
 
-      {/* Input bar */}
-      <div className={`shrink-0 border-t border-white/10 ${page ? "px-4 py-4 sm:px-6" : "px-3 py-3"}`}>
-        <div className={column}>
-          <div className="flex items-center gap-2 rounded-xl border border-white/15 glass px-3 py-2 focus-within:border-blue-600 transition-colors">
+      {/* Footer — like the home card: a divider, then the input and the
+          "Not a chatbot" line with an optional action on the right. */}
+      <div className="shrink-0 border-t border-white/10 pt-4">
+        <div>
+          <div className="flex items-center gap-2 rounded-xl border border-white/15 glass px-3 py-2 focus-within:border-[var(--trust)] transition-colors">
             <input
               ref={inputRef}
               value={input}
@@ -536,15 +542,18 @@ export function AskTruviChat({
             <button
               onClick={() => submit()}
               disabled={!input.trim() || loading}
-              className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white transition-colors hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--trust)] text-white transition hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               aria-label="Send"
             >
               <Send size={13} />
             </button>
           </div>
-          <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-            Not a chatbot — a property-intelligence assistant grounded in Truvi's data · Not legal or financial advice
-          </p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+              Not a chatbot — a property-intelligence assistant grounded in Truvi's data.
+            </p>
+            {footerAction}
+          </div>
         </div>
       </div>
     </>

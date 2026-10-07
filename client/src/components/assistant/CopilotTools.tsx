@@ -90,12 +90,12 @@ export default function CopilotTools() {
       `}</style>
 
       {/* Mode tabs */}
-      <div className="flex border-b border-white/10 shrink-0">
+      <div className="mt-4 flex border-b border-white/10 shrink-0">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => { setMode(tab.id); setOutput(""); }}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-purple-500 text-white" : "text-muted-foreground hover:text-foreground/90"}`}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground/90"}`}
           >
             <tab.Icon size={13} /> {tab.label}
           </button>
@@ -103,20 +103,20 @@ export default function CopilotTools() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-3">
+      <div className="-mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 py-4 space-y-3">
         {mode === "whatsapp" && (
           <>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Client Name</label>
-              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Project Interested In</label>
-              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Lead Stage</label>
-              <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-purple-500">
+              <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
                 {["GENERATED","CONTACTED","SITE_VISIT","NEGOTIATION","BOOKING"].map((s) => (
                   <option key={s} value={s} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{s.replace("_", " ")}</option>
                 ))}
@@ -129,15 +129,15 @@ export default function CopilotTools() {
           <>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Project Name</label>
-              <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+              <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Location</label>
-              <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+              <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Starting Price</label>
-              <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors" />
+              <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
           </>
         )}
@@ -145,7 +145,7 @@ export default function CopilotTools() {
         {mode === "objection" && (
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Select the buyer's objection</label>
-            <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-purple-500">
+            <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
               {COMMON_OBJECTIONS.map((o) => <option key={o} value={o} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{o}</option>)}
             </select>
             <div className="mt-2">
@@ -154,7 +154,7 @@ export default function CopilotTools() {
                 value={COMMON_OBJECTIONS.includes(objection) ? "" : objection}
                 onChange={(e) => setObjection(e.target.value || COMMON_OBJECTIONS[0])}
                 placeholder="Type a custom objection…"
-                className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-purple-500 transition-colors"
+                className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors"
               />
             </div>
           </div>
@@ -162,9 +162,9 @@ export default function CopilotTools() {
 
         {/* Output */}
         {output && (
-          <div className="rounded-xl border border-purple-800 bg-purple-950/20 p-4">
+          <div className="rounded-xl border border-[var(--trust)]/30 bg-[var(--trust)]/10 p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-purple-300">Generated Script</p>
+              <p className="text-xs font-medium text-sky-300">Generated Script</p>
               <div className="flex gap-2">
                 <button onClick={generate} className="text-muted-foreground hover:text-white transition-colors" title="Regenerate">
                   <RefreshCw size={13} />
@@ -182,7 +182,7 @@ export default function CopilotTools() {
           <div className="rounded-xl border border-white/10 glass p-4 flex items-center gap-3">
             <div className="flex gap-1">
               {[0,1,2].map((i) => (
-                <span key={i} className="h-2 w-2 rounded-full bg-purple-400" style={{ animation: `truvi-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                <span key={i} className="h-2 w-2 rounded-full bg-blue-400" style={{ animation: `truvi-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
               ))}
             </div>
             <p className="text-xs text-muted-foreground">Generating…</p>
@@ -191,11 +191,11 @@ export default function CopilotTools() {
       </div>
 
       {/* Generate button */}
-      <div className="shrink-0 border-t border-white/10 px-4 py-3">
+      <div className="shrink-0 border-t border-white/10 pt-4">
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-purple-600 py-2.5 text-sm font-semibold text-white hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="w-full flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[var(--trust)] to-[#2563eb] py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <Sparkles size={14} />
           {loading ? "Generating…" : "Generate"}
