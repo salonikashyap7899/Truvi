@@ -188,7 +188,7 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
 
   return (
     <div
-      className="relative mt-4 h-56 w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0a0d14] sm:h-72 md:h-96"
+      className="relative mt-4 h-64 w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0a0d14] sm:h-[420px] md:h-[520px] lg:h-[600px]"
       onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, active: true }; paused.current = true; }}
       onTouchEnd={(e) => {
         if (touch.current.active) {
@@ -199,12 +199,23 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
       }}
     >
       <div className="flex h-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${i * 100}%)` }}>
-        {images.map((img) => (
-          <button key={img._id} onClick={() => onOpen(img)} className="relative h-full w-full shrink-0" title="Click to view & zoom">
-            <img src={img.fileUrl} alt={img.title} className="h-full w-full object-cover" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          </button>
-        ))}
+        {images.map((img, idx) => {
+          // Only the current slide and its neighbours load; the rest wait.
+          const near = Math.abs(idx - i) <= 1 || (i === 0 && idx === n - 1) || (i === n - 1 && idx === 0);
+          return (
+            <button key={img._id} onClick={() => onOpen(img)} className="relative h-full w-full shrink-0 overflow-hidden" title="Click to view & zoom">
+              {near && (
+                <>
+                  {/* Whole photo, never cropped or stretched; a soft blurred
+                      copy of the same photo fills the empty sides. */}
+                  <img src={img.fileUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-50 blur-2xl" />
+                  <img src={img.fileUrl} alt={img.title} decoding="async" className="relative h-full w-full object-contain" />
+                </>
+              )}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent" />
+            </button>
+          );
+        })}
       </div>
 
       {n > 1 && (
@@ -215,11 +226,12 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
           <button onClick={() => go(i + 1)} aria-label="Next image" className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/70">
             <ChevronRight size={18} />
           </button>
-          <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center gap-1.5">
+          {/* Dots only for short galleries; long ones use the "2 / 104" counter. */}
+          {n <= 12 && <div className="absolute inset-x-0 bottom-2.5 flex items-center justify-center gap-1.5">
             {images.map((_, idx) => (
               <button key={idx} onClick={() => go(idx)} aria-label={`Go to image ${idx + 1}`} className={`h-1.5 rounded-full transition-all ${idx === i ? "w-5 bg-white" : "w-1.5 bg-white/40"}`} />
             ))}
-          </div>
+          </div>}
           <span className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white/90">{i + 1} / {n}</span>
         </>
       )}
@@ -267,8 +279,16 @@ export default function ProjectPresentationPage() {
     return map;
   }, [assets]);
 
-  // Every photo across all categories, for the hero banner at the top.
-  const heroImages = useMemo(() => assets.filter((a) => IMAGE_MIMES.test(a.mimeType)), [assets]);
+  // Every photo across all categories, for the hero banner at the top —
+  // gallery photos and renders first, plans and document scans after.
+  const heroImages = useMemo(() => {
+    const rank = (a: ProjectAsset) => (a.category === "GALLERY_IMAGE" ? 0 : /RENDER|ARCHITECTURE|VIEW_360/.test(a.category) ? 1 : 2);
+    return assets
+      .filter((a) => IMAGE_MIMES.test(a.mimeType))
+      .map((a, idx) => ({ a, idx }))
+      .sort((x, y) => rank(x.a) - rank(y.a) || x.idx - y.idx)
+      .map(({ a }) => a);
+  }, [assets]);
 
   if (loading) return <div className="min-h-screen p-10 text-white">Loading presentation…</div>;
   if (!project) {

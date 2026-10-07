@@ -74,7 +74,7 @@ export default function MarketingDashboardPage() {
   return (
     <div className="min-h-screen bg-[#05070d] text-white">
       <SiteNav />
-      <div className="mx-auto max-w-6xl px-4 pb-24 pt-6">
+      <div className="mx-auto max-w-6xl px-4 pb-24 pt-32">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold sm:text-3xl">Marketing Dashboard</h1>

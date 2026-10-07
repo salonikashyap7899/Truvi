@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LayoutDashboard, LogOut, ArrowLeft } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
-import { InNavbarContext, showsNavBack, useNavChrome } from "@/lib/navChrome";
+import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
+import PageBackLink from "@/components/PageBackLink";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -159,12 +160,13 @@ function NavItem({
 /**
  * The site navbar. Pages may render it themselves (they pad their content
  * for it); every other page gets it from <GlobalNav /> in App (`global`).
- * `hideBack` drops the ← Back button on a page that has its own back link.
+ * The "← Back" link sits under the bar (PageBackLink), never inside it: a page
+ * rendering its own navbar gets it here; `hideBack` drops it on a page that
+ * has its own back link.
  */
 export function SiteNav({ global = false, hideBack = false }: { global?: boolean; hideBack?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const mountNav = useNavChrome((s) => s.mount);
   const unmountNav = useNavChrome((s) => s.unmount);
@@ -175,14 +177,6 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
     return () => unmountNav(!global);
   }, [global, mountNav, unmountNav]);
 
-  const showBack = !hideBack && showsNavBack(pathname, user ? dashboardPath(user) : null);
-  // Go back within the site when there's history; a page opened directly
-  // (shared link, new tab) goes to the user's dashboard, or home.
-  const goBack = () => {
-    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-    if (idx > 0) navigate(-1);
-    else navigate(user ? dashboardPath(user) : "/");
-  };
 
   // Close the mobile menu whenever the route changes
   useEffect(() => {
@@ -221,17 +215,6 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
         style={{ backgroundColor: "rgba(10,13,20,0.9)" }}
       >
         <div className="flex min-w-0 items-center gap-2">
-          {showBack && (
-            <button
-              onClick={() => { close(); goBack(); }}
-              aria-label="Go back"
-              title="Back"
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/15 px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition hover:bg-white/10"
-            >
-              <ArrowLeft size={15} />
-              <span className="hidden sm:inline">Back</span>
-            </button>
-          )}
           <Link
             to="/"
             onClick={close}
@@ -363,6 +346,7 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
         )}
       </AnimatePresence>
     </header>
+    {!global && !hideBack && <PageBackLink floating />}
     </InNavbarContext.Provider>
   );
 }

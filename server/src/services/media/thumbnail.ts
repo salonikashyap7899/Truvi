@@ -71,7 +71,8 @@ export async function generateThumbnail(filePath: string, mimeType?: string): Pr
       .rotate()
       .resize({ width: THUMB_MAX, height: THUMB_MAX, fit: "inside", withoutEnlargement: true });
 
-    if (ext === ".png") pipeline = pipeline.png({ compressionLevel: 9, palette: true });
+    // Lossless PNG (no 256-colour palette) so card photos don't band or blur.
+    if (ext === ".png") pipeline = pipeline.png({ compressionLevel: 9 });
     else if (ext === ".webp") pipeline = pipeline.webp({ quality: 70 });
     else pipeline = pipeline.jpeg({ quality: 70, mozjpeg: true });
 

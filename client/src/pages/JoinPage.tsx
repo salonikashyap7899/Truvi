@@ -32,7 +32,7 @@ const ROLE_CARDS = [
 
 export default function JoinPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-transparent px-4 py-28 text-foreground sm:px-6">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-transparent px-4 pb-28 pt-32 text-foreground sm:px-6">
       <SiteNav />
       <h1 className="text-center font-display text-3xl font-semibold md:text-5xl">
         How would you like to <span className="text-gradient-aurora">join Truvi?</span>

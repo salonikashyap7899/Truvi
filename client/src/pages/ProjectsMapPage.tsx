@@ -115,7 +115,7 @@ export default function ProjectsMapPage() {
   return (
     <div className="min-h-screen text-white">
       <SiteNav />
-      <main className="mx-auto max-w-7xl px-4 pb-10 pt-24 md:px-8">
+      <main className="mx-auto max-w-7xl px-4 pb-10 pt-32 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 font-display text-2xl font-semibold">
