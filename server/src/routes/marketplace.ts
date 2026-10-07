@@ -15,6 +15,13 @@ import {
 } from "../services/paymentService";
 
 const router = Router();
+
+// Unassigned leads that can be sold to Channel Partners. Leads a buyer or an
+// ambassador added from inventory belong to the Truvi team and are never sold.
+const marketplacePool = and(
+  isNull(leads.assignedToId),
+  sql`coalesce(${leads.creatorRole}, '') not in ('BUYER', 'AMBASSADOR')`,
+);
 router.use(authenticate);
 
 router.get("/", requireRole("CP"), async (req: AuthedRequest, res) => {
@@ -36,7 +43,7 @@ router.post("/create-order", requireRole("CP"), async (req: AuthedRequest, res) 
 
   const price = LEAD_MARKETPLACE_PRICES[parsed.data.leadType];
   // Don't take money when there's no lead to hand over.
-  const [available] = await getDb().select({ _id: leads._id }).from(leads).where(isNull(leads.assignedToId)).limit(1);
+  const [available] = await getDb().select({ _id: leads._id }).from(leads).where(marketplacePool).limit(1);
   if (!available) return res.status(404).json({ error: "No leads currently available in this tier" });
 
   const order = await createOrder(price, `lead_${Date.now()}`, {
@@ -104,7 +111,7 @@ router.post("/confirm", requireRole("CP"), async (req: AuthedRequest, res) => {
     const [availableLead] = await tx
       .select({ _id: leads._id })
       .from(leads)
-      .where(isNull(leads.assignedToId))
+      .where(marketplacePool)
       .orderBy(asc(leads.createdAt))
       .limit(1)
       .for("update", { skipLocked: true });

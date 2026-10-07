@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  SlidersHorizontal, Percent, Landmark, Bell, CreditCard, Sparkles, ShieldCheck, Users, Check,
+  SlidersHorizontal, Percent, Landmark, Bell, CreditCard, Sparkles, ShieldCheck, Users, Check, BellRing, Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, Label, Input } from "@/components/ui/primitives";
@@ -24,7 +24,9 @@ interface Settings {
   gstPercent: number;
   defaultCommissionPercent: number;
   notifications: { email: boolean; sms: boolean; whatsapp: boolean };
-  integrations: { razorpay: boolean; email: boolean; sms: boolean; ai: boolean };
+  integrations: { razorpay: boolean; email: boolean; sms: boolean; whatsapp?: boolean; ai: boolean };
+  /** Owner's new-lead alert contact (admin-only). */
+  leadAlert?: { enabled: boolean; phone: string; email: string };
 }
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -84,8 +86,8 @@ export default function AdminSettingsPage() {
       const res = await api.patch("/admin/settings", patch);
       setS(res.data);
       toast.success("Settings saved");
-    } catch {
-      toast.error("Failed to save settings");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -183,7 +185,7 @@ export default function AdminSettingsPage() {
                     {([
                       ["email", "Email", s.integrations.email],
                       ["sms", "SMS", s.integrations.sms],
-                      ["whatsapp", "WhatsApp", s.integrations.sms],
+                      ["whatsapp", "WhatsApp", s.integrations.whatsapp ?? s.integrations.sms],
                     ] as const).map(([key, label, wired]) => (
                       <div key={key} className="flex items-center justify-between py-3">
                         <div>
@@ -199,6 +201,16 @@ export default function AdminSettingsPage() {
                     ))}
                   </div>
                 </Card>
+              )}
+
+              {tab === "notifications" && s.leadAlert && (
+                <LeadAlertCard
+                  value={s.leadAlert}
+                  integrations={s.integrations}
+                  saving={saving}
+                  onChange={(leadAlert) => setLocal({ leadAlert })}
+                  onSave={() => save({ leadAlert: s.leadAlert })}
+                />
               )}
 
               {tab === "payments" && (
@@ -244,5 +256,90 @@ export default function AdminSettingsPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * New-lead alert: every lead added from an inventory card sends "New Lead
+ * Received" to this number (WhatsApp / SMS, whichever is connected on the
+ * server) and email. The number is stored on the server and never shown to
+ * any other role.
+ */
+function LeadAlertCard({
+  value, integrations, saving, onChange, onSave,
+}: {
+  value: { enabled: boolean; phone: string; email: string };
+  integrations: Settings["integrations"];
+  saving: boolean;
+  onChange: (v: { enabled: boolean; phone: string; email: string }) => void;
+  onSave: () => void;
+}) {
+  const [testing, setTesting] = useState(false);
+  async function sendTest() {
+    setTesting(true);
+    try {
+      const res = await api.post("/admin/settings/lead-alert/test");
+      const r = res.data as { configured: boolean; whatsapp: boolean; sms: boolean; email: boolean };
+      const sent = [r.whatsapp && "WhatsApp", r.sms && "SMS", r.email && "Email"].filter(Boolean);
+      if (!r.configured) toast.error("Add an alert number or email first, then save.");
+      else if (sent.length) toast.success(`Test alert sent by ${sent.join(", ")}.`);
+      else toast.error("Nothing was delivered — WhatsApp, SMS and email aren't connected on the server yet. Admins still get the in-app alert.");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't send a test alert");
+    } finally {
+      setTesting(false);
+    }
+  }
+  return (
+    <Card className="border-white/10 glass text-white">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2"><BellRing size={18} className="text-violet-300" /><h3 className="font-display text-lg font-semibold">New lead alerts</h3></div>
+        <Toggle on={value.enabled} disabled={saving} onClick={() => onChange({ ...value, enabled: !value.enabled })} />
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+        When a Buyer, Channel Partner or Ambassador adds a lead from inventory, the owner gets “New Lead Received” with the
+        customer, project, inventory, source and site-visit time. Admins always get it in the app too.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label className="text-foreground/90">Owner / admin mobile (WhatsApp &amp; SMS)</Label>
+          <Input
+            inputMode="tel"
+            placeholder="e.g. +91 98xxxxxxxx"
+            value={value.phone}
+            onChange={(e) => onChange({ ...value, phone: e.target.value })}
+            className="border-white/15 bg-card text-white"
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+            WhatsApp <StatusBadge ok={!!integrations.whatsapp} /> SMS <StatusBadge ok={integrations.sms} />
+          </div>
+        </div>
+        <div>
+          <Label className="text-foreground/90">Alert email (optional)</Label>
+          <Input
+            type="email"
+            placeholder="owner@yourcompany.com"
+            value={value.email}
+            onChange={(e) => onChange({ ...value, email: e.target.value })}
+            className="border-white/15 bg-card text-white"
+          />
+          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">Email <StatusBadge ok={integrations.email} /></div>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        This number is private: it stays on the server and is never shown to partners, buyers or ambassadors.
+      </p>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Button disabled={saving} onClick={onSave}>{saving ? "Saving…" : "Save lead alerts"}</Button>
+        <button
+          type="button"
+          onClick={sendTest}
+          disabled={testing}
+          className="inline-flex items-center gap-1.5 rounded-md border border-white/15 px-4 text-sm text-white/80 hover:bg-white/10 disabled:opacity-50"
+        >
+          <Send size={14} /> {testing ? "Sending…" : "Send test alert"}
+        </button>
+      </div>
+    </Card>
   );
 }

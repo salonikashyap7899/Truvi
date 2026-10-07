@@ -148,6 +148,11 @@ export interface User {
   onboardingVerified?: boolean;
   /** CP has confirmed joining the mandatory Truvi WhatsApp updates channel. */
   whatsappChannelJoined?: boolean;
+  /** When the CP finished the compulsory Channel Partner joining (null = not yet). */
+  cpJoinedAt?: string | null;
+  /** When the "how to work on Truvi" onboarding was completed (null = not yet). */
+  onboardingCompletedAt?: string | null;
+  referralCode?: string | null;
   onboardingChecks?: {
     aadhaarVerified?: boolean;
     phoneVerified?: boolean;
@@ -198,6 +203,8 @@ export interface Project {
   featuredUntil?: string | null;
   commissionPercent: number;
   unitCount?: number;
+  /** Units currently open for sale (status AVAILABLE). */
+  availableUnits?: number;
   /** Developer-declared total plots/units (shown when per-unit inventory is sparse). */
   totalUnits?: number | null;
   /** Plots/units to display: declared total → largest unit number → row count. */

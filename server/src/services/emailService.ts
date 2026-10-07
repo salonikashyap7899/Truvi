@@ -136,3 +136,19 @@ export async function sendPhoneOtpViaSms(phone: string, otp: string): Promise<bo
   });
   return true;
 }
+
+/**
+ * Send a plain SMS through the same Twilio account (used for operational
+ * alerts such as the owner's new-lead alert). Returns false when SMS isn't
+ * configured or the send fails — never throws.
+ */
+export async function sendSms(phone: string, body: string): Promise<boolean> {
+  if (!twilioClient || !phone) return false;
+  try {
+    await twilioClient.messages.create({ body, from: process.env.TWILIO_FROM!, to: toE164(phone) });
+    return true;
+  } catch (err) {
+    console.warn("[sms] send failed:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}

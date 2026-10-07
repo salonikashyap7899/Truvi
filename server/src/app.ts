@@ -13,6 +13,9 @@ import buyerRoutes from "./routes/buyer";
 import projectRoutes from "./routes/projects";
 import unitRoutes from "./routes/units";
 import leadRoutes from "./routes/leads";
+import leadManagementRoutes from "./routes/leadManagement";
+import offerRoutes from "./routes/offers";
+import meetingRoutes from "./routes/meetings";
 import siteVisitRoutes from "./routes/siteVisits";
 import commissionRoutes from "./routes/commissions";
 import marketplaceRoutes from "./routes/marketplace";
@@ -145,7 +148,10 @@ export function createApp() {
   app.use("/api/buyer", buyerRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/units", unitRoutes);
+  app.use("/api/leads", leadManagementRoutes); // /from-inventory, /mine, /admin/* (before /:id)
   app.use("/api/leads", leadRoutes);
+  app.use("/api/offers", offerRoutes);
+  app.use("/api/meetings", meetingRoutes);
   app.use("/api/site-visits", siteVisitRoutes);
   app.use("/api/commissions", commissionRoutes);
   app.use("/api/marketplace", marketplaceRoutes);

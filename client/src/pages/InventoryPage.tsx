@@ -5,7 +5,7 @@ import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { toast } from "sonner";
 import {
   Search, Star, ShieldCheck, MapPin, ArrowRight, Heart,
-  MessageCircle, SlidersHorizontal, X, Eye, Navigation,
+  MessageCircle, SlidersHorizontal, X, Eye, Navigation, Plus,
 } from "lucide-react";
 import VisitorGateModal from "@/components/VisitorGateModal";
 import ListingIntelligence from "@/components/ListingIntelligence";
@@ -18,6 +18,10 @@ import { haversineKm, formatDistance } from "@/lib/geo";
 import { useLocationStore } from "@/store/locationStore";
 import type { Project, ProjectType } from "@/types";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
+import AddLeadModal from "@/components/leads/AddLeadModal";
+import OfferDetailsModal, { OfferBadge } from "@/components/leads/OfferDetailsModal";
+import { LEAD_CREATOR_ROLES, type PublicOffer } from "@/components/leads/inventoryLeadShared";
 
 const WA_NUMBER = "917054280101";
 
@@ -87,6 +91,12 @@ export default function InventoryPage() {
   const uid = user ? (user._id ?? (user as unknown as { id?: string }).id ?? null) : null;
   const [saved, setSaved] = useState<Set<string>>(() => loadShortlist(uid));
   const [scoreProject, setScoreProject] = useState<Project | null>(null);
+  // "+" Add Lead (Buyer / Channel Partner / Ambassador) and Special Offers.
+  const [leadProject, setLeadProject] = useState<Project | null>(null);
+  const [offerProject, setOfferProject] = useState<Project | null>(null);
+  const [offers, setOffers] = useState<PublicOffer[]>([]);
+  const canAddLead = !!user && (LEAD_CREATOR_ROLES as readonly string[]).includes(user.role);
+  const navigate = useNavigate();
   const coords = useLocationStore((s) => s.coords);
   const locStatus = useLocationStore((s) => s.status);
   const requestLocation = useLocationStore((s) => s.request);
@@ -113,6 +123,28 @@ export default function InventoryPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Live offers the viewer is eligible for (the server filters by role/dates).
+  useEffect(() => {
+    api.get("/offers/active").then((res) => setOffers(res.data.offers ?? [])).catch(() => setOffers([]));
+  }, [user?.role]);
+  const offerByProject = useMemo(() => {
+    const m = new Map<string, PublicOffer>();
+    // A project-wide offer is the one shown on the card; else a unit offer.
+    for (const o of offers) if (!o.unitId && !m.has(o.projectId)) m.set(o.projectId, o);
+    for (const o of offers) if (!m.has(o.projectId)) m.set(o.projectId, o);
+    return m;
+  }, [offers]);
+
+  function openAddLead(project: Project) {
+    if (!user) {
+      toast.error("Sign in to add a lead or book a site visit.");
+      navigate("/login");
+      return;
+    }
+    setOfferProject(null);
+    setLeadProject(project);
+  }
 
   useEffect(() => {
     if (!user && localStorage.getItem("truvi-welcome-seen")) {
@@ -279,6 +311,9 @@ export default function InventoryPage() {
                 saved={saved.has(project._id)}
                 onToggleSaved={() => toggleSaved(project._id)}
                 onOpenScore={() => setScoreProject(project)}
+                offer={offerByProject.get(project._id) ?? null}
+                onOpenOffer={() => setOfferProject(project)}
+                onAddLead={!user || canAddLead ? () => openAddLead(project) : undefined}
               />
             ))}
           </div>
@@ -288,6 +323,23 @@ export default function InventoryPage() {
       {/* Truvi Score breakdown — opens as a popup right on the inventory page. */}
       {scoreProject && (
         <ScoreModal project={scoreProject} onClose={() => setScoreProject(null)} />
+      )}
+
+      {offerProject && offerByProject.get(offerProject._id) && (
+        <OfferDetailsModal
+          offer={offerByProject.get(offerProject._id)!}
+          projectName={offerProject.name}
+          onClose={() => setOfferProject(null)}
+          onAddLead={!user || canAddLead ? () => openAddLead(offerProject) : undefined}
+        />
+      )}
+
+      {leadProject && (
+        <AddLeadModal
+          project={leadProject}
+          offer={offerByProject.get(leadProject._id) ?? null}
+          onClose={() => setLeadProject(null)}
+        />
       )}
     </>
   );
@@ -337,13 +389,17 @@ function priceBadge(project: Project): string {
 }
 
 function ListingCard({
-  project, isPrime, saved, onToggleSaved, onOpenScore,
+  project, isPrime, saved, onToggleSaved, onOpenScore, offer, onOpenOffer, onAddLead,
 }: {
   project: Project;
   isPrime: boolean;
   saved: boolean;
   onToggleSaved: () => void;
   onOpenScore: () => void;
+  offer: PublicOffer | null;
+  onOpenOffer: () => void;
+  /** Opens the Add Lead form; absent for roles that don't add leads. */
+  onAddLead?: () => void;
 }) {
   const navigate = useNavigate();
   const coords = useLocationStore((s) => s.coords);
@@ -469,10 +525,17 @@ function ListingCard({
                 const noun = project.projectType === "PLOTTED" || project.projectType === "LAND" ? "plots" : "units";
                 return <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{count} {noun}</span>;
               })()}
+              {(project.unitCount ?? 0) > 0 && (
+                project.availableUnits
+                  ? <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">{project.availableUnits} available</span>
+                  : <span className="rounded-md border border-rose-400/25 bg-rose-500/10 px-2 py-0.5 text-rose-200">Sold out</span>
+              )}
               {typeof project.viewCount === "number" && project.viewCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5"><Eye size={10} /> {project.viewCount}</span>
               )}
             </div>
+
+            {offer && <OfferBadge offer={offer} onOpen={onOpenOffer} />}
           </div>
         </Link>
 
@@ -493,6 +556,16 @@ function ListingCard({
           >
             View <ArrowRight size={13} />
           </Link>
+          {onAddLead && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddLead(); }}
+              title="Add lead / book a site visit"
+              aria-label="Add lead"
+              className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--trust)]/45 bg-[var(--trust)]/15 text-sky-100 transition hover:bg-[var(--trust)]/25"
+            >
+              <Plus size={18} strokeWidth={2.4} />
+            </button>
+          )}
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); shareProjectOnWhatsApp(project); }}
             title="Share on WhatsApp"

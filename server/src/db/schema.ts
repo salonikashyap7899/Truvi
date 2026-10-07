@@ -17,6 +17,7 @@ import {
   boolean,
   doublePrecision,
   integer,
+  bigserial,
   timestamp,
   jsonb,
   index,
@@ -371,6 +372,13 @@ export const users = pgTable(
     // the CP confirms they've joined; there's no WhatsApp API to verify it, so
     // this is a required self-acknowledgement gate.
     whatsappChannelJoined: boolean("whatsapp_channel_joined").notNull().default(false),
+    // Channel Partner joining (KYC + WhatsApp channel + partner agreement) is
+    // compulsory. Stamped once the CP completes it; an admin can reset it.
+    cpJoinedAt: timestamp("cp_joined_at", { withTimezone: true, mode: "date" }),
+    // "How to work on Truvi" onboarding — set when the onboarding meeting is
+    // done (or the user marks it done) so the prompt never repeats unless an
+    // admin resets it.
+    onboardingCompletedAt: timestamp("onboarding_completed_at", { withTimezone: true, mode: "date" }),
     // Last time this account made an authenticated request — powers the
     // MAU/DAU active-user metrics (updated at most once per ~10 min).
     lastActiveAt: timestamp("last_active_at", { withTimezone: true, mode: "date" }),
@@ -526,6 +534,12 @@ export const units = pgTable(
   ]
 );
 
+/** One level of a lead's referral chain — ids only, no copied user data. */
+export interface LeadReferralLink {
+  level: number;
+  userId: string;
+}
+
 export const leads = pgTable(
   "leads",
   {
@@ -548,6 +562,25 @@ export const leads = pgTable(
     // CRM: CP-managed labels like "Hot", "NRI", "Investor" (paid tier).
     tags: jsonb("tags").$type<string[]>(),
     isDuplicate: boolean("is_duplicate").notNull().default(false),
+    // Human-readable Lead ID (shown as TRV-L-000123). Assigned by the DB.
+    leadNo: bigserial("lead_no", { mode: "number" }),
+    // The exact inventory the lead came from (null = whole project).
+    unitId: uuid("unit_id").references(() => units._id),
+    // Role of the account that created the lead (BUYER / CP / AMBASSADOR …),
+    // derived on the server from the session, never from the request body.
+    creatorRole: text("creator_role").$type<Role>(),
+    // What the customer is looking for (buy to live, investment, …).
+    requirement: text("requirement"),
+    // Requested site visit (IST calendar date "YYYY-MM-DD" + "HH:MM").
+    visitDate: text("visit_date"),
+    visitTime: text("visit_time"),
+    // Referral / commission source as references only: the referral code used
+    // and the chain of referrer user ids by level (L1 = the ambassador/CP who
+    // brought the lead, L2 = whoever referred them, …). Extensible to more levels.
+    referralCode: text("referral_code"),
+    referralChain: jsonb("referral_chain").$type<LeadReferralLink[]>(),
+    // Active offer the lead was eligible for when it was created (server-checked).
+    offerId: uuid("offer_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -1479,8 +1512,20 @@ export const platformSettings = pgTable("platform_settings", {
   notifyEmail: boolean("notify_email").notNull().default(true),
   notifySms: boolean("notify_sms").notNull().default(false),
   notifyWhatsapp: boolean("notify_whatsapp").notNull().default(false),
+  // New-lead alerts to the owner/admin. Admin-only — never sent to other roles.
+  leadAlertEnabled: boolean("lead_alert_enabled").notNull().default(true),
+  leadAlertPhone: text("lead_alert_phone"),
+  leadAlertEmail: text("lead_alert_email"),
+  // Fixed onboarding meeting everyone new is invited to (admin-set).
+  onboardingSession: jsonb("onboarding_session").$type<OnboardingSession | null>(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
+export interface OnboardingSession {
+  date: string; // YYYY-MM-DD (IST)
+  time: string; // HH:MM (IST)
+  link: string;
+  note?: string;
+}
 export type IPlatformSettings = typeof platformSettings.$inferSelect;
 
 // Developer enrollment — a CP enrolls a developer/landowner to list on Truvi.
@@ -1818,3 +1863,61 @@ export type ICommissionMilestone = CommissionMilestone;
 // Dynamic AI verification & Q&A engine (Phase 1). Re-exported so the whole
 // schema is reachable from "../db/schema" and included in `import * as schema`.
 export * from "./verificationSchema";
+
+// ── Offers (admin-managed incentives shown on inventory) ─────────────────────
+// e.g. Paradise Town: "For every 1,000 sq ft sold, earn ₹1,00,000" →
+// calcBasis PER_AREA_BLOCK, basisQuantity 1000, amount 100000. Rewards are
+// always calculated on the server from these fields.
+export type OfferRewardType = "INCENTIVE" | "BONUS_COMMISSION" | "GIFT" | "DISCOUNT";
+export type OfferCalcBasis = "PER_AREA_BLOCK" | "PER_UNIT" | "PERCENT_OF_VALUE" | "FIXED";
+export const offers = pgTable(
+  "offers",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    unitId: uuid("unit_id").references(() => units._id),
+    description: text("description"),
+    badgeText: text("badge_text"),
+    terms: text("terms"),
+    rewardType: text("reward_type").$type<OfferRewardType>().notNull().default("INCENTIVE"),
+    calcBasis: text("calc_basis").$type<OfferCalcBasis>().notNull().default("PER_AREA_BLOCK"),
+    basisQuantity: doublePrecision("basis_quantity"),
+    amount: doublePrecision("amount").notNull(),
+    // Pay pro-rata for a part block (1,500 sq ft → ₹1.5L) instead of whole blocks only.
+    prorate: boolean("prorate").notNull().default(false),
+    eligibleRoles: jsonb("eligible_roles").$type<Role[]>().notNull().default(["CP", "AMBASSADOR"]),
+    startDate: text("start_date"), // YYYY-MM-DD (IST), inclusive
+    endDate: text("end_date"), // YYYY-MM-DD (IST), inclusive
+    isActive: boolean("is_active").notNull().default(true),
+    // Soft delete — an offer a lead was attached to stays referencable.
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [index("offers_project_idx").on(t.projectId)]
+);
+export type IOffer = typeof offers.$inferSelect;
+
+// ── Support meetings ("Schedule a Google Meet" with the Truvi team) ──────────
+export type SupportMeetingStatus = "REQUESTED" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type SupportMeetingTopic = "ONBOARDING" | "HELP";
+export const supportMeetings = pgTable(
+  "support_meetings",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    topic: text("topic").$type<SupportMeetingTopic>().notNull().default("HELP"),
+    date: text("date").notNull(), // YYYY-MM-DD (IST)
+    time: text("time").notNull(), // HH:MM (IST)
+    note: text("note"),
+    meetLink: text("meet_link"),
+    status: text("status").$type<SupportMeetingStatus>().notNull().default("REQUESTED"),
+    adminNote: text("admin_note"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [index("support_meetings_user_idx").on(t.userId), index("support_meetings_date_idx").on(t.date)]
+);
+export type ISupportMeeting = typeof supportMeetings.$inferSelect;
