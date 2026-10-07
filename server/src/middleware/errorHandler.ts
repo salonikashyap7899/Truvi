@@ -6,7 +6,7 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ error: `Upload error: ${err.message}` });
   }
-  if (err instanceof Error && err.message.startsWith("Unsupported file type")) {
+  if (err instanceof Error && (err.message.startsWith("Unsupported file type") || err.message.startsWith("File type not allowed"))) {
     return res.status(400).json({ error: err.message });
   }
   if (err instanceof PaymentsUnavailableError) {
