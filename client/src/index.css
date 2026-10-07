@@ -58,6 +58,10 @@ body.ask-truvi-open [data-fab="invest"] {
 .has-global-nav > .min-h-screen {
   min-height: calc(100dvh - 4.75rem - env(safe-area-inset-top, 0px));
 }
+/* …and the "← Back" row under it (PageBackLink, ~2.5rem). */
+.has-global-nav.has-page-back > .min-h-screen {
+  min-height: calc(100dvh - 7.25rem - env(safe-area-inset-top, 0px));
+}
 
 /* The first-run onboarding tour is a fullscreen overlay; hide every floating
    button while it is open so none of them sits above it and intercepts taps on

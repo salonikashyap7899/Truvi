@@ -72,7 +72,7 @@ export default function PricingPage() {
 
       <SiteNav />
 
-      <main className="mx-auto max-w-6xl px-4 pt-28 pb-24 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 pt-32 pb-24 sm:px-6">
         {/* Header */}
         <div className="text-center">
           <motion.h1

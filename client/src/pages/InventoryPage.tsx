@@ -224,7 +224,7 @@ export default function InventoryPage() {
       <SiteNav />
 
       <main
-        className="min-h-screen px-4 pb-28 pt-[calc(5rem+env(safe-area-inset-top))] text-white sm:px-6 md:px-10 md:pt-32"
+        className="min-h-screen px-4 pb-28 pt-[calc(7.5rem+env(safe-area-inset-top))] text-white sm:px-6 md:px-10 md:pt-32"
       >
         {/* ── Header + search ── */}
         <div className="mx-auto max-w-3xl text-center">

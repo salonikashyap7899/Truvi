@@ -17,6 +17,10 @@ const AmbientBackground = lazy(() =>
 // Eager: the shell components + the landing page (first paint must be instant).
 import LandingPage from "@/pages/LandingPage";
 import GlobalNav, { GLOBAL_NAV_OFFSET, useGlobalNavVisible } from "@/components/GlobalNav";
+import PageBackLink from "@/components/PageBackLink";
+import { showsNavBack } from "@/lib/navChrome";
+import { dashboardPath } from "@/lib/rolePaths";
+import { useAuthStore } from "@/store/authStore";
 import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
 import NativeShell from "@/components/NativeShell";
@@ -177,13 +181,16 @@ function PageTransition({ children }: { children: ReactNode }) {
   // its modules (only its content area changes), instead of re-animating.
   const transitionKey = pathname.startsWith("/admin/") ? "/admin" : pathname;
   const navOffset = useGlobalNavVisible();
+  const user = useAuthStore((s) => s.user);
+  // The "← Back" link sits just under the app-level navbar, in the page flow.
+  const pageBack = navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
   return (
     <motion.div
       key={transitionKey}
       initial={{ opacity: 0, y: IS_TOUCH ? 0 : 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`relative z-10 min-h-full ${navOffset ? "has-global-nav" : ""}`}
+      className={`relative z-10 min-h-full ${navOffset ? "has-global-nav" : ""} ${pageBack ? "has-page-back" : ""}`}
       // Leave room for the app-level navbar at the top (inside the page's
       // height, so short pages don't scroll) and for the app's bottom tab bar.
       style={{
@@ -191,6 +198,7 @@ function PageTransition({ children }: { children: ReactNode }) {
         ...(showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : {}),
       }}
     >
+      {pageBack && <PageBackLink />}
       {children}
     </motion.div>
   );

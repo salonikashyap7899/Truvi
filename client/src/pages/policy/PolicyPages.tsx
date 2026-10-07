@@ -11,7 +11,7 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteNav />
-      <main className="mx-auto max-w-3xl px-4 pt-28 pb-20 sm:px-6">
+      <main className="mx-auto max-w-3xl px-4 pt-32 pb-20 sm:px-6">
         <h1 className="font-display text-3xl font-semibold sm:text-4xl">{title}</h1>
         <p className="mt-2 text-xs text-amber-300/80">{updated ?? UPDATED}</p>
         <div className="prose-invert mt-6 space-y-5 text-sm leading-relaxed text-muted-foreground [&_h2]:mt-8 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:text-foreground [&_strong]:text-foreground">

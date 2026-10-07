@@ -57,12 +57,15 @@ export async function optimizeUploadedImage(filePath: string, mimeType?: string)
 
     // Re-encode in the SAME format the filename already advertises, so the URL
     // and extension the app stored stay valid.
+    // PNGs stay lossless (no `palette`): quantising a photo/render to a
+    // 256-colour palette visibly blurs and bands it. Photos are re-encoded at
+    // a high quality so they stay crisp on the full-width listing banner.
     if (ext === ".png") {
-      pipeline = pipeline.png({ compressionLevel: 9, palette: true });
+      pipeline = pipeline.png({ compressionLevel: 9 });
     } else if (ext === ".webp") {
-      pipeline = pipeline.webp({ quality: 80 });
+      pipeline = pipeline.webp({ quality: 88 });
     } else {
-      pipeline = pipeline.jpeg({ quality: 80, mozjpeg: true });
+      pipeline = pipeline.jpeg({ quality: 88, mozjpeg: true });
     }
 
     const optimized = await pipeline.toBuffer();
