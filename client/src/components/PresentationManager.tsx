@@ -28,10 +28,24 @@ const LIST_FIELDS = [
 
 type ListField = (typeof LIST_FIELDS)[number][0];
 
+
+/** A clear reason for a failed upload, including the ones that never reach
+ *  the app (the web server rejecting a large file, a timeout, no network). */
+function uploadErrorMessage(err: any): string {
+  const status = err?.response?.status;
+  const serverMsg = err?.response?.data?.error;
+  if (serverMsg) return serverMsg;
+  if (status === 413) return "The server rejected this file as too large. Its upload limit (nginx client_max_body_size) needs to be raised to at least 60 MB.";
+  if (status === 502 || status === 504) return "The server took too long to receive this file. Try again, or compress the video to make it smaller.";
+  if (err?.code === "ECONNABORTED" || err?.code === "ERR_NETWORK") return "Network problem while uploading — check your connection and try again.";
+  return status ? `Upload failed (error ${status}).` : "Upload failed — no response from the server.";
+}
+
 export default function PresentationManager({ project, onProjectUpdated }: Props) {
   const isAdmin = useAuthStore((s) => s.user?.role) === "ADMIN";
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
   const [savingInfo, setSavingInfo] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
@@ -85,6 +99,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
     e.preventDefault();
     if (!file || !title.trim()) return;
     setUploading(true);
+    setUploadPct(0);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -92,6 +107,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
       form.append("title", title.trim());
       const res = await api.post(`/presentation/${project._id}/assets`, form, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (ev) => { if (ev.total) setUploadPct(Math.round((ev.loaded / ev.total) * 100)); },
       });
       setAssets((prev) => [res.data.asset, ...prev]);
       setTitle("");
@@ -99,7 +115,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
       if (fileRef.current) fileRef.current.value = "";
       toast.success(res.data.message || "Asset uploaded");
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Upload failed");
+      toast.error(uploadErrorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -312,7 +328,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
           </p>
         )}
         <Button type="submit" size="sm" className="mt-3" disabled={uploading || !file || !title.trim()}>
-          {uploading ? <><Loader2 size={13} className="animate-spin mr-1.5" /> Uploading…</> : "Upload"}
+          {uploading ? <><Loader2 size={13} className="animate-spin mr-1.5" /> Uploading… {uploadPct}%</> : "Upload"}
         </Button>
       </form>
 
