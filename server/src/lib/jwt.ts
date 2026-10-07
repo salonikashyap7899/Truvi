@@ -5,6 +5,9 @@ export interface TokenPayload {
   role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
   onboardingVerified?: boolean;
+  /** Channel Partners only: has the compulsory CP joining been completed?
+   *  Absent on tokens issued before this flag existed (treated as joined). */
+  cpJoined?: boolean;
 }
 
 /**

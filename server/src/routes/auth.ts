@@ -31,6 +31,7 @@ import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services
 import { emitNotification } from "../sockets";
 import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsappService";
 import { notifyUser, notifyRole } from "../services/notificationService";
+import { logAudit } from "../services/audit";
 import { isFounderEmail } from "../config/env";
 
 const router = Router();
@@ -292,6 +293,7 @@ function issueSession(res: import("express").Response, user: IUser) {
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,
+    ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
   });
   const refreshToken = signRefreshToken({ userId: String(user._id) });
   res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTS);
@@ -314,6 +316,8 @@ function issueSession(res: import("express").Response, user: IUser) {
       onboardingVerified: user.onboardingVerified,
       onboardingChecks: user.onboardingChecks,
       whatsappChannelJoined: user.whatsappChannelJoined ?? false,
+      cpJoinedAt: user.cpJoinedAt ?? null,
+      onboardingCompletedAt: user.onboardingCompletedAt ?? null,
       avatarUrl: user.avatarUrl ?? null,
       bio: user.bio ?? null,
     },
@@ -664,6 +668,7 @@ router.post("/refresh", async (req, res) => {
       role: user.role,
       approvalStatus: user.approvalStatus,
       onboardingVerified: user.onboardingVerified,
+      ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
     });
     return res.json({ accessToken });
   } catch {
@@ -700,6 +705,35 @@ router.post("/join-whatsapp-channel", authenticate, async (req: AuthedRequest, r
     .returning({ whatsappChannelJoined: users.whatsappChannelJoined });
   if (!updated) return res.status(404).json({ error: "User not found" });
   return res.json({ ok: true, whatsappChannelJoined: true });
+});
+
+// POST /api/auth/cp-joining/complete — compulsory Channel Partner joining.
+// After KYC and the WhatsApp channel, the CP accepts the partner terms; the
+// joining is then saved on the account and never asked again unless an admin
+// resets it. KYC itself is untouched. Returns a fresh access token so the
+// unlocked state applies immediately.
+router.post("/cp-joining/complete", authenticate, async (req: AuthedRequest, res) => {
+  const userId = req.user!.userId;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (req.body?.acceptTerms !== true) return res.status(400).json({ error: "Please accept the Channel Partner terms" });
+  const user = await findUserById(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role !== "CP") return res.status(400).json({ error: "Only Channel Partners have a joining step" });
+  if (!user.onboardingVerified) return res.status(400).json({ error: "Finish your KYC verification first" });
+  if (!user.whatsappChannelJoined) return res.status(400).json({ error: "Join the WhatsApp updates channel first" });
+  const cpJoinedAt = user.cpJoinedAt ?? new Date();
+  if (!user.cpJoinedAt) {
+    await getDb().update(users).set({ cpJoinedAt }).where(eq(users._id, userId));
+    void logAudit({ userId, action: "cp.joining.complete", resourceType: "user", resourceId: userId });
+  }
+  const accessToken = signAccessToken({
+    userId,
+    role: user.role,
+    approvalStatus: user.approvalStatus,
+    onboardingVerified: user.onboardingVerified,
+    cpJoined: true,
+  });
+  return res.json({ ok: true, accessToken, cpJoinedAt });
 });
 
 // PATCH /api/auth/profile — the signed-in user edits their own display profile

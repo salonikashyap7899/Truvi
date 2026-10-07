@@ -99,6 +99,9 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Users", icon: "users", path: "/admin/users" },
   { label: "Listings", icon: "building", path: "/admin/listings" },
   { label: "Truvi Scores", icon: "chart", path: "/admin/scores" },
+  { label: "Leads", icon: "target", path: "/admin/leads" },
+  { label: "Offers", icon: "wallet", path: "/admin/offers" },
+  { label: "Meetings", icon: "users", path: "/admin/meetings" },
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },
   { label: "Call Management", icon: "spark", path: "/admin/calls" },
   { label: "Verification", icon: "shield", path: "/admin/verification" },
@@ -266,6 +269,7 @@ export default function AdminOsDashboardPage() {
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
   const [trends, setTrends] = useState<KpiTrends | null>(null);
+  const [leadStats, setLeadStats] = useState<{ total: number; new: number; visitsScheduled: number; visitsCompleted: number; converted: number } | null>(null);
 
   // Each section loads independently and resiliently — the dashboard renders
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
@@ -283,6 +287,7 @@ export default function AdminOsDashboardPage() {
     api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
     api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
     api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
+    api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {});
   }
   useEffect(() => { load(); }, []);
 
@@ -313,6 +318,17 @@ export default function AdminOsDashboardPage() {
         <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
         <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
       </div>
+
+      {/* Lead management — inventory + pipeline leads (opens the Leads module) */}
+      {leadStats && (
+        <div className="kpi-grid">
+          <Kpi icon="target" tone="blue" label="Total Leads" value={String(leadStats.total)} foot="Open lead management" onClick={() => navigate("/admin/leads")} />
+          <Kpi icon="spark" tone="amber" label="New Leads" value={String(leadStats.new)} foot="Waiting to be contacted" onClick={() => navigate("/admin/leads?status=NEW")} />
+          <Kpi icon="building" tone="blue" label="Visits Scheduled" value={String(leadStats.visitsScheduled)} foot="Upcoming site visits" onClick={() => navigate("/admin/leads?status=SITE_VISIT_SCHEDULED")} />
+          <Kpi icon="shield" tone="green" label="Visits Completed" value={String(leadStats.visitsCompleted)} foot="Site visits done" onClick={() => navigate("/admin/leads?status=SITE_VISIT_COMPLETED")} />
+          <Kpi icon="wallet" tone="green" label="Converted" value={String(leadStats.converted)} foot="Booked leads" onClick={() => navigate("/admin/leads?status=CONVERTED")} />
+        </div>
+      )}
 
       {/* Operations today — live counts (from founder-overview) */}
       {overview && (

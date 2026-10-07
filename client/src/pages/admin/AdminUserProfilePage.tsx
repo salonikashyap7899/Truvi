@@ -53,6 +53,9 @@ interface DetailedProfile {
   cpProfile?: { isPremium: boolean; premiumExpiresAt?: string | null; conversionRatio: number; totalBookings: number } | null;
   developerProfile?: { companyName?: string; reraNumber?: string } | null;
   referralCode?: string | null;
+  whatsappChannelJoined?: boolean;
+  cpJoinedAt?: string | null;
+  onboardingCompletedAt?: string | null;
   createdAt?: string;
   lastLoginAt?: string | null;
   kycStatus: "VERIFIED" | "PENDING" | "REJECTED" | "NONE";
@@ -208,6 +211,10 @@ export default function AdminUserProfilePage() {
             </div>
           )}
         </section>
+
+        {(p.role === "CP" || p.role === "AMBASSADOR" || p.role === "DEVELOPER") && (
+          <JoiningCard profile={p} onChange={(patch) => setProfile((cur) => (cur ? { ...cur, ...patch } : cur))} />
+        )}
 
         {/* Activity summary */}
         <section className="rounded-2xl border border-white/10 glass p-5">
@@ -399,5 +406,46 @@ function DocTile({ doc }: { doc: ProfileDoc }) {
         {badge}
       </div>
     </div>
+  );
+}
+
+/**
+ * CP joining + onboarding status, with admin resets. A reset only clears the
+ * joining / onboarding marker — KYC and everything else stay as they are.
+ */
+function JoiningCard({ profile: p, onChange }: { profile: DetailedProfile; onChange: (patch: Partial<DetailedProfile>) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  async function reset(what: "cpJoining" | "onboarding") {
+    const msg = what === "cpJoining"
+      ? `Reset Channel Partner joining for ${p.name}? They'll be asked to complete joining again (KYC is kept).`
+      : `Reset onboarding for ${p.name}? They'll see the onboarding meeting invite again.`;
+    if (!window.confirm(msg)) return;
+    setBusy(what);
+    try {
+      await api.post(`/meetings/admin/users/${p._id}/reset`, { what });
+      onChange(what === "cpJoining" ? { cpJoinedAt: null } : { onboardingCompletedAt: null });
+      toast.success("Reset done");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't reset");
+    } finally {
+      setBusy(null);
+    }
+  }
+  const btn = "rounded-lg border border-white/15 px-3 py-1.5 text-xs hover:bg-white/10 disabled:opacity-40";
+  return (
+    <section className="rounded-2xl border border-white/10 glass p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-foreground/80"><Users size={15} /> Joining &amp; onboarding</h2>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        {p.role === "CP" && <Field label="WhatsApp channel" value={p.whatsappChannelJoined ? "Joined" : "Not yet"} />}
+        {p.role === "CP" && <Field label="CP joining" value={p.cpJoinedAt ? `Complete · ${formatDate(p.cpJoinedAt)}` : "Not complete"} />}
+        <Field label="Onboarding meeting" value={p.onboardingCompletedAt ? `Done · ${formatDate(p.onboardingCompletedAt)}` : "Not done"} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {p.role === "CP" && (
+          <button className={btn} disabled={!p.cpJoinedAt || busy !== null} onClick={() => reset("cpJoining")}>Reset CP joining</button>
+        )}
+        <button className={btn} disabled={!p.onboardingCompletedAt || busy !== null} onClick={() => reset("onboarding")}>Reset onboarding</button>
+      </div>
+    </section>
   );
 }

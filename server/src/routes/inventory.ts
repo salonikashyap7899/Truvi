@@ -87,10 +87,10 @@ router.get("/", async (_req, res) => {
     mediaMap.set(id, [...list].sort((a, b) => (a.type === b.type ? 0 : a.type === "image" ? -1 : 1)));
   }
 
-  const statsById = new Map<string, { unitCount: number; maxUnitNo: number; minPrice: number | null; maxPrice: number | null; minRate: number | null }>();
+  const statsById = new Map<string, { unitCount: number; available: number; maxUnitNo: number; minPrice: number | null; maxPrice: number | null; minRate: number | null }>();
   for (const unit of unitRows) {
     const id = String(unit.projectId);
-    const existing = statsById.get(id) ?? { unitCount: 0, maxUnitNo: 0, minPrice: null, maxPrice: null, minRate: null };
+    const existing = statsById.get(id) ?? { unitCount: 0, available: 0, maxUnitNo: 0, minPrice: null, maxPrice: null, minRate: null };
     const nextMinPrice = existing.minPrice === null || unit.price < existing.minPrice ? unit.price : existing.minPrice;
     const nextMaxPrice = existing.maxPrice === null || unit.price > existing.maxPrice ? unit.price : existing.maxPrice;
     const unitRate = unit.areaSqft > 0 ? unit.price / unit.areaSqft : null;
@@ -100,6 +100,7 @@ router.get("/", async (_req, res) => {
     const num = unitNumberToInt(unit.unitNumber);
     statsById.set(id, {
       unitCount: existing.unitCount + 1,
+      available: existing.available + (unit.status === "AVAILABLE" ? 1 : 0),
       maxUnitNo: num > existing.maxUnitNo ? num : existing.maxUnitNo,
       minPrice: nextMinPrice,
       maxPrice: nextMaxPrice,
@@ -118,6 +119,7 @@ router.get("/", async (_req, res) => {
       ...withoutPrivateProjectFields(project),
       developerId: developer ? { _id: developer._id, name: developer.name } : null,
       unitCount: stats?.unitCount ?? 0,
+      availableUnits: stats?.available ?? 0,
       plotCount: displayPlotCount(project.totalUnits, stats?.maxUnitNo ?? 0, stats?.unitCount ?? 0),
       minPrice: stats?.minPrice ?? null,
       maxPrice: stats?.maxPrice ?? null,

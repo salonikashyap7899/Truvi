@@ -6,6 +6,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import WelcomeGate from "@/components/WelcomeGate";
 import Onboarding from "@/components/Onboarding";
 import WhatsAppChannelPrompt from "@/components/WhatsAppChannelPrompt";
+import OnboardingMeetPrompt from "@/components/OnboardingMeetPrompt";
 import AskTruvi from "@/components/AskTruvi";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 
@@ -49,6 +50,10 @@ const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
 const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePage"));
 const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
 const AdminScoresPage = lazy(() => import("@/pages/admin/AdminScoresPage"));
+const AdminLeadsPage = lazy(() => import("@/pages/admin/AdminLeadsPage"));
+const AdminOffersPage = lazy(() => import("@/pages/admin/AdminOffersPage"));
+const AdminMeetingsPage = lazy(() => import("@/pages/admin/AdminMeetingsPage"));
+const MeetPage = lazy(() => import("@/pages/MeetPage"));
 const AdminProjectManagePage = lazy(() => import("@/pages/admin/AdminProjectManagePage"));
 const AdminRevenuePage = lazy(() => import("@/pages/admin/AdminRevenuePage"));
 const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
@@ -283,6 +288,7 @@ export default function App() {
       <WelcomeGate />
       <OnboardingGate />
       <WhatsAppChannelPrompt />
+      <OnboardingMeetPrompt />
       <FloatingAssistants />
       <InvestFab />
       <GlobalNav />
@@ -294,6 +300,7 @@ export default function App() {
         <Route path="/welcome" element={<WelcomeRoute />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/ask-truvi" element={<AskTruviPage />} />
+        <Route path="/help/meet" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MeetPage /></ProtectedRoute>} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
         <Route path="/join" element={<JoinPage />} />
@@ -340,6 +347,9 @@ export default function App() {
           <Route path="users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
           <Route path="listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
           <Route path="scores" element={<ProtectedRoute roles={["ADMIN"]}><AdminScoresPage /></ProtectedRoute>} />
+          <Route path="leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminLeadsPage /></ProtectedRoute>} />
+          <Route path="offers" element={<ProtectedRoute roles={["ADMIN"]}><AdminOffersPage /></ProtectedRoute>} />
+          <Route path="meetings" element={<ProtectedRoute roles={["ADMIN"]}><AdminMeetingsPage /></ProtectedRoute>} />
           <Route path="listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />
           <Route path="enquiries" element={<ProtectedRoute roles={["ADMIN"]}><AdminEnquiriesPage /></ProtectedRoute>} />
           <Route path="calls" element={<ProtectedRoute roles={["ADMIN"]}><AdminCallsPage /></ProtectedRoute>} />

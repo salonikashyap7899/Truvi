@@ -80,6 +80,11 @@ export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYE
     if (req.user.role === "CP" && req.user.onboardingVerified !== true) {
       return res.status(403).json({ error: "Complete onboarding verification to access project details" });
     }
+    // Compulsory Channel Partner joining (after KYC). Only an explicit `false`
+    // blocks, so sessions issued before this flag existed keep working.
+    if (req.user.role === "CP" && req.user.cpJoined === false) {
+      return res.status(403).json({ error: "Complete your Channel Partner joining to continue", code: "CP_JOINING_REQUIRED" });
+    }
     next();
   };
 }

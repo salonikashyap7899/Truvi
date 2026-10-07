@@ -1,7 +1,11 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { dashboardPath } from "@/lib/rolePaths";
 import type { Role } from "@/types";
+import { CpJoiningFlow } from "@/components/CpJoiningGate";
+
+/** CP pages that stay open before joining is complete (help/learning). */
+const CP_UNGATED = new Set(["/cp/guide"]);
 
 /**
  * Client-side route gating for UX only (redirect before a flash of the
@@ -16,9 +20,16 @@ import type { Role } from "@/types";
 export function ProtectedRoute({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const { pathname } = useLocation();
 
   if (!accessToken || !user) return <Navigate to="/login" replace />;
   if (!roles.includes(user.role)) return <Navigate to={dashboardPath(user)} replace />;
+
+  // Channel Partner workspace pages (not the pages every role shares) need the
+  // compulsory CP joining — KYC, WhatsApp channel and partner terms — first.
+  if (user.role === "CP" && !roles.includes("BUYER") && !CP_UNGATED.has(pathname)) {
+    return <CpJoiningFlow>{children}</CpJoiningFlow>;
+  }
 
   return <>{children}</>;
 }

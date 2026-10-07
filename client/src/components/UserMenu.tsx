@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { LayoutDashboard, LogOut, Home, ChevronDown } from "lucide-react";
+import { LayoutDashboard, LogOut, Home, ChevronDown, Video } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import { IS_NATIVE } from "@/lib/native";
@@ -114,6 +114,17 @@ export function UserMenu() {
               <LayoutDashboard size={14} className="text-[var(--trust)]" />
               My {roleDisplayLabel(user)} Dashboard
             </Link>
+            {user.role !== "ADMIN" && (
+              <Link
+                to="/help/meet"
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground/90 transition hover:bg-white/5"
+              >
+                <Video size={14} className="text-sky-300" />
+                Schedule a Google Meet
+              </Link>
+            )}
             <Link
               to="/"
               onClick={() => setOpen(false)}

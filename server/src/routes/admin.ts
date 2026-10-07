@@ -55,6 +55,8 @@ import { fetchRagCountsForProjects } from "../services/ragIntel";
 import { presentBuyerDocUrl } from "../services/privateFiles";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
+import { normalizePhone, isAiSensyEnabled, isWhatsAppEnabled } from "../services/whatsappService";
+import { sendLeadAlert } from "../services/leadAlertService";
 
 const router = Router();
 router.use(authenticate);
@@ -1690,9 +1692,15 @@ async function loadSettings(): Promise<IPlatformSettings> {
   return created;
 }
 
-function settingsResponse(s: IPlatformSettings) {
+function settingsResponse(s: IPlatformSettings, isAdmin = false) {
   cachedFeePercent = s.platformFeePercent;
   return {
+    // The owner's lead-alert contact is admin-only — never sent to other roles.
+    ...(isAdmin
+      ? {
+          leadAlert: { enabled: s.leadAlertEnabled, phone: s.leadAlertPhone ?? "", email: s.leadAlertEmail ?? "" },
+        }
+      : {}),
     platformFeePercent: s.platformFeePercent,
     gstPercent: s.gstPercent,
     defaultCommissionPercent: s.defaultCommissionPercent,
@@ -1703,13 +1711,14 @@ function settingsResponse(s: IPlatformSettings) {
       razorpay: Boolean(process.env.RAZORPAY_KEY_ID),
       email: Boolean(process.env.SMTP_HOST),
       sms: Boolean(process.env.TWILIO_ACCOUNT_SID),
+      whatsapp: isAiSensyEnabled() || isWhatsAppEnabled(),
       ai: Boolean(process.env.ANTHROPIC_API_KEY),
     },
   };
 }
 
-router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (_req, res) => {
-  res.json(settingsResponse(await loadSettings()));
+router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (req: AuthedRequest, res) => {
+  res.json(settingsResponse(await loadSettings(), req.user!.role === "ADMIN"));
 });
 
 const settingsPatchSchema = z.object({
@@ -1718,6 +1727,18 @@ const settingsPatchSchema = z.object({
   defaultCommissionPercent: z.number().min(0).max(100).optional(),
   notifications: z
     .object({ email: z.boolean().optional(), sms: z.boolean().optional(), whatsapp: z.boolean().optional() })
+    .optional(),
+  leadAlert: z
+    .object({
+      enabled: z.boolean().optional(),
+      phone: z
+        .string()
+        .trim()
+        .max(20)
+        .refine((v) => v === "" || normalizePhone(v) !== null, "Enter a valid mobile number for lead alerts")
+        .optional(),
+      email: z.string().trim().max(120).email("Enter a valid email for lead alerts").optional().or(z.literal("")),
+    })
     .optional(),
 });
 
@@ -1734,11 +1755,36 @@ router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (d.notifications?.email !== undefined) update.notifyEmail = d.notifications.email;
   if (d.notifications?.sms !== undefined) update.notifySms = d.notifications.sms;
   if (d.notifications?.whatsapp !== undefined) update.notifyWhatsapp = d.notifications.whatsapp;
+  if (d.leadAlert?.enabled !== undefined) update.leadAlertEnabled = d.leadAlert.enabled;
+  if (d.leadAlert?.phone !== undefined) update.leadAlertPhone = d.leadAlert.phone || null;
+  if (d.leadAlert?.email !== undefined) update.leadAlertEmail = d.leadAlert.email || null;
 
   const db = getDb();
   const [saved] = await db.update(platformSettings).set(update).where(eq(platformSettings._id, current._id)).returning();
   void logAudit({ userId: req.user!.userId, action: "settings.update", resourceType: "settings", metadata: { fields: Object.keys(d) } });
-  res.json(settingsResponse(saved));
+  res.json(settingsResponse(saved, true));
+});
+
+// POST /api/admin/settings/lead-alert/test — sends a sample "New Lead Received"
+// alert to the configured owner number/email and reports which channels went
+// out (never the number itself or any provider detail).
+router.post("/settings/lead-alert/test", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const result = await sendLeadAlert(
+    {
+      leadId: "TRV-L-TEST",
+      customerName: "Test Customer",
+      customerPhone: "9876543210",
+      project: "Sample Project",
+      inventory: "Plot 12 · 1,000 sq ft",
+      source: "Test alert",
+      visitDate: "—",
+      visitTime: "—",
+      notes: "This is a test of the new-lead alert.",
+    },
+    { force: true },
+  );
+  void logAudit({ userId: req.user!.userId, action: "settings.lead_alert.test", resourceType: "settings", metadata: { ...result } });
+  res.json(result);
 });
 
 export function getPlatformFeePercent(): number {

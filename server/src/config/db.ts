@@ -584,6 +584,77 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "marketing_partner_campaigns_user_idx" ON "marketing_partner_campaigns" ("user_id")`,
 
+    // ── Inventory leads, offers, Google Meet scheduling, CP joining ──────────
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lead_no" bigserial`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "leads_lead_no_unique" ON "leads" ("lead_no")`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "unit_id" uuid REFERENCES units(id)`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "creator_role" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "requirement" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "visit_date" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "visit_time" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "referral_code" text`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "referral_chain" jsonb`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "offer_id" uuid`,
+    `CREATE INDEX IF NOT EXISTS "leads_creator_role_idx" ON "leads" ("creator_role", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "leads_unit_idx" ON "leads" ("unit_id")`,
+    `CREATE INDEX IF NOT EXISTS "leads_visit_date_idx" ON "leads" ("visit_date")`,
+    `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_enabled" boolean NOT NULL DEFAULT true`,
+    `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_phone" text`,
+    `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_email" text`,
+    `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "onboarding_session" jsonb`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed_at" timestamptz`,
+    // CP joining flag. Added once; Channel Partners who had ALREADY finished
+    // KYC + the WhatsApp channel when this shipped are marked joined, so the
+    // new step never interrupts an existing, working partner. Later admin
+    // resets are not undone because the backfill only runs when the column
+    // is first created.
+    `DO $$ BEGIN
+       IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                      WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'cp_joined_at') THEN
+         ALTER TABLE "users" ADD COLUMN "cp_joined_at" timestamptz;
+         UPDATE "users" SET "cp_joined_at" = now()
+          WHERE "role" = 'CP' AND "onboarding_verified" = true AND "whatsapp_channel_joined" = true;
+       END IF;
+     END $$`,
+    `CREATE TABLE IF NOT EXISTS "offers" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "project_id" uuid NOT NULL REFERENCES projects(id),
+       "unit_id" uuid REFERENCES units(id),
+       "description" text,
+       "badge_text" text,
+       "terms" text,
+       "reward_type" text NOT NULL DEFAULT 'INCENTIVE',
+       "calc_basis" text NOT NULL DEFAULT 'PER_AREA_BLOCK',
+       "basis_quantity" double precision,
+       "amount" double precision NOT NULL,
+       "prorate" boolean NOT NULL DEFAULT false,
+       "eligible_roles" jsonb NOT NULL DEFAULT '["CP","AMBASSADOR"]'::jsonb,
+       "start_date" text,
+       "end_date" text,
+       "is_active" boolean NOT NULL DEFAULT true,
+       "deleted_at" timestamptz,
+       "created_by_id" uuid REFERENCES users(id),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "offers_project_idx" ON "offers" ("project_id")`,
+    `CREATE TABLE IF NOT EXISTS "support_meetings" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "topic" text NOT NULL DEFAULT 'HELP',
+       "date" text NOT NULL,
+       "time" text NOT NULL,
+       "note" text,
+       "meet_link" text,
+       "status" text NOT NULL DEFAULT 'REQUESTED',
+       "admin_note" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "support_meetings_user_idx" ON "support_meetings" ("user_id")`,
+    `CREATE INDEX IF NOT EXISTS "support_meetings_date_idx" ON "support_meetings" ("date")`,
+
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
