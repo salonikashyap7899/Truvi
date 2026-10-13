@@ -98,6 +98,7 @@ function timeAgo(iso: string): string {
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Users", icon: "users", path: "/admin/users" },
   { label: "Listings", icon: "building", path: "/admin/listings" },
+  { label: "Habitat", icon: "building", path: "/admin/habitat" },
   { label: "Truvi Scores", icon: "chart", path: "/admin/scores" },
   { label: "Leads", icon: "target", path: "/admin/leads" },
   { label: "Offers", icon: "wallet", path: "/admin/offers" },

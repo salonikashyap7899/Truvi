@@ -57,6 +57,7 @@ import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
 import verificationAdminRoutes from "./routes/verificationAdmin";
 import askRoutes from "./routes/ask";
+import habitatRoutes from "./routes/habitat";
 import { securityHeaders, setUploadHeaders } from "./middleware/security";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -190,6 +191,7 @@ export function createApp() {
   app.use("/api/ingest", ingestRoutes);
   app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs
   app.use("/api", askRoutes); // /api/ask, /api/chat/:sessionId
+  app.use("/api/habitat", habitatRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     // Content-hashed build assets never change for a given URL → cache hard.

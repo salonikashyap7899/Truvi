@@ -28,6 +28,11 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "whatsapp_channel_joined" boolean NOT NULL DEFAULT false`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    // Habitat eligibility is opt-in per project; existing approved listings
+    // remain outside the services marketplace until an admin enables them.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "habitat_enabled" boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "habitat_enabled_at" timestamptz`,
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "habitat_enabled_by_id" uuid REFERENCES "users"("id")`,
     // Which body approved the project (RERA / District Panchayat / DTCP), so a
     // non-RERA-registered but validly-approved layout can still be listed.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "approval_authority" text`,
@@ -654,6 +659,140 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "support_meetings_user_idx" ON "support_meetings" ("user_id")`,
     `CREATE INDEX IF NOT EXISTS "support_meetings_date_idx" ON "support_meetings" ("date")`,
+
+    // Truvi Habitat is an additive home-services domain. Its booking and
+    // attribution records are intentionally separate from property leads,
+    // site visits, and CP commissions.
+    `CREATE TABLE IF NOT EXISTS "habitat_service_categories" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "name" text NOT NULL,
+       "slug" text NOT NULL UNIQUE,
+       "description" text,
+       "icon" text,
+       "active" boolean NOT NULL DEFAULT true,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_categories_active_idx" ON "habitat_service_categories" ("active", "sort_order")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_providers" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "owner_user_id" uuid NOT NULL UNIQUE REFERENCES "users"("id"),
+       "business_name" text NOT NULL,
+       "description" text NOT NULL,
+       "category_ids" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "service_areas" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "experience_years" integer NOT NULL DEFAULT 0,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "review_note" text,
+       "reviewed_by_id" uuid REFERENCES "users"("id"),
+       "reviewed_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_providers_status_idx" ON "habitat_providers" ("status")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_services" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "category_id" uuid NOT NULL REFERENCES "habitat_service_categories"("id"),
+       "title" text NOT NULL,
+       "description" text NOT NULL,
+       "pricing_model" text NOT NULL,
+       "price_paise" integer,
+       "duration_minutes" integer,
+       "includes" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "excludes" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "cancellation_policy" text NOT NULL,
+       "active" boolean NOT NULL DEFAULT true,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_services_category_active_idx" ON "habitat_services" ("category_id", "active")`,
+    `CREATE INDEX IF NOT EXISTS "habitat_services_active_idx" ON "habitat_services" ("active")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_invitations" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "code" text NOT NULL UNIQUE,
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "campaign" text,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "expires_at" timestamptz,
+       "revoked_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_invitations_project_idx" ON "habitat_invitations" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_memberships" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "buyer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "invitation_id" uuid NOT NULL REFERENCES "habitat_invitations"("id"),
+       "consented_at" timestamptz NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("buyer_id", "project_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_memberships_project_idx" ON "habitat_memberships" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_bookings" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "reference" text NOT NULL UNIQUE,
+       "buyer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "invitation_id" uuid NOT NULL REFERENCES "habitat_invitations"("id"),
+       "service_id" uuid NOT NULL REFERENCES "habitat_services"("id"),
+       "provider_id" uuid REFERENCES "habitat_providers"("id"),
+       "status" text NOT NULL DEFAULT 'REQUESTED',
+       "service_title_snapshot" text NOT NULL,
+       "pricing_model_snapshot" text NOT NULL,
+       "estimated_amount_paise" integer,
+       "service_address" jsonb NOT NULL,
+       "preferred_at" timestamptz NOT NULL,
+       "request_details" text,
+       "terms_accepted_at" timestamptz NOT NULL,
+       "idempotency_key" text NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("buyer_id", "idempotency_key")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_bookings_buyer_created_idx" ON "habitat_bookings" ("buyer_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "habitat_bookings_provider_status_idx" ON "habitat_bookings" ("provider_id", "status", "preferred_at")`,
+    `CREATE INDEX IF NOT EXISTS "habitat_bookings_status_idx" ON "habitat_bookings" ("status", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_booking_status_history" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "booking_id" uuid NOT NULL REFERENCES "habitat_bookings"("id"),
+       "actor_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "from_status" text,
+       "to_status" text NOT NULL,
+       "reason" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_booking_history_booking_idx" ON "habitat_booking_status_history" ("booking_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "habitat_reviews" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "booking_id" uuid NOT NULL UNIQUE REFERENCES "habitat_bookings"("id"),
+       "buyer_id" uuid NOT NULL REFERENCES "users"("id"),
+       "provider_id" uuid NOT NULL REFERENCES "habitat_providers"("id"),
+       "service_id" uuid NOT NULL REFERENCES "habitat_services"("id"),
+       "rating" integer NOT NULL CHECK ("rating" BETWEEN 1 AND 5),
+       "comment" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "habitat_reviews_service_idx" ON "habitat_reviews" ("service_id", "created_at")`,
+    `INSERT INTO "habitat_service_categories" ("name", "slug", "sort_order")
+     VALUES
+       ('Plumbing', 'plumbing', 1),
+       ('Electrical Work', 'electrical-work', 2),
+       ('Deep Cleaning', 'deep-cleaning', 3),
+       ('Regular Home Cleaning', 'home-cleaning', 4),
+       ('Painting', 'painting', 5),
+       ('Carpentry', 'carpentry', 6),
+       ('AC Installation & Servicing', 'ac-service', 7),
+       ('Pest Control', 'pest-control', 8),
+       ('Appliance Repair', 'appliance-repair', 9),
+       ('Interior Design', 'interior-design', 10),
+       ('Furniture Assembly', 'furniture-assembly', 11),
+       ('Packers & Movers', 'packers-movers', 12),
+       ('Laundry', 'laundry', 13),
+       ('Water Purifier Servicing', 'water-purifier-service', 14),
+       ('General Home Maintenance', 'home-maintenance', 15)
+     ON CONFLICT ("slug") DO NOTHING`,
 
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,

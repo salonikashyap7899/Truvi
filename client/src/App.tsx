@@ -89,6 +89,10 @@ const OnboardDevelopersPage = lazy(() => import("@/pages/cp/OnboardDevelopersPag
 const BuyerDashboardPage = lazy(() => import("@/pages/buyer/BuyerDashboardPage"));
 const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
 const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
+const HabitatPage = lazy(() => import("@/pages/habitat/HabitatPage"));
+const HabitatInvitePage = lazy(() => import("@/pages/habitat/HabitatInvitePage"));
+const HabitatProviderPage = lazy(() => import("@/pages/habitat/HabitatProviderPage"));
+const HabitatAdminPage = lazy(() => import("@/pages/habitat/HabitatAdminPage"));
 const InventoryPage = lazy(() => import("@/pages/InventoryPage"));
 const ProjectPresentationPage = lazy(() => import("@/pages/ProjectPresentationPage"));
 const ProjectLandingPage = lazy(() => import("@/pages/ProjectLandingPage"));
@@ -378,6 +382,7 @@ export default function App() {
           <Route path="ambassador-knowledge" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorKnowledgePage /></ProtectedRoute>} />
           <Route path="academy" element={<ProtectedRoute roles={["ADMIN"]}><AdminAcademyPage /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute roles={["ADMIN"]}><AdminAuditLogsPage /></ProtectedRoute>} />
+          <Route path="habitat" element={<ProtectedRoute roles={["ADMIN"]}><HabitatAdminPage /></ProtectedRoute>} />
         </Route>
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
@@ -415,6 +420,16 @@ export default function App() {
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />
         <Route path="/buyer/projects" element={<ProtectedRoute roles={["BUYER"]}><BuyerProjectsPage /></ProtectedRoute>} />
         <Route path="/buyer/compare" element={<ProtectedRoute roles={["BUYER"]}><ComparePage /></ProtectedRoute>} />
+        <Route path="/habitat" element={<ProtectedRoute roles={["BUYER"]}><HabitatPage /></ProtectedRoute>} />
+        <Route path="/habitat/invite/:code" element={<ProtectedRoute roles={["BUYER"]}><HabitatInvitePage /></ProtectedRoute>} />
+        <Route
+          path="/habitat/provider"
+          element={
+            <ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}>
+              <HabitatProviderPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 404 — catch-all, must stay last */}
         <Route path="*" element={<NotFoundPage />} />

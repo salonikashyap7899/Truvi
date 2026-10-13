@@ -218,6 +218,9 @@ export default function BuyerDashboardPage() {
         <div className="flex items-center gap-3">
           <NotificationBell />
           <UserMenu />
+          <Link to="/habitat">
+            <Button size="sm" variant="secondary">Browse Habitat</Button>
+          </Link>
           <Link to="/inventory">
             <Button size="sm">
               <PlusCircle size={15} className="mr-1.5" />

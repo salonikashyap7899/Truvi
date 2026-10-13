@@ -31,6 +31,18 @@ import {
 export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type HabitatProviderStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
+export type HabitatPricingModel = "FIXED" | "STARTING_PRICE" | "QUOTE";
+export type HabitatBookingStatus =
+  | "REQUESTED"
+  | "PROVIDER_ASSIGNED"
+  | "ACCEPTED"
+  | "REJECTED"
+  | "IN_PROGRESS"
+  | "COMPLETION_SUBMITTED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "DISPUTED";
 /** A project additionally starts as DRAFT: saved but not yet sent for admin
  *  review, until the developer completes the essentials and submits it. */
 export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
@@ -446,6 +458,9 @@ export const projects = pgTable(
     // development authority (DTCP) — not only RERA-registered ones.
     approvalAuthority: text("approval_authority").$type<ApprovalAuthority>(),
     approvalStatus: text("approval_status").$type<ProjectApprovalStatus>().notNull().default("PENDING"),
+    habitatEnabled: boolean("habitat_enabled").notNull().default(false),
+    habitatEnabledAt: timestamp("habitat_enabled_at", { withTimezone: true, mode: "date" }),
+    habitatEnabledById: uuid("habitat_enabled_by_id").references(() => users._id),
     listingTier: text("listing_tier").$type<ListingTier>().notNull().default("STANDARD"),
     featuredUntil: timestamp("featured_until", { withTimezone: true, mode: "date" }),
     isPrimeListing: boolean("is_prime_listing").notNull().default(false),
@@ -1921,3 +1936,179 @@ export const supportMeetings = pgTable(
   (t) => [index("support_meetings_user_idx").on(t.userId), index("support_meetings_date_idx").on(t.date)]
 );
 export type ISupportMeeting = typeof supportMeetings.$inferSelect;
+
+// ── Truvi Habitat (home services; deliberately separate from property sales) ──
+export const habitatServiceCategories = pgTable(
+  "habitat_service_categories",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    description: text("description"),
+    icon: text("icon"),
+    active: boolean("active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("habitat_categories_slug_unique").on(t.slug), index("habitat_categories_active_idx").on(t.active, t.sortOrder)]
+);
+export type IHabitatServiceCategory = typeof habitatServiceCategories.$inferSelect;
+
+export const habitatProviders = pgTable(
+  "habitat_providers",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id").notNull().references(() => users._id),
+    businessName: text("business_name").notNull(),
+    description: text("description").notNull(),
+    categoryIds: jsonb("category_ids").$type<string[]>().notNull().default([]),
+    serviceAreas: jsonb("service_areas").$type<string[]>().notNull().default([]),
+    experienceYears: integer("experience_years").notNull().default(0),
+    status: text("status").$type<HabitatProviderStatus>().notNull().default("PENDING"),
+    reviewNote: text("review_note"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_providers_owner_unique").on(t.ownerUserId),
+    index("habitat_providers_status_idx").on(t.status),
+  ]
+);
+export type IHabitatProvider = typeof habitatProviders.$inferSelect;
+
+export const habitatServices = pgTable(
+  "habitat_services",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    categoryId: uuid("category_id").notNull().references(() => habitatServiceCategories._id),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    pricingModel: text("pricing_model").$type<HabitatPricingModel>().notNull(),
+    pricePaise: integer("price_paise"),
+    durationMinutes: integer("duration_minutes"),
+    includes: jsonb("includes").$type<string[]>().notNull().default([]),
+    excludes: jsonb("excludes").$type<string[]>().notNull().default([]),
+    cancellationPolicy: text("cancellation_policy").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("habitat_services_category_active_idx").on(t.categoryId, t.active),
+    index("habitat_services_active_idx").on(t.active),
+  ]
+);
+export type IHabitatService = typeof habitatServices.$inferSelect;
+
+export const habitatInvitations = pgTable(
+  "habitat_invitations",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    campaign: text("campaign"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_invitations_code_unique").on(t.code),
+    index("habitat_invitations_project_idx").on(t.projectId, t.createdAt),
+  ]
+);
+export type IHabitatInvitation = typeof habitatInvitations.$inferSelect;
+
+export const habitatMemberships = pgTable(
+  "habitat_memberships",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    buyerId: uuid("buyer_id").notNull().references(() => users._id),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    invitationId: uuid("invitation_id").notNull().references(() => habitatInvitations._id),
+    consentedAt: timestamp("consented_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_memberships_buyer_project_unique").on(t.buyerId, t.projectId),
+    index("habitat_memberships_project_idx").on(t.projectId, t.createdAt),
+  ]
+);
+export type IHabitatMembership = typeof habitatMemberships.$inferSelect;
+
+export const habitatBookings = pgTable(
+  "habitat_bookings",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    reference: text("reference").notNull(),
+    buyerId: uuid("buyer_id").notNull().references(() => users._id),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    invitationId: uuid("invitation_id").notNull().references(() => habitatInvitations._id),
+    serviceId: uuid("service_id").notNull().references(() => habitatServices._id),
+    providerId: uuid("provider_id").references(() => habitatProviders._id),
+    status: text("status").$type<HabitatBookingStatus>().notNull().default("REQUESTED"),
+    serviceTitleSnapshot: text("service_title_snapshot").notNull(),
+    pricingModelSnapshot: text("pricing_model_snapshot").$type<HabitatPricingModel>().notNull(),
+    estimatedAmountPaise: integer("estimated_amount_paise"),
+    serviceAddress: jsonb("service_address").$type<{
+      label: string;
+      street: string;
+      locality: string;
+      city: string;
+      postalCode: string;
+      instructions?: string;
+    }>().notNull(),
+    preferredAt: timestamp("preferred_at", { withTimezone: true, mode: "date" }).notNull(),
+    requestDetails: text("request_details"),
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }).notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_bookings_reference_unique").on(t.reference),
+    uniqueIndex("habitat_bookings_buyer_idempotency_unique").on(t.buyerId, t.idempotencyKey),
+    index("habitat_bookings_buyer_created_idx").on(t.buyerId, t.createdAt),
+    index("habitat_bookings_provider_status_idx").on(t.providerId, t.status, t.preferredAt),
+    index("habitat_bookings_status_idx").on(t.status, t.createdAt),
+  ]
+);
+export type IHabitatBooking = typeof habitatBookings.$inferSelect;
+
+export const habitatBookingStatusHistory = pgTable(
+  "habitat_booking_status_history",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    actorUserId: uuid("actor_user_id").notNull().references(() => users._id),
+    fromStatus: text("from_status").$type<HabitatBookingStatus>(),
+    toStatus: text("to_status").$type<HabitatBookingStatus>().notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("habitat_booking_history_booking_idx").on(t.bookingId, t.createdAt)]
+);
+export type IHabitatBookingStatusHistory = typeof habitatBookingStatusHistory.$inferSelect;
+
+export const habitatReviews = pgTable(
+  "habitat_reviews",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    buyerId: uuid("buyer_id").notNull().references(() => users._id),
+    providerId: uuid("provider_id").notNull().references(() => habitatProviders._id),
+    serviceId: uuid("service_id").notNull().references(() => habitatServices._id),
+    rating: integer("rating").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_reviews_booking_unique").on(t.bookingId),
+    index("habitat_reviews_service_idx").on(t.serviceId, t.createdAt),
+  ]
+);
+export type IHabitatReview = typeof habitatReviews.$inferSelect;
