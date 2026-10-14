@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import {
   ArrowLeft, Building2, MapPin, ShieldCheck, FingerprintPattern, Video, Flame, Leaf, Box, Eye,
-  Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera,
+  Home, FileText, Download, X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Camera, CalendarPlus,
 } from "lucide-react";
 import { LayoutGrid, CalendarClock } from "lucide-react";
 import { Navigation } from "lucide-react";
@@ -21,6 +21,7 @@ import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project, ProjectAsset } from "@/types";
 import SoldOutBadge from "@/components/SoldOutBadge";
+import AddLeadModal, { type SiteVisitDraft } from "@/components/leads/AddLeadModal";
 
 function fmtDate(v?: string | null): string | null {
   if (!v) return null;
@@ -243,12 +244,16 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
 /* ── Main page ────────────────────────────────────────────────────────────── */
 export default function ProjectPresentationPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [units, setUnits] = useState<PresentationUnit[]>([]);
   const [unitSummary, setUnitSummary] = useState<UnitSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<{ images: ProjectAsset[]; index: number } | null>(null);
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [siteVisitDraft, setSiteVisitDraft] = useState<SiteVisitDraft | undefined>();
   const coords = useLocationStore((s) => s.coords);
   const distanceKm =
     coords && project && typeof project.lat === "number" && typeof project.lng === "number"
@@ -269,6 +274,14 @@ export default function ProjectPresentationPage() {
     // Count this visit (fire-and-forget).
     api.post(`/inventory/${id}/view`).catch(() => null);
   }, [id]);
+
+  useEffect(() => {
+    const state = location.state as { resumeSiteVisit?: boolean; siteVisitDraft?: SiteVisitDraft } | null;
+    if (!project || !state?.resumeSiteVisit) return;
+    setSiteVisitDraft(state.siteVisitDraft);
+    setLeadModalOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate, project]);
 
   const bySection = useMemo(() => {
     const map = new Map<string, ProjectAsset[]>();
@@ -373,6 +386,18 @@ export default function ProjectPresentationPage() {
           onNavigate={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))}
         />
       )}
+      {leadModalOpen && project.availabilityStatus !== "SOLD_OUT" && (
+        <AddLeadModal
+          project={{
+            _id: project._id,
+            name: project.name,
+            location: project.location,
+            city: project.city,
+          }}
+          initialDraft={siteVisitDraft}
+          onClose={() => setLeadModalOpen(false)}
+        />
+      )}
 
       <Link to="/inventory" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white transition-colors">
         <ArrowLeft size={14} /> Back to Inventory
@@ -443,6 +468,18 @@ export default function ProjectPresentationPage() {
             project={project}
             className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-200 transition-all hover:border-emerald-400/60 hover:bg-emerald-500/20 hover:shadow-[0_0_24px_rgba(16,185,129,0.2)]"
           />
+          {project.availabilityStatus !== "SOLD_OUT" && (
+            <button
+              type="button"
+              onClick={() => {
+                setSiteVisitDraft(undefined);
+                setLeadModalOpen(true);
+              }}
+              className="inline-flex w-fit items-center gap-2 rounded-full bg-gradient-to-r from-[var(--trust)] to-[#2563eb] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:brightness-110"
+            >
+              <CalendarPlus size={15} /> Book a site visit
+            </button>
+          )}
         </div>
 
         {/* Brochure — appears only when an admin has uploaded one */}
@@ -450,6 +487,21 @@ export default function ProjectPresentationPage() {
         {/* Masked call to the developer — Channel Partners only */}
         <CallDeveloperButton projectId={project._id} className="mt-2" />
       </div>
+
+      {project.availabilityStatus !== "SOLD_OUT" && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#080b12]/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-lg sm:hidden">
+          <button
+            type="button"
+            onClick={() => {
+              setSiteVisitDraft(undefined);
+              setLeadModalOpen(true);
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--trust)] to-[#2563eb] py-3 text-sm font-semibold text-white"
+          >
+            <CalendarPlus size={16} /> Book a site visit
+          </button>
+        </div>
+      )}
 
       {/* Truvi Score & verification intelligence */}
       <section className="mt-8 max-w-3xl">

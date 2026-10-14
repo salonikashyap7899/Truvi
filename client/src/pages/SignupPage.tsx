@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -165,8 +165,24 @@ const ROLE_OPTIONS: { id: Role; label: string; icon: React.ReactNode }[] = [
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { signup, user, isAuthenticated } = useAuth();
+  const authReturn = location.state as { returnTo?: string; siteVisitDraft?: unknown } | null;
+  const presentationReturnTo =
+    authReturn?.returnTo && /^\/inventory\/[^/]+\/presentation$/.test(authReturn.returnTo)
+      ? authReturn.returnTo
+      : null;
+  function navigateAfterAuth(authedUser: NonNullable<typeof user>) {
+    if (presentationReturnTo) {
+      navigate(presentationReturnTo, {
+        replace: true,
+        state: { resumeSiteVisit: true, siteVisitDraft: authReturn?.siteVisitDraft },
+      });
+    } else {
+      navigate(dashboardPath(authedUser), { replace: true });
+    }
+  }
   const [serverError, setServerError] = useState<string | null>(null);
   // Two-step flow kept on this page: "form" collects details, "otp" verifies
   // the emailed + texted codes inline (no bounce to a separate screen).
@@ -175,7 +191,7 @@ export default function SignupPage() {
 
   // Already signed in? Straight to this role's own workspace.
   useEffect(() => {
-    if (isAuthenticated && user) navigate(dashboardPath(user), { replace: true });
+    if (isAuthenticated && user) navigateAfterAuth(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,7 +254,7 @@ export default function SignupPage() {
               <OtpStep
                 email={pending.email}
                 phone={pending.phone}
-                onVerified={(u) => navigate(dashboardPath(u))}
+                onVerified={navigateAfterAuth}
                 onBack={() => setStep("form")}
               />
             ) : (
@@ -343,7 +359,7 @@ export default function SignupPage() {
                 </button>
                 <p className="text-center text-[13px] text-muted-foreground sm:col-span-2">
                   Already have an account?{" "}
-                  <Link to="/login" className="font-medium text-sky-300 underline-offset-4 hover:underline">
+                  <Link to="/login" state={location.state} className="font-medium text-sky-300 underline-offset-4 hover:underline">
                     Sign in
                   </Link>
                 </p>

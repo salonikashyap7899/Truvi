@@ -148,7 +148,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
       .from(units)
       .where(eq(units._id, d.unitId));
     if (!u || String(u.projectId) !== String(project._id)) return res.status(400).json({ error: "That unit doesn't belong to this project" });
-    if (u.status === "SOLD") return res.status(409).json({ error: "This unit is already sold — pick another unit" });
+    if (u.status !== "AVAILABLE") return res.status(409).json({ error: "This unit isn't available — pick another unit" });
     unit = u;
   }
 
@@ -205,7 +205,37 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
 
   const offer = await findEligibleOffer(project._id, unit?._id ?? null, role).catch(() => null);
 
-  const created = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    const [currentProject] = await tx
+      .select({
+        _id: projects._id,
+        name: projects.name,
+        approvalStatus: projects.approvalStatus,
+        availabilityStatus: projects.availabilityStatus,
+        developerId: projects.developerId,
+      })
+      .from(projects)
+      .where(eq(projects._id, project._id))
+      .for("update");
+    if (!currentProject || currentProject.approvalStatus !== "APPROVED") {
+      return { kind: "project-unavailable" as const };
+    }
+    if (currentProject.availabilityStatus === "SOLD_OUT") {
+      return { kind: "project-sold-out" as const };
+    }
+    if (d.unitId) {
+      const [currentUnit] = await tx
+        .select({ projectId: units.projectId, status: units.status })
+        .from(units)
+        .where(eq(units._id, d.unitId))
+        .for("update");
+      if (!currentUnit || String(currentUnit.projectId) !== String(currentProject._id)) {
+        return { kind: "unit-mismatch" as const };
+      }
+      if (currentUnit.status !== "AVAILABLE") return { kind: "unit-unavailable" as const };
+    }
+    if (scheduledAt.getTime() < Date.now()) return { kind: "visit-time-passed" as const };
+
     const [lead] = await tx
       .insert(leads)
       .values({
@@ -247,12 +277,19 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
       content: `Lead created from inventory by ${ROLE_LABEL[role] ?? role} — site visit requested for ${formatVisitDate(d.visitDate)} at ${formatVisitTime(d.visitTime)}`,
       metadata: { by: me._id, role, unitId: unit?._id ?? null, offerId: offer?._id ?? null },
     });
-    return lead;
+    return { kind: "created" as const, lead, project: currentProject };
   });
 
+  if (outcome.kind === "project-unavailable") return res.status(404).json({ error: "This project isn't available" });
+  if (outcome.kind === "project-sold-out") return res.status(409).json({ error: "This project is currently sold out." });
+  if (outcome.kind === "unit-mismatch") return res.status(400).json({ error: "That unit doesn't belong to this project" });
+  if (outcome.kind === "unit-unavailable") return res.status(409).json({ error: "This unit isn't available — pick another unit" });
+  if (outcome.kind === "visit-time-passed") return res.status(400).json({ error: "That visit time has already passed — pick a later time" });
+
+  const { lead: created, project: currentProject } = outcome;
   const leadId = displayLeadId(created.leadNo);
   const visitText = `${formatVisitDate(d.visitDate)} at ${formatVisitTime(d.visitTime)}`;
-  emitLeadUpdate(created, project.developerId);
+  emitLeadUpdate(created, currentProject.developerId);
   void logAudit({ userId: me._id, action: "lead.create.inventory", resourceType: "lead", resourceId: String(created._id), metadata: { role, projectId: project._id, unitId: unit?._id ?? null } });
 
   // Notifications — never fail the request on them.
@@ -261,16 +298,16 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
       await notifyRole("ADMIN", {
         type: NotificationType.NEW_LEAD,
         title: "New Lead Received",
-        message: `${clientName} · ${project.name} · visit ${visitText} (${ROLE_LABEL[role] ?? role})`,
+        message: `${clientName} · ${currentProject.name} · visit ${visitText} (${ROLE_LABEL[role] ?? role})`,
         actorUserId: me._id,
         priority: "high",
         data: { href: `/admin/leads?lead=${created._id}` },
       });
-      if (project.developerId) {
-        await notifyUser(String(project.developerId), {
+      if (currentProject.developerId) {
+        await notifyUser(String(currentProject.developerId), {
           type: NotificationType.NEW_LEAD,
           title: "New lead",
-          message: `A new lead came in for "${project.name}".`,
+          message: `A new lead came in for "${currentProject.name}".`,
           actorUserId: me._id,
           data: { href: "/crm/pipeline" },
         });
@@ -279,7 +316,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         leadId,
         customerName: clientName,
         customerPhone: clientPhone!,
-        project: project.name,
+        project: currentProject.name,
         inventory: unitLabel(unit),
         source: ROLE_LABEL[role] ?? role,
         visitDate: formatVisitDate(d.visitDate),

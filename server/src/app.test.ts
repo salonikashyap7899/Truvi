@@ -16,7 +16,7 @@ describe("createApp production hosting", () => {
     server?.close();
   });
 
-  it("serves the built frontend for non-API routes", async () => {
+  it("serves the built frontend for dashboard and shared presentation deep links", async () => {
     const app = createApp();
     server = app.listen(0);
 
@@ -29,10 +29,17 @@ describe("createApp production hosting", () => {
 
     const response = await fetch(`http://127.0.0.1:${address.port}/dashboard`);
     const body = await response.text();
+    const presentationResponse = await fetch(
+      `http://127.0.0.1:${address.port}/inventory/76da0eb3-4ed2-4e43-86de-ab0b5ba8ad07/presentation`,
+    );
+    const presentationBody = await presentationResponse.text();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(body).toContain("<div id=\"root\">");
+    expect(presentationResponse.status).toBe(200);
+    expect(presentationResponse.headers.get("content-type")).toContain("text/html");
+    expect(presentationBody).toContain("<div id=\"root\">");
   });
 
   it("blocks CP ambassadors until onboarding verification is complete", () => {

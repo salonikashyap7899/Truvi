@@ -15,6 +15,21 @@ export default function LoginPage() {
   const roleParam = searchParams.get("role");
   const isAmbassador = roleParam === "AMBASSADOR";
   const { login, user, isAuthenticated } = useAuth();
+  const authReturn = location.state as { returnTo?: string; siteVisitDraft?: unknown } | null;
+  const presentationReturnTo =
+    authReturn?.returnTo && /^\/inventory\/[^/]+\/presentation$/.test(authReturn.returnTo)
+      ? authReturn.returnTo
+      : null;
+  function navigateAfterAuth(authedUser: NonNullable<typeof user>) {
+    if (presentationReturnTo) {
+      navigate(presentationReturnTo, {
+        replace: true,
+        state: { resumeSiteVisit: true, siteVisitDraft: authReturn?.siteVisitDraft },
+      });
+    } else {
+      navigate(dashboardPath(authedUser), { replace: true });
+    }
+  }
   // One-off success message passed from the password-reset flow.
   const [notice, setNotice] = useState<string | null>(
     (location.state as { notice?: string } | null)?.notice ?? null,
@@ -22,7 +37,7 @@ export default function LoginPage() {
 
   // Already signed in? Straight to this role's own workspace.
   useEffect(() => {
-    if (isAuthenticated && user) navigate(dashboardPath(user), { replace: true });
+    if (isAuthenticated && user) navigateAfterAuth(user);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [email, setEmail] = useState("");
@@ -40,7 +55,7 @@ export default function LoginPage() {
       const loggedIn = await login(email, password);
       // Every role lands in its own workspace — buyers see buyer things,
       // sellers see seller things, developers see developer things.
-      navigate(dashboardPath(loggedIn));
+      navigateAfterAuth(loggedIn);
     } catch (err: any) {
       // Unverified account: the server sent fresh OTPs — verify inline here.
       const data = err?.response?.data;
@@ -68,7 +83,7 @@ export default function LoginPage() {
               <OtpStep
                 email={otpPhase.email}
                 phone={otpPhase.phone}
-                onVerified={(u) => navigate(dashboardPath(u))}
+                onVerified={navigateAfterAuth}
                 onBack={() => setOtpPhase(null)}
               />
             ) : (
@@ -130,7 +145,7 @@ export default function LoginPage() {
               </button>
               <p className="text-center text-sm text-muted-foreground">
                 New to Truvi?{" "}
-                <Link to="/signup" className="font-medium text-sky-300 underline-offset-4 hover:underline">
+                <Link to="/signup" state={location.state} className="font-medium text-sky-300 underline-offset-4 hover:underline">
                   Create an account
                 </Link>
               </p>

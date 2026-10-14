@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { CalendarDays, CheckCircle2, Clock, Gift, Loader2, MapPin, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -23,6 +23,15 @@ interface Props {
   project: { _id: string; name: string; location?: string; city?: string };
   offer?: PublicOffer | null;
   onClose: () => void;
+  initialDraft?: SiteVisitDraft;
+}
+
+export interface SiteVisitDraft {
+  unitId?: string;
+  visitDate?: string;
+  visitTime?: string;
+  requirement?: string;
+  notes?: string;
 }
 
 const REQUIREMENTS = ["Buy to live in", "Investment", "Plot to build a home", "Commercial use", "Rental income"];
@@ -31,21 +40,25 @@ const SLOTS = timeSlots("09:00", "19:00");
 const field =
   "w-full rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none transition focus:border-[var(--trust)]/60";
 
-export default function AddLeadModal({ project, offer, onClose }: Props) {
+export default function AddLeadModal({ project, offer, onClose, initialDraft }: Props) {
   useBodyScrollLock(true);
+  const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const role = user?.role;
   const isBuyer = role === "BUYER";
+  const isGuest = !user;
+  const canBook = isBuyer || role === "CP" || role === "AMBASSADOR";
 
   const [units, setUnits] = useState<Unit[]>([]);
-  const [unitId, setUnitId] = useState("");
+  const [unitId, setUnitId] = useState(initialDraft?.unitId ?? "");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [visitDate, setVisitDate] = useState(istToday(1));
-  const [visitTime, setVisitTime] = useState("11:00");
-  const [requirement, setRequirement] = useState("");
-  const [notes, setNotes] = useState("");
+  const [visitDate, setVisitDate] = useState(initialDraft?.visitDate ?? istToday(1));
+  const [visitTime, setVisitTime] = useState(initialDraft?.visitTime ?? "11:00");
+  const [requirement, setRequirement] = useState(initialDraft?.requirement ?? "");
+  const [notes, setNotes] = useState(initialDraft?.notes ?? "");
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +75,7 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
   useEffect(() => {
     api
       .get("/units", { params: { projectId: project._id } })
-      .then((res) => setUnits((res.data.units as Unit[]).filter((u) => u.status !== "SOLD")))
+      .then((res) => setUnits((res.data.units as Unit[]).filter((u) => u.status === "AVAILABLE")))
       .catch(() => setUnits([]));
   }, [project._id]);
 
@@ -84,11 +97,12 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
   }, [slots, visitTime]);
 
   function validate(): string | null {
-    if (!isBuyer) {
+    if (!isGuest && !isBuyer && !canBook) return "Site visit booking is available to buyers, channel partners, and ambassadors.";
+    if (!isGuest && !isBuyer) {
       if (name.trim().length < 2) return "Enter the customer's name";
       if (!normalizeMobile(phone)) return "Enter a valid 10-digit mobile number";
       if (email && !/^\S+@\S+\.\S+$/.test(email)) return "Enter a valid email";
-    } else if (needsBuyerPhone && !normalizeMobile(phone)) {
+    } else if (isBuyer && needsBuyerPhone && !normalizeMobile(phone)) {
       return "Add your 10-digit mobile number";
     }
     if (!visitDate || visitDate < today) return "Pick a site visit date (today or later)";
@@ -102,6 +116,15 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
     const problem = validate();
     setError(problem);
     if (problem) return;
+    if (isGuest) {
+      navigate("/login", {
+        state: {
+          returnTo: location.pathname,
+          siteVisitDraft: { unitId, visitDate, visitTime, requirement, notes },
+        },
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.post("/leads/from-inventory", {
@@ -142,7 +165,7 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-5 py-3.5">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-300/80">
-              {isBuyer ? "Book a site visit" : "Add lead"}
+              {isBuyer || isGuest ? "Book a site visit" : "Add lead"}
             </p>
             <p className="truncate font-display text-sm font-semibold">{project.name}</p>
             {(project.location || project.city) && (
@@ -207,7 +230,11 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
               )}
 
               {/* Who */}
-              {isBuyer ? (
+              {isGuest ? (
+                <div className="rounded-xl border border-sky-400/25 bg-sky-500/10 p-3 text-sm text-sky-100">
+                  Sign in or create a buyer account to confirm this site visit. Your selected project and visit details will be kept.
+                </div>
+              ) : isBuyer ? (
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50"><UserRound size={12} /> Your details</p>
                   <p className="mt-1.5 text-sm font-semibold">{user?.name}</p>
@@ -297,8 +324,20 @@ export default function AddLeadModal({ project, offer, onClose }: Props) {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--trust)] to-[#2563eb] py-3 text-sm font-semibold text-white transition hover:shadow-[0_0_22px_rgba(59,130,246,0.35)] disabled:opacity-60"
               >
                 {submitting && <Loader2 size={15} className="animate-spin" />}
-                {submitting ? "Submitting…" : "Submit Lead"}
+                {submitting ? "Submitting…" : isGuest ? "Sign in to book site visit" : "Submit Lead"}
               </button>
+              {isGuest && (
+                <Link
+                  to="/signup"
+                  state={{
+                    returnTo: location.pathname,
+                    siteVisitDraft: { unitId, visitDate, visitTime, requirement, notes },
+                  }}
+                  className="mt-2 block text-center text-xs font-medium text-sky-300 hover:underline"
+                >
+                  New to Truvi? Create a buyer account
+                </Link>
+              )}
               <p className="mt-1.5 text-center text-[10px] text-white/45">
                 Visit on {formatDate(visitDate)} at {slots.includes(visitTime) ? formatTime(visitTime) : "—"}
               </p>
