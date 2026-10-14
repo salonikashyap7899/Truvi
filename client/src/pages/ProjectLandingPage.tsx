@@ -14,6 +14,7 @@ import { formatCompactINR, formatINR } from "@/lib/utils";
 import { PROJECT_TYPE_LABELS, categoryLabel } from "@/lib/assetCategories";
 import ListingIntelligence from "@/components/ListingIntelligence";
 import type { Project, ProjectAsset } from "@/types";
+import SoldOutBadge from "@/components/SoldOutBadge";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Truvi Ventures — High-conversion Project Landing Page (public, /projects/:id)
@@ -165,11 +166,11 @@ function FeatureChips({ icon, title, items }: { icon: React.ReactNode; title: st
 }
 
 /** Inline CTA row placed under key sections to keep conversion always in reach. */
-function SectionCTA({ waHref }: { waHref: string }) {
+function SectionCTA({ waHref, soldOut = false }: { waHref: string; soldOut?: boolean }) {
   return (
     <div className="mt-6 flex flex-wrap gap-2.5">
       <a href="#enquire" className="inline-flex items-center gap-2 rounded-full bg-[var(--trust)] px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110">
-        <CalendarClock size={15} /> Get Price &amp; Availability
+        <CalendarClock size={15} /> {soldOut ? "Ask About This Project" : "Get Price &amp; Availability"}
       </a>
       <a href={waHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#25D366]/40 bg-[#25D366]/10 px-5 py-2.5 text-sm font-semibold text-[#25D366] transition hover:bg-[#25D366]/15">
         <MessageCircle size={15} /> WhatsApp
@@ -236,7 +237,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 /* ── Lead form ────────────────────────────────────────────────────────────── */
-function LeadForm({ projectId, projectName }: { projectId: string; projectName: string }) {
+function LeadForm({ projectId, projectName, soldOut = false }: { projectId: string; projectName: string; soldOut?: boolean }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", size: "", budget: "", visitDate: "", message: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -284,14 +285,15 @@ function LeadForm({ projectId, projectName }: { projectId: string; projectName: 
         <input className={field} placeholder="Email (optional)" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <input className={field} placeholder="Preferred size (e.g. 30x40, 1200 sq.ft)" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} />
         <input className={field} placeholder="Budget (e.g. ₹50L – ₹75L)" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} />
-        <div>
+        {!soldOut && <div>
           <label className="mb-1 block text-[11px] uppercase tracking-widest text-white/45">Preferred site-visit date</label>
           <input className={field} type="date" value={form.visitDate} onChange={(e) => setForm({ ...form, visitDate: e.target.value })} />
-        </div>
+        </div>}
       </div>
       <textarea className={`${field} mt-3`} rows={3} placeholder="Anything specific you're looking for? (optional)" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+      {soldOut && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">This project is currently sold out. You can still contact our team for project information.</p>}
       <button type="submit" disabled={busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
-        {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Submitting…" : "Book a Site Visit"}
+        {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Submitting…" : soldOut ? "Request Project Information" : "Book a Site Visit"}
       </button>
       <p className="mt-3 text-center text-[11px] text-white/40">By submitting, you agree to be contacted by the Truvi Ventures team. We never share your details.</p>
     </form>
@@ -379,7 +381,7 @@ export default function ProjectLandingPage() {
   // name + number before the visitor reads all the way down. Shown once per
   // visit; never shown once a lead has been submitted.
   useEffect(() => {
-    if (!project) return;
+    if (!project || project.availabilityStatus === "SOLD_OUT") return;
     const pid = project._id;
     if (isLeadDone(pid)) return;
     const shownKey = `truvi-lead-prompt:${pid}`;
@@ -415,7 +417,8 @@ export default function ProjectLandingPage() {
       try {
         const res = await api.get(`/presentation/${id}`);
         if (!alive) return;
-        if (initial) { setProject(res.data.project); setAssets(res.data.assets ?? []); }
+        setProject(res.data.project);
+        if (initial) setAssets(res.data.assets ?? []);
         setUnits(res.data.units ?? []);
         setUnitSummary(res.data.unitSummary ?? null);
       } catch {
@@ -510,9 +513,9 @@ export default function ProjectLandingPage() {
     { q: "What is the price?", a: `${priceRange ? `Prices start around ${priceRange}` : "Pricing is shared on request"}, excluding GST, registration and other statutory charges. Tap “Get Price & Availability” or WhatsApp us for the exact, current price list.` },
     plotSizeLabel ? { q: "What plot sizes are available?", a: `Plots are available in ${plotSizeLabel}. Live availability is shown in the Inventory section above — it updates as plots are booked.` } : null,
     { q: "When is possession?", a: possession ? `Possession is planned for ${possession}. Construction milestones and the latest status are shared during your site visit.` : "Please contact our team for the current possession timeline." },
-    { q: "Can I visit the site?", a: "Yes — book a free site visit using the form on this page. Our team arranges the visit and walks you through the project, plots and paperwork." },
+    { q: "Can I visit the site?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and is not accepting new site-visit bookings." : "Yes — book a free site visit using the form on this page. Our team arranges the visit and walks you through the project, plots and paperwork." },
     { q: "Why should I trust this listing?", a: project.isVerified ? "This project is Truvi Verified — independently checked across legal, approval, on-ground and location data (see the Truvi Verification section above)." : "Truvi independently reviews every listing across legal, approval and on-ground checks. See the Truvi Verification section above for the current status." },
-    { q: "How do I book?", a: "Share your details on this page or WhatsApp us. Our team confirms availability, arranges a site visit, and guides you through the booking and payment process end-to-end." },
+    { q: "How do I book?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and cannot accept new bookings. You can contact our team for more information." : "Share your details on this page or WhatsApp us. Our team confirms availability, arranges a site visit, and guides you through the booking and payment process end-to-end." },
   ].filter(Boolean) as { q: string; a: string }[];
 
   return (
@@ -537,10 +540,16 @@ export default function ProjectLandingPage() {
       {/* 1. Hero */}
       <section className="relative h-[92vh] min-h-[560px] w-full overflow-hidden">
         <HeroCarousel images={heroImages} />
+        {project.availabilityStatus === "SOLD_OUT" && (
+          <div className="absolute left-4 top-24 z-20 sm:left-8">
+            <SoldOutBadge className="px-4 py-2 text-sm" />
+          </div>
+        )}
         <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-end px-4 pb-28 pt-24 sm:pb-16">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
             <div className="flex flex-wrap items-center gap-2">
               {project.isVerified && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300"><ShieldCheck size={13} /> Truvi Verified</span>}
+              {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-3 py-1" />}
               {typeLabel && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90">{typeLabel}</span>}
               {approval && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200">{approval}</span>}
             </div>
@@ -549,10 +558,12 @@ export default function ProjectLandingPage() {
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-white/75">
               {priceRange && <span>Starting <b className="text-white">{priceRange}</b></span>}
               {possession && <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} /> Possession {possession}</span>}
-              {unitSummary && unitSummary.available > 0 && <span className="inline-flex items-center gap-1.5 text-emerald-300"><LayoutGrid size={14} /> {unitSummary.available} plots available</span>}
+              {project.availabilityStatus === "SOLD_OUT"
+                ? <span className="inline-flex items-center gap-1.5 text-red-200"><LayoutGrid size={14} /> Project sold out</span>
+                : unitSummary && unitSummary.available > 0 && <span className="inline-flex items-center gap-1.5 text-emerald-300"><LayoutGrid size={14} /> {unitSummary.available} plots available</span>}
             </div>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#enquire" className="inline-flex items-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[var(--trust)]/20 transition hover:brightness-110"><CalendarClock size={16} /> Book a Site Visit</a>
+              <a href="#enquire" className="inline-flex items-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[var(--trust)]/20 transition hover:brightness-110"><CalendarClock size={16} /> {project.availabilityStatus === "SOLD_OUT" ? "Ask About This Project" : "Book a Site Visit"}</a>
               <a href={waHi} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-3.5 text-sm font-semibold text-black transition hover:brightness-105"><MessageCircle size={16} /> WhatsApp Us</a>
             </div>
           </motion.div>
@@ -584,7 +595,7 @@ export default function ProjectLandingPage() {
                 project.isVerified && "Independently Truvi Verified — legal, approval & on-ground checks",
                 approval && `${approval} — buy with confidence`,
                 priceRange && `Transparent pricing from ${priceRange} — no hidden brokerage`,
-                unitSummary && unitSummary.available > 0 && `${unitSummary.available} plots available right now`,
+                project.availabilityStatus !== "SOLD_OUT" && unitSummary && unitSummary.available > 0 && `${unitSummary.available} plots available right now`,
                 possession && `Planned possession by ${possession}`,
                 info?.connectivityNotes && "Strong connectivity & location advantage",
               ].filter(Boolean).map((point) => (
@@ -594,7 +605,7 @@ export default function ProjectLandingPage() {
                 </div>
               ))}
             </div>
-            <SectionCTA waHref={waHi} />
+            <SectionCTA waHref={waHi} soldOut={project.availabilityStatus === "SOLD_OUT"} />
           </section>
         )}
 
@@ -638,7 +649,7 @@ export default function ProjectLandingPage() {
             <button onClick={() => openLightbox([masterPlan], masterPlan)} className="group block w-full overflow-hidden rounded-3xl border border-white/10">
               <img src={masterPlan.fileUrl} alt={masterPlan.title} className="w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
             </button>
-            <SectionCTA waHref={waHi} />
+            <SectionCTA waHref={waHi} soldOut={project.availabilityStatus === "SOLD_OUT"} />
           </section>
         )}
 
@@ -646,12 +657,14 @@ export default function ProjectLandingPage() {
         {units.length > 0 && (
           <section className="mt-16">
             <SectionHeading eyebrow="Availability" title="Live Inventory"
-              sub="Updated live from our team — availability changes as plots are booked. Prices exclude GST, registration and other charges." />
+              sub={project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and is not accepting new bookings. Unit statuses are shown for reference." : "Updated live from our team — availability changes as plots are booked. Prices exclude GST, registration and other charges."} />
             {unitSummary && (
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" /> Live</span>
                 <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/90">Total: <b className="text-white">{unitSummary.total}</b></span>
-                <span className="rounded-full border border-emerald-700/60 bg-emerald-900/30 px-3 py-1 text-xs text-emerald-300">Available: <b>{unitSummary.available}</b></span>
+                <span className={`rounded-full border px-3 py-1 text-xs ${project.availabilityStatus === "SOLD_OUT" ? "border-red-400/30 bg-red-500/10 text-red-200" : "border-emerald-700/60 bg-emerald-900/30 text-emerald-300"}`}>
+                  {project.availabilityStatus === "SOLD_OUT" ? "Bookable" : "Available"}: <b>{project.availabilityStatus === "SOLD_OUT" ? 0 : unitSummary.available}</b>
+                </span>
                 {Object.entries(unitSummary.byType).map(([t, c]) => (
                   <span key={t} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/90">{t}: <b className="text-white">{c}</b></span>
                 ))}
@@ -673,7 +686,7 @@ export default function ProjectLandingPage() {
                       <td className="px-4 py-3 text-white/80">{u.price ? formatCompactINR(u.price) : "On request"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${u.status === "AVAILABLE" ? "border-emerald-700/60 bg-emerald-900/40 text-emerald-300" : u.status === "SOLD" ? "border-white/15 bg-white/10 text-white/50" : "border-amber-700/60 bg-amber-900/40 text-amber-300"}`}>
-                          {u.status === "AVAILABLE" ? "Available" : u.status === "SOLD" ? "Sold" : u.status === "RESERVED" ? "Reserved" : "On hold"}
+                          {u.status === "AVAILABLE" ? "Available" : u.status === "SOLD" ? "SOLD OUT" : u.status === "RESERVED" ? "Reserved" : "On hold"}
                         </span>
                       </td>
                     </tr>
@@ -682,7 +695,7 @@ export default function ProjectLandingPage() {
               </table>
             </div>
             {units.length > 60 && <p className="mt-2 text-xs text-white/45">Showing 60 of {units.length} plots — enquire for the full price list.</p>}
-            <SectionCTA waHref={waHi} />
+            <SectionCTA waHref={waHi} soldOut={project.availabilityStatus === "SOLD_OUT"} />
           </section>
         )}
 
@@ -769,7 +782,7 @@ export default function ProjectLandingPage() {
         <section id="enquire" className="mt-20 scroll-mt-20">
           <div className="grid gap-8 lg:grid-cols-[1fr_1.1fr]">
             <div>
-              <SectionHeading eyebrow="Get in touch" title="Book your site visit" sub="Share your details and our team will call you with the latest price, availability and a site-visit slot that suits you." />
+              <SectionHeading eyebrow="Get in touch" title={project.availabilityStatus === "SOLD_OUT" ? "Ask about this project" : "Book your site visit"} sub={project.availabilityStatus === "SOLD_OUT" ? "This project is sold out and is not accepting new bookings. Contact our team for project information." : "Share your details and our team will call you with the latest price, availability and a site-visit slot that suits you."} />
               <div className="space-y-3">
                 <a href={waHi} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-2xl border border-[#25D366]/30 bg-[#25D366]/10 p-4 transition hover:bg-[#25D366]/15">
                   <span className="grid size-10 place-items-center rounded-xl bg-[#25D366]/20 text-[#25D366]"><MessageCircle size={18} /></span>
@@ -785,7 +798,7 @@ export default function ProjectLandingPage() {
                 </div>
               </div>
             </div>
-            <LeadForm projectId={project._id} projectName={project.name} />
+            <LeadForm projectId={project._id} projectName={project.name} soldOut={project.availabilityStatus === "SOLD_OUT"} />
           </div>
         </section>
       </div>
@@ -815,7 +828,7 @@ export default function ProjectLandingPage() {
         <div className="flex items-center gap-2">
           <a href={`tel:${CALL_NUMBER}`} className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/15 py-2 text-[11px] font-semibold text-white"><Phone size={16} /> Call</a>
           <a href={waHi} target="_blank" rel="noreferrer" className="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl bg-[#25D366] py-2 text-[11px] font-semibold text-black"><MessageCircle size={16} /> WhatsApp</a>
-          <a href="#enquire" className="flex flex-[1.4] flex-col items-center justify-center gap-0.5 rounded-xl bg-[var(--trust)] py-2 text-[11px] font-semibold text-white"><CalendarClock size={16} /> Book Site Visit</a>
+          <a href="#enquire" className="flex flex-[1.4] flex-col items-center justify-center gap-0.5 rounded-xl bg-[var(--trust)] py-2 text-[11px] font-semibold text-white"><CalendarClock size={16} /> {project.availabilityStatus === "SOLD_OUT" ? "Request Info" : "Book Site Visit"}</a>
         </div>
       </div>
     </main>

@@ -13,6 +13,7 @@ import TrustScoreWidget from "@/components/TrustScoreWidget";
 import LegalRiskCard from "@/components/LegalRiskCard";
 import PriceFairnessMeter from "@/components/PriceFairnessMeter";
 import type { Project } from "@/types";
+import SoldOutBadge from "@/components/SoldOutBadge";
 
 export default function BuyerProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -119,6 +120,7 @@ function ProjectCard({
             <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
               {project.approvalStatus}
             </Badge>
+            {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-2 py-0.5 text-[9px]" />}
             {project.isVerified && (
               <span className="inline-flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-400 border border-green-800">
                 ✓ Verified
@@ -168,8 +170,8 @@ function ProjectCard({
         {/* Actions + compare */}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => setModalOpen(true)}>
-              Request Site Visit
+            <Button size="sm" disabled={project.availabilityStatus === "SOLD_OUT"} onClick={() => setModalOpen(true)}>
+              {project.availabilityStatus === "SOLD_OUT" ? "Currently sold out" : "Request Site Visit"}
             </Button>
             {project.brochureUrl && (
               <a href={project.brochureUrl} target="_blank" rel="noreferrer">
@@ -183,7 +185,7 @@ function ProjectCard({
         </div>
       </div>
 
-      {modalOpen && (
+      {modalOpen && project.availabilityStatus !== "SOLD_OUT" && (
         <SiteVisitModal
           projectId={project._id}
           projectName={project.name}

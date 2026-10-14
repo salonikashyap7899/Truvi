@@ -83,6 +83,7 @@ router.get("/projects", async (req, res) => {
       developer: developer?.name ?? null,
       isVerified: p.isVerified,
       listingTier: p.listingTier,
+      availabilityStatus: p.availabilityStatus,
       isPrimeListing: p.isPrimeListing,
       projectType: p.projectType ?? null,
       reraNumber: p.reraNumber ?? null,

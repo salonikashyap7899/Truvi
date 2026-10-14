@@ -28,6 +28,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "whatsapp_channel_joined" boolean NOT NULL DEFAULT false`,
     // Developer-managed project details + legal-doc verification gate.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "possession_date" timestamptz`,
+    // Sales availability is independent of project approval and preserves the listing.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "availability_status" text NOT NULL DEFAULT 'AVAILABLE'`,
     // Habitat eligibility is opt-in per project; existing approved listings
     // remain outside the services marketplace until an admin enables them.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "habitat_enabled" boolean NOT NULL DEFAULT false`,

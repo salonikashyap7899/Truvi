@@ -230,6 +230,7 @@ const updateProjectSchema = z.object({
     )
     .nullable()
     .optional(),
+  availabilityStatus: z.enum(["AVAILABLE", "SOLD_OUT"]).optional(),
 });
 
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
@@ -270,6 +271,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
         ? d.milestones.map((m) => ({ label: m.label, targetDate: m.targetDate || null, done: m.done }))
         : null;
   }
+  if (d.availabilityStatus !== undefined) update.availabilityStatus = d.availabilityStatus;
 
   // Risk assessment, ownership history and the appreciation forecast are all
   // Truvi-verified data — only admins may set them. A developer editing their

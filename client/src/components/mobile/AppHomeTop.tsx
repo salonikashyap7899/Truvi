@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { formatCompactINR } from "@/lib/utils";
+import SoldOutBadge from "@/components/SoldOutBadge";
 import type { Project } from "@/types";
 
 /**
@@ -211,6 +212,9 @@ function MiniCard({ project, showPrime }: { project: Project; showPrime?: boolea
           <img src={project.coverImageUrl} alt={project.name} loading="lazy" className="h-full w-full object-cover" />
         ) : (
           <div className="grid h-full w-full place-items-center text-white/20"><Building2 size={22} /></div>
+        )}
+        {project.availabilityStatus === "SOLD_OUT" && (
+          <SoldOutBadge className="absolute bottom-1.5 left-1.5 px-2 py-0.5 text-[8px]" />
         )}
         {showPrime && project.isPrimeListing && (
           <span className="absolute left-1.5 top-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-1.5 py-0.5 text-[8px] font-bold text-black">

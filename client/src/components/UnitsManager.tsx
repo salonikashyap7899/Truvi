@@ -84,11 +84,12 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
   }
 
   async function setStatus(unit: ManagedUnit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
+    if (status === "SOLD" && !window.confirm(`Mark plot ${unit.unitNumber} as SOLD OUT?`)) return;
     setBusyId(unit._id);
     try {
       const res = await api.patch(`/units/${unit._id}`, { status });
       setUnits((prev) => prev.map((u) => (u._id === unit._id ? res.data.unit : u)));
-      toast.success(`${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status.toLowerCase()}`);
+      toast.success(`${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status === "SOLD" ? "sold out" : "available"}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Update failed");
     } finally {
@@ -220,7 +221,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                     <td className="px-4 py-2"><Input type="number" min="1" value={edit.areaSqft} onChange={(e) => setEdit({ ...edit, areaSqft: e.target.value })} className={`h-8 ${inputCls}`} /></td>
                     <td className="px-4 py-2"><Input value={edit.plotSize} onChange={(e) => setEdit({ ...edit, plotSize: e.target.value })} placeholder="30×40 ft" className={`h-8 ${inputCls}`} /></td>
                     <td className="px-4 py-2"><Input type="number" min="1" value={edit.price} onChange={(e) => setEdit({ ...edit, price: e.target.value })} className={`h-8 ${inputCls}`} /></td>
-                    <td className={`px-4 py-2 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
+                    <td className={`px-4 py-2 font-medium ${STATUS_CLS[u.status]}`}>{u.status === "SOLD" ? "SOLD OUT" : u.status}</td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => saveEdit(u)} disabled={busyId === u._id} title="Save" className="text-emerald-400/80 hover:text-emerald-400">
@@ -239,7 +240,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                   <td className="px-4 py-3 text-foreground/90">{u.areaSqft.toLocaleString("en-IN")} sq.ft</td>
                   <td className="px-4 py-3 text-foreground/90">{u.plotSize || "—"}</td>
                   <td className="px-4 py-3 text-foreground/90">{formatINR(u.price)}</td>
-                  <td className={`px-4 py-3 font-medium ${STATUS_CLS[u.status]}`}>{u.status}</td>
+                  <td className={`px-4 py-3 font-medium ${STATUS_CLS[u.status]}`}>{u.status === "SOLD" ? "SOLD OUT" : u.status}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -262,7 +263,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                       )}
                       {u.status !== "SOLD" && (
                         <Button size="sm" variant="secondary" disabled={busyId === u._id} onClick={() => setStatus(u, "SOLD")}>
-                          Sold
+                          Mark Sold Out
                         </Button>
                       )}
                       <button

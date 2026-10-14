@@ -12,6 +12,7 @@ import { DocumentUpload } from "@/components/DocumentUpload";
 import { HowToUseGuide } from "@/components/HowToUseGuide";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
+import SoldOutBadge from "@/components/SoldOutBadge";
 import {
   PlusCircle,
   CalendarDays,
@@ -407,6 +408,7 @@ function SavedProjectCard({
             <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
               {project.approvalStatus}
             </Badge>
+            {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-2 py-0.5 text-[9px]" />}
           </div>
           <HeartButton projectId={project._id} initialSaved={true} onToggle={onToggle} />
         </div>
@@ -427,7 +429,9 @@ function SavedProjectCard({
 
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => setModalOpen(true)}>Request Site Visit</Button>
+            <Button size="sm" disabled={project.availabilityStatus === "SOLD_OUT"} onClick={() => setModalOpen(true)}>
+              {project.availabilityStatus === "SOLD_OUT" ? "Currently sold out" : "Request Site Visit"}
+            </Button>
             {project.brochureUrl && (
               <a href={project.brochureUrl} target="_blank" rel="noreferrer">
                 <Button size="sm" variant="secondary">View Brochure</Button>
@@ -438,7 +442,7 @@ function SavedProjectCard({
         </div>
       </div>
 
-      {modalOpen && (
+      {modalOpen && project.availabilityStatus !== "SOLD_OUT" && (
         <SiteVisitModal
           projectId={project._id}
           projectName={project.name}

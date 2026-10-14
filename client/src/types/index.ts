@@ -2,6 +2,7 @@ export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERI
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 /** Projects also start as DRAFT until the developer submits them for review. */
 export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
+export type ProjectAvailabilityStatus = "AVAILABLE" | "SOLD_OUT";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 
 export interface AmbassadorTaskChecklist {
@@ -199,6 +200,7 @@ export interface Project {
   reraNumber?: string;
   approvalAuthority?: "RERA" | "DISTRICT_PANCHAYAT" | "DTCP";
   approvalStatus: ProjectApprovalStatus;
+  availabilityStatus: ProjectAvailabilityStatus;
   listingTier: ListingTier;
   featuredUntil?: string | null;
   commissionPercent: number;

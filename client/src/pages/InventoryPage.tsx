@@ -22,6 +22,7 @@ import { api } from "@/lib/api";
 import AddLeadModal from "@/components/leads/AddLeadModal";
 import OfferDetailsModal, { OfferBadge } from "@/components/leads/OfferDetailsModal";
 import { LEAD_CREATOR_ROLES, type PublicOffer } from "@/components/leads/inventoryLeadShared";
+import SoldOutBadge from "@/components/SoldOutBadge";
 
 const WA_NUMBER = "917054280101";
 
@@ -441,6 +442,9 @@ function ListingCard({
             thumb
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/25" />
+          {project.availabilityStatus === "SOLD_OUT" && (
+          <SoldOutBadge className="pointer-events-none absolute bottom-3 left-3 z-10 px-3.5 py-1.5 text-xs" />
+          )}
 
           {/* Top badges */}
           <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
@@ -526,9 +530,9 @@ function ListingCard({
                 return <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5">{count} {noun}</span>;
               })()}
               {(project.unitCount ?? 0) > 0 && (
-                project.availableUnits
-                  ? <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-emerald-200">{project.availableUnits} available</span>
-                  : <span className="rounded-md border border-rose-400/25 bg-rose-500/10 px-2 py-0.5 text-rose-200">Sold out</span>
+                <span className={`rounded-md border px-2 py-0.5 ${project.availabilityStatus === "SOLD_OUT" ? "border-red-400/30 bg-red-500/10 text-red-200" : "border-emerald-400/25 bg-emerald-500/10 text-emerald-200"}`}>
+                  {project.availabilityStatus === "SOLD_OUT" ? "Project sold out" : `${project.availableUnits ?? 0} available`}
+                </span>
               )}
               {typeof project.viewCount === "number" && project.viewCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5"><Eye size={10} /> {project.viewCount}</span>
@@ -556,7 +560,7 @@ function ListingCard({
           >
             View <ArrowRight size={13} />
           </Link>
-          {onAddLead && (
+          {onAddLead && project.availabilityStatus !== "SOLD_OUT" && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddLead(); }}
               title="Add lead / book a site visit"
@@ -565,6 +569,9 @@ function ListingCard({
             >
               <Plus size={18} strokeWidth={2.4} />
             </button>
+          )}
+          {project.availabilityStatus === "SOLD_OUT" && (
+            <span className="px-2 text-[10px] font-semibold text-red-200">This project is currently sold out.</span>
           )}
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); shareProjectOnWhatsApp(project); }}

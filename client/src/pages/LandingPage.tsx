@@ -8,6 +8,7 @@ import { VideoBand } from "@/components/landing/VideoBand";
 import AppHomeTop from "@/components/mobile/AppHomeTop";
 import { IS_NATIVE } from "@/lib/native";
 import { api } from "@/lib/api";
+import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
 
@@ -790,7 +791,7 @@ function LiveStatsBand() {
 interface ShowcaseProject {
   _id: string; name: string; city: string; location: string; developer: string | null;
   isVerified: boolean; listingTier: string; isPrimeListing: boolean; reraNumber: string | null;
-  coverImageUrl: string | null; minRate: number | null;
+  availabilityStatus: "AVAILABLE" | "SOLD_OUT"; coverImageUrl: string | null; minRate: number | null;
 }
 
 function LiveProjectsShowcase() {
@@ -828,6 +829,7 @@ function LiveProjectsShowcase() {
                   {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
                   {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
                 </div>
+                {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
               </div>
               <div className="p-4">
                 <h3 className="font-display text-base font-semibold text-white">{p.name}</h3>

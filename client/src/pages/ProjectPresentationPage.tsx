@@ -20,6 +20,7 @@ import ProjectComments from "@/components/ProjectComments";
 import ShareProjectButton from "@/components/ShareProjectButton";
 import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project, ProjectAsset } from "@/types";
+import SoldOutBadge from "@/components/SoldOutBadge";
 
 function fmtDate(v?: string | null): string | null {
   if (!v) return null;
@@ -48,7 +49,7 @@ const UNIT_STATUS_META: Record<PresentationUnit["status"], { label: string; cls:
   AVAILABLE: { label: "Available", cls: "bg-green-900/40 text-green-300 border-green-700/60" },
   LOCKED: { label: "On hold", cls: "bg-amber-900/40 text-amber-300 border-amber-700/60" },
   RESERVED: { label: "Reserved", cls: "bg-sky-900/40 text-sky-300 border-sky-700/60" },
-  SOLD: { label: "Sold", cls: "bg-white/10 text-muted-foreground border-white/15" },
+  SOLD: { label: "SOLD OUT", cls: "bg-red-600/90 text-white border-red-300/50" },
 };
 
 function formatSize(bytes: number) {
@@ -378,12 +379,20 @@ export default function ProjectPresentationPage() {
       </Link>
 
       {/* Hero photo banner — opens the page like a real property listing */}
-      <HeroCarousel images={heroImages} onOpen={(img) => openLightbox(heroImages, img)} />
+      <div className="relative">
+        <HeroCarousel images={heroImages} onOpen={(img) => openLightbox(heroImages, img)} />
+        {project.availabilityStatus === "SOLD_OUT" && (
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+            <SoldOutBadge className="px-4 py-2 text-sm" />
+          </div>
+        )}
+      </div>
 
       {/* Header */}
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-display font-semibold tracking-tight">{project.name}</h1>
+          {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-3 py-1.5" />}
           {project.projectType && (
             <span className="rounded-full border border-[var(--trust)]/50 bg-[var(--trust)]/15 px-3 py-1 text-xs font-medium text-[var(--trust)]">
               {PROJECT_TYPE_LABELS[project.projectType] ?? project.projectType}
@@ -416,6 +425,11 @@ export default function ProjectPresentationPage() {
         {project.description && (
           <p className="max-w-3xl whitespace-pre-line rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-[15px] leading-[1.7] text-foreground/80">
             {project.description}
+          </p>
+        )}
+        {project.availabilityStatus === "SOLD_OUT" && (
+          <p role="status" className="mt-2 w-fit rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200">
+            This project is currently sold out.
           </p>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -519,7 +533,7 @@ export default function ProjectPresentationPage() {
                 Total: <span className="font-semibold text-white">{unitSummary.total}</span>
               </span>
               <span className="rounded-full border border-green-700/60 bg-green-900/30 px-3 py-1 text-xs text-green-300">
-                Available: <span className="font-semibold">{unitSummary.available}</span>
+                {project.availabilityStatus === "SOLD_OUT" ? "Bookable" : "Available"}: <span className="font-semibold">{project.availabilityStatus === "SOLD_OUT" ? 0 : unitSummary.available}</span>
               </span>
               {Object.entries(unitSummary.byType).map(([type, count]) => (
                 <span key={type} className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-foreground/90">

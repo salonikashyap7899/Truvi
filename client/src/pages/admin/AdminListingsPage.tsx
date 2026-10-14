@@ -9,6 +9,7 @@ import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapP
 import AdminLegalReview from "@/components/AdminLegalReview";
 import { shareProject } from "@/components/ShareProjectButton";
 import { Share2 } from "lucide-react";
+import ProjectAvailabilityControl from "@/components/ProjectAvailabilityControl";
 import type { Project } from "@/types";
 
 interface VerificationDetails {
@@ -388,6 +389,11 @@ export default function AdminListingsPage() {
                   >
                     <LayoutGrid size={13} className="mr-1" /> Content &amp; Plots
                   </Button>
+
+                  <ProjectAvailabilityControl
+                    project={p}
+                    onUpdated={(updated) => setProjects((current) => current.map((item) => item._id === updated._id ? updated : item))}
+                  />
 
                   {/* Share the project via the device's native share sheet —
                       no need to open the project first. */}

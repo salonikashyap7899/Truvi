@@ -128,10 +128,19 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
 
   // Project must be live; the unit (if any) must belong to it and be unsold.
   const [project] = await db
-    .select({ _id: projects._id, name: projects.name, approvalStatus: projects.approvalStatus, developerId: projects.developerId })
+    .select({
+      _id: projects._id,
+      name: projects.name,
+      approvalStatus: projects.approvalStatus,
+      availabilityStatus: projects.availabilityStatus,
+      developerId: projects.developerId,
+    })
     .from(projects)
     .where(eq(projects._id, d.projectId));
   if (!project || project.approvalStatus !== "APPROVED") return res.status(404).json({ error: "This project isn't available" });
+  if (project.availabilityStatus === "SOLD_OUT") {
+    return res.status(409).json({ error: "This project is currently sold out." });
+  }
   let unit: { _id: string; unitNumber: string; type: string; areaSqft: number; status: string } | null = null;
   if (d.unitId) {
     const [u] = await db

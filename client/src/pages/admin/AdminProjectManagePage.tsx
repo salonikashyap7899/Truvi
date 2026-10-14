@@ -11,6 +11,7 @@ import RiskAssessmentEditor from "@/components/RiskAssessmentEditor";
 import OwnershipGrowthEditor from "@/components/OwnershipGrowthEditor";
 import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import NearbyAmenities from "@/components/NearbyAmenities";
+import ProjectAvailabilityControl from "@/components/ProjectAvailabilityControl";
 import type { Project } from "@/types";
 
 export default function AdminProjectManagePage() {
@@ -58,6 +59,9 @@ export default function AdminProjectManagePage() {
         >
           Preview public page <ExternalLink size={13} />
         </Link>
+      </div>
+      <div className="mt-4">
+        <ProjectAvailabilityControl project={project} onUpdated={setProject} />
       </div>
 
       <p className="mt-4 rounded-lg border border-white/10 glass px-4 py-3 text-sm text-muted-foreground">

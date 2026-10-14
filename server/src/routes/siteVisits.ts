@@ -66,6 +66,21 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
 
   if (!isValidId(parsed.data.projectId)) return res.status(404).json({ error: "Project not found" });
   const db = getDb();
+  const [project] = await db
+    .select({
+      _id: projects._id,
+      name: projects.name,
+      approvalStatus: projects.approvalStatus,
+      availabilityStatus: projects.availabilityStatus,
+    })
+    .from(projects)
+    .where(eq(projects._id, parsed.data.projectId));
+  if (!project || (req.user!.role === "BUYER" && project.approvalStatus !== "APPROVED")) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+  if (project.availabilityStatus === "SOLD_OUT") {
+    return res.status(409).json({ error: "This project is currently sold out." });
+  }
 
   if (req.user!.role === "CP") {
     if (!parsed.data.leadId) return res.status(400).json({ error: "leadId is required for CP site visits" });
@@ -105,11 +120,6 @@ router.post("/", requireRole("CP", "BUYER"), async (req: AuthedRequest, res) => 
       .catch(() => null);
 
     return res.status(201).json({ siteVisit });
-  }
-
-  const [project] = await db.select().from(projects).where(eq(projects._id, parsed.data.projectId));
-  if (!project || project.approvalStatus !== "APPROVED") {
-    return res.status(404).json({ error: "Project not found" });
   }
 
   const [siteVisit] = await db

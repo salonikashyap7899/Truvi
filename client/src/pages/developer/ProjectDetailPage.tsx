@@ -21,6 +21,7 @@ import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
 import ProjectProgressEditor from "@/components/ProjectProgressEditor";
 import LegalDocsManager from "@/components/LegalDocsManager";
 import ProjectSubmitBanner from "@/components/ProjectSubmitBanner";
+import ProjectAvailabilityControl from "@/components/ProjectAvailabilityControl";
 import type { Project, Unit, Lead } from "@/types";
 
 const STATUS_VARIANT: Record<string, "success" | "warning" | "info" | "danger"> = {
@@ -133,11 +134,12 @@ export default function ProjectDetailPage() {
   }
 
   async function setUnitStatus(unit: Unit, status: "AVAILABLE" | "RESERVED" | "SOLD") {
+    if (status === "SOLD" && !window.confirm(`Mark ${unit.unitNumber} as SOLD OUT?`)) return;
     try {
       const res = await api.patch(`/units/${unit._id}`, { status });
       setUnits((prev) => prev.map((u) => (u._id === unit._id ? res.data.unit : u)));
       toast.success(
-        `${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status === "AVAILABLE" ? "Available" : "Sold"}`
+        `${unit.unitNumber} → ${status === "RESERVED" ? "Blocked" : status === "AVAILABLE" ? "Available" : "Sold out"}`
       );
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Failed to update unit");
@@ -223,6 +225,9 @@ export default function ProjectDetailPage() {
           {project.approvalStatus === "PENDING" ? "IN REVIEW" : project.approvalStatus}
         </Badge>
       </p>
+      <div className="mt-4">
+        <ProjectAvailabilityControl project={project} onUpdated={setProject} />
+      </div>
 
       {(project.approvalStatus === "DRAFT" || project.approvalStatus === "REJECTED") && (
         <ProjectSubmitBanner project={project} unitCount={units.length} onSubmitted={(p) => setProject((cur) => (cur ? { ...cur, approvalStatus: p.approvalStatus } : cur))} />
@@ -395,7 +400,7 @@ export default function ProjectDetailPage() {
                     <td className="p-2"><Input type="number" value={unitEdit.areaSqft} onChange={(e) => setUnitEdit({ ...unitEdit, areaSqft: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-2"><Input value={unitEdit.plotSize} onChange={(e) => setUnitEdit({ ...unitEdit, plotSize: e.target.value })} placeholder="30×40 ft" className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-2"><Input type="number" value={unitEdit.price} onChange={(e) => setUnitEdit({ ...unitEdit, price: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
-                    <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status}</Badge></td>
+                    <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status === "SOLD" ? "SOLD OUT" : u.status}</Badge></td>
                     <td className="p-3">
                       <div className="flex justify-end gap-1.5">
                         <button onClick={() => saveUnitEdit(u)} disabled={savingUnit} className="rounded-full border border-emerald-700/60 px-2.5 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-900/20 disabled:opacity-50">
@@ -435,7 +440,7 @@ export default function ProjectDetailPage() {
                         )}
                         {u.status !== "SOLD" && (
                           <button onClick={() => setUnitStatus(u, "SOLD")} className="rounded-full border border-red-700/60 px-2.5 py-1 text-[11px] font-medium text-red-300 hover:bg-red-900/20">
-                            Sold
+                            Mark Sold Out
                           </button>
                         )}
                       </div>

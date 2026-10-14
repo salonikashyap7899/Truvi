@@ -103,29 +103,52 @@ router.delete("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReque
  * attempts can never both succeed.
  */
 router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
-  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const unitId = String(req.params.id);
+  if (!isValidId(unitId)) return res.status(404).json({ error: "Unit not found" });
   const now = new Date();
   const db = getDb();
-  const [unit] = await db
-    .update(units)
-    .set({
-      status: "LOCKED",
-      lockedByCPId: req.user!.userId,
-      lockExpiresAt: new Date(now.getTime() + UNIT_LOCK_MINUTES * 60 * 1000),
-    })
-    .where(
-      and(
-        eq(units._id, req.params.id),
-        or(eq(units.status, "AVAILABLE"), and(eq(units.status, "LOCKED"), lt(units.lockExpiresAt, now)))
-      )
-    )
-    .returning();
+  const outcome = await db.transaction(async (tx) => {
+    const [unitInfo] = await tx
+      .select({ projectId: units.projectId })
+      .from(units)
+      .where(eq(units._id, unitId));
+    if (!unitInfo) return { kind: "missing" as const };
 
-  if (!unit) {
-    const [exists] = await db.select({ _id: units._id }).from(units).where(eq(units._id, req.params.id));
+    const [project] = await tx
+      .select({ availabilityStatus: projects.availabilityStatus })
+      .from(projects)
+      .where(eq(projects._id, unitInfo.projectId))
+      .for("update");
+    if (!project) return { kind: "missing" as const };
+    if (project.availabilityStatus === "SOLD_OUT") return { kind: "project-sold-out" as const };
+
+    const [unit] = await tx
+      .update(units)
+      .set({
+        status: "LOCKED",
+        lockedByCPId: req.user!.userId,
+        lockExpiresAt: new Date(now.getTime() + UNIT_LOCK_MINUTES * 60 * 1000),
+      })
+      .where(
+        and(
+          eq(units._id, unitId),
+          or(eq(units.status, "AVAILABLE"), and(eq(units.status, "LOCKED"), lt(units.lockExpiresAt, now)))
+        )
+      )
+      .returning();
+    return unit ? { kind: "locked" as const, unit } : { kind: "unavailable" as const };
+  });
+
+  if (outcome.kind === "missing") return res.status(404).json({ error: "Unit not found" });
+  if (outcome.kind === "project-sold-out") {
+    return res.status(409).json({ error: "This project is currently sold out." });
+  }
+  if (outcome.kind === "unavailable") {
+    const [exists] = await db.select({ _id: units._id }).from(units).where(eq(units._id, unitId));
     if (!exists) return res.status(404).json({ error: "Unit not found" });
     return res.status(409).json({ error: "This unit is already locked, reserved, or sold" });
   }
+  const unit = outcome.unit;
 
   emitUnitUpdate(String(unit.projectId), unit);
 
@@ -166,9 +189,10 @@ router.delete("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) =>
 });
 
 router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: AuthedRequest, res) => {
-  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+  const unitId = String(req.params.id);
+  if (!isValidId(unitId)) return res.status(404).json({ error: "Unit not found" });
   const db = getDb();
-  const [unit] = await db.select().from(units).where(eq(units._id, req.params.id));
+  const [unit] = await db.select().from(units).where(eq(units._id, unitId));
   if (!unit) return res.status(404).json({ error: "Unit not found" });
 
   if (req.user!.role === "DEVELOPER") {
@@ -181,12 +205,29 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
     return res.status(409).json({ error: "Only a LOCKED unit can be reserved" });
   }
 
-  // re-check atomically to avoid a lock expiring mid-request
-  const [updated] = await db
-    .update(units)
-    .set({ status: "RESERVED", lockExpiresAt: null })
-    .where(and(eq(units._id, unit._id), eq(units.status, "LOCKED")))
-    .returning();
+  // Lock the project row while checking its availability and reserving the
+  // unit, so a concurrent project-level sell-out cannot race this booking.
+  const outcome = await db.transaction(async (tx) => {
+    const [project] = await tx
+      .select({ availabilityStatus: projects.availabilityStatus })
+      .from(projects)
+      .where(eq(projects._id, unit.projectId))
+      .for("update");
+    if (!project) return { kind: "missing-project" as const };
+    if (project.availabilityStatus === "SOLD_OUT") return { kind: "project-sold-out" as const };
+
+    const [updated] = await tx
+      .update(units)
+      .set({ status: "RESERVED", lockExpiresAt: null })
+      .where(and(eq(units._id, unit._id), eq(units.status, "LOCKED")))
+      .returning();
+    return updated ? { kind: "reserved" as const, unit: updated } : { kind: "no-longer-locked" as const };
+  });
+  if (outcome.kind === "missing-project") return res.status(404).json({ error: "Project not found" });
+  if (outcome.kind === "project-sold-out") {
+    return res.status(409).json({ error: "This project is currently sold out." });
+  }
+  const updated = outcome.kind === "reserved" ? outcome.unit : null;
   if (!updated) return res.status(409).json({ error: "Unit is no longer LOCKED" });
 
   emitUnitUpdate(String(updated.projectId), updated);

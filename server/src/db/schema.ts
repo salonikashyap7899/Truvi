@@ -46,6 +46,7 @@ export type HabitatBookingStatus =
 /** A project additionally starts as DRAFT: saved but not yet sent for admin
  *  review, until the developer completes the essentials and submits it. */
 export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
+export type ProjectAvailabilityStatus = "AVAILABLE" | "SOLD_OUT";
 /** Which government body approved/registered the project. Not every project is
  *  RERA-registered — many layouts are cleared by the District Panchayat or a
  *  development authority (DTCP) instead, so the listing accepts any of these. */
@@ -457,6 +458,7 @@ export const projects = pgTable(
     // developer list a project cleared by the District Panchayat or a
     // development authority (DTCP) — not only RERA-registered ones.
     approvalAuthority: text("approval_authority").$type<ApprovalAuthority>(),
+    availabilityStatus: text("availability_status").$type<ProjectAvailabilityStatus>().notNull().default("AVAILABLE"),
     approvalStatus: text("approval_status").$type<ProjectApprovalStatus>().notNull().default("PENDING"),
     habitatEnabled: boolean("habitat_enabled").notNull().default(false),
     habitatEnabledAt: timestamp("habitat_enabled_at", { withTimezone: true, mode: "date" }),
