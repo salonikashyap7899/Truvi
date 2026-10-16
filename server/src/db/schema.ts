@@ -37,12 +37,25 @@ export type HabitatBookingStatus =
   | "REQUESTED"
   | "PROVIDER_ASSIGNED"
   | "ACCEPTED"
+  | "QUOTE_PROVIDED"
+  | "PAYMENT_PENDING"
+  | "PAID"
   | "REJECTED"
   | "IN_PROGRESS"
   | "COMPLETION_SUBMITTED"
   | "COMPLETED"
   | "CANCELLED"
   | "DISPUTED";
+export type HabitatPaymentStatus =
+  | "CREATED"
+  | "PAID"
+  | "FAILED"
+  | "REFUND_PENDING"
+  | "PARTIALLY_REFUNDED"
+  | "REFUNDED";
+export type HabitatQuoteStatus = "PROPOSED" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+export type HabitatDisputeStatus = "OPEN" | "UNDER_REVIEW" | "RESOLVED_BUYER" | "RESOLVED_PROVIDER" | "PARTIAL_REFUND";
+export type HabitatTransferStatus = "PENDING" | "PROCESSED" | "FAILED" | "REVERSED";
 /** A project additionally starts as DRAFT: saved but not yet sent for admin
  *  review, until the developer completes the essentials and submits it. */
 export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
@@ -458,8 +471,8 @@ export const projects = pgTable(
     // developer list a project cleared by the District Panchayat or a
     // development authority (DTCP) — not only RERA-registered ones.
     approvalAuthority: text("approval_authority").$type<ApprovalAuthority>(),
-    availabilityStatus: text("availability_status").$type<ProjectAvailabilityStatus>().notNull().default("AVAILABLE"),
     approvalStatus: text("approval_status").$type<ProjectApprovalStatus>().notNull().default("PENDING"),
+    availabilityStatus: text("availability_status").$type<ProjectAvailabilityStatus>().notNull().default("AVAILABLE"),
     habitatEnabled: boolean("habitat_enabled").notNull().default(false),
     habitatEnabledAt: timestamp("habitat_enabled_at", { withTimezone: true, mode: "date" }),
     habitatEnabledById: uuid("habitat_enabled_by_id").references(() => users._id),
@@ -1971,11 +1984,15 @@ export const habitatProviders = pgTable(
     reviewNote: text("review_note"),
     reviewedById: uuid("reviewed_by_id").references(() => users._id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    razorpayAccountId: text("razorpay_account_id"),
+    razorpayAccountStatus: text("razorpay_account_status").notNull().default("NOT_STARTED"),
+    razorpayAccountCreatedAt: timestamp("razorpay_account_created_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [
     uniqueIndex("habitat_providers_owner_unique").on(t.ownerUserId),
+    uniqueIndex("habitat_providers_razorpay_account_unique").on(t.razorpayAccountId),
     index("habitat_providers_status_idx").on(t.status),
   ]
 );
@@ -2056,6 +2073,18 @@ export const habitatBookings = pgTable(
     serviceTitleSnapshot: text("service_title_snapshot").notNull(),
     pricingModelSnapshot: text("pricing_model_snapshot").$type<HabitatPricingModel>().notNull(),
     estimatedAmountPaise: integer("estimated_amount_paise"),
+    finalAmountPaise: integer("final_amount_paise"),
+    commissionRateBps: integer("commission_rate_bps"),
+    commissionAmountPaise: integer("commission_amount_paise"),
+    commissionTaxRateBps: integer("commission_tax_rate_bps"),
+    commissionTaxPaise: integer("commission_tax_paise"),
+    providerPayoutPaise: integer("provider_payout_paise"),
+    cancellationFeeBpsSnapshot: integer("cancellation_fee_bps_snapshot"),
+    completionSubmittedAt: timestamp("completion_submitted_at", { withTimezone: true, mode: "date" }),
+    autoCompleteAt: timestamp("auto_complete_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    payoutEligibleAt: timestamp("payout_eligible_at", { withTimezone: true, mode: "date" }),
+    payoutStatus: text("payout_status").notNull().default("NOT_READY"),
     serviceAddress: jsonb("service_address").$type<{
       label: string;
       street: string;
@@ -2086,7 +2115,7 @@ export const habitatBookingStatusHistory = pgTable(
   {
     _id: uuid("id").defaultRandom().primaryKey(),
     bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
-    actorUserId: uuid("actor_user_id").notNull().references(() => users._id),
+    actorUserId: uuid("actor_user_id").references(() => users._id),
     fromStatus: text("from_status").$type<HabitatBookingStatus>(),
     toStatus: text("to_status").$type<HabitatBookingStatus>().notNull(),
     reason: text("reason"),
@@ -2114,3 +2143,210 @@ export const habitatReviews = pgTable(
   ]
 );
 export type IHabitatReview = typeof habitatReviews.$inferSelect;
+
+export const habitatQuotes = pgTable(
+  "habitat_quotes",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    providerId: uuid("provider_id").notNull().references(() => habitatProviders._id),
+    amountPaise: integer("amount_paise").notNull(),
+    workDescription: text("work_description").notNull(),
+    status: text("status").$type<HabitatQuoteStatus>().notNull().default("PROPOSED"),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("habitat_quotes_booking_idx").on(t.bookingId, t.createdAt),
+    index("habitat_quotes_provider_idx").on(t.providerId, t.status),
+  ]
+);
+export type IHabitatQuote = typeof habitatQuotes.$inferSelect;
+
+export const habitatCommissionRules = pgTable(
+  "habitat_commission_rules",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    categoryId: uuid("category_id").notNull().references(() => habitatServiceCategories._id),
+    projectId: uuid("project_id").references(() => projects._id),
+    providerId: uuid("provider_id").references(() => habitatProviders._id),
+    rateBps: integer("rate_bps").notNull(),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true, mode: "date" }).notNull(),
+    effectiveUntil: timestamp("effective_until", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("habitat_commission_rules_lookup_idx").on(t.categoryId, t.projectId, t.providerId, t.effectiveFrom),
+  ]
+);
+export type IHabitatCommissionRule = typeof habitatCommissionRules.$inferSelect;
+
+export const habitatSettings = pgTable(
+  "habitat_settings",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    singletonKey: text("singleton_key").notNull().default("default"),
+    cancellationFeeBps: integer("cancellation_fee_bps").notNull().default(2500),
+    commissionTaxRateBps: integer("commission_tax_rate_bps").notNull().default(1800),
+    autoCompleteHours: integer("auto_complete_hours").notNull().default(72),
+    updatedById: uuid("updated_by_id").references(() => users._id),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("habitat_settings_singleton_unique").on(t.singletonKey)]
+);
+export type IHabitatSettings = typeof habitatSettings.$inferSelect;
+
+export const habitatPayments = pgTable(
+  "habitat_payments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    buyerId: uuid("buyer_id").notNull().references(() => users._id),
+    quoteId: uuid("quote_id").references(() => habitatQuotes._id),
+    amountPaise: integer("amount_paise").notNull(),
+    commissionAmountPaise: integer("commission_amount_paise").notNull(),
+    commissionTaxPaise: integer("commission_tax_paise").notNull(),
+    providerAmountPaise: integer("provider_amount_paise").notNull(),
+    currency: text("currency").notNull().default("INR"),
+    status: text("status").$type<HabitatPaymentStatus>().notNull().default("CREATED"),
+    razorpayOrderId: text("razorpay_order_id"),
+    razorpayPaymentId: text("razorpay_payment_id"),
+    razorpaySignature: text("razorpay_signature"),
+    failureReason: text("failure_reason"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_payments_order_unique").on(t.razorpayOrderId),
+    uniqueIndex("habitat_payments_payment_unique").on(t.razorpayPaymentId),
+    uniqueIndex("habitat_payments_idempotency_unique").on(t.buyerId, t.idempotencyKey),
+    index("habitat_payments_booking_idx").on(t.bookingId, t.createdAt),
+  ]
+);
+export type IHabitatPayment = typeof habitatPayments.$inferSelect;
+
+export const habitatRefunds = pgTable(
+  "habitat_refunds",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    paymentId: uuid("payment_id").notNull().references(() => habitatPayments._id),
+    amountPaise: integer("amount_paise").notNull(),
+    compensationPaise: integer("compensation_paise").notNull().default(0),
+    reason: text("reason").notNull(),
+    status: text("status").notNull().default("PENDING"),
+    razorpayRefundId: text("razorpay_refund_id"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    initiatedById: uuid("initiated_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_refunds_rzp_unique").on(t.razorpayRefundId),
+    uniqueIndex("habitat_refunds_idempotency_unique").on(t.idempotencyKey),
+    index("habitat_refunds_payment_idx").on(t.paymentId, t.createdAt),
+  ]
+);
+
+export const habitatDisputes = pgTable(
+  "habitat_disputes",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    buyerId: uuid("buyer_id").notNull().references(() => users._id),
+    reason: text("reason").notNull(),
+    evidence: jsonb("evidence").$type<string[]>().notNull().default([]),
+    status: text("status").$type<HabitatDisputeStatus>().notNull().default("OPEN"),
+    resolutionNote: text("resolution_note"),
+    refundAmountPaise: integer("refund_amount_paise"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_disputes_booking_unique").on(t.bookingId),
+    index("habitat_disputes_status_idx").on(t.status, t.createdAt),
+  ]
+);
+
+export const habitatTransfers = pgTable(
+  "habitat_transfers",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    paymentId: uuid("payment_id").notNull().references(() => habitatPayments._id),
+    providerId: uuid("provider_id").notNull().references(() => habitatProviders._id),
+    amountPaise: integer("amount_paise").notNull(),
+    razorpayTransferId: text("razorpay_transfer_id"),
+    status: text("status").$type<HabitatTransferStatus>().notNull().default("PENDING"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true, mode: "date" }),
+    failureReason: text("failure_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_transfers_booking_unique").on(t.bookingId),
+    uniqueIndex("habitat_transfers_external_unique").on(t.razorpayTransferId),
+    uniqueIndex("habitat_transfers_idempotency_unique").on(t.idempotencyKey),
+    index("habitat_transfers_status_idx").on(t.status, t.createdAt),
+  ]
+);
+
+export const habitatLedgerEntries = pgTable(
+  "habitat_ledger_entries",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    journalId: uuid("journal_id").notNull(),
+    bookingId: uuid("booking_id").notNull().references(() => habitatBookings._id),
+    paymentId: uuid("payment_id").references(() => habitatPayments._id),
+    accountCode: text("account_code").notNull(),
+    direction: text("direction").notNull(),
+    amountPaise: integer("amount_paise").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, string | number | boolean | null>>().notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_ledger_idempotency_unique").on(t.idempotencyKey),
+    index("habitat_ledger_journal_idx").on(t.journalId),
+    index("habitat_ledger_booking_idx").on(t.bookingId, t.createdAt),
+  ]
+);
+
+export const habitatDeveloperAccess = pgTable(
+  "habitat_developer_access",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    developerId: uuid("developer_id").notNull().references(() => users._id),
+    active: boolean("active").notNull().default(true),
+    grantedById: uuid("granted_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_developer_access_project_unique").on(t.projectId),
+    index("habitat_developer_access_user_idx").on(t.developerId, t.active),
+  ]
+);
+
+export const habitatProjectCategories = pgTable(
+  "habitat_project_categories",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    categoryId: uuid("category_id").notNull().references(() => habitatServiceCategories._id),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedById: uuid("updated_by_id").notNull().references(() => users._id),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("habitat_project_categories_unique").on(t.projectId, t.categoryId),
+    index("habitat_project_categories_project_idx").on(t.projectId, t.enabled),
+  ]
+);

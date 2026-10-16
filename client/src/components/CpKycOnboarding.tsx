@@ -347,10 +347,10 @@ function FileField({ label, file, onFile }: { label: string; file: File | null; 
   return (
     <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-[var(--trust)]/50 hover:text-[var(--trust)]">
       <Upload size={15} />
-      {file ? <span className="truncate text-white">{file.name}</span> : <span>{label} — click to upload (PDF or image)</span>}
+      {file ? <span className="truncate text-white">{file.name}</span> : <span>{label} — upload JPG, PNG, WEBP or PDF</span>}
       <input
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        accept="image/jpeg,image/png,image/webp,application/pdf,.pdf,.jpg,.jpeg,.png,.webp"
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0];

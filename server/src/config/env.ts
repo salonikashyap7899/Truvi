@@ -26,6 +26,8 @@ export function getEnv() {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    habitatPaymentsEnabled: /^(1|true|yes|on)$/i.test(String(process.env.HABITAT_PAYMENTS_ENABLED ?? "")),
+    razorpayRouteEnabled: /^(1|true|yes|on)$/i.test(String(process.env.RAZORPAY_ROUTE_ENABLED ?? "")),
     // ── Telephony / masked calling (CPaaS) ────────────────────────────────────
     // Modular: swap the provider by changing TELEPHONY_PROVIDER + its creds; no
     // app code changes. Exotel is the default India-supported provider (virtual

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
 
 type Category = { _id: string; name: string; slug: string; icon: string | null };
 type Membership = { projectId: string; projectName: string; city: string };
@@ -30,6 +31,7 @@ type Booking = {
   serviceTitle: string;
   providerName: string | null;
   estimatedAmountPaise: number | null;
+  finalAmountPaise: number | null;
   preferredAt: string;
   serviceAddress: { label: string; locality: string; city: string };
   hasReview: string | null;
@@ -58,6 +60,13 @@ export default function HabitatPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [quotesByBooking, setQuotesByBooking] = useState<Record<string, {
+    _id: string;
+    amountPaise: number;
+    workDescription: string;
+    status: string;
+    expiresAt: string;
+  }[]>>({});
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [projectId, setProjectId] = useState("");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -94,7 +103,7 @@ export default function HabitatPage() {
         selectedMembership?.projectId ?? "",
       );
       const serviceResponse = selectedMembership
-        ? await api.get("/habitat/services", { params: { city: selectedMembership.city } })
+        ? await api.get("/habitat/services", { params: { city: selectedMembership.city, projectId: selectedMembership.projectId } })
         : null;
       setServices(serviceResponse?.data.services ?? []);
       if (selectedMembership && address.city !== selectedMembership.city) {
@@ -143,13 +152,97 @@ export default function HabitatPage() {
     }
   }
 
-  async function updateBooking(booking: Booking, status: "COMPLETED" | "CANCELLED" | "DISPUTED") {
+  async function loadQuotes(bookingId: string) {
     try {
-      await api.patch(`/habitat/bookings/${booking._id}/buyer-status`, { status });
-      toast.success(status === "COMPLETED" ? "Service confirmed complete" : `Booking ${status.toLowerCase()}`);
+      const response = await api.get(`/habitat/bookings/${bookingId}/quotes`);
+      setQuotesByBooking((current) => ({ ...current, [bookingId]: response.data.quotes }));
+    } catch (error) {
+      toast.error(apiError(error, "Could not load provider quotes"));
+    }
+  }
+
+  async function acceptQuote(bookingId: string, quoteId: string) {
+    try {
+      await api.post(`/habitat/bookings/${bookingId}/quotes/${quoteId}/accept`, {});
+      toast.success("Quote approved. Payment is now due.");
       await load();
     } catch (error) {
-      toast.error(apiError(error, "Booking could not be updated"));
+      toast.error(apiError(error, "Quote could not be approved"));
+    }
+  }
+
+  async function payBooking(booking: Booking) {
+    setSaving(true);
+    try {
+      const orderResponse = await api.post(`/habitat/bookings/${booking._id}/payments/order`, {
+        idempotencyKey: crypto.randomUUID(),
+      });
+      const ready = await loadRazorpay();
+      if (!ready) throw new Error("Razorpay Checkout could not be loaded. Check your connection and retry.");
+      openRazorpayCheckout({
+        keyId: orderResponse.data.keyId,
+        orderId: orderResponse.data.orderId,
+        amount: orderResponse.data.amountPaise,
+        name: "Truvi Habitat",
+        description: `Home service ${booking.reference}`,
+        prefill: orderResponse.data.prefill,
+        onSuccess: async (payment) => {
+          try {
+            const verification = await api.post(`/habitat/bookings/${booking._id}/payments/verify`, payment);
+            toast.success(verification.data.requiresRefund
+              ? "Payment arrived after cancellation; the refund is being processed."
+              : "Payment confirmed securely.");
+            await load();
+          } catch (error) {
+            toast.error(apiError(error, "Payment confirmation is pending. Refresh before retrying payment."));
+            await load();
+          }
+        },
+        onDismiss: () => toast.info("Checkout closed. You can retry payment from this booking."),
+      });
+    } catch (error) {
+      toast.error(apiError(error, "Checkout could not be started"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelBooking(booking: Booking) {
+    const reason = window.prompt("Why are you cancelling this service?");
+    if (!reason || reason.trim().length < 3) return;
+    try {
+      const result = await api.post(`/habitat/bookings/${booking._id}/cancel`, {
+        reason: reason.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      toast.success(result.data.refund
+        ? `Cancellation recorded. Refund status: ${result.data.refund.status}.`
+        : "Booking cancelled.");
+      await load();
+    } catch (error) {
+      toast.error(apiError(error, "Booking could not be cancelled"));
+    }
+  }
+
+  async function completeBooking(booking: Booking) {
+    try {
+      await api.post(`/habitat/bookings/${booking._id}/complete`, {});
+      toast.success("Service confirmed complete");
+      await load();
+    } catch (error) {
+      toast.error(apiError(error, "Completion could not be confirmed"));
+    }
+  }
+
+  async function disputeBooking(booking: Booking) {
+    const reason = window.prompt("Describe the issue (at least 10 characters).");
+    if (!reason || reason.trim().length < 10) return;
+    try {
+      await api.post(`/habitat/bookings/${booking._id}/disputes`, { reason: reason.trim() });
+      toast.success("Dispute opened. Provider payout is on hold while Truvi reviews it.");
+      await load();
+    } catch (error) {
+      toast.error(apiError(error, "Dispute could not be opened"));
     }
   }
 
@@ -200,7 +293,7 @@ export default function HabitatPage() {
                 setProjectId(event.target.value);
                 if (membership) {
                   setAddress((current) => ({ ...current, city: membership.city }));
-                  api.get("/habitat/services", { params: { city: membership.city } })
+                  api.get("/habitat/services", { params: { city: membership.city, projectId: membership.projectId } })
                     .then((response) => setServices(response.data.services))
                     .catch((error) => toast.error(apiError(error, "Could not check services for this project")));
                 }
@@ -302,13 +395,21 @@ export default function HabitatPage() {
                       : `Estimated price: ${displayPrice(booking.estimatedAmountPaise, "FIXED")}`}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {["REQUESTED", "PROVIDER_ASSIGNED"].includes(booking.status) && (
-                      <button className="text-xs text-rose-300 hover:text-rose-200" onClick={() => void updateBooking(booking, "CANCELLED")}>Cancel request</button>
+                    {["REQUESTED", "PROVIDER_ASSIGNED", "ACCEPTED", "QUOTE_PROVIDED", "PAYMENT_PENDING", "PAID"].includes(booking.status) && (
+                      <button className="text-xs text-rose-300 hover:text-rose-200" onClick={() => void cancelBooking(booking)}>Cancel booking</button>
+                    )}
+                    {booking.status === "QUOTE_PROVIDED" && (
+                      <button className="text-xs text-emerald-300 hover:text-emerald-200" onClick={() => void loadQuotes(booking._id)}>Review provider quote</button>
+                    )}
+                    {["ACCEPTED", "PAYMENT_PENDING"].includes(booking.status) && (
+                      <button disabled={saving} className="text-xs text-emerald-300 hover:text-emerald-200 disabled:opacity-50" onClick={() => void payBooking(booking)}>
+                        {saving ? "Opening checkout…" : "Pay securely"}
+                      </button>
                     )}
                     {booking.status === "COMPLETION_SUBMITTED" && (
                       <>
-                        <button className="text-xs text-emerald-300 hover:text-emerald-200" onClick={() => void updateBooking(booking, "COMPLETED")}>Confirm completion</button>
-                        <button className="text-xs text-rose-300 hover:text-rose-200" onClick={() => void updateBooking(booking, "DISPUTED")}>Report an issue</button>
+                        <button className="text-xs text-emerald-300 hover:text-emerald-200" onClick={() => void completeBooking(booking)}>Confirm completion</button>
+                        <button className="text-xs text-rose-300 hover:text-rose-200" onClick={() => void disputeBooking(booking)}>Report an issue</button>
                       </>
                     )}
                     {booking.status === "COMPLETED" && !booking.hasReview && (
@@ -323,6 +424,18 @@ export default function HabitatPage() {
                       </>
                     )}
                   </div>
+                  {quotesByBooking[booking._id]?.map((quote) => (
+                    <div key={quote._id} className="mt-3 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-3">
+                      <p className="text-sm font-medium">Provider quote: {displayPrice(quote.amountPaise, "FIXED")}</p>
+                      <p className="mt-1 text-xs leading-5 text-white/60">{quote.workDescription}</p>
+                      <p className="mt-1 text-[11px] text-white/40">Expires {new Date(quote.expiresAt).toLocaleString()}</p>
+                      {quote.status === "PROPOSED" && booking.status === "QUOTE_PROVIDED" && (
+                        <button className="mt-2 text-xs font-medium text-emerald-300" onClick={() => void acceptQuote(booking._id, quote._id)}>
+                          Approve quote and continue to payment
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </article>
               ))}
             </div>

@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 type Category = { _id: string; name: string; active: boolean };
-type Project = { id: string; name: string; city: string; habitatEnabled: boolean };
+type Project = { id: string; name: string; city: string; habitatEnabled: boolean; habitatDeveloperAccess: boolean };
 type Overview = {
   attributedBuyers: number;
   activeServices: number;
@@ -38,6 +38,30 @@ type Booking = {
   providerName: string | null;
 };
 type Invitation = { _id: string; code: string; projectName: string; city: string; registrations: number; revoked: boolean; expiresAt: string | null };
+type Finance = {
+  paymentsEnabled: boolean;
+  settings: { cancellationFeeBps: number; commissionTaxRateBps: number; autoCompleteHours: number } | null;
+};
+type Dispute = {
+  _id: string;
+  bookingId: string;
+  reason: string;
+  evidence: string[];
+  status: string;
+  booking: { reference: string; status: string };
+  buyerName: string;
+  providerName: string | null;
+};
+type FinanceRefund = {
+  _id: string;
+  bookingReference: string;
+  buyerName: string;
+  amountPaise: number;
+  status: string;
+  reason: string;
+};
+type Settlement = { _id: string; amountPaise: number; status: string; booking: { reference: string }; providerName: string };
+type CommissionRule = { _id: string; rateBps: number; effectiveFrom: string; effectiveUntil: string | null; categoryName: string; projectName: string | null; providerName: string | null };
 
 function errorMessage(error: unknown) {
   if (typeof error === "object" && error !== null && "response" in error) {
@@ -72,11 +96,18 @@ export default function HabitatAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newInvitation, setNewInvitation] = useState<Invitation | null>(null);
+  const [finance, setFinance] = useState<Finance | null>(null);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [refunds, setRefunds] = useState<FinanceRefund[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
+  const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
+  const [policyDraft, setPolicyDraft] = useState({ cancellationFeePercent: "25", commissionTaxPercent: "18", autoCompleteHours: "72" });
+  const [commissionDraft, setCommissionDraft] = useState({ ratePercent: "10", projectId: "", providerId: "" });
 
   async function load() {
     setLoading(true);
     try {
-      const [overviewRes, projectRes, categoryRes, providerRes, bookingRes, serviceRes, invitationRes] = await Promise.all([
+      const [overviewRes, projectRes, categoryRes, providerRes, bookingRes, serviceRes, invitationRes, financeRes, disputeRes, refundRes, settlementRes, commissionRes] = await Promise.all([
         api.get("/habitat/admin/overview"),
         api.get("/habitat/admin/projects"),
         api.get("/habitat/admin/categories"),
@@ -84,6 +115,11 @@ export default function HabitatAdminPage() {
         api.get("/habitat/admin/bookings"),
         api.get("/habitat/admin/services"),
         api.get("/habitat/admin/invitations"),
+        api.get("/habitat/admin/finance"),
+        api.get("/habitat/admin/disputes"),
+        api.get("/habitat/admin/refunds"),
+        api.get("/habitat/admin/settlements"),
+        api.get("/habitat/admin/finance/commission-rules"),
       ]);
       setOverview(overviewRes.data);
       setProjects(projectRes.data.projects);
@@ -92,6 +128,18 @@ export default function HabitatAdminPage() {
       setBookings(bookingRes.data.bookings);
       setServices(serviceRes.data.services);
       setInvitations(invitationRes.data.invitations);
+      setFinance(financeRes.data);
+      setDisputes(disputeRes.data.disputes);
+      setRefunds(refundRes.data.refunds);
+      setSettlements(settlementRes.data.transfers);
+      setCommissionRules(commissionRes.data.rules);
+      if (financeRes.data.settings) {
+        setPolicyDraft({
+          cancellationFeePercent: String(financeRes.data.settings.cancellationFeeBps / 100),
+          commissionTaxPercent: String(financeRes.data.settings.commissionTaxRateBps / 100),
+          autoCompleteHours: String(financeRes.data.settings.autoCompleteHours),
+        });
+      }
       setProjectId((current) => projectRes.data.projects.some((project: Project) => project.id === current && project.habitatEnabled)
         ? current
         : projectRes.data.projects.find((project: Project) => project.habitatEnabled)?.id ?? "");
@@ -233,6 +281,95 @@ export default function HabitatAdminPage() {
     }
   }
 
+  async function toggleDeveloperAccess(project: Project) {
+    try {
+      await api.patch(`/habitat/admin/projects/${project.id}/developer-access`, { active: !project.habitatDeveloperAccess });
+      toast.success(`Developer Habitat access ${project.habitatDeveloperAccess ? "revoked" : "granted"} for ${project.name}`);
+      await load();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  }
+
+  async function saveFinancePolicy(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      const cancellationFeePercent = Number(policyDraft.cancellationFeePercent);
+      const commissionTaxPercent = Number(policyDraft.commissionTaxPercent);
+      const autoCompleteHours = Number(policyDraft.autoCompleteHours);
+      if (![cancellationFeePercent, commissionTaxPercent].every((value) => Number.isFinite(value) && value >= 0 && value <= 100) ||
+        !Number.isInteger(autoCompleteHours) || autoCompleteHours < 1 || autoCompleteHours > 720) {
+        toast.error("Enter valid percentages (0–100) and completion hours (1–720)");
+        return;
+      }
+      try {
+        await api.patch("/habitat/admin/finance/settings", {
+          cancellationFeeBps: Math.round(cancellationFeePercent * 100),
+          commissionTaxRateBps: Math.round(commissionTaxPercent * 100),
+          autoCompleteHours,
+        });
+        toast.success("Habitat financial policy saved");
+        await load();
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+  }
+
+  async function createCommissionRule(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
+      const ratePercent = Number(commissionDraft.ratePercent);
+      if (!Number.isFinite(ratePercent) || ratePercent < 0 || ratePercent > 100 || !categoryId) {
+        toast.error("Choose a category and enter a commission rate from 0 to 100%");
+        return;
+      }
+      try {
+        await api.post("/habitat/admin/finance/commission-rules", {
+          categoryId,
+          projectId: commissionDraft.projectId || null,
+          providerId: commissionDraft.providerId || null,
+          rateBps: Math.round(ratePercent * 100),
+        });
+        toast.success("Commission rule saved with an effective timestamp");
+        await load();
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+  }
+
+  async function resolveDispute(dispute: Dispute, decision: "BUYER" | "PROVIDER" | "PARTIAL_REFUND") {
+      const resolutionNote = window.prompt("Add a resolution note (at least 10 characters).");
+      if (!resolutionNote || resolutionNote.trim().length < 10) return;
+      let refundAmountPaise: number | undefined;
+      if (decision === "PARTIAL_REFUND") {
+        const rupees = Number(window.prompt("Enter the buyer refund amount in whole rupees."));
+        if (!Number.isSafeInteger(rupees) || rupees <= 0) {
+          toast.error("Enter a positive whole-rupee refund");
+          return;
+        }
+        refundAmountPaise = rupees * 100;
+      }
+      try {
+        await api.patch(`/habitat/admin/disputes/${dispute._id}/resolve`, {
+          decision,
+          ...(refundAmountPaise ? { refundAmountPaise } : {}),
+          resolutionNote: resolutionNote.trim(),
+        });
+        toast.success("Dispute resolution recorded");
+        await load();
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+  }
+
+  async function retryRefund(refund: FinanceRefund) {
+      try {
+        await api.post(`/habitat/admin/refunds/${refund._id}/retry`, {});
+        toast.success(`Refund retry requested for ${refund.bookingReference}`);
+        await load();
+      } catch (error) {
+        toast.error(errorMessage(error));
+    }
+  }
+
   function invitationUrl(code: string) {
     return `${window.location.origin}/habitat/invite/${encodeURIComponent(code)}`;
   }
@@ -339,9 +476,18 @@ export default function HabitatAdminPage() {
                 {projects.map((project) => (
                   <div key={project.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 px-3 py-3">
                     <div><p className="text-sm font-medium">{project.name}</p><p className="text-xs text-white/45">{project.city} · Approved property project</p></div>
-                    <button onClick={() => void toggleProject(project)} className={`rounded-lg px-3 py-2 text-xs ${project.habitatEnabled ? "bg-emerald-300/10 text-emerald-200" : "border border-white/10 text-white/55"}`}>
-                      {project.habitatEnabled ? "Habitat enabled · Turn off" : "Enable Habitat"}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => void toggleProject(project)} className={`rounded-lg px-3 py-2 text-xs ${project.habitatEnabled ? "bg-emerald-300/10 text-emerald-200" : "border border-white/10 text-white/55"}`}>
+                        {project.habitatEnabled ? "Habitat enabled · Turn off" : "Enable Habitat"}
+                      </button>
+                      <button
+                        onClick={() => void toggleDeveloperAccess(project)}
+                        disabled={!project.habitatEnabled}
+                        className={`rounded-lg px-3 py-2 text-xs ${project.habitatDeveloperAccess ? "bg-sky-300/10 text-sky-200" : "border border-white/10 text-white/55"} disabled:opacity-40`}
+                      >
+                        {project.habitatDeveloperAccess ? "Revoke developer access" : "Grant developer access"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -474,6 +620,96 @@ export default function HabitatAdminPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </section>
+
+            <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Habitat finance operations</h2>
+                  <p className="mt-1 text-xs text-white/50">Payment processing is {finance?.paymentsEnabled ? "enabled" : "disabled"}; disabled mode will not create checkout, refunds, or provider transfers.</p>
+                </div>
+                <Button variant="secondary" onClick={() => void load()} disabled={loading}>Refresh finance</Button>
+              </div>
+              <form onSubmit={saveFinancePolicy} className="mt-4 grid gap-3 sm:grid-cols-4">
+                <label className="text-xs text-white/65">Buyer cancellation fee (%)
+                  <input type="number" min={0} max={100} step={0.01} value={policyDraft.cancellationFeePercent} onChange={(event) => setPolicyDraft((current) => ({ ...current, cancellationFeePercent: event.target.value }))} className={field} />
+                </label>
+                <label className="text-xs text-white/65">GST on Truvi commission (%)
+                  <input type="number" min={0} max={100} step={0.01} value={policyDraft.commissionTaxPercent} onChange={(event) => setPolicyDraft((current) => ({ ...current, commissionTaxPercent: event.target.value }))} className={field} />
+                </label>
+                <label className="text-xs text-white/65">Buyer completion window (hours)
+                  <input type="number" min={1} max={720} step={1} value={policyDraft.autoCompleteHours} onChange={(event) => setPolicyDraft((current) => ({ ...current, autoCompleteHours: event.target.value }))} className={field} />
+                </label>
+                <div className="self-end"><Button type="submit">Save policy</Button></div>
+              </form>
+              <form onSubmit={createCommissionRule} className="mt-5 grid gap-3 sm:grid-cols-4">
+                <label className="text-xs text-white/65">Category
+                  <select required value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className={field}>
+                    {categories.filter((item) => item.active).map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs text-white/65">Commission (%)
+                  <input type="number" min={0} max={100} step={0.01} required value={commissionDraft.ratePercent} onChange={(event) => setCommissionDraft((current) => ({ ...current, ratePercent: event.target.value }))} className={field} />
+                </label>
+                <label className="text-xs text-white/65">Project override (optional)
+                  <select value={commissionDraft.projectId} onChange={(event) => setCommissionDraft((current) => ({ ...current, projectId: event.target.value }))} className={field}>
+                    <option value="">All projects</option>{projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs text-white/65">Provider override (optional)
+                  <select value={commissionDraft.providerId} onChange={(event) => setCommissionDraft((current) => ({ ...current, providerId: event.target.value }))} className={field}>
+                    <option value="">All providers</option>{providers.map((item) => <option key={item._id} value={item._id}>{item.businessName}</option>)}
+                  </select>
+                </label>
+                <Button type="submit" className="sm:col-span-4">Add effective commission rule</Button>
+              </form>
+              <div className="mt-4 space-y-2">
+                {commissionRules.map((rule) => (
+                  <div key={rule._id} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60">
+                    {rule.categoryName}: {rule.rateBps / 100}% · {rule.projectName ?? "all projects"} · {rule.providerName ?? "all providers"} · from {new Date(rule.effectiveFrom).toLocaleString()} {rule.effectiveUntil ? `to ${new Date(rule.effectiveUntil).toLocaleString()}` : "· active"}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-5 grid gap-5 xl:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="text-lg font-semibold">Disputes</h2>
+                {disputes.length === 0 ? <p className="mt-3 text-sm text-white/50">No disputes.</p> : (
+                  <div className="mt-3 space-y-3">{disputes.map((dispute) => (
+                    <article key={dispute._id} className="rounded-xl border border-white/10 p-3">
+                      <p className="font-medium">{dispute.booking.reference} · {dispute.status.replaceAll("_", " ")}</p>
+                      <p className="mt-1 text-xs text-white/50">{dispute.buyerName} · {dispute.providerName ?? "Unassigned provider"}</p>
+                      <p className="mt-2 text-sm text-white/65">{dispute.reason}</p>
+                      {dispute.evidence.length > 0 && <p className="mt-2 break-words text-xs text-white/45">Evidence links: {dispute.evidence.join(" · ")}</p>}
+                      {["OPEN", "UNDER_REVIEW"].includes(dispute.status) && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button onClick={() => void resolveDispute(dispute, "BUYER")} className="text-xs text-rose-300">Full buyer refund</button>
+                          <button onClick={() => void resolveDispute(dispute, "PARTIAL_REFUND")} className="text-xs text-amber-200">Partial refund</button>
+                          <button onClick={() => void resolveDispute(dispute, "PROVIDER")} className="text-xs text-emerald-300">Release provider payout</button>
+                        </div>
+                      )}
+                    </article>
+                  ))}</div>
+                )}
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                <h2 className="text-lg font-semibold">Refunds & provider settlements</h2>
+                <div className="mt-3 space-y-2">
+                  {refunds.map((refund) => (
+                    <div key={refund._id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2">
+                      <p className="text-xs text-white/60">{refund.bookingReference} · {refund.buyerName} · ₹{(refund.amountPaise / 100).toLocaleString("en-IN")} · {refund.status}</p>
+                      {refund.status === "FAILED" && <button onClick={() => void retryRefund(refund)} className="text-xs text-emerald-300">Retry refund</button>}
+                    </div>
+                  ))}
+                  {settlements.map((settlement) => (
+                    <div key={settlement._id} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60">
+                      Settlement {settlement.booking.reference} · {settlement.providerName} · ₹{(settlement.amountPaise / 100).toLocaleString("en-IN")} · {settlement.status}
+                    </div>
+                  ))}
+                  {refunds.length === 0 && settlements.length === 0 && <p className="text-sm text-white/50">No refunds or transfers recorded.</p>}
+                </div>
               </div>
             </section>
           </>

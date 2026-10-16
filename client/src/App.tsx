@@ -93,6 +93,7 @@ const HabitatPage = lazy(() => import("@/pages/habitat/HabitatPage"));
 const HabitatInvitePage = lazy(() => import("@/pages/habitat/HabitatInvitePage"));
 const HabitatProviderPage = lazy(() => import("@/pages/habitat/HabitatProviderPage"));
 const HabitatAdminPage = lazy(() => import("@/pages/habitat/HabitatAdminPage"));
+const HabitatDeveloperPage = lazy(() => import("@/pages/habitat/HabitatDeveloperPage"));
 const InventoryPage = lazy(() => import("@/pages/InventoryPage"));
 const ProjectPresentationPage = lazy(() => import("@/pages/ProjectPresentationPage"));
 const ProjectLandingPage = lazy(() => import("@/pages/ProjectLandingPage"));
@@ -421,6 +422,7 @@ export default function App() {
         <Route path="/buyer/projects" element={<ProtectedRoute roles={["BUYER"]}><BuyerProjectsPage /></ProtectedRoute>} />
         <Route path="/buyer/compare" element={<ProtectedRoute roles={["BUYER"]}><ComparePage /></ProtectedRoute>} />
         <Route path="/habitat" element={<ProtectedRoute roles={["BUYER"]}><HabitatPage /></ProtectedRoute>} />
+        <Route path="/habitat/developer" element={<ProtectedRoute roles={["DEVELOPER"]}><HabitatDeveloperPage /></ProtectedRoute>} />
         <Route path="/habitat/invite/:code" element={<ProtectedRoute roles={["BUYER"]}><HabitatInvitePage /></ProtectedRoute>} />
         <Route
           path="/habitat/provider"

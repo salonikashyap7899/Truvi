@@ -14,6 +14,22 @@ export function getAllowedOrigins(): string[] | boolean {
       .map((origin) => origin.trim())
       .filter(Boolean) ?? [];
 
+  // The public site is reachable on both apex and www hosts. Treat those as
+  // equivalent allowed frontend origins so API requests keep working when a
+  // visitor follows a link that uses the other host.
+  for (const origin of [...configured]) {
+    try {
+      const url = new URL(origin);
+      if (url.hostname === "truviventures.com") {
+        configured.push(`${url.protocol}//www.truviventures.com`);
+      } else if (url.hostname === "www.truviventures.com") {
+        configured.push(`${url.protocol}//truviventures.com`);
+      }
+    } catch {
+      // Keep malformed configured origins unchanged; CORS will not match them.
+    }
+  }
+
   if (process.env.RENDER_EXTERNAL_URL) configured.push(process.env.RENDER_EXTERNAL_URL);
   if (configured.length === 0) configured.push("http://localhost:5173", "http://localhost:5000");
 

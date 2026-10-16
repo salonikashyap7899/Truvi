@@ -58,6 +58,7 @@ import ingestRoutes from "./routes/ingest";
 import verificationAdminRoutes from "./routes/verificationAdmin";
 import askRoutes from "./routes/ask";
 import habitatRoutes from "./routes/habitat";
+import habitatFinanceRoutes, { habitatRazorpayWebhook } from "./routes/habitatFinance";
 import { securityHeaders, setUploadHeaders } from "./middleware/security";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
@@ -100,6 +101,7 @@ export function createApp() {
   // Razorpay webhook must see the RAW request body to verify the signature, so
   // it is mounted with express.raw BEFORE the global JSON parser.
   app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
+  app.post("/api/habitat/webhook", express.raw({ type: "*/*" }), habitatRazorpayWebhook);
 
   // Private buyer documents are opened through short-lived signed links (a
   // plain link can't carry a Bearer token). Registered before every /api
@@ -192,6 +194,7 @@ export function createApp() {
   app.use("/api/admin", verificationAdminRoutes); // /checks, /fraud-rules, /prompts, /thresholds, /audit-logs
   app.use("/api", askRoutes); // /api/ask, /api/chat/:sessionId
   app.use("/api/habitat", habitatRoutes);
+  app.use("/api/habitat", habitatFinanceRoutes);
 
   if (fs.existsSync(clientDistDir)) {
     // Content-hashed build assets never change for a given URL → cache hard.

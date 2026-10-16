@@ -49,7 +49,7 @@ const kycUpload = multer({
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF and image files allowed"));
+      cb(new Error("Upload a JPG, PNG or WEBP image, or a PDF file."));
     }
   },
 });

@@ -7,6 +7,7 @@ import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 import { startLifecycleReminderScheduler } from "./services/lifecycleEmails";
 import { startNotificationReminderScheduler } from "./services/notificationReminders";
 import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
+import { startHabitatPayoutScheduler } from "./routes/habitatFinance";
 
 // Last-line safety net: a single stray async error (an unawaited promise, a
 // driver-level throw) must never take the whole API process down — that is what
@@ -51,6 +52,7 @@ async function main() {
 
   // Every 15 min: turn due lead follow-ups into in-app/push reminders for CPs.
   startNotificationReminderScheduler();
+  startHabitatPayoutScheduler();
 
   // Most PaaS/VPS process managers send SIGTERM before killing the process on
   // every redeploy/restart — close the HTTP server and DB connection cleanly

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionHabitatBooking, habitatEstimatePaise, isHabitatAreaCovered } from "./habitat";
+import {
+  assertHabitatJournalBalanced,
+  buildHabitatChargeJournal,
+  calculateHabitatCancellation,
+  calculateHabitatMoneySplit,
+  canTransitionHabitatBooking,
+  habitatEstimatePaise,
+  isHabitatAreaCovered,
+  isHabitatPayoutEligible,
+} from "./habitat";
 
 describe("Habitat booking lifecycle", () => {
   it("lets only the assigned provider accept and progress a booking", () => {
@@ -27,5 +36,47 @@ describe("Habitat booking lifecycle", () => {
   it("matches provider coverage to the buyer's city or locality", () => {
     expect(isHabitatAreaCovered(["Gomti Nagar, Lucknow"], "Lucknow", "Gomti Nagar")).toBe(true);
     expect(isHabitatAreaCovered(["Kanpur"], "Lucknow")).toBe(false);
+  });
+
+  it("calculates commission, commission tax, and provider share in integer paise", () => {
+    expect(calculateHabitatMoneySplit(10_001, 1_000, 1_800)).toEqual({
+      amountPaise: 10_001,
+      commissionPaise: 1_000,
+      commissionTaxPaise: 180,
+      providerPaise: 8_821,
+    });
+    expect(() => calculateHabitatMoneySplit(100, 10_000, 10_000)).toThrow("exceed");
+    expect(() => calculateHabitatMoneySplit(100, 10_001, 0)).toThrow("basis points");
+  });
+
+  it("refunds fully when the provider cancels and pays buyer cancellation fees to the provider", () => {
+    expect(calculateHabitatCancellation(10_000, 2_500, false)).toEqual({
+      refundPaise: 7_500,
+      providerCompensationPaise: 2_500,
+    });
+    expect(calculateHabitatCancellation(10_000, 2_500, true)).toEqual({
+      refundPaise: 10_000,
+      providerCompensationPaise: 0,
+    });
+  });
+
+  it("holds provider payout until the completion window ends and disputes are cleared", () => {
+    const now = new Date("2026-10-13T12:00:00.000Z");
+    const eligibleAt = new Date("2026-10-13T11:00:00.000Z");
+    expect(isHabitatPayoutEligible("COMPLETED", eligibleAt, null, now)).toBe(true);
+    expect(isHabitatPayoutEligible("COMPLETION_SUBMITTED", eligibleAt, null, now)).toBe(false);
+    expect(isHabitatPayoutEligible("COMPLETED", eligibleAt, "OPEN", now)).toBe(false);
+    expect(isHabitatPayoutEligible("COMPLETED", eligibleAt, "RESOLVED_PROVIDER", now)).toBe(true);
+  });
+
+  it("creates balanced charge journals and rejects unbalanced journals", () => {
+    const split = calculateHabitatMoneySplit(10_000, 1_000, 1_800);
+    const journal = buildHabitatChargeJournal(split);
+    expect(journal.filter((line) => line.direction === "DEBIT").reduce((sum, line) => sum + line.amountPaise, 0)).toBe(10_000);
+    expect(journal.filter((line) => line.direction === "CREDIT").reduce((sum, line) => sum + line.amountPaise, 0)).toBe(10_000);
+    expect(() => assertHabitatJournalBalanced([
+      { accountCode: "A", direction: "DEBIT", amountPaise: 100 },
+      { accountCode: "B", direction: "CREDIT", amountPaise: 99 },
+    ])).toThrow("balanced");
   });
 });

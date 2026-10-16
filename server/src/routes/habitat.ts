@@ -1,17 +1,27 @@
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { Router } from "express";
-import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
   habitatBookingStatusHistory,
   habitatBookings,
+  habitatCommissionRules,
+  habitatDeveloperAccess,
+  habitatDisputes,
   habitatInvitations,
+  habitatLedgerEntries,
   habitatMemberships,
+  habitatPayments,
   habitatProviders,
+  habitatProjectCategories,
+  habitatQuotes,
+  habitatRefunds,
   habitatReviews,
+  habitatSettings,
   habitatServiceCategories,
   habitatServices,
+  habitatTransfers,
   projects,
   users,
   type HabitatBookingStatus,
@@ -19,10 +29,25 @@ import {
 import { isValidId } from "../lib/ids";
 import { authenticate, AuthedRequest, requireRole } from "../middleware/auth";
 import {
+  assertHabitatJournalBalanced,
+  buildHabitatChargeJournal,
+  calculateHabitatCancellation,
+  calculateHabitatMoneySplit,
   canTransitionHabitatBooking,
   habitatEstimatePaise,
+  isHabitatPayoutEligible,
   isHabitatAreaCovered,
+  type HabitatLedgerLine,
 } from "../services/habitat";
+import {
+  createHabitatLinkedAccount,
+  createHabitatOrder,
+  createHabitatRefund,
+  createHabitatTransfer,
+  habitatPaymentsEnabled,
+  verifyHabitatPayment,
+  verifyHabitatWebhook,
+} from "../services/habitatPayments";
 
 const router = Router();
 const serviceAreaSchema = z.array(z.string().trim().min(2).max(80)).min(1).max(30);
@@ -115,9 +140,31 @@ async function recordBookingStatus(
 ) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ autoCompleteAt: habitatBookings.autoCompleteAt })
+      .from(habitatBookings)
+      .where(and(eq(habitatBookings._id, bookingId), eq(habitatBookings.status, fromStatus)))
+      .limit(1);
+    if (!current) return null;
+    const now = new Date();
+    const [settings] = toStatus === "COMPLETION_SUBMITTED"
+      ? await tx.select().from(habitatSettings).where(eq(habitatSettings.singletonKey, "default")).limit(1)
+      : [];
+    const autoCompleteAt = toStatus === "COMPLETION_SUBMITTED"
+      ? new Date(now.getTime() + (settings?.autoCompleteHours ?? 72) * 60 * 60 * 1000)
+      : current.autoCompleteAt;
     const [updated] = await tx
       .update(habitatBookings)
-      .set({ status: toStatus, updatedAt: new Date() })
+      .set({
+        status: toStatus,
+        ...(toStatus === "COMPLETION_SUBMITTED" ? { completionSubmittedAt: now, autoCompleteAt } : {}),
+        ...(toStatus === "COMPLETED" ? {
+          completedAt: now,
+          payoutEligibleAt: autoCompleteAt ?? now,
+          payoutStatus: "ON_HOLD",
+        } : {}),
+        updatedAt: now,
+      })
       .where(and(eq(habitatBookings._id, bookingId), eq(habitatBookings.status, fromStatus)))
       .returning();
     if (!updated) return null;
@@ -130,6 +177,45 @@ async function recordBookingStatus(
     });
     return updated;
   });
+}
+
+function habitatLedgerRows(
+  bookingId: string,
+  paymentId: string | null,
+  operationKey: string,
+  lines: HabitatLedgerLine[],
+) {
+  assertHabitatJournalBalanced(lines);
+  const journalId = randomUUID();
+  return lines.map((line, index) => ({
+    journalId,
+    bookingId,
+    paymentId,
+    accountCode: line.accountCode,
+    direction: line.direction,
+    amountPaise: line.amountPaise,
+    idempotencyKey: `${operationKey}:${index}`,
+    metadata: {},
+  }));
+}
+
+async function getActiveCommissionRule(categoryId: string, projectId: string, providerId: string) {
+  const now = new Date();
+  const candidates = await getDb()
+    .select()
+    .from(habitatCommissionRules)
+    .where(and(
+      eq(habitatCommissionRules.categoryId, categoryId),
+      or(isNull(habitatCommissionRules.projectId), eq(habitatCommissionRules.projectId, projectId)),
+      or(isNull(habitatCommissionRules.providerId), eq(habitatCommissionRules.providerId, providerId)),
+      lte(habitatCommissionRules.effectiveFrom, now),
+      or(isNull(habitatCommissionRules.effectiveUntil), gt(habitatCommissionRules.effectiveUntil, now)),
+    ));
+  return candidates.sort((left, right) => {
+    const leftSpecificity = Number(left.projectId !== null) + Number(left.providerId !== null);
+    const rightSpecificity = Number(right.projectId !== null) + Number(right.providerId !== null);
+    return rightSpecificity - leftSpecificity || right.effectiveFrom.getTime() - left.effectiveFrom.getTime();
+  })[0] ?? null;
 }
 
 // Public catalog. Prices are integer paise and quote-based work is explicitly
@@ -145,13 +231,35 @@ router.get("/categories", async (_req, res) => {
 
 router.get("/services", async (req, res) => {
   const categoryId = typeof req.query.categoryId === "string" ? req.query.categoryId : undefined;
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId : undefined;
   const city = typeof req.query.city === "string" ? req.query.city.trim() : undefined;
   if (categoryId && !isValidId(categoryId)) return res.status(400).json({ error: "Invalid categoryId" });
+  if (projectId && !isValidId(projectId)) return res.status(400).json({ error: "Invalid projectId" });
   if (city !== undefined && (city.length < 2 || city.length > 100)) return res.status(400).json({ error: "Invalid city" });
   const db = getDb();
-  const conditions = categoryId
-    ? and(eq(habitatServices.active, true), eq(habitatServices.categoryId, categoryId), eq(habitatServiceCategories.active, true))
-    : and(eq(habitatServices.active, true), eq(habitatServiceCategories.active, true));
+  let disabledProjectCategoryIds: string[] = [];
+  if (projectId) {
+    const [project] = await db.select({
+      habitatEnabled: projects.habitatEnabled,
+      approvalStatus: projects.approvalStatus,
+    }).from(projects).where(eq(projects._id, projectId)).limit(1);
+    if (!project || !project.habitatEnabled || project.approvalStatus !== "APPROVED") {
+      return res.status(404).json({ error: "Habitat project not found" });
+    }
+    const projectCategories = await db.select({
+      categoryId: habitatProjectCategories.categoryId,
+      enabled: habitatProjectCategories.enabled,
+    }).from(habitatProjectCategories).where(eq(habitatProjectCategories.projectId, projectId));
+    if (projectCategories.length) {
+      disabledProjectCategoryIds = projectCategories.filter((entry) => !entry.enabled).map((entry) => entry.categoryId);
+    }
+  }
+  const conditions = and(
+    eq(habitatServices.active, true),
+    eq(habitatServiceCategories.active, true),
+    ...(categoryId ? [eq(habitatServices.categoryId, categoryId)] : []),
+    ...(disabledProjectCategoryIds.length ? [notInArray(habitatServices.categoryId, disabledProjectCategoryIds)] : []),
+  );
   const rows = await db
     .select({ service: habitatServices, category: habitatServiceCategories })
     .from(habitatServices)
@@ -480,6 +588,15 @@ router.post("/bookings", authenticate, requireRole("BUYER"), async (req: AuthedR
     .limit(1);
   const selectedService = service?.service;
   if (!selectedService) return res.status(404).json({ error: "Service is not currently available" });
+  const projectCategories = await db.select({
+    categoryId: habitatProjectCategories.categoryId,
+    enabled: habitatProjectCategories.enabled,
+  }).from(habitatProjectCategories).where(eq(habitatProjectCategories.projectId, projectId));
+  if (projectCategories.some((entry) =>
+    entry.categoryId === selectedService.categoryId && !entry.enabled,
+  )) {
+    return res.status(409).json({ error: "This service category is not enabled for the selected project" });
+  }
 
   let estimate: number | null;
   try {
@@ -565,6 +682,9 @@ router.patch("/bookings/:bookingId/buyer-status", authenticate, requireRole("BUY
   if (!isValidId(bookingId)) return res.status(400).json({ error: "Invalid bookingId" });
   const parsed = bookingStatusSchema.safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
+  if (["COMPLETED", "CANCELLED", "DISPUTED"].includes(parsed.data.status)) {
+    return res.status(409).json({ error: "Use the Habitat completion, cancellation, or dispute workflow so payment records stay consistent" });
+  }
   const [booking] = await getDb()
     .select()
     .from(habitatBookings)
@@ -632,7 +752,8 @@ router.get("/admin/overview", authenticate, requireRole("ADMIN"), async (_req, r
 });
 
 router.get("/admin/projects", authenticate, requireRole("ADMIN"), async (_req, res) => {
-  const approvedProjects = await getDb()
+  const db = getDb();
+  const approvedProjects = await db
     .select({
       id: projects._id,
       name: projects.name,
@@ -644,7 +765,18 @@ router.get("/admin/projects", authenticate, requireRole("ADMIN"), async (_req, r
     .where(eq(projects.approvalStatus, "APPROVED"))
     .orderBy(projects.name)
     .limit(500);
-  res.json({ projects: approvedProjects });
+  const accessRows = approvedProjects.length
+    ? await db.select({
+      projectId: habitatDeveloperAccess.projectId,
+      active: habitatDeveloperAccess.active,
+    }).from(habitatDeveloperAccess)
+      .where(inArray(habitatDeveloperAccess.projectId, approvedProjects.map((project) => project.id)))
+    : [];
+  const accessByProject = new Map(accessRows.map(({ projectId, active }) => [projectId, active]));
+  res.json({ projects: approvedProjects.map((project) => ({
+    ...project,
+    habitatDeveloperAccess: accessByProject.get(project.id) ?? false,
+  })) });
 });
 
 router.patch("/admin/projects/:projectId/habitat", authenticate, requireRole("ADMIN"), async (req: AuthedRequest, res) => {
@@ -790,13 +922,7 @@ router.patch("/admin/bookings/:bookingId/status", authenticate, requireRole("ADM
     reason: z.string().trim().min(3).max(1000),
   }).safeParse(req.body);
   if (!parsed.success) return validationError(res, parsed.error);
-  const [booking] = await getDb().select().from(habitatBookings).where(eq(habitatBookings._id, bookingId)).limit(1);
-  if (!booking || !canTransitionHabitatBooking("ADMIN", booking.status, parsed.data.status)) {
-    return res.status(409).json({ error: "Booking cannot be cancelled in its current state" });
-  }
-  const updated = await recordBookingStatus(bookingId, booking.status, parsed.data.status, req.user!.userId, parsed.data.reason);
-  if (!updated) return res.status(409).json({ error: "Booking changed; refresh and try again" });
-  res.json({ booking: updated });
+  return res.status(409).json({ error: "Use the Habitat finance cancellation workflow so any captured payment can be refunded" });
 });
 
 router.get("/admin/services", authenticate, requireRole("ADMIN"), async (_req, res) => {

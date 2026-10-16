@@ -13,15 +13,33 @@ type Provider = {
   experienceYears: number;
   status: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
   reviewNote: string | null;
+  razorpayAccountStatus?: string;
 };
 type Booking = {
   _id: string;
   reference: string;
   status: string;
+  pricingModelSnapshot: "FIXED" | "STARTING_PRICE" | "QUOTE";
+  finalAmountPaise: number | null;
+  providerPayoutPaise: number | null;
+  payoutStatus: string;
   serviceTitle: string;
   preferredAt: string;
   requestDetails: string | null;
   serviceAddress: { label: string; street: string; locality: string; city: string; postalCode: string; instructions?: string };
+};
+type QuoteDraft = { amount: string; workDescription: string };
+type PayoutForm = {
+  businessType: "individual" | "proprietorship" | "partnership" | "private_limited" | "llp";
+  legalBusinessName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  pan: string;
+  gst: string;
+  bankAccountNumber: string;
+  ifsc: string;
+  beneficiaryName: string;
 };
 
 function getError(error: unknown) {
@@ -38,6 +56,20 @@ export default function HabitatProviderPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [provider, setProvider] = useState<Provider | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [quoteDrafts, setQuoteDrafts] = useState<Record<string, QuoteDraft>>({});
+  const [paymentsEnabled, setPaymentsEnabled] = useState(false);
+  const [payoutForm, setPayoutForm] = useState<PayoutForm>({
+    businessType: "individual",
+    legalBusinessName: "",
+    contactName: "",
+    email: "",
+    phone: "",
+    pan: "",
+    gst: "",
+    bankAccountNumber: "",
+    ifsc: "",
+    beneficiaryName: "",
+  });
   const [businessName, setBusinessName] = useState("");
   const [description, setDescription] = useState("");
   const [serviceAreas, setServiceAreas] = useState("Lucknow");
@@ -63,11 +95,19 @@ export default function HabitatProviderPage() {
         setExperienceYears(current.experienceYears);
         setCategoryIds(current.categoryIds);
         if (current.status === "APPROVED") {
-          const bookingResponse = await api.get("/habitat/provider/bookings");
+          const [bookingResponse, financeResponse] = await Promise.all([
+            api.get("/habitat/provider/bookings"),
+            api.get("/habitat/provider/finance/status"),
+          ]);
           setBookings(bookingResponse.data.bookings);
+          setPaymentsEnabled(financeResponse.data.paymentsEnabled);
+          setProvider({ ...current, razorpayAccountStatus: financeResponse.data.razorpayAccountStatus });
         } else {
           setBookings([]);
+          setPaymentsEnabled(false);
         }
+      } else {
+        setPaymentsEnabled(false);
       }
     } catch (error) {
       toast.error(getError(error));
@@ -107,6 +147,43 @@ export default function HabitatProviderPage() {
       await load();
     } catch (error) {
       toast.error(getError(error));
+    }
+  }
+
+  async function submitQuote(event: FormEvent<HTMLFormElement>, booking: Booking) {
+    event.preventDefault();
+    const draft = quoteDrafts[booking._id];
+    const rupees = Number(draft?.amount);
+    if (!Number.isSafeInteger(rupees) || rupees <= 0 || !draft?.workDescription.trim()) {
+      toast.error("Enter a positive whole-rupee quote and work description");
+      return;
+    }
+    try {
+      await api.post(`/habitat/provider/bookings/${booking._id}/quotes`, {
+        amountPaise: rupees * 100,
+        workDescription: draft.workDescription,
+      });
+      toast.success("Quote sent to the buyer");
+      await load();
+    } catch (error) {
+      toast.error(getError(error));
+    }
+  }
+
+  async function submitPayoutOnboarding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const response = await api.post("/habitat/provider/razorpay-onboarding", {
+        ...payoutForm,
+        termsAccepted: true,
+      });
+      toast.success(response.data.message);
+      await load();
+    } catch (error) {
+      toast.error(getError(error));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -180,6 +257,51 @@ export default function HabitatProviderPage() {
             {provider?.reviewNote && <p className="mt-3 text-sm text-white/55">{provider.reviewNote}</p>}
             {provider?.status === "APPROVED" && (
               <div className="mt-7">
+                <section className="mb-6 rounded-xl border border-white/10 bg-slate-950/40 p-4">
+                  <h3 className="font-semibold">Payout account</h3>
+                  <p className="mt-1 text-xs text-white/55">
+                    Razorpay account status: {provider.razorpayAccountStatus ?? "NOT_STARTED"}. Bank and PAN details are sent directly to Razorpay and are not stored by Truvi.
+                  </p>
+                  {!paymentsEnabled && <p className="mt-2 text-xs text-amber-200">Payout onboarding is locked until Truvi activates Razorpay Route for this environment.</p>}
+                  {provider.razorpayAccountStatus !== "ACTIVATED" && (
+                    <form onSubmit={submitPayoutOnboarding} className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs text-white/65">Business type
+                        <select className={inputClass} value={payoutForm.businessType} disabled={!paymentsEnabled} onChange={(event) => setPayoutForm((current) => ({ ...current, businessType: event.target.value as PayoutForm["businessType"] }))}>
+                          <option value="individual">Individual</option><option value="proprietorship">Proprietorship</option><option value="partnership">Partnership</option><option value="private_limited">Private limited</option><option value="llp">LLP</option>
+                        </select>
+                      </label>
+                      {([
+                        ["legalBusinessName", "Legal business name"],
+                        ["contactName", "Contact person"],
+                        ["email", "Payout account email"],
+                        ["phone", "Phone (include country code)"],
+                        ["pan", "PAN"],
+                        ["gst", "GSTIN (optional)"],
+                        ["bankAccountNumber", "Bank account number"],
+                        ["ifsc", "IFSC"],
+                        ["beneficiaryName", "Bank beneficiary name"],
+                      ] as const).map(([key, label]) => (
+                        <label key={key} className="text-xs text-white/65">{label}
+                          <input
+                            className={inputClass}
+                            required={key !== "gst"}
+                            type={key === "email" ? "email" : "text"}
+                            value={payoutForm[key]}
+                            disabled={!paymentsEnabled || saving}
+                            autoComplete="off"
+                            onChange={(event) => setPayoutForm((current) => ({ ...current, [key]: event.target.value }))}
+                          />
+                        </label>
+                      ))}
+                      <p className="text-xs leading-5 text-white/45 sm:col-span-2">
+                        By submitting, you consent to sending these payout/KYC details to Razorpay for linked-account verification. Truvi does not retain the submitted bank or PAN values.
+                      </p>
+                      <Button type="submit" disabled={!paymentsEnabled || saving} className="sm:col-span-2">
+                        {saving ? "Submitting to Razorpay…" : "Submit payout verification"}
+                      </Button>
+                    </form>
+                  )}
+                </section>
                 <h3 className="font-semibold">Assigned service requests</h3>
                 {bookings.length === 0 ? (
                   <p className="mt-3 text-sm text-white/50">No bookings have been assigned to you yet.</p>
@@ -196,6 +318,8 @@ export default function HabitatProviderPage() {
                             </p>
                             {booking.requestDetails && <p className="mt-2 text-sm text-white/55">{booking.requestDetails}</p>}
                             {booking.serviceAddress.instructions && <p className="mt-1 text-xs text-white/45">Instructions: {booking.serviceAddress.instructions}</p>}
+                            {booking.finalAmountPaise !== null && <p className="mt-2 text-xs text-white/65">Customer price: ₹{(booking.finalAmountPaise / 100).toLocaleString("en-IN")}</p>}
+                            {booking.providerPayoutPaise !== null && <p className="mt-1 text-xs text-white/65">Provider payout: ₹{(booking.providerPayoutPaise / 100).toLocaleString("en-IN")} · {booking.payoutStatus.replaceAll("_", " ")}</p>}
                           </div>
                           <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/65">{booking.status.replaceAll("_", " ")}</span>
                         </div>
@@ -207,6 +331,13 @@ export default function HabitatProviderPage() {
                             </>
                           )}
                           {booking.status === "ACCEPTED" && <button className="text-xs text-emerald-300" onClick={() => void updateBooking(booking, "IN_PROGRESS")}>Start service</button>}
+                          {booking.status === "ACCEPTED" && booking.pricingModelSnapshot !== "FIXED" && (
+                            <form onSubmit={(event) => void submitQuote(event, booking)} className="mt-3 grid w-full gap-2 sm:grid-cols-[140px_1fr_auto]">
+                              <input type="number" min={1} step={1} required placeholder="Quote ₹" className={inputClass} value={quoteDrafts[booking._id]?.amount ?? ""} onChange={(event) => setQuoteDrafts((current) => ({ ...current, [booking._id]: { amount: event.target.value, workDescription: current[booking._id]?.workDescription ?? "" } }))} />
+                              <input minLength={10} maxLength={2000} required placeholder="Work scope, materials and exclusions" className={inputClass} value={quoteDrafts[booking._id]?.workDescription ?? ""} onChange={(event) => setQuoteDrafts((current) => ({ ...current, [booking._id]: { amount: current[booking._id]?.amount ?? "", workDescription: event.target.value } }))} />
+                              <Button type="submit" size="sm">Send quote</Button>
+                            </form>
+                          )}
                           {booking.status === "IN_PROGRESS" && <button className="text-xs text-emerald-300" onClick={() => void updateBooking(booking, "COMPLETION_SUBMITTED")}>Submit completion</button>}
                           {booking.status === "COMPLETION_SUBMITTED" && <p className="text-xs text-amber-200">Waiting for the buyer to confirm completion.</p>}
                         </div>
