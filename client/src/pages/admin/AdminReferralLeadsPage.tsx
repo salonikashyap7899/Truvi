@@ -83,7 +83,7 @@ export default function AdminReferralLeadsPage() {
         <Handshake size={22} className="text-emerald-400" /> Referral Developer Leads
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Every developer referred by a Channel Partner or Ambassador — with full details, so you can verify, contact and approve without hunting through notifications.
+        Every developer referred by a Channel Partner, Ambassador or existing Developer — with full details, so you can verify, contact and approve without hunting through notifications.
       </p>
 
       {/* Summary */}

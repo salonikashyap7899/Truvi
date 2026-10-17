@@ -194,13 +194,31 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
     });
   }
 
-  // Referral / commission source — references only, extensible by level.
+  // Keep a server-derived referral chain on every submitted lead/site visit.
+  // For CP/Ambassador submissions the submitter is L1; for a buyer submission,
+  // the buyer's referrer is L1. Store up to three distinct ancestors so L2/L3
+  // referrals remain traceable even when the buyer has not yet created an account.
   const chain: LeadReferralLink[] = [];
-  if (role === "CP" || role === "AMBASSADOR") {
-    chain.push({ level: 1, userId: me._id });
-    if (me.referredBy) chain.push({ level: 2, userId: String(me.referredBy) });
-  } else if (me.referredBy) {
-    chain.push({ level: 1, userId: String(me.referredBy) });
+  const visitedReferrers = new Set<string>();
+  let firstChainReferralCode: string | null = null;
+  let nextReferrerId: string | null =
+    role === "CP" || role === "AMBASSADOR"
+      ? String(me._id)
+      : me.referredBy
+        ? String(me.referredBy)
+        : null;
+
+  while (nextReferrerId && chain.length < 3 && !visitedReferrers.has(nextReferrerId)) {
+    visitedReferrers.add(nextReferrerId);
+    const [referrer] = await db
+      .select({ _id: users._id, referredBy: users.referredBy, referralCode: users.referralCode })
+      .from(users)
+      .where(eq(users._id, nextReferrerId));
+    if (!referrer) break;
+
+    if (chain.length === 0) firstChainReferralCode = referrer.referralCode ?? null;
+    chain.push({ level: chain.length + 1, userId: String(referrer._id) });
+    nextReferrerId = referrer.referredBy ? String(referrer.referredBy) : null;
   }
 
   const offer = await findEligibleOffer(project._id, unit?._id ?? null, role).catch(() => null);
@@ -255,7 +273,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         visitDate: d.visitDate,
         visitTime: d.visitTime,
         creatorRole: role,
-        referralCode: role === "CP" || role === "AMBASSADOR" ? me.referralCode ?? null : null,
+        referralCode: role === "CP" || role === "AMBASSADOR" ? me.referralCode ?? null : firstChainReferralCode,
         referralChain: chain.length ? chain : null,
         offerId: offer?._id ?? null,
         isDuplicate: !!dup,
