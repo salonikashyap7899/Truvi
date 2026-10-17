@@ -103,7 +103,7 @@ export interface CpWallet {
   referral: ReferralBreakdown;
   history: {
     _id: string;
-    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE" | "DEVELOPER_REFERRAL" | "CP_REFERRAL" | "BUYER_REFERRAL";
+    type: "DEVELOPER_ONBOARDING" | "PROPERTY_SALE" | "DEVELOPER_REFERRAL" | "CP_REFERRAL" | "BUYER_REFERRAL" | "AMBASSADOR_LEVEL2" | "AMBASSADOR_LEVEL3";
     amount: number;
     date: Date;
     description: string;
