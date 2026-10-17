@@ -519,9 +519,15 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             </div>
 
             {/* Wallet totals */}
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
               <MiniStat label="Developer 2%" value={formatINR(d.wallet.developerCommission)} />
-              <MiniStat label="Referral Rewards" value={formatINR(d.wallet.referralCommission)} />
+              <MiniStat label="Direct Referral Rewards" value={formatINR(
+                d.wallet.referralCommission -
+                d.wallet.level2ReferralCommission -
+                d.wallet.level3ReferralCommission
+              )} />
+              <MiniStat label="Level 2 (25%)" value={formatINR(d.wallet.level2ReferralCommission)} />
+              <MiniStat label="Level 3 (10%)" value={formatINR(d.wallet.level3ReferralCommission)} />
               <MiniStat label="Sale Commission" value={formatINR(d.wallet.saleCommission)} />
               <MiniStat label="Total Earned" value={formatINR(d.wallet.totalEarnings)} />
               <MiniStat label="Paid" value={formatINR(d.wallet.paid)} tone="emerald" />
