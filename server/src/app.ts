@@ -61,6 +61,7 @@ import habitatRoutes from "./routes/habitat";
 import habitatFinanceRoutes, { habitatRazorpayWebhook } from "./routes/habitatFinance";
 import { securityHeaders, setUploadHeaders } from "./middleware/security";
 import { requestIdMiddleware } from "./middleware/requestId";
+import clientTelemetryRoutes from "./routes/clientTelemetry";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -120,6 +121,7 @@ export function createApp() {
 
   app.use(express.json());
   app.use(cookieParser());
+  app.use("/api/telemetry", clientTelemetryRoutes);
   app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
   // Static file serving for uploaded brochures/price lists/site-visit photos.
