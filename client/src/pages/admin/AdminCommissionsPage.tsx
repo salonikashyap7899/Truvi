@@ -772,7 +772,7 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
         </div>
       )}
 
-      {referral.level2Ambassadors?.length > 0 && (
+      {(referral.level2Ambassadors?.length ?? 0) > 0 && (
         <div className="mt-3">
           <p className="mb-1 text-xs font-semibold text-violet-300/90">Level 2 Ambassador Rewards (25%)</p>
           <div className="overflow-x-auto rounded-lg border border-white/10">
@@ -802,7 +802,7 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
         </div>
       )}
 
-      {referral.level3Ambassadors?.length > 0 && (
+      {(referral.level3Ambassadors?.length ?? 0) > 0 && (
         <div className="mt-3">
           <p className="mb-1 text-xs font-semibold text-fuchsia-300/90">Level 3 Ambassador Rewards (10%)</p>
           <div className="overflow-x-auto rounded-lg border border-white/10">
