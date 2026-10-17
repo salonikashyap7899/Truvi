@@ -833,7 +833,6 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
           </div>
         </div>
       )}
-      )}
     </div>
   );
 }
