@@ -60,6 +60,7 @@ import askRoutes from "./routes/ask";
 import habitatRoutes from "./routes/habitat";
 import habitatFinanceRoutes, { habitatRazorpayWebhook } from "./routes/habitatFinance";
 import { securityHeaders, setUploadHeaders } from "./middleware/security";
+import { requestIdMiddleware } from "./middleware/requestId";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -87,6 +88,10 @@ export function createApp() {
   // trust the first hop so req.secure/req.ip and secure cookies work.
   app.set("trust proxy", 1);
 
+  // Attach a correlation ID before any middleware can reject a request. This
+  // lets support correlate a browser error with server logs without collecting
+  // identity-document contents or other KYC personal data.
+  app.use(requestIdMiddleware);
   app.use(securityHeaders);
 
   // Gzip/brotli-style compression for every response (JSON API payloads, the
@@ -96,7 +101,11 @@ export function createApp() {
   // uncompressed, so this is fully backward-compatible.
   app.use(compression());
 
-  app.use(cors({ origin: getAllowedOrigins(), credentials: true }));
+  app.use(cors({
+    origin: getAllowedOrigins(),
+    credentials: true,
+    exposedHeaders: ["X-Request-ID"],
+  }));
 
   // Razorpay webhook must see the RAW request body to verify the signature, so
   // it is mounted with express.raw BEFORE the global JSON parser.
