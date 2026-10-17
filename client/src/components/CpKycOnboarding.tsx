@@ -292,7 +292,8 @@ export function CpKycOnboarding() {
     );
   }
 
-  // Legacy: submitted and awaiting review (no longer used — KYC auto-approves).
+  // Submitted documents stay pending until a provider or an authorized admin
+  // completes the identity review. Keep the form locked while review is pending.
   if (status === "PENDING") {
     return (
       <Shell>
