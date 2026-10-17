@@ -29,6 +29,27 @@ api.interceptors.request.use((config) => {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+// Public/session-establishment endpoints must not trigger a refresh loop.
+// Protected endpoints under /auth (notably /auth/submit-kyc and /auth/me) DO
+// need refresh-and-retry when a mobile tab has been idle long enough for its
+// access token to expire.
+const NO_REFRESH_RETRY_ENDPOINTS = new Set([
+  "/auth/signup",
+  "/auth/login",
+  "/auth/verify-account",
+  "/auth/resend-otp",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/refresh",
+  "/auth/logout",
+]);
+
+function shouldSkipTokenRefresh(url?: string): boolean {
+  if (!url) return false;
+  const path = url.split("?")[0].replace(/\/+$/, "");
+  return [...NO_REFRESH_RETRY_ENDPOINTS].some((endpoint) => path === endpoint || path.endsWith(endpoint));
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   try {
     const res = await axios.post(`${API_BASE}/api/auth/refresh`, {}, { withCredentials: true });
@@ -82,7 +103,12 @@ api.interceptors.response.use(
       status === 403 &&
       typeof error.response?.data?.error === "string" &&
       error.response.data.error.includes("Complete onboarding verification");
-    if ((status === 401 || onboardingGate) && original && !original._retry && !original.url.includes("/auth/")) {
+    if (
+      (status === 401 || onboardingGate) &&
+      original &&
+      !original._retry &&
+      !shouldSkipTokenRefresh(original.url)
+    ) {
       original._retry = true;
       if (!refreshPromise) refreshPromise = refreshAccessToken().finally(() => (refreshPromise = null));
       const newToken = await refreshPromise;
