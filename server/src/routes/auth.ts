@@ -1056,9 +1056,9 @@ router.post(
         updated_at = now()
     `;
 
-    // KYC is auto-approved on submission — no manual admin review. A configured
-    // KYC provider can still explicitly REJECT; with no provider (the default)
-    // the identity is approved automatically.
+    // A structurally valid document is not proof of identity. Only a provider
+    // result of APPROVED may unlock access; MANUAL_REVIEW stays pending until an
+    // authorized admin reviews the submission.
     const provider = await runProviderKyc({
       aadhaarNumber,
       panNumber,
@@ -1067,7 +1067,7 @@ router.post(
       selfieUrl: "",
     });
     const rejected = provider.outcome === "REJECTED";
-    const approved = !rejected;
+    const approved = provider.outcome === "APPROVED";
 
     const onboardingChecks: OnboardingChecks = {
       ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
@@ -1078,7 +1078,7 @@ router.post(
       phoneVerified: user.phoneVerified || (user.onboardingChecks?.phoneVerified ?? false),
       aadhaarVerified: approved,
       panVerified: approved,
-      kycStatus: approved ? "APPROVED" : "REJECTED",
+      kycStatus: approved ? "APPROVED" : rejected ? "REJECTED" : "PENDING",
       kycRejectionReason: rejected ? provider.reason ?? "Documents could not be verified." : null,
     };
     const verification: UserVerification = {
@@ -1100,7 +1100,9 @@ router.post(
     try {
       const message = approved
         ? "Your identity has been verified — full access is now unlocked."
-        : `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`;
+        : rejected
+          ? `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`
+          : "Your KYC documents were received and are awaiting manual review.";
       const [n] = await db.insert(notifications).values({ userId: user._id, message }).returning();
       emitNotification(String(user._id), n);
     } catch {
@@ -1110,7 +1112,9 @@ router.post(
     return res.json({
       message: approved
         ? "Identity verified — full access is now unlocked."
-        : `Verification failed. ${onboardingChecks.kycRejectionReason ?? ""}`.trim(),
+        : rejected
+          ? `Verification failed. ${onboardingChecks.kycRejectionReason ?? ""}`.trim()
+          : "Documents submitted successfully and are awaiting KYC review.",
       onboardingChecks,
       onboardingVerified,
     });
