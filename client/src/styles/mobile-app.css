@@ -1,6 +1,25 @@
 /* App-only tweaks for the installed Capacitor build (html.native-app).
-   The web is never affected, and nothing is removed — the app keeps every
-   page, heading, video, footer and option exactly as the website. */
+   The website is never affected. */
+
+/* The website uses a display serif globally. Keep the installed app's UI
+   readable and compact with the platform sans-serif, including form controls. */
+html.native-app,
+html.native-app body,
+html.native-app #root,
+html.native-app button,
+html.native-app input,
+html.native-app select,
+html.native-app textarea {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html.native-app h1,
+html.native-app h2,
+html.native-app h3,
+html.native-app h4,
+html.native-app .font-display {
+  font-family: inherit;
+}
 
 /* This is an app, not a website: hide the marketing footer in the app. */
 html.native-app footer {
@@ -13,6 +32,17 @@ html.native-app footer {
 html.native-app [aria-label="Open menu"],
 html.native-app [aria-label="Close menu"] {
   display: none !important;
+}
+
+/* Keep the menu sheet touch-scrollable without showing a scrollbar outside
+   the rounded panel edge. */
+html.native-app .native-menu-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html.native-app .native-menu-panel::-webkit-scrollbar {
+  display: none;
 }
 
 /* While the Ask Truvi chat sheet is open, hide the bottom tab bar so it never

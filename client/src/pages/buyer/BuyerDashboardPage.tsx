@@ -41,6 +41,7 @@ import {
 } from "recharts";
 import UserMenu from "@/components/UserMenu";
 import { NotificationBell } from "@/components/NotificationBell";
+import { IS_NATIVE } from "@/lib/native";
 import type { Project, SiteVisit, SharedDocument, BuyerDocument } from "@/types";
 
 // ─── types & constants ────────────────────────────────────────────────────────
@@ -216,14 +217,25 @@ export default function BuyerDashboardPage() {
             {user?.name ? `Welcome back, ${user.name}` : "Your properties at a glance"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <NotificationBell />
+        <div className={IS_NATIVE ? "grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:gap-3" : "flex items-center gap-3"}>
+          <div className={IS_NATIVE ? "col-span-2 justify-self-end sm:col-span-1" : ""}>
+            <NotificationBell />
+          </div>
           <UserMenu />
-          <Link to="/habitat">
-            <Button size="sm" variant="secondary">Browse Habitat</Button>
+          <Link to="/habitat" className={IS_NATIVE ? "min-w-0" : ""}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className={IS_NATIVE ? "w-full whitespace-normal px-2 text-xs leading-tight sm:w-auto sm:px-3 sm:text-sm" : ""}
+            >
+              Browse Habitat
+            </Button>
           </Link>
-          <Link to="/inventory">
-            <Button size="sm">
+          <Link to="/inventory" className={IS_NATIVE ? "min-w-0" : ""}>
+            <Button
+              size="sm"
+              className={IS_NATIVE ? "w-full whitespace-normal px-2 text-xs leading-tight sm:w-auto sm:px-3 sm:text-sm" : ""}
+            >
               <PlusCircle size={15} className="mr-1.5" />
               Browse Inventory
             </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Bell, CheckCheck, Building2, Home, Wallet, Users, CalendarClock,
   TrendingUp, Megaphone, ShieldAlert, ListChecks, X, type LucideIcon,
@@ -10,6 +10,7 @@ import type { Notification } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { toast } from "sonner";
+import { showsTabBar } from "@/lib/native";
 
 /** Per-session guard so a notification is toasted at most once (survives the
  *  real-time emit AND the on-load catch-up without double-popping). */
@@ -57,6 +58,8 @@ function hrefFor(n: Notification): string | null {
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const hasNativeTabBar = showsTabBar(pathname);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -139,8 +142,12 @@ export function NotificationBell() {
           {/* Tap-outside backdrop to dismiss (mobile especially, where the panel
               covers most of the screen and the bell can be hard to reach). */}
           <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setOpen(false)} aria-hidden />
-          <div className="fixed inset-x-3 top-16 z-50 w-auto rounded-2xl border border-white/10 bg-[#0a0d14]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
-          <div className="flex items-center justify-between gap-2 px-2 py-1">
+          <div
+            className={`fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+5.75rem)] z-50 flex min-h-0 w-auto flex-col rounded-2xl border border-white/10 bg-[#0a0d14]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl ${
+              hasNativeTabBar ? "bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]" : "bottom-3"
+            } sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:max-h-[min(24rem,calc(100dvh-6rem))] sm:w-80 sm:max-w-[calc(100vw-3rem)]`}
+          >
+          <div className="flex shrink-0 items-center justify-between gap-2 px-2 py-1">
             <p className="text-xs font-medium text-muted-foreground">Notifications</p>
             <div className="flex items-center gap-2">
               {unread > 0 && (
@@ -157,7 +164,7 @@ export function NotificationBell() {
               </button>
             </div>
           </div>
-          <div className="max-h-96 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-96 sm:flex-none">
             {notifications.length === 0 && <p className="p-3 text-sm text-muted-foreground">No notifications yet.</p>}
             {notifications.map((n) => {
               const { Icon, cls } = iconFor(n.type);

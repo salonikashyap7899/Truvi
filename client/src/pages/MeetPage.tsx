@@ -103,11 +103,11 @@ export default function MeetPage() {
   return (
     <main className="min-h-screen px-4 pb-24 pt-4 text-white sm:px-6">
       <div className="mx-auto max-w-2xl">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/25"><Video size={20} /></span>
-          <div>
-            <h1 className="font-display text-xl font-semibold sm:text-2xl">Schedule a Google Meet</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Need help understanding how to work on Truvi? Schedule a Google Meet with our team.</p>
+          <div className="min-w-0">
+            <h1 className="font-display text-lg font-semibold leading-tight sm:text-2xl">Schedule a Google Meet</h1>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">Need help understanding how to work on Truvi? Schedule a Google Meet with our team.</p>
           </div>
         </div>
 

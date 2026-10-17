@@ -188,7 +188,7 @@ function PageTransition({ children }: { children: ReactNode }) {
   const navOffset = useGlobalNavVisible();
   const user = useAuthStore((s) => s.user);
   // The "← Back" link sits just under the app-level navbar, in the page flow.
-  const pageBack = navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
+  const pageBack = !IS_NATIVE && navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
   return (
     <motion.div
       key={transitionKey}
@@ -199,7 +199,9 @@ function PageTransition({ children }: { children: ReactNode }) {
       // Leave room for the app-level navbar at the top (inside the page's
       // height, so short pages don't scroll) and for the app's bottom tab bar.
       style={{
-        ...(navOffset ? { paddingTop: GLOBAL_NAV_OFFSET } : {}),
+        // The native body already reserves its safe-area inset; don't count it
+        // a second time in the page offset below the fixed navbar.
+        ...(navOffset ? { paddingTop: IS_NATIVE ? "4.75rem" : GLOBAL_NAV_OFFSET } : {}),
         ...(showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : {}),
       }}
     >

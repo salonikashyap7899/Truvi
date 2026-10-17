@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Building2, Sparkles, Menu as MenuIcon, X, LayoutDashboard, LogOut,
-  Heart, TrendingUp, Bot,
+  Heart, TrendingUp, Bot, CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -77,7 +77,7 @@ export default function MobileTabBar() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 48, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
-              className="fixed inset-x-0 bottom-0 z-[71] max-h-[82vh] origin-bottom overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0d14]/98 backdrop-blur-xl"
+              className="native-menu-panel fixed inset-x-0 bottom-0 z-[71] max-h-[82vh] origin-bottom overscroll-contain overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0a0d14]/98 backdrop-blur-xl"
               style={{ paddingBottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}
             >
               <div className="flex items-center justify-between px-5 pt-4 pb-2">
@@ -111,6 +111,14 @@ export default function MobileTabBar() {
                   {l.label}
                 </Link>
               ))}
+
+              <Link
+                to="/help/meet"
+                onClick={close}
+                className="flex items-center gap-2 border-b border-white/5 px-5 py-3.5 text-sm font-semibold text-sky-300"
+              >
+                <CalendarClock size={15} /> Schedule a Google Meet
+              </Link>
 
               {/* Truvi Invest + AI Copilot — moved here from the floating buttons
                   so the app screens stay clean; the options live in the menu. */}

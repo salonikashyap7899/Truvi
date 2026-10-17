@@ -70,7 +70,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
   // Upload form
   const [category, setCategory] = useState(ALL_CATEGORIES[0].value);
   const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploadIndex, setUploadIndex] = useState(0);
 
   // Info form
   const [projectType, setProjectType] = useState(project.projectType ?? "");
@@ -97,27 +98,58 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
 
   async function uploadAsset(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !title.trim()) return;
+    if (!files.length || (category !== "GALLERY_IMAGE" && !title.trim())) return;
     setUploading(true);
     setUploadPct(0);
+    setUploadIndex(0);
+    const uploaded: ProjectAsset[] = [];
+    const failed: { file: File; error: string }[] = [];
+    let successMessage = "";
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("category", category);
-      form.append("title", title.trim());
-      const res = await api.post(`/presentation/${project._id}/assets`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (ev) => { if (ev.total) setUploadPct(Math.round((ev.loaded / ev.total) * 100)); },
-      });
-      setAssets((prev) => [res.data.asset, ...prev]);
-      setTitle("");
-      setFile(null);
+      for (const [index, file] of files.entries()) {
+        setUploadIndex(index + 1);
+        const form = new FormData();
+        const fileTitle = title.trim();
+        const fileBaseName = file.name.replace(/\.[^.]+$/, "");
+        form.append("file", file);
+        form.append("category", category);
+        form.append(
+          "title",
+          files.length > 1 && fileTitle
+            ? `${fileTitle} — ${fileBaseName}`
+            : fileTitle || fileBaseName,
+        );
+        try {
+          const res = await api.post(`/presentation/${project._id}/assets`, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (ev) => {
+              if (ev.total) {
+                setUploadPct(Math.round(((index + ev.loaded / ev.total) / files.length) * 100));
+              }
+            },
+          });
+          uploaded.push(res.data.asset);
+          successMessage = res.data.message || successMessage;
+        } catch (err: any) {
+          failed.push({ file, error: uploadErrorMessage(err) });
+        }
+      }
+
+      if (uploaded.length) {
+        setAssets((prev) => [...uploaded.reverse(), ...prev]);
+      }
+      setFiles(failed.map(({ file }) => file));
       if (fileRef.current) fileRef.current.value = "";
-      toast.success(res.data.message || "Asset uploaded");
-    } catch (err: any) {
-      toast.error(uploadErrorMessage(err));
+      if (failed.length) {
+        const details = failed.map(({ file, error }) => `${file.name}: ${error}`).join("; ");
+        toast.error(`Uploaded ${uploaded.length} of ${files.length}. ${details}`);
+      } else {
+        setTitle("");
+        toast.success(uploaded.length === 1 ? successMessage || "Asset uploaded" : `${uploaded.length} images uploaded`);
+      }
     } finally {
       setUploading(false);
+      setUploadIndex(0);
     }
   }
 
@@ -273,7 +305,14 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
             <Label className="text-foreground/90">Category</Label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                const nextCategory = e.target.value;
+                setCategory(nextCategory);
+                if (nextCategory !== "GALLERY_IMAGE" && files.length > 1) {
+                  setFiles([]);
+                  if (fileRef.current) fileRef.current.value = "";
+                }
+              }}
               className="mt-1 h-9 w-full rounded-lg border border-white/15 bg-card px-3 text-sm text-white outline-none focus:border-blue-500"
             >
               {ASSET_SECTIONS.map((section) => (
@@ -288,8 +327,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
           <div>
             <Label className="text-foreground/90">Title</Label>
             <Input
-              required
-              placeholder="e.g. Tower A — 3BHK Floor Plan"
+              required={category !== "GALLERY_IMAGE"}
+              placeholder={category === "GALLERY_IMAGE" ? "Optional title or gallery prefix" : "e.g. Tower A — 3BHK Floor Plan"}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border-white/15 bg-card text-white"
@@ -299,36 +338,50 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
             <Label className="text-foreground/90">File</Label>
             <label className="mt-1 flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 text-sm text-muted-foreground hover:border-blue-500/50 hover:text-blue-300 transition-colors">
               <Upload size={14} className="shrink-0" />
-              <span className="truncate">{file ? file.name : "Choose file"}</span>
+              <span className="truncate">
+                {files.length > 1 ? `${files.length} photos selected` : files[0]?.name ?? "Choose file"}
+              </span>
               <input
                 ref={fileRef}
                 type="file"
-                required
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.svg,.mp4,.webm,.mov,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip"
+                required={category !== "GALLERY_IMAGE"}
+                multiple={category === "GALLERY_IMAGE"}
+                accept={category === "GALLERY_IMAGE"
+                  ? ".jpg,.jpeg,.png,.webp,.gif,.svg"
+                  : ".pdf,.jpg,.jpeg,.png,.webp,.gif,.svg,.mp4,.webm,.mov,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip"}
                 className="sr-only"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f && f.size > 50 * 1024 * 1024) {
-                    toast.error("File too large — max 50 MB");
+                  const selected = Array.from(e.target.files ?? []);
+                  const oversized = selected.filter((f) => f.size > 50 * 1024 * 1024);
+                  if (oversized.length) {
+                    toast.error(`Each file must be 50 MB or smaller: ${oversized.map((f) => f.name).join(", ")}`);
                     e.target.value = "";
                     return;
                   }
-                  setFile(f || null);
+                  setFiles(selected);
                 }}
               />
             </label>
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Drawings, CAD files (DWG/DXF), PDFs, images, videos, presentations, reports & certificates — up to 50 MB.
+          {category === "GALLERY_IMAGE"
+            ? "Select multiple photos to add them to the gallery in one upload. Each image can be up to 50 MB."
+            : "Drawings, CAD files (DWG/DXF), PDFs, images, videos, presentations, reports & certificates — up to 50 MB."}
         </p>
         {LEGAL_CATEGORIES.includes(category) && !isAdmin && (
           <p className="mt-1 text-[11px] text-amber-300">
             Legal documents (approvals, NOCs, RERA certificates) appear publicly only after a Truvi admin verifies them.
           </p>
         )}
-        <Button type="submit" size="sm" className="mt-3" disabled={uploading || !file || !title.trim()}>
-          {uploading ? <><Loader2 size={13} className="animate-spin mr-1.5" /> Uploading… {uploadPct}%</> : "Upload"}
+        <Button type="submit" size="sm" className="mt-3" disabled={uploading || !files.length || (category !== "GALLERY_IMAGE" && !title.trim())}>
+          {uploading ? (
+            <>
+              <Loader2 size={13} className="animate-spin mr-1.5" />
+              {files.length > 1 ? `Uploading ${uploadIndex} of ${files.length}… ` : "Uploading… "}
+              {uploadPct}%
+            </>
+          ) : files.length > 1 ? `Upload ${files.length} Photos` : "Upload"}
         </Button>
       </form>
 

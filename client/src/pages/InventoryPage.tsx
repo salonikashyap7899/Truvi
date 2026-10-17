@@ -23,6 +23,7 @@ import AddLeadModal from "@/components/leads/AddLeadModal";
 import OfferDetailsModal, { OfferBadge } from "@/components/leads/OfferDetailsModal";
 import { LEAD_CREATOR_ROLES, type PublicOffer } from "@/components/leads/inventoryLeadShared";
 import SoldOutBadge from "@/components/SoldOutBadge";
+import { IS_NATIVE } from "@/lib/native";
 
 const WA_NUMBER = "917054280101";
 
@@ -225,7 +226,11 @@ export default function InventoryPage() {
       <SiteNav />
 
       <main
-        className="min-h-screen px-4 pb-28 pt-[calc(7.5rem+env(safe-area-inset-top))] text-white sm:px-6 md:px-10 md:pt-32"
+        className={`min-h-screen px-4 pb-28 text-white sm:px-6 md:px-10 md:pt-32 ${
+          IS_NATIVE
+            ? "pt-[calc(4.5rem+env(safe-area-inset-top))]"
+            : "pt-[calc(7.5rem+env(safe-area-inset-top))]"
+        }`}
       >
         {/* ── Header + search ── */}
         <div className="mx-auto max-w-3xl text-center">

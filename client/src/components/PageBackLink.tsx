@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath } from "@/lib/rolePaths";
 import { showsNavBack } from "@/lib/navChrome";
+import { IS_NATIVE } from "@/lib/native";
 
 /**
  * "← Back" link shown just below the navbar, at the top-left of the page
@@ -18,7 +19,7 @@ export default function PageBackLink({ floating = false }: { floating?: boolean 
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  if (!showsNavBack(pathname, user ? dashboardPath(user) : null)) return null;
+  if (IS_NATIVE || !showsNavBack(pathname, user ? dashboardPath(user) : null)) return null;
 
   // Go back within the site when there's history; a page opened directly
   // (shared link, new tab) goes to the user's dashboard, or home.
