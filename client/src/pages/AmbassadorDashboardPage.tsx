@@ -804,6 +804,8 @@ interface AmbWallet {
   developerCommission: number;
   saleCommission: number;
   referralCommission: number;
+  level2ReferralCommission: number;
+  level3ReferralCommission: number;
   totalEarnings: number;
   paid: number;
   pending: number;
@@ -838,10 +840,12 @@ function AmbassadorCommissionSection() {
       </p>
 
       {/* Wallet tiles */}
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <AmbTile icon={<Wallet size={15} />} label="Total Earnings" value={loading ? "…" : formatINR(w?.totalEarnings ?? 0)} />
         <AmbTile icon={<Building2 size={15} />} label="Developer 2%" value={loading ? "…" : formatINR(w?.developerCommission ?? 0)} />
-        <AmbTile icon={<Users size={15} />} label="Referral 2% + Bonus" value={loading ? "…" : formatINR(w?.referralCommission ?? 0)} />
+        <AmbTile icon={<Users size={15} />} label="All Referral Earnings" value={loading ? "…" : formatINR(w?.referralCommission ?? 0)} />
+        <AmbTile icon={<Network size={15} />} label="Level 2 (25%)" value={loading ? "…" : formatINR(w?.level2ReferralCommission ?? 0)} tone="text-violet-300" />
+        <AmbTile icon={<Network size={15} />} label="Level 3 (10%)" value={loading ? "…" : formatINR(w?.level3ReferralCommission ?? 0)} tone="text-violet-300" />
         <AmbTile icon={<Handshake size={15} />} label="Sale / Bonus" value={loading ? "…" : formatINR(w?.saleCommission ?? 0)} />
         <AmbTile icon={<Clock size={15} />} label="Pending" value={loading ? "…" : formatINR(w?.pending ?? 0)} tone="text-amber-300" />
         <AmbTile icon={<CheckCircle2 size={15} />} label="Paid" value={loading ? "…" : formatINR(w?.paid ?? 0)} tone="text-emerald-300" />
