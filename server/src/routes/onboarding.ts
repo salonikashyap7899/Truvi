@@ -37,8 +37,8 @@ const referralSchema = z.object({
   notes: z.string().optional(),
 });
 
-// POST /api/onboarding/developers — a CP or developer submits a developer to onboard.
-router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedRequest, res) => {
+// POST /api/onboarding/developers — a CP, Ambassador or developer submits a developer to onboard.
+router.post("/developers", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req: AuthedRequest, res) => {
   const parsed = referralSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const d = parsed.data;
@@ -60,8 +60,9 @@ router.post("/developers", requireRole("CP", "DEVELOPER"), async (req: AuthedReq
 
   // Alert admins there's a new developer to onboard (real-time bell).
   try {
-    const [cp] = await db.select({ name: users.name }).from(users).where(eq(users._id, req.user!.userId));
-    const message = `New developer onboarding: ${cp?.name ?? "A CP"} referred ${d.developerName}${d.companyName ? ` (${d.companyName})` : ""}.`;
+    const [referrer] = await db.select({ name: users.name, role: users.role }).from(users).where(eq(users._id, req.user!.userId));
+    const referrerLabel = referrer?.role === "AMBASSADOR" ? "an Ambassador" : referrer?.role === "DEVELOPER" ? "a Developer" : "a Channel Partner";
+    const message = `New developer onboarding: ${referrer?.name ?? referrerLabel} referred ${d.developerName}${d.companyName ? ` (${d.companyName})` : ""}.`;
     // Routed through the central engine: typed, deep-linked, real-time to every
     // admin/founder. (Founders are ADMINs, so they're included.)
     await notifyRole("ADMIN", {
