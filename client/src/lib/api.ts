@@ -46,7 +46,7 @@ const NO_REFRESH_RETRY_ENDPOINTS = new Set([
 
 function shouldSkipTokenRefresh(url?: string): boolean {
   if (!url) return false;
-  const path = url.split("?")[0].replace(/\\/+$/, "");
+  const path = url.split("?")[0].replace(/\/+$/, "");
   return [...NO_REFRESH_RETRY_ENDPOINTS].some((endpoint) => path === endpoint || path.endsWith(endpoint));
 }
 
