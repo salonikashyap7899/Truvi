@@ -200,6 +200,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
   // referrals remain traceable even when the buyer has not yet created an account.
   const chain: LeadReferralLink[] = [];
   const visitedReferrers = new Set<string>();
+  let firstChainReferralCode: string | null = null;
   let nextReferrerId: string | null =
     role === "CP" || role === "AMBASSADOR"
       ? String(me._id)
@@ -210,11 +211,12 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
   while (nextReferrerId && chain.length < 3 && !visitedReferrers.has(nextReferrerId)) {
     visitedReferrers.add(nextReferrerId);
     const [referrer] = await db
-      .select({ _id: users._id, referredBy: users.referredBy })
+      .select({ _id: users._id, referredBy: users.referredBy, referralCode: users.referralCode })
       .from(users)
       .where(eq(users._id, nextReferrerId));
     if (!referrer) break;
 
+    if (chain.length === 0) firstChainReferralCode = referrer.referralCode ?? null;
     chain.push({ level: chain.length + 1, userId: String(referrer._id) });
     nextReferrerId = referrer.referredBy ? String(referrer.referredBy) : null;
   }
@@ -271,7 +273,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         visitDate: d.visitDate,
         visitTime: d.visitTime,
         creatorRole: role,
-        referralCode: role === "CP" || role === "AMBASSADOR" ? me.referralCode ?? null : null,
+        referralCode: role === "CP" || role === "AMBASSADOR" ? me.referralCode ?? null : firstChainReferralCode,
         referralChain: chain.length ? chain : null,
         offerId: offer?._id ?? null,
         isDuplicate: !!dup,
