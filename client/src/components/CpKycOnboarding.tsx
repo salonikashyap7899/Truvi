@@ -168,6 +168,7 @@ export function CpKycOnboarding() {
       // multipart boundary. Explicitly setting it can break uploads in browsers.
       const res = await api.post("/auth/submit-kyc", form, {
         headers: { "X-Request-ID": requestId },
+        timeout: 90_000,
       });
       // Apply the server's actual outcome after a brief transition. A pending
       // manual review is not a verification failure and must not ask for resubmission.
@@ -199,11 +200,47 @@ export function CpKycOnboarding() {
         resp?.data?.issues?.fieldErrors &&
         (Object.values(resp.data.issues.fieldErrors as Record<string, string[]>).flat().find(Boolean) as string | undefined);
       if (!resp) {
+        // A mobile connection may drop after the server has saved the documents
+        // but before the response reaches Chrome. Check the server's current
+        // state before asking the customer to submit sensitive documents again.
+        try {
+          const statusResponse = await api.get("/auth/me", { timeout: 15_000 });
+          const fresh = statusResponse.data?.user;
+          const current = useAuthStore.getState().user ?? user;
+          const checks = fresh?.onboardingChecks;
+          const savedStatus = checks?.kycStatus;
+          if (fresh && ["PENDING", "APPROVED", "REJECTED"].includes(savedStatus)) {
+            const token = useAuthStore.getState().accessToken;
+            if (token) {
+              useAuthStore.getState().setAuth(
+                {
+                  ...current,
+                  emailVerified: fresh.emailVerified,
+                  phoneVerified: fresh.phoneVerified,
+                  onboardingVerified: fresh.onboardingVerified,
+                  onboardingChecks: checks,
+                },
+                token,
+              );
+            }
+            if (savedStatus === "APPROVED" || fresh.onboardingVerified) {
+              toast.success("Your KYC submission was received and your verification status is up to date.");
+            } else if (savedStatus === "PENDING") {
+              toast.success("Your KYC documents were received and are awaiting review.");
+            } else {
+              toast.error(fresh.onboardingChecks?.kycRejectionReason || "Your last KYC status is rejected. Please review the reason before submitting again.");
+            }
+            return;
+          }
+        } catch {
+          // The status check can fail on the same weak connection; keep the
+          // reference ID so support can correlate server logs if it reached us.
+        }
         const timedOut = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
         toast.error(
           timedOut
-            ? `The KYC upload took too long. Check your connection and try again. Reference: ${requestId}`
-            : `Truvi couldn't receive a response. Check your connection and try again. Reference: ${requestId}`,
+            ? `The KYC upload timed out. We couldn't confirm whether it was saved. Reopen KYC status before retrying. Reference: ${requestId}`
+            : `Truvi couldn't confirm the submission response. Check your connection and KYC status before retrying. Reference: ${requestId}`,
         );
         return;
       }
