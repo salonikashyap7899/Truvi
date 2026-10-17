@@ -2,21 +2,51 @@ import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { PaymentsUnavailableError } from "../services/paymentService";
 
-export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+  const requestId = String(res.locals.requestId || "unknown");
+
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: `Upload error: ${err.message}` });
-  }
-  if (err instanceof Error && (err.message.startsWith("Unsupported file type") || err.message.startsWith("File type not allowed"))) {
-    return res.status(400).json({ error: err.message });
-  }
-  if (err instanceof PaymentsUnavailableError) {
-    return res.status(503).json({ error: err.message });
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({ error: "Each uploaded file must be 6 MB or smaller.", requestId });
+    }
+    if (err.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(400).json({ error: "Unexpected upload field. Please select the required files and try again.", requestId });
+    }
+    return res.status(400).json({ error: "The upload could not be processed. Please check the selected files.", requestId });
   }
 
-  console.error("Unhandled error:", err);
-  return res.status(500).json({ error: "Something went wrong" });
+  if (
+    err instanceof Error &&
+    (err.message.startsWith("Unsupported file type") ||
+      err.message.startsWith("File type not allowed") ||
+      err.message.startsWith("Upload a JPG"))
+  ) {
+    return res.status(415).json({ error: err.message, requestId });
+  }
+
+  if (err instanceof PaymentsUnavailableError) {
+    return res.status(503).json({ error: err.message, requestId });
+  }
+
+  const error = err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+  const isKycRequest = req.originalUrl.split("?")[0] === "/api/auth/submit-kyc";
+  const errorCode = (error as Error & { code?: unknown }).code;
+  console.error(JSON.stringify({
+    event: isKycRequest ? "kyc_request_error" : "http_request_error",
+    requestId,
+    method: req.method,
+    path: req.path,
+    errorName: error.name,
+    // KYC errors can involve sensitive identity workflows. Keep server logs
+    // useful without echoing arbitrary database/error text or stack details.
+    ...(isKycRequest
+      ? { errorCode: typeof errorCode === "string" ? errorCode.slice(0, 40) : undefined }
+      : { errorMessage: error.message, stack: error.stack }),
+  }));
+  return res.status(500).json({ error: "Something went wrong", requestId });
 }
 
 export function notFoundHandler(_req: Request, res: Response) {
-  res.status(404).json({ error: "Route not found" });
+  const requestId = String(res.locals.requestId || "unknown");
+  res.status(404).json({ error: "Route not found", requestId });
 }

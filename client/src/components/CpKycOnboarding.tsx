@@ -112,16 +112,25 @@ export function CpKycOnboarding() {
 
   function capture() {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      toast.error("The camera is still starting. Please wait a moment and try capturing your selfie again.");
+      return;
+    }
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      toast.error("Couldn't capture the selfie. Please restart the camera and try again.");
+      return;
+    }
     ctx.drawImage(video, 0, 0);
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
+        if (!blob || blob.size === 0) {
+          toast.error("The selfie image was empty. Please retake it.");
+          return;
+        }
         setSelfie(blob);
         if (selfieUrl) URL.revokeObjectURL(selfieUrl);
         setSelfieUrl(URL.createObjectURL(blob));
@@ -144,6 +153,10 @@ export function CpKycOnboarding() {
   async function submit() {
     if (!ready || !aadhaarFile || !selfie || !user) return;
     setSubmitting(true);
+    const requestId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `kyc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
       const form = new FormData();
       form.append("aadhaar", aadhaarFile);
@@ -151,9 +164,14 @@ export function CpKycOnboarding() {
       form.append("selfie", new File([selfie], "selfie.jpg", { type: "image/jpeg" }));
       form.append("aadhaarNumber", aadhaarNumber.replace(/\s/g, ""));
       if (panNumber.trim()) form.append("panNumber", panNumber.trim().toUpperCase());
-      const res = await api.post("/auth/submit-kyc", form, { headers: { "Content-Type": "multipart/form-data" } });
-      // Auto-approved server-side. Show a brief "verifying…" beat (~2s), then
-      // apply the result so the workspace unlocks — no admin review needed.
+      // Do not set Content-Type manually for FormData: the browser must add the
+      // multipart boundary. Explicitly setting it can break uploads in browsers.
+      const res = await api.post("/auth/submit-kyc", form, {
+        headers: { "X-Request-ID": requestId },
+        timeout: 90_000,
+      });
+      // Apply the server's actual outcome after a brief transition. A pending
+      // manual review is not a verification failure and must not ask for resubmission.
       setVerifying(true);
       const token = useAuthStore.getState().accessToken!;
       setTimeout(() => {
@@ -162,8 +180,13 @@ export function CpKycOnboarding() {
           { ...cur, onboardingChecks: res.data.onboardingChecks, onboardingVerified: res.data.onboardingVerified },
           token,
         );
-        if (res.data.onboardingVerified) toast.success(res.data.message || "Identity verified — access unlocked.");
-        else toast.error(res.data.message || "Verification could not be completed. Please re-submit.");
+        if (res.data.onboardingVerified) {
+          toast.success(res.data.message || "Identity verified — access unlocked.");
+        } else if (res.data.onboardingChecks?.kycStatus === "PENDING") {
+          toast.success(res.data.message || "Documents submitted successfully and are awaiting review.");
+        } else {
+          toast.error(res.data.message || "Verification could not be completed. Please review the message and try again.");
+        }
         setVerifying(false);
       }, 2000);
     } catch (err: any) {
@@ -172,15 +195,80 @@ export function CpKycOnboarding() {
       // validation issue, then a status-coded message, and only fall back to a
       // generic line when the request never reached the server at all.
       const resp = err?.response;
+      const responseRequestId = resp?.headers?.["x-request-id"] as string | undefined;
       const fieldError =
         resp?.data?.issues?.fieldErrors &&
         (Object.values(resp.data.issues.fieldErrors as Record<string, string[]>).flat().find(Boolean) as string | undefined);
+      if (!resp) {
+        // A mobile connection may drop after the server has saved the documents
+        // but before the response reaches Chrome. Check the server's current
+        // state before asking the customer to submit sensitive documents again.
+        try {
+          const statusResponse = await api.get("/auth/me", { timeout: 15_000 });
+          const fresh = statusResponse.data?.user;
+          const current = useAuthStore.getState().user ?? user;
+          const checks = fresh?.onboardingChecks;
+          const savedStatus = checks?.kycStatus;
+          if (fresh && ["PENDING", "APPROVED", "REJECTED"].includes(savedStatus)) {
+            const token = useAuthStore.getState().accessToken;
+            if (token) {
+              useAuthStore.getState().setAuth(
+                {
+                  ...current,
+                  emailVerified: fresh.emailVerified,
+                  phoneVerified: fresh.phoneVerified,
+                  onboardingVerified: fresh.onboardingVerified,
+                  onboardingChecks: checks,
+                },
+                token,
+              );
+            }
+            if (savedStatus === "APPROVED" || fresh.onboardingVerified) {
+              toast.success("Your KYC submission was received and your verification status is up to date.");
+            } else if (savedStatus === "PENDING") {
+              toast.success("Your KYC documents were received and are awaiting review.");
+            } else {
+              toast.error(fresh.onboardingChecks?.kycRejectionReason || "Your last KYC status is rejected. Please review the reason before submitting again.");
+            }
+            return;
+          }
+        } catch {
+          // The status check can fail on the same weak connection; keep the
+          // reference ID so support can correlate server logs if it reached us.
+        }
+        const timedOut = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
+        // Best-effort only: when the KYC connection fails transiently, report
+        // minimal diagnostics to the server. This never includes form data or
+        // document contents and is safe to fail silently while offline.
+        try {
+          await api.post(
+            "/telemetry/kyc-failure",
+            {
+              requestId,
+              failureKind: timedOut ? "timeout" : "network",
+              online: typeof navigator !== "undefined" ? navigator.onLine : null,
+            },
+            { timeout: 3_000, headers: { "X-Request-ID": requestId } },
+          );
+        } catch {
+          // The device may still be offline; there is nothing more to send.
+        }
+        toast.error(
+          timedOut
+            ? `The KYC upload timed out. We couldn't confirm whether it was saved. Reopen KYC status before retrying. Reference: ${requestId}`
+            : `Truvi couldn't confirm the submission response. Check your connection and KYC status before retrying. Reference: ${requestId}`,
+        );
+        return;
+      }
       const message =
         resp?.data?.error ||
         fieldError ||
-        (resp ? `Submission failed (error ${resp.status}). Please check your details and try again.`
-              : "Couldn't reach the server — check your internet connection and try again.");
-      toast.error(message);
+        `Submission failed (HTTP ${resp.status}). Please check your details and try again.`;
+      toast.error(
+        resp.status >= 500
+          ? `${message} Reference: ${responseRequestId || requestId}`
+          : message,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -204,7 +292,8 @@ export function CpKycOnboarding() {
     );
   }
 
-  // Legacy: submitted and awaiting review (no longer used — KYC auto-approves).
+  // Submitted documents stay pending until a provider or an authorized admin
+  // completes the identity review. Keep the form locked while review is pending.
   if (status === "PENDING") {
     return (
       <Shell>
@@ -356,6 +445,8 @@ function FileField({ label, file, onFile }: { label: string; file: File | null; 
           const f = e.target.files?.[0];
           if (f && f.size > 6 * 1024 * 1024) {
             toast.error("File too large — max 6 MB");
+            onFile(null);
+            e.currentTarget.value = "";
             return;
           }
           onFile(f || null);
