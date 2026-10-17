@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 
 const router = Router();
 const REQUEST_ID_RE = /^[A-Za-z0-9-]{16,64}$/;
 const FAILURE_KINDS = new Set(["network", "timeout"] as const);
 
-function safeClientIp(req: Parameters<Parameters<typeof rateLimit>[0]["keyGenerator"]>[0]): string {
+function safeClientIp(req: Request): string {
   const cfIp = req.headers["cf-connecting-ip"];
   const ip = typeof cfIp === "string" && cfIp.trim() ? cfIp.trim() : req.ip ?? "";
   return ipKeyGenerator(ip);
