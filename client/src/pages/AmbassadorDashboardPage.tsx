@@ -595,21 +595,33 @@ function MyTaskCard({ task, onChanged }: { task: AmbassadorTask; onChanged: () =
 /* Ambassador → Ambassador Referral (Level 2) — an ambassador earns an */
 /* extra 0.5% on the referral earnings of every ambassador they refer. */
 /* ------------------------------------------------------------------ */
-interface Level2Ambassador {
+interface DownlineAmbassador {
   _id: string;
   name: string;
   email: string | null;
   createdAt: string;
+  referredThrough?: string;
   theirReferrals: number;
   theirTransactions: number;
   earnedByThem: number;
-  level2Commission: number;
+  level2Commission?: number;
+  level3Commission?: number;
 }
 interface Level2Data {
   level2Percent: number;
+  level3Percent: number;
   referralCode: string | null;
-  referredAmbassadors: Level2Ambassador[];
-  summary: { referredAmbassadors: number; totalDownlineEarnings: number; totalLevel2Commission: number };
+  referredAmbassadors: DownlineAmbassador[];
+  level3Ambassadors: DownlineAmbassador[];
+  summary: {
+    referredAmbassadors: number;
+    referredLevel3Ambassadors: number;
+    totalDownlineEarnings: number;
+    totalLevel2Commission: number;
+    totalLevel3DownlineEarnings: number;
+    totalLevel3Commission: number;
+    totalNetworkCommission: number;
+  };
 }
 
 function Level2ReferralSection() {
@@ -627,7 +639,7 @@ function Level2ReferralSection() {
 
   async function copyLink() {
     if (!inviteLink) return;
-    try { await navigator.clipboard.writeText(inviteLink); toast.success("Level 2 invite link copied"); } catch { /* ignore */ }
+    try { await navigator.clipboard.writeText(inviteLink); toast.success("Ambassador invite link copied"); } catch { /* ignore */ }
   }
   async function shareLink() {
     if (!inviteLink || !data?.referralCode) return;
@@ -639,26 +651,37 @@ function Level2ReferralSection() {
     try { await navigator.clipboard.writeText(text); toast.success("Invite copied — share it anywhere"); } catch { /* ignore */ }
   }
 
-  const s = data?.summary ?? { referredAmbassadors: 0, totalDownlineEarnings: 0, totalLevel2Commission: 0 };
-  const pct = data?.level2Percent ?? 0.5;
+  const s = data?.summary ?? {
+    referredAmbassadors: 0,
+    referredLevel3Ambassadors: 0,
+    totalDownlineEarnings: 0,
+    totalLevel2Commission: 0,
+    totalLevel3DownlineEarnings: 0,
+    totalLevel3Commission: 0,
+    totalNetworkCommission: 0,
+  };
+  const level2Pct = data?.level2Percent ?? 25;
+  const level3Pct = data?.level3Percent ?? 10;
+  const level2Rows = data?.referredAmbassadors ?? [];
+  const level3Rows = data?.level3Ambassadors ?? [];
 
   return (
     <Card className="mt-8 border-violet-500/25 bg-violet-950/10 text-white">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
-            <Network size={18} className="text-violet-300" /> Level 2 Referral Commission ({pct}%)
-            <Badge variant="info">Ambassador → Ambassador</Badge>
+          <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-semibold">
+            <Network size={18} className="text-violet-300" /> Ambassador Multi-Level Referral
+            <Badge variant="info">Level 2: {level2Pct}%</Badge>
+            <Badge variant="info">Level 3: {level3Pct}%</Badge>
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Refer another ambassador and earn an extra <b className="text-violet-300">{pct}%</b> on everything they earn from their own referrals — for life.
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Earn {level2Pct}% of eligible direct referral earnings from ambassadors you refer, plus {level3Pct}% from the next ambassador level. Buyer and lead referral activity is tracked through the referral chain.
           </p>
         </div>
       </div>
 
-      {/* Referral code + invite link */}
       <div className="mt-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-violet-300/80">Your ambassador referral code</p>
           <div className="mt-1 flex items-center gap-3">
             <span className="font-display text-2xl font-bold tracking-wider">{data?.referralCode ?? "…"}</span>
@@ -669,35 +692,35 @@ function Level2ReferralSection() {
         <Button onClick={shareLink} className="shrink-0 gap-2"><Share2 size={15} /> Invite an ambassador</Button>
       </div>
 
-      {/* Summary */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <L2Stat icon={<Users size={16} />} tone="text-sky-300" label="Referred Ambassadors" value={String(s.referredAmbassadors)} />
-        <L2Stat icon={<TrendingUp size={16} />} tone="text-emerald-300" label="Their Total Earnings" value={formatINR(s.totalDownlineEarnings)} />
-        <L2Stat icon={<IndianRupee size={16} />} tone="text-violet-300" label={`Your Level 2 (${pct}%)`} value={formatINR(s.totalLevel2Commission)} />
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <L2Stat icon={<Users size={16} />} tone="text-sky-300" label="Level 2 Ambassadors" value={String(s.referredAmbassadors)} />
+        <L2Stat icon={<Users size={16} />} tone="text-sky-300" label="Level 3 Ambassadors" value={String(s.referredLevel3Ambassadors)} />
+        <L2Stat icon={<TrendingUp size={16} />} tone="text-emerald-300" label="Level 2 Earnings" value={formatINR(s.totalLevel2Commission)} />
+        <L2Stat icon={<TrendingUp size={16} />} tone="text-emerald-300" label="Level 3 Earnings" value={formatINR(s.totalLevel3Commission)} />
+        <L2Stat icon={<IndianRupee size={16} />} tone="text-violet-300" label="Total Network Reward" value={formatINR(s.totalNetworkCommission)} />
       </div>
 
-      {/* Referral history */}
-      <div className="mt-4">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Level 2 Referral History</h3>
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Level 2 Referral History ({level2Pct}%)</h3>
         {loading ? (
-          <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
-        ) : (data?.referredAmbassadors.length ?? 0) === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">You haven't referred any ambassadors yet. Share your invite link above to start earning {pct}% Level 2 commission.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Loading referral network…</p>
+        ) : level2Rows.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">No Level 2 ambassadors yet. Share your referral link above.</p>
         ) : (
           <div className="mt-2 overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[670px] text-left text-sm">
               <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">Ambassador</th>
                   <th className="px-4 py-3 text-right">Their referrals</th>
-                  <th className="px-4 py-3 text-right">Their transactions</th>
-                  <th className="px-4 py-3 text-right">They earned</th>
-                  <th className="px-4 py-3 text-right">Your {pct}%</th>
+                  <th className="px-4 py-3 text-right">Transactions</th>
+                  <th className="px-4 py-3 text-right">Direct earnings</th>
+                  <th className="px-4 py-3 text-right">Your {level2Pct}%</th>
                   <th className="px-4 py-3 text-right">Joined</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {data!.referredAmbassadors.map((a) => (
+                {level2Rows.map((a) => (
                   <tr key={a._id}>
                     <td className="px-4 py-3">
                       <p className="font-medium">{a.name}</p>
@@ -706,7 +729,48 @@ function Level2ReferralSection() {
                     <td className="px-4 py-3 text-right tabular-nums">{a.theirReferrals}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{a.theirTransactions}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatINR(a.earnedByThem)}</td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-violet-300">{formatINR(a.level2Commission)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-violet-300">{formatINR(a.level2Commission ?? 0)}</td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">{formatDate(a.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">Level 3 Referral History ({level3Pct}%)</h3>
+        {loading ? (
+          <p className="mt-2 text-sm text-muted-foreground">Loading referral network…</p>
+        ) : level3Rows.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">No Level 3 ambassadors yet. When an Ambassador you referred brings in another Ambassador, they will appear here.</p>
+        ) : (
+          <div className="mt-2 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full min-w-[740px] text-left text-sm">
+              <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Ambassador</th>
+                  <th className="px-4 py-3">Referred through</th>
+                  <th className="px-4 py-3 text-right">Their referrals</th>
+                  <th className="px-4 py-3 text-right">Transactions</th>
+                  <th className="px-4 py-3 text-right">Direct earnings</th>
+                  <th className="px-4 py-3 text-right">Your {level3Pct}%</th>
+                  <th className="px-4 py-3 text-right">Joined</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {level3Rows.map((a) => (
+                  <tr key={a._id}>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{a.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{a.email ?? ""}</p>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{a.referredThrough ?? "—"}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{a.theirReferrals}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{a.theirTransactions}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{formatINR(a.earnedByThem)}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-violet-300">{formatINR(a.level3Commission ?? 0)}</td>
                     <td className="px-4 py-3 text-right text-muted-foreground">{formatDate(a.createdAt)}</td>
                   </tr>
                 ))}
