@@ -73,11 +73,37 @@ interface ReferralBreakdown {
   developerReferral: number;
   cpReferral: number;
   buyerReferral: number;
+  level2Referral: number;
+  level3Referral: number;
   buyerRatePercent: number;
   totalReferralEarnings: number;
   developers: DeveloperReferralRow[];
   channelPartners: CpReferralRow[];
   buyers: BuyerReferralRow[];
+  level2Ambassadors: AmbassadorLevel2Row[];
+  level3Ambassadors: AmbassadorLevel3Row[];
+}
+
+interface AmbassadorLevel2Row {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  theirReferrals: number;
+  theirTransactions: number;
+  earnedByThem: number;
+  level2Commission: number;
+}
+interface AmbassadorLevel3Row {
+  _id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  referredThrough: string;
+  theirReferrals: number;
+  theirTransactions: number;
+  earnedByThem: number;
+  level3Commission: number;
 }
 
 const MODES = ["BANK_TRANSFER", "UPI", "CASH", "CHEQUE", "OTHER"] as const;
@@ -161,7 +187,7 @@ export default function AdminCommissionsPage() {
       {/* KPI strip */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Kpi icon={<Building2 size={16} />} label="Developer 2%" value={formatINR(totals.developer)} tone="sky" />
-        <Kpi icon={<Users2 size={16} />} label="Referral 2% + Bonus" value={formatINR(totals.referral)} tone="sky" />
+        <Kpi icon={<Users2 size={16} />} label="Referral Rewards (incl. L2/L3)" value={formatINR(totals.referral)} tone="sky" />
         <Kpi icon={<Handshake size={16} />} label="Sale Commission" value={formatINR(totals.sale)} tone="violet" />
         <Kpi icon={<Wallet size={16} />} label="Total Earned" value={formatINR(totals.total)} tone="emerald" />
         <Kpi icon={<CheckCircle2 size={16} />} label="Paid Out" value={formatINR(totals.paid)} tone="emerald" />
@@ -199,7 +225,7 @@ export default function AdminCommissionsPage() {
             <tr>
               <th className="p-3 text-left">Partner</th>
               <th className="p-3 text-right">Developer (2%)</th>
-              <th className="p-3 text-right">Referral (2%)</th>
+              <th className="p-3 text-right">Referral Rewards</th>
               <th className="p-3 text-right">Sale</th>
               <th className="p-3 text-right">Total</th>
               <th className="p-3 text-right">Paid</th>
@@ -339,6 +365,8 @@ interface PartnerDetail {
     saleCommission: number;
     developerReferralCommission: number;
     cpReferralCommission: number;
+    level2ReferralCommission: number;
+    level3ReferralCommission: number;
     referralCommission: number;
     totalEarnings: number;
     paid: number;
@@ -493,7 +521,7 @@ function PartnerDetailModal({ partnerId, onClose, onChanged }: { partnerId: stri
             {/* Wallet totals */}
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MiniStat label="Developer 2%" value={formatINR(d.wallet.developerCommission)} />
-              <MiniStat label="Referral 2% + Bonus" value={formatINR(d.wallet.referralCommission)} />
+              <MiniStat label="Referral Rewards" value={formatINR(d.wallet.referralCommission)} />
               <MiniStat label="Sale Commission" value={formatINR(d.wallet.saleCommission)} />
               <MiniStat label="Total Earned" value={formatINR(d.wallet.totalEarnings)} />
               <MiniStat label="Paid" value={formatINR(d.wallet.paid)} tone="emerald" />
@@ -742,6 +770,69 @@ function ReferralBreakdownBlock({ referral }: { referral: ReferralBreakdown }) {
             </table>
           </div>
         </div>
+      )}
+
+      {referral.level2Ambassadors?.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-semibold text-violet-300/90">Level 2 Ambassador Rewards (25%)</p>
+          <div className="overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Ambassador</th>
+                  <th className="px-3 py-2 text-right">Their referrals</th>
+                  <th className="px-3 py-2 text-right">Transactions</th>
+                  <th className="px-3 py-2 text-right">Direct earnings</th>
+                  <th className="px-3 py-2 text-right">25% reward</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {referral.level2Ambassadors.map((r) => (
+                  <tr key={r._id}>
+                    <td className="px-3 py-2">{r.name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.theirReferrals}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.theirTransactions}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.earnedByThem)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-violet-300">{formatINR(r.level2Commission)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {referral.level3Ambassadors?.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-semibold text-fuchsia-300/90">Level 3 Ambassador Rewards (10%)</p>
+          <div className="overflow-x-auto rounded-lg border border-white/10">
+            <table className="w-full min-w-[680px] text-left text-xs">
+              <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">Ambassador</th>
+                  <th className="px-3 py-2">Referred through</th>
+                  <th className="px-3 py-2 text-right">Their referrals</th>
+                  <th className="px-3 py-2 text-right">Transactions</th>
+                  <th className="px-3 py-2 text-right">Direct earnings</th>
+                  <th className="px-3 py-2 text-right">10% reward</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {referral.level3Ambassadors.map((r) => (
+                  <tr key={r._id}>
+                    <td className="px-3 py-2">{r.name}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{r.referredThrough}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.theirReferrals}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{r.theirTransactions}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.earnedByThem)}</td>
+                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-fuchsia-300">{formatINR(r.level3Commission)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       )}
     </div>
   );
