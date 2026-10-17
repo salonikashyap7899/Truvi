@@ -237,6 +237,22 @@ export function CpKycOnboarding() {
           // reference ID so support can correlate server logs if it reached us.
         }
         const timedOut = err?.code === "ECONNABORTED" || err?.code === "ETIMEDOUT";
+        // Best-effort only: when the KYC connection fails transiently, report
+        // minimal diagnostics to the server. This never includes form data or
+        // document contents and is safe to fail silently while offline.
+        try {
+          await api.post(
+            "/telemetry/kyc-failure",
+            {
+              requestId,
+              failureKind: timedOut ? "timeout" : "network",
+              online: typeof navigator !== "undefined" ? navigator.onLine : null,
+            },
+            { timeout: 3_000, headers: { "X-Request-ID": requestId } },
+          );
+        } catch {
+          // The device may still be offline; there is nothing more to send.
+        }
         toast.error(
           timedOut
             ? `The KYC upload timed out. We couldn't confirm whether it was saved. Reopen KYC status before retrying. Reference: ${requestId}`
