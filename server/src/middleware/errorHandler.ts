@@ -29,14 +29,19 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   const error = err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+  const isKycRequest = req.originalUrl.split("?")[0] === "/api/auth/submit-kyc";
+  const errorCode = (error as Error & { code?: unknown }).code;
   console.error(JSON.stringify({
-    event: req.originalUrl.split("?")[0] === "/api/auth/submit-kyc" ? "kyc_request_error" : "http_request_error",
+    event: isKycRequest ? "kyc_request_error" : "http_request_error",
     requestId,
     method: req.method,
     path: req.path,
     errorName: error.name,
-    errorMessage: error.message,
-    stack: error.stack,
+    // KYC errors can involve sensitive identity workflows. Keep server logs
+    // useful without echoing arbitrary database/error text or stack details.
+    ...(isKycRequest
+      ? { errorCode: typeof errorCode === "string" ? errorCode.slice(0, 40) : undefined }
+      : { errorMessage: error.message, stack: error.stack }),
   }));
   return res.status(500).json({ error: "Something went wrong", requestId });
 }
