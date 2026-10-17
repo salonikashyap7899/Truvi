@@ -14,6 +14,7 @@ import {
   computeBuyerReferralEarnings,
   buyerReferralRateForRole,
   rangeForPeriod,
+  computeAmbassadorNetworkEarnings,
 } from "../services/referralEarnings";
 
 /**
@@ -109,49 +110,24 @@ router.get("/referral", requireRole("CP", "AMBASSADOR", "DEVELOPER"), async (req
   res.json({ referralCode: code, incentivePercent: REFERRAL_INCENTIVE_PERCENT, firstTxnBonus: bonusAmount, referredDevelopers, summary });
 });
 
-/** Ambassador → Ambassador (Level 2): extra 0.5% on a directly-referred
- *  Ambassador's own referral earnings. */
-const LEVEL2_PERCENT = 0.5;
-
-// GET /api/onboarding/level2 — the Ambassador-to-Ambassador (Level 2) view:
-// every Ambassador this Ambassador referred, what THEY have earned, and the
-// referrer's 0.5% Level 2 cut on it.
+/** Ambassador network referral rewards — Level 2 = 25%, Level 3 = 10%. */
+// GET /api/onboarding/level2 — all ambassador downline rewards, including direct
+// Level 2 ambassadors and the next level down, with counts and per-person history.
 router.get("/level2", requireRole("AMBASSADOR"), async (req: AuthedRequest, res) => {
   const db = getDb();
-  const [me] = await db.select().from(users).where(eq(users._id, req.user!.userId));
-  const code = await getOrCreateReferralCode(db, req.user!.userId, me?.name ?? "TRV", me?.referralCode ?? null);
-
-  // Only Ambassadors that THIS ambassador referred count for Level 2.
-  const referredAmbs = await db
-    .select({ _id: users._id, name: users.name, email: users.email, createdAt: users.createdAt })
+  const [me] = await db
+    .select({ name: users.name, referralCode: users.referralCode })
     .from(users)
-    .where(and(eq(users.referredBy, req.user!.userId), eq(users.role, "AMBASSADOR")))
-    .orderBy(desc(users.createdAt));
-
-  const rate = LEVEL2_PERCENT / 100;
-  const referredAmbassadors = [];
-  for (const b of referredAmbs) {
-    const { summary } = await computeDeveloperReferralEarnings(db, String(b._id));
-    const earnedByThem = summary.totalEarnings;
-    referredAmbassadors.push({
-      _id: b._id,
-      name: b.name,
-      email: b.email,
-      createdAt: b.createdAt,
-      theirReferrals: summary.referredCount,
-      theirTransactions: summary.totalTransactions,
-      earnedByThem,
-      level2Commission: Math.round(earnedByThem * rate),
-    });
-  }
-
-  const summary = {
-    referredAmbassadors: referredAmbassadors.length,
-    totalDownlineEarnings: referredAmbassadors.reduce((a, r) => a + r.earnedByThem, 0),
-    totalLevel2Commission: referredAmbassadors.reduce((a, r) => a + r.level2Commission, 0),
-  };
-
-  res.json({ level2Percent: LEVEL2_PERCENT, referralCode: code, referredAmbassadors, summary });
+    .where(eq(users._id, req.user!.userId));
+  const code = await getOrCreateReferralCode(
+    db,
+    req.user!.userId,
+    me?.name ?? "TRV",
+    me?.referralCode ?? null,
+  );
+  const range = rangeForPeriod(typeof req.query.period === "string" ? req.query.period : null);
+  const network = await computeAmbassadorNetworkEarnings(db, req.user!.userId, range);
+  res.json({ referralCode: code, ...network });
 });
 
 // GET /api/onboarding/cp-referrals — Channel Partners this Ambassador referred,
