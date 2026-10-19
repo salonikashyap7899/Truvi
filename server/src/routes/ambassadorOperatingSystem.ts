@@ -47,6 +47,7 @@ import {
   isTrainingDayComplete,
   hasCompleteSevenDayCurriculum,
   statusAfterTrainingReview,
+  validateVerificationChecklist,
 } from "../services/ambassadorOperatingSystem.rules";
 
 const router = Router();
@@ -810,12 +811,10 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   if (!task) return res.status(404).json({ error: "Task not found" });
   if (!["ACCEPTED", "IN_PROGRESS", "REJECTED"].includes(task.status)) return res.status(409).json({ error: "Accept and start the task before submitting it, or resubmit a rejected task" });
   if (task.category === "VERIFICATION") {
-    const knownKeys = new Set((task.checklistItems ?? []).map((item) => item.key));
-    const suppliedKeys = parsed.data.checklistResponses ?? [];
-    if (suppliedKeys.some((key) => !knownKeys.has(key))) return res.status(400).json({ error: "Checklist responses contain an unknown item. Reload the task and retry." });
-    const missingLabels = (task.checklistItems ?? []).filter((item) => !suppliedKeys.includes(item.key)).map((item) => item.label);
-    if (missingLabels.length > 0) {
-      return res.status(409).json({ error: "Complete every required verification checklist item before submitting.", missingChecklistItems: missingLabels });
+    const checklistValidation = validateVerificationChecklist(task.checklistItems ?? [], parsed.data.checklistResponses ?? []);
+    if (checklistValidation.unknown.length > 0) return res.status(400).json({ error: "Checklist responses contain an unknown item. Reload the task and retry." });
+    if (checklistValidation.missing.length > 0) {
+      return res.status(409).json({ error: "Complete every required verification checklist item before submitting.", missingChecklistItems: checklistValidation.missing });
     }
   }
   if (task.category !== "TRAINING") {
@@ -830,7 +829,7 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
     checklistResponses: parsed.data.checklistResponses ?? [], reviewReason: null, reviewedById: null, reviewedAt: null,
   }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, task.status))).returning();
   if (!updated) return res.status(409).json({ error: "The task changed while you were submitting it. Refresh and try again." });
-  await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.submit", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, category: updated.category } });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.submit", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, category: updated.category, verificationChecklistItemCount: updated.checklistItems?.length ?? 0, verificationChecklistCompletedCount: updated.checklistResponses?.length ?? 0 } });
   const admins = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
   await notifySafely(admins.map((admin) => admin.userId), {
     type: "ambassador_task_submission",
