@@ -2738,7 +2738,14 @@ router.patch("/admin/marketing-materials/:id/review", requireRole("ADMIN"), asyn
   }).where(and(eq(ambassadorOsMarketingMaterials._id, current._id), eq(ambassadorOsMarketingMaterials.status, current.status))).returning();
   if (!updated) return res.status(409).json({ error: "Material changed during review; refresh and retry" });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.marketing_material.review", resourceType: "ambassador_os_marketing_material", resourceId: updated._id, metadata: { previousStatus: current.status, status: updated.status, reason: updated.reviewReason } });
-  await notifySafely([current.createdById], { type: "ambassador_marketing_material_reviewed", title: "Marketing material review updated", message: updated.status === "APPROVED" ? "Your marketing material "" + updated.title + "" is approved for the valid period." : updated.status === "REJECTED" ? "Your marketing material "" + updated.title + "" needs changes: " + (updated.reviewReason ?? "") : "Your marketing material "" + updated.title + "" has been retired.", data: { screen: "AmbassadorOperatingSystem", materialId: updated._id, status: updated.status }, actorUserId: req.user!.userId, priority: updated.status === "REJECTED" ? "high" : "normal", dedupeKey: updated._id + ":" + updated.status + ":" + now.toISOString() });
+  await notifySafely([current.createdById], {
+    type: "ambassador_marketing_material_reviewed",
+    title: "Marketing material review updated",
+    message: "Your marketing material " + updated.title + (updated.status === "APPROVED" ? " is approved for the valid period." : updated.status === "REJECTED" ? " needs changes: " + (updated.reviewReason ?? "") : " has been retired."),
+    data: { screen: "AmbassadorOperatingSystem", materialId: updated._id, status: updated.status },
+    actorUserId: req.user!.userId, priority: updated.status === "REJECTED" ? "high" : "normal",
+    dedupeKey: updated._id + ":" + updated.status + ":" + now.toISOString(),
+  });
   res.json({ material: updated });
 });
 
