@@ -664,7 +664,8 @@ router.patch("/admin/tasks/:id/review", requireRole("ADMIN"), async (req: Authed
     reviewedById: req.user!.userId,
     reviewedAt: now,
     completedAt: parsed.data.status === "APPROVED" ? now : null,
-  }).where(eq(ambassadorOsTasks._id, task._id)).returning();
+  }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, task.status))).returning();
+  if (!updated) return res.status(409).json({ error: "The task was changed by another reviewer. Refresh and review the latest status." });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.review", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, reviewReason: updated.reviewReason } });
   await notifySafely([task.assignedToId], {
     type: "ambassador_task_reviewed",
@@ -923,7 +924,8 @@ router.patch("/admin/incentives/:id/status", requireRole("ADMIN"), async (req: A
     approvedById: parsed.data.status === "APPROVED" ? req.user!.userId : current.approvedById,
     approvedAt: parsed.data.status === "APPROVED" ? now : current.approvedAt,
     paidAt: parsed.data.status === "PAID" ? now : current.paidAt,
-  }).where(eq(ambassadorOsIncentives._id, current._id)).returning();
+  }).where(and(eq(ambassadorOsIncentives._id, current._id), eq(ambassadorOsIncentives.status, current.status))).returning();
+  if (!updated) return res.status(409).json({ error: "The payout was changed by another administrator. Refresh the ledger before updating it again." });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.status", resourceType: "ambassador_os_incentive", resourceId: updated._id, metadata: { from: current.status, to: updated.status, paymentReference: updated.paymentReference } });
   await notifySafely([current.userId], {
     type: "ambassador_incentive_status",
