@@ -207,7 +207,76 @@ export default function AdminAmbassadorOperatingSystemPage() {
   }
   useEffect(() => { void load(); }, []);
 
-  async function loadPrivacyGovernance() {\n    try {\n      const [requestsRes, policiesRes] = await Promise.all([\n        api.get("/ambassador-os/admin/privacy-requests"),\n        api.get("/ambassador-os/admin/retention-policies"),\n      ]);\n      setPrivacyRequests(requestsRes.data.requests ?? []);\n      setRetentionPolicies(policiesRes.data.policies ?? []);\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load privacy and retention controls"); }\n  }\n\n  async function reviewPrivacyRequest(request: PrivacyRequest, status: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED") {\n    let reviewNotes = request.reviewNotes ?? "";\n    let completionReference = request.completionReference ?? "";\n    if (status === "REJECTED") {\n      const entered = window.prompt("Reason for rejecting this privacy request (required):", reviewNotes);\n      if (!entered?.trim()) { toast.info("No review saved; a rejection reason is required."); return; }\n      reviewNotes = entered.trim();\n    }\n    if (status === "COMPLETED") {\n      const entered = window.prompt("Enter the evidence/case reference confirming completion. For deletion requests this must refer to the approved erasure or documented retention exception:", completionReference);\n      if (!entered?.trim() || entered.trim().length < 5) { toast.info("No completion saved; an evidence reference is required."); return; }\n      completionReference = entered.trim();\n    }\n    try {\n      await api.patch(`/ambassador-os/admin/privacy-requests/${request._id}`, { status, reviewNotes: reviewNotes || undefined, completionReference: completionReference || undefined });\n      toast.success("Privacy request updated to " + status.toLowerCase().replace(/_/g," "));\n      await loadPrivacyGovernance();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update privacy request"); }\n  }\n\n  async function createRetentionPolicy(e: React.FormEvent) {\n    e.preventDefault();\n    setSavingRetention(true);\n    try {\n      await api.post("/ambassador-os/admin/retention-policies", { dataCategory: retentionForm.dataCategory, retentionDays: Number(retentionForm.retentionDays) });\n      toast.success("Retention policy saved as inactive. Add formal approval before activating it.");\n      await loadPrivacyGovernance();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not create retention policy"); }\n    finally { setSavingRetention(false); }\n  }\n\n  async function toggleRetentionPolicy(policy: RetentionPolicy, active: boolean) {\n    let legalApprovalReference = policy.legalApprovalReference ?? "";\n    if (active) {\n      const entered = window.prompt("Enter formal legal/privacy approval reference before activating this policy:", legalApprovalReference);\n      if (!entered?.trim() || entered.trim().length < 5) { toast.info("Policy remains inactive until formal approval is recorded."); return; }\n      legalApprovalReference = entered.trim();\n    }\n    try {\n      await api.patch(`/ambassador-os/admin/retention-policies/${policy._id}`, { active, legalApprovalReference: legalApprovalReference || undefined });\n      toast.success(active ? "Approved retention policy activated" : "Retention policy deactivated");\n      await loadPrivacyGovernance();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update retention policy"); }\n  }\n\n  async function runRetentionPolicies() {\n    const approvalReference = window.prompt("This redacts approved, expired evidence/content. Confirm review of all active policies and enter the operations approval reference:");\n    if (!approvalReference?.trim() || approvalReference.trim().length < 5) { toast.info("No retention run started."); return; }\n    if (!window.confirm("Run the currently active, legally-approved retention policies now? This cannot be automatically reversed.")) return;\n    setRunningRetention(true);\n    try {\n      const res = await api.post("/ambassador-os/admin/retention-run", { confirmation: "RUN_APPROVED_RETENTION", approvalReference: approvalReference.trim() });\n      toast.success(`Retention run completed. ${res.data.totalAffectedRows} old evidence/content record(s) redacted.`);\n      await loadPrivacyGovernance();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Retention run failed"); }\n    finally { setRunningRetention(false); }\n  }\n\n  async function loadStaffRoles() {
+  async function loadPrivacyGovernance() {
+    try {
+      const [requestsRes, policiesRes] = await Promise.all([
+        api.get("/ambassador-os/admin/privacy-requests"),
+        api.get("/ambassador-os/admin/retention-policies"),
+      ]);
+      setPrivacyRequests(requestsRes.data.requests ?? []);
+      setRetentionPolicies(policiesRes.data.policies ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load privacy and retention controls"); }
+  }
+
+  async function reviewPrivacyRequest(request: PrivacyRequest, status: "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED") {
+    let reviewNotes = request.reviewNotes ?? "";
+    let completionReference = request.completionReference ?? "";
+    if (status === "REJECTED") {
+      const entered = window.prompt("Reason for rejecting this privacy request (required):", reviewNotes);
+      if (!entered?.trim()) { toast.info("No review saved; a rejection reason is required."); return; }
+      reviewNotes = entered.trim();
+    }
+    if (status === "COMPLETED") {
+      const entered = window.prompt("Enter the evidence/case reference confirming completion. For deletion requests this must refer to the approved erasure or documented retention exception:", completionReference);
+      if (!entered?.trim() || entered.trim().length < 5) { toast.info("No completion saved; an evidence reference is required."); return; }
+      completionReference = entered.trim();
+    }
+    try {
+      await api.patch(`/ambassador-os/admin/privacy-requests/${request._id}`, { status, reviewNotes: reviewNotes || undefined, completionReference: completionReference || undefined });
+      toast.success("Privacy request updated to " + status.toLowerCase().replace(/_/g," "));
+      await loadPrivacyGovernance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update privacy request"); }
+  }
+
+  async function createRetentionPolicy(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingRetention(true);
+    try {
+      await api.post("/ambassador-os/admin/retention-policies", { dataCategory: retentionForm.dataCategory, retentionDays: Number(retentionForm.retentionDays) });
+      toast.success("Retention policy saved as inactive. Add formal approval before activating it.");
+      await loadPrivacyGovernance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not create retention policy"); }
+    finally { setSavingRetention(false); }
+  }
+
+  async function toggleRetentionPolicy(policy: RetentionPolicy, active: boolean) {
+    let legalApprovalReference = policy.legalApprovalReference ?? "";
+    if (active) {
+      const entered = window.prompt("Enter formal legal/privacy approval reference before activating this policy:", legalApprovalReference);
+      if (!entered?.trim() || entered.trim().length < 5) { toast.info("Policy remains inactive until formal approval is recorded."); return; }
+      legalApprovalReference = entered.trim();
+    }
+    try {
+      await api.patch(`/ambassador-os/admin/retention-policies/${policy._id}`, { active, legalApprovalReference: legalApprovalReference || undefined });
+      toast.success(active ? "Approved retention policy activated" : "Retention policy deactivated");
+      await loadPrivacyGovernance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update retention policy"); }
+  }
+
+  async function runRetentionPolicies() {
+    const approvalReference = window.prompt("This redacts approved, expired evidence/content. Confirm review of all active policies and enter the operations approval reference:");
+    if (!approvalReference?.trim() || approvalReference.trim().length < 5) { toast.info("No retention run started."); return; }
+    if (!window.confirm("Run the currently active, legally-approved retention policies now? This cannot be automatically reversed.")) return;
+    setRunningRetention(true);
+    try {
+      const res = await api.post("/ambassador-os/admin/retention-run", { confirmation: "RUN_APPROVED_RETENTION", approvalReference: approvalReference.trim() });
+      toast.success(`Retention run completed. ${res.data.totalAffectedRows} old evidence/content record(s) redacted.`);
+      await loadPrivacyGovernance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Retention run failed"); }
+    finally { setRunningRetention(false); }
+  }
+
+  async function loadStaffRoles() {
     try {
       const [usersRes, assignmentsRes] = await Promise.all([
         api.get("/ambassador-os/admin/staff-eligible-users"),
@@ -384,7 +453,8 @@ export default function AdminAmbassadorOperatingSystemPage() {
       const questions = JSON.parse(trainingContentForm.questionsJson);
       await api.post("/ambassador-os/admin/training-modules", {
         ...trainingContentForm, day: Number(trainingContentForm.day),
-        keyPoints: trainingContentForm.keyPoints.split("\n").map((item) => item.trim()).filter(Boolean),
+        keyPoints: trainingContentForm.keyPoints.split("
+").map((item) => item.trim()).filter(Boolean),
         videoUrl: trainingContentForm.videoUrl || undefined, questions,
       });
       toast.success(trainingContentForm.isPublished ? "Training module version published" : "Training module draft saved");
@@ -397,7 +467,8 @@ export default function AdminAmbassadorOperatingSystemPage() {
   async function loadTrainingModule(module: any) {
     setTrainingContentForm({
       day: module.day, title: module.title, summary: module.summary, lesson: module.lesson,
-      keyPoints: (module.keyPoints ?? []).join("\n"), assignment: module.assignment,
+      keyPoints: (module.keyPoints ?? []).join("
+"), assignment: module.assignment,
       videoUrl: module.videoUrl ?? "", questionsJson: JSON.stringify(module.questions ?? [], null, 2), isPublished: false,
     });
   }
@@ -453,7 +524,8 @@ export default function AdminAmbassadorOperatingSystemPage() {
       await api.post("/ambassador-os/admin/career/opportunities", {
         ...careerOpportunityForm,
         vacancies: Number(careerOpportunityForm.vacancies),
-        requiredSkills: careerOpportunityForm.requiredSkills.split("\n").map((v)=>v.trim()).filter(Boolean),
+        requiredSkills: careerOpportunityForm.requiredSkills.split("
+").map((v)=>v.trim()).filter(Boolean),
         applicationDeadline: careerOpportunityForm.applicationDeadline ? new Date(careerOpportunityForm.applicationDeadline).toISOString() : undefined,
       });
       toast.success(careerOpportunityForm.status==="PUBLISHED"?"Opportunity published":"Opportunity saved as draft");
@@ -899,7 +971,18 @@ export default function AdminAmbassadorOperatingSystemPage() {
       </div>}
 
 
-      {tab === "privacy" && data.osRoles?.includes("ADMIN") && <div className="space-y-5">\n        <div><h2 className="text-xl font-semibold">Privacy requests & retention</h2><p className="mt-1 text-sm text-muted-foreground">Review self-service Ambassador requests. Configure retention categories only after legal/privacy approval; the retention action is manual, audited, and irreversible for the affected evidence fields.</p></div>\n        <Card className="border-white/10 bg-white/[0.035] p-4"><h3 className="mb-3 font-semibold">Privacy-request queue</h3>\n          {privacyRequests.length === 0 ? <Empty text="No privacy requests have been submitted."/> : <div className="space-y-3">{privacyRequests.map((request) => <div key={request._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold">{pretty(request.requestType)} · {request.ambassadorName}</h4><p className="text-xs text-muted-foreground">{request.ambassadorEmail} · {new Date(request.requestedAt).toLocaleString("en-IN")}</p></div><Badge variant={request.status === "COMPLETED" ? "success" : request.status === "REJECTED" ? "danger" : "info"}>{pretty(request.status)}</Badge></div><p className="mt-3 whitespace-pre-wrap text-sm">{request.reason}</p>{request.reviewNotes && <p className="mt-2 text-xs text-muted-foreground">Review: {request.reviewNotes}</p>}{request.completionReference && <p className="mt-1 text-xs text-muted-foreground">Completion evidence: {request.completionReference}</p>}<div className="mt-3 flex flex-wrap gap-2">{request.status === "SUBMITTED" && <><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"UNDER_REVIEW")}>Start review</Button><Button size="sm" onClick={() => void reviewPrivacyRequest(request,"APPROVED")}>Approve request</Button><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"REJECTED")}>Reject</Button></>}{request.status === "UNDER_REVIEW" && <><Button size="sm" onClick={() => void reviewPrivacyRequest(request,"APPROVED")}>Approve</Button><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"REJECTED")}>Reject</Button></>}{request.status === "APPROVED" && <Button size="sm" onClick={() => void reviewPrivacyRequest(request,"COMPLETED")}>Record completed with evidence</Button>}</div></div>)}</div>}\n        </Card>\n        <Card className="border-white/10 bg-white/[0.035] p-5"><h3 className="mb-1 font-semibold">Retention policy configuration</h3><p className="mb-4 text-xs text-muted-foreground">There are no durations defined in the PDF; choose them only after your legal/privacy team approves the retention schedule. New versions are inactive by default.</p>\n          <form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void createRetentionPolicy(e)}><label className="block text-sm"><span className="mb-1 block text-muted-foreground">Data category</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={retentionForm.dataCategory} onChange={(e) => setRetentionForm((f) => ({...f,dataCategory:e.target.value}))}>{[["TASK_EVIDENCE","Closed task evidence"],["TRAINING_ASSIGNMENT_TEXT","Completed training assignment text"],["REJECTED_MARKETING_CONTENT","Rejected/retired marketing content"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><label className="block text-sm"><span className="mb-1 block text-muted-foreground">Retention (days)</span><input type="number" required min={30} max={3650} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={retentionForm.retentionDays} onChange={(e) => setRetentionForm((f) => ({...f,retentionDays:Number(e.target.value)}))}/></label><div className="flex items-end"><Button type="submit" disabled={savingRetention}>{savingRetention ? "Saving…" : "Save inactive version"}</Button></div></form>\n          <div className="mt-5 space-y-3">{retentionPolicies.length === 0 ? <Empty text="No retention policies configured."/> : retentionPolicies.map((policy) => <div key={policy._id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 p-3"><div><p className="font-medium">{pretty(policy.dataCategory)} · v{policy.policyVersion}</p><p className="mt-1 text-xs text-muted-foreground">{policy.retentionDays} days · approval: {policy.legalApprovalReference || "Not approved"}</p></div><div className="flex items-center gap-2"><Badge variant={policy.active ? "success" : "warning"}>{policy.active ? "Active" : "Inactive"}</Badge><Button size="sm" variant={policy.active ? "outline" : "primary"} onClick={() => void toggleRetentionPolicy(policy,!policy.active)}>{policy.active ? "Deactivate" : "Activate"}</Button></div></div>)}</div>\n          <div className="mt-5 border-t border-white/10 pt-4"><p className="mb-2 text-sm font-semibold">Manual retention run</p><p className="mb-3 text-xs text-amber-200">This redacts closed/complete evidence fields or rejected/retired marketing content older than active policy age. It does not delete financial ledgers, bookings, consent/audit logs, or user accounts.</p><Button variant="outline" onClick={() => void runRetentionPolicies()} disabled={runningRetention || !retentionPolicies.some((p) => p.active)}>{runningRetention ? "Running…" : "Run active retention policies"}</Button></div>\n        </Card>\n      </div>}\n      {tab === "staff-roles" && data.osRoles?.includes("ADMIN") && <div className="space-y-5">
+      {tab === "privacy" && data.osRoles?.includes("ADMIN") && <div className="space-y-5">
+        <div><h2 className="text-xl font-semibold">Privacy requests & retention</h2><p className="mt-1 text-sm text-muted-foreground">Review self-service Ambassador requests. Configure retention categories only after legal/privacy approval; the retention action is manual, audited, and irreversible for the affected evidence fields.</p></div>
+        <Card className="border-white/10 bg-white/[0.035] p-4"><h3 className="mb-3 font-semibold">Privacy-request queue</h3>
+          {privacyRequests.length === 0 ? <Empty text="No privacy requests have been submitted."/> : <div className="space-y-3">{privacyRequests.map((request) => <div key={request._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold">{pretty(request.requestType)} · {request.ambassadorName}</h4><p className="text-xs text-muted-foreground">{request.ambassadorEmail} · {new Date(request.requestedAt).toLocaleString("en-IN")}</p></div><Badge variant={request.status === "COMPLETED" ? "success" : request.status === "REJECTED" ? "danger" : "info"}>{pretty(request.status)}</Badge></div><p className="mt-3 whitespace-pre-wrap text-sm">{request.reason}</p>{request.reviewNotes && <p className="mt-2 text-xs text-muted-foreground">Review: {request.reviewNotes}</p>}{request.completionReference && <p className="mt-1 text-xs text-muted-foreground">Completion evidence: {request.completionReference}</p>}<div className="mt-3 flex flex-wrap gap-2">{request.status === "SUBMITTED" && <><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"UNDER_REVIEW")}>Start review</Button><Button size="sm" onClick={() => void reviewPrivacyRequest(request,"APPROVED")}>Approve request</Button><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"REJECTED")}>Reject</Button></>}{request.status === "UNDER_REVIEW" && <><Button size="sm" onClick={() => void reviewPrivacyRequest(request,"APPROVED")}>Approve</Button><Button size="sm" variant="outline" onClick={() => void reviewPrivacyRequest(request,"REJECTED")}>Reject</Button></>}{request.status === "APPROVED" && <Button size="sm" onClick={() => void reviewPrivacyRequest(request,"COMPLETED")}>Record completed with evidence</Button>}</div></div>)}</div>}
+        </Card>
+        <Card className="border-white/10 bg-white/[0.035] p-5"><h3 className="mb-1 font-semibold">Retention policy configuration</h3><p className="mb-4 text-xs text-muted-foreground">There are no durations defined in the PDF; choose them only after your legal/privacy team approves the retention schedule. New versions are inactive by default.</p>
+          <form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void createRetentionPolicy(e)}><label className="block text-sm"><span className="mb-1 block text-muted-foreground">Data category</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={retentionForm.dataCategory} onChange={(e) => setRetentionForm((f) => ({...f,dataCategory:e.target.value}))}>{[["TASK_EVIDENCE","Closed task evidence"],["TRAINING_ASSIGNMENT_TEXT","Completed training assignment text"],["REJECTED_MARKETING_CONTENT","Rejected/retired marketing content"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label><label className="block text-sm"><span className="mb-1 block text-muted-foreground">Retention (days)</span><input type="number" required min={30} max={3650} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={retentionForm.retentionDays} onChange={(e) => setRetentionForm((f) => ({...f,retentionDays:Number(e.target.value)}))}/></label><div className="flex items-end"><Button type="submit" disabled={savingRetention}>{savingRetention ? "Saving…" : "Save inactive version"}</Button></div></form>
+          <div className="mt-5 space-y-3">{retentionPolicies.length === 0 ? <Empty text="No retention policies configured."/> : retentionPolicies.map((policy) => <div key={policy._id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-white/10 p-3"><div><p className="font-medium">{pretty(policy.dataCategory)} · v{policy.policyVersion}</p><p className="mt-1 text-xs text-muted-foreground">{policy.retentionDays} days · approval: {policy.legalApprovalReference || "Not approved"}</p></div><div className="flex items-center gap-2"><Badge variant={policy.active ? "success" : "warning"}>{policy.active ? "Active" : "Inactive"}</Badge><Button size="sm" variant={policy.active ? "outline" : "primary"} onClick={() => void toggleRetentionPolicy(policy,!policy.active)}>{policy.active ? "Deactivate" : "Activate"}</Button></div></div>)}</div>
+          <div className="mt-5 border-t border-white/10 pt-4"><p className="mb-2 text-sm font-semibold">Manual retention run</p><p className="mb-3 text-xs text-amber-200">This redacts closed/complete evidence fields or rejected/retired marketing content older than active policy age. It does not delete financial ledgers, bookings, consent/audit logs, or user accounts.</p><Button variant="outline" onClick={() => void runRetentionPolicies()} disabled={runningRetention || !retentionPolicies.some((p) => p.active)}>{runningRetention ? "Running…" : "Run active retention policies"}</Button></div>
+        </Card>
+      </div>}
+      {tab === "staff-roles" && data.osRoles?.includes("ADMIN") && <div className="space-y-5">
         <div><h2 className="text-xl font-semibold">Operating-system staff roles</h2><p className="mt-1 text-sm text-muted-foreground">Assign responsibilities without granting platform-wide Admin access. Every role grant/revocation is audit logged; use active internal accounts only.</p></div>
         <Card className="border-white/10 bg-white/[0.035] p-5"><h3 className="mb-3 font-semibold">Assign a responsibility</h3><form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void assignStaffRole(e)}>
           <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Internal account</span><select required className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={staffRoleForm.userId} onChange={(e) => setStaffRoleForm((f) => ({...f,userId:e.target.value}))}><option value="">Choose staff user</option>{eligibleStaffUsers.map((user) => <option key={user.userId} value={user.userId}>{user.name} · {user.role} · {user.email}</option>)}</select></label>
