@@ -27,7 +27,7 @@ import {
   CommissionMilestone,
 } from "../db/schema";
 import { calculateCommission, buildMilestones } from "../services/commissionCalculator";
-import { founderDefaults } from "../db/bootstrapFounder";
+import { assertFounderPasswordsConfigured, founderDefaults } from "../db/bootstrapFounder";
 
 const CITIES = [
   { city: "Hyderabad", locations: ["Gachibowli", "Kondapur", "Financial District"] },
@@ -50,6 +50,9 @@ async function seed() {
       "DATABASE_URL is not set. Add your Supabase Postgres connection string to server/.env before seeding."
     );
   }
+
+  const { founders: founderCfg } = founderDefaults();
+  assertFounderPasswordsConfigured(founderCfg);
 
   console.log("Connecting to Supabase (Postgres)...");
   const db = connectDb(url);
@@ -86,7 +89,6 @@ async function seed() {
   const hashedPassword = await bcrypt.hash("Password123!", 12);
   // Founders (Sandeep & Meraj) get their own passwords (env-overridable), matching
   // the boot-time founder bootstrap so both paths agree on the same credentials.
-  const { founders: founderCfg } = founderDefaults();
   const founderHashes = await Promise.all(founderCfg.map((f) => bcrypt.hash(f.password, 12)));
 
   // --- Admins ---

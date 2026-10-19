@@ -2,34 +2,46 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import type { Db } from "./index";
 import { users } from "./schema";
-import { DEFAULT_FOUNDER_PASSWORD, getEnv } from "../config/env";
+import { getEnv } from "../config/env";
 
 export interface ResolvedFounder {
   name: string;
   email: string;
-  /** Effective password: per-founder → shared FOUNDER_PASSWORD → built-in default. */
+  /** Effective password: per-founder → shared FOUNDER_PASSWORD. */
   password: string;
-  /** True when the effective password is the shipped built-in default. */
-  usingBuiltInPassword: boolean;
 }
 
 /**
  * Resolve the two founders (Sandeep & Meraj) with each one's effective password:
- * a per-founder FOUNDERn_PASSWORD wins, else the shared FOUNDER_PASSWORD, else
- * the strong built-in default.
+ * a per-founder FOUNDERn_PASSWORD wins, else the shared FOUNDER_PASSWORD.
+ * The password is empty when no secret is configured; callers must not create
+ * or update founder accounts without an explicitly configured password.
  */
 export function founderDefaults(): { founders: ResolvedFounder[] } {
   const env = getEnv();
   const founders = env.founders.map((f) => {
-    const password = f.password || env.founderPassword || DEFAULT_FOUNDER_PASSWORD;
+    const password = f.password || env.founderPassword;
     return {
       name: f.name,
       email: f.email,
       password,
-      usingBuiltInPassword: !f.password && !env.founderPassword,
     };
   });
   return { founders };
+}
+
+export class FounderProvisioningConfigError extends Error {
+  constructor(founderEmails: string[]) {
+    super(
+      `Founder account provisioning requires configured passwords. Set FOUNDER1_PASSWORD and FOUNDER2_PASSWORD, or FOUNDER_PASSWORD. Missing: ${founderEmails.join(", ")}`,
+    );
+    this.name = "FounderProvisioningConfigError";
+  }
+}
+
+export function assertFounderPasswordsConfigured(founders: ResolvedFounder[]): void {
+  const missing = founders.filter((founder) => !founder.password).map((founder) => founder.email);
+  if (missing.length) throw new FounderProvisioningConfigError(missing);
 }
 
 /**
@@ -41,51 +53,44 @@ export function founderDefaults(): { founders: ResolvedFounder[] } {
  *     never reset), except an accidentally-disabled account is re-enabled.
  * To change an existing founder's email/password, use syncFounders() (npm run
  * founders) instead — this boot path deliberately never overwrites a live login.
- * Best-effort: a failure here must never crash the API boot.
+ * Missing credentials are fatal when an account would otherwise be created.
  */
 export async function ensureDefaultFounder(db: Db): Promise<void> {
   const { founders } = founderDefaults();
-  try {
-    let created = 0;
-    let usedBuiltIn = false;
+  const existingByEmail = new Map<string, { _id: string; disabled: boolean }>();
 
-    for (const founder of founders) {
-      const existing = await db
-        .select({ _id: users._id, disabled: users.disabled })
-        .from(users)
-        .where(eq(users.email, founder.email))
-        .limit(1);
+  for (const founder of founders) {
+    const [existing] = await db
+      .select({ _id: users._id, disabled: users.disabled })
+      .from(users)
+      .where(eq(users.email, founder.email))
+      .limit(1);
+    if (existing) existingByEmail.set(founder.email, existing);
+  }
 
-      if (existing.length) {
-        if (existing[0].disabled) {
-          await db.update(users).set({ disabled: false }).where(eq(users._id, existing[0]._id));
-          console.log(`Founder account re-enabled: ${founder.email}`);
-        }
-        continue;
+  assertFounderPasswordsConfigured(founders.filter((founder) => !existingByEmail.has(founder.email)));
+
+  for (const founder of founders) {
+    const existing = existingByEmail.get(founder.email);
+    if (existing) {
+      if (existing.disabled) {
+        await db.update(users).set({ disabled: false }).where(eq(users._id, existing._id));
+        console.log(`Founder account re-enabled: ${founder.email}`);
       }
-
-      const hashed = await bcrypt.hash(founder.password, 12);
-      await db.insert(users).values({
-        name: founder.name,
-        email: founder.email,
-        password: hashed,
-        role: "ADMIN",
-        approvalStatus: "APPROVED",
-        emailVerified: true,
-        phoneVerified: true,
-      });
-      created++;
-      if (founder.usingBuiltInPassword) usedBuiltIn = true;
-      console.log(`Founder account provisioned → ${founder.name} <${founder.email}> (role: ADMIN, CEO OS at /founder/dashboard)`);
+      continue;
     }
 
-    if (created > 0 && usedBuiltIn) {
-      console.warn(
-        "  WARNING: a founder was created with the built-in default password. Set FOUNDER1_PASSWORD / FOUNDER2_PASSWORD (or FOUNDER_PASSWORD) and rotate after first login.",
-      );
-    }
-  } catch (err) {
-    console.warn("ensureDefaultFounder skipped:", err instanceof Error ? err.message : err);
+    const hashed = await bcrypt.hash(founder.password, 12);
+    await db.insert(users).values({
+      name: founder.name,
+      email: founder.email,
+      password: hashed,
+      role: "ADMIN",
+      approvalStatus: "APPROVED",
+      emailVerified: true,
+      phoneVerified: true,
+    });
+    console.log(`Founder account provisioned → ${founder.name} <${founder.email}> (role: ADMIN, CEO OS at /founder/dashboard)`);
   }
 }
 
@@ -98,6 +103,7 @@ export async function ensureDefaultFounder(db: Db): Promise<void> {
  */
 export async function syncFounders(db: Db): Promise<{ email: string; action: "created" | "updated" }[]> {
   const { founders } = founderDefaults();
+  assertFounderPasswordsConfigured(founders);
   const results: { email: string; action: "created" | "updated" }[] = [];
 
   for (const founder of founders) {

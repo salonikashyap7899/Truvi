@@ -777,32 +777,9 @@ router.patch("/profile", authenticate, async (req: AuthedRequest, res) => {
   return res.json({ user: { ...safeUser, isFounder: isFounderEmail(updated.email) } });
 });
 
-router.post("/verify-ambassador", authenticate, async (req: AuthedRequest, res) => {
-  const userId = req.user!.userId;
-  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
-
-  const user = await findUserById(userId);
-  if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.role !== "CP" && user.role !== "AMBASSADOR") {
-    return res.status(403).json({ error: "Only ambassadors can complete this step" });
-  }
-
-  const checks: OnboardingChecks = {
-    aadhaarVerified: Boolean(req.body?.aadhaarVerified),
-    phoneVerified: Boolean(req.body?.phoneVerified),
-    emailVerified: Boolean(req.body?.emailVerified),
-  };
-  const onboardingVerified = isOnboardingComplete(checks);
-
-  const db = getDb();
-  await db
-    .update(users)
-    .set({ onboardingChecks: checks, onboardingVerified })
-    .where(eq(users._id, user._id));
-
-  return res.json({
-    onboardingVerified,
-    onboardingChecks: checks,
+router.post("/verify-ambassador", authenticate, (_req: AuthedRequest, res) => {
+  return res.status(403).json({
+    error: "Verification status can only be updated through verified OTP and KYC review flows.",
   });
 });
 

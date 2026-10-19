@@ -145,7 +145,7 @@ export function NotificationBell() {
           <div
             className={`fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+5.75rem)] z-50 flex min-h-0 w-auto flex-col rounded-2xl border border-white/10 bg-[#0a0d14]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl ${
               hasNativeTabBar ? "bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]" : "bottom-3"
-            } sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:max-h-[min(24rem,calc(100dvh-6rem))] sm:w-80 sm:max-w-[calc(100vw-3rem)]`}
+            } sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:h-96 sm:max-h-[calc(100dvh-6rem)] sm:w-80 sm:max-w-[calc(100vw-3rem)]`}
           >
           <div className="flex shrink-0 items-center justify-between gap-2 px-2 py-1">
             <p className="text-xs font-medium text-muted-foreground">Notifications</p>
@@ -164,7 +164,7 @@ export function NotificationBell() {
               </button>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-96 sm:flex-none">
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
             {notifications.length === 0 && <p className="p-3 text-sm text-muted-foreground">No notifications yet.</p>}
             {notifications.map((n) => {
               const { Icon, cls } = iconFor(n.type);

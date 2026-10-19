@@ -91,7 +91,17 @@ export const adminLimiter = makeLimiter(60); // general admin CRUD
 // shared NAT is limited together. Limits are set well above normal human use —
 // a real person signing in or verifying a code never hits them; an automated
 // brute-force or SMS-spam run does.
-export const loginLimiter = makeLimiter(10, 15 * 60_000); // 10 login attempts / 15 min
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => userOrIp(req as AuthedRequest),
+  message: {
+    error: "Sign-in is temporarily paused after several attempts. Please wait a few minutes before trying again.",
+    code: "LOGIN_RATE_LIMITED",
+  },
+}); // 10 login attempts / 15 min
 export const otpSendLimiter = makeLimiter(6, 60 * 60_000); // 6 code sends / hour (SMS + email cost)
 export const otpVerifyLimiter = makeLimiter(20, 15 * 60_000); // 20 verify attempts / 15 min
 

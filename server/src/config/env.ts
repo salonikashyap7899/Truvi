@@ -67,8 +67,8 @@ export function getEnv() {
     // Truvi's two founders — Sandeep & Meraj — are provisioned as ADMIN-role
     // accounts on boot so the CEO OS is reachable on a fresh deploy without the
     // destructive seed. Names, emails and passwords are env-overridable. Each
-    // founder can have their own password (FOUNDER1_PASSWORD / FOUNDER2_PASSWORD);
-    // FOUNDER_PASSWORD is a shared fallback for both.
+    // Each founder can have their own password (FOUNDER1_PASSWORD /
+    // FOUNDER2_PASSWORD); FOUNDER_PASSWORD is a shared fallback for both.
     founderPassword: process.env.FOUNDER_PASSWORD?.trim() || "",
     founders: [
       {
@@ -84,14 +84,6 @@ export function getEnv() {
     ],
   };
 }
-
-/**
- * Strong built-in Founder password used only when FOUNDER_PASSWORD is not set.
- * Intentionally long and mixed-class (upper/lower/digits/symbols) and built
- * from both founders' names — Sandeep & Meeraj. Production deploys should
- * override it via FOUNDER_PASSWORD and rotate after first login.
- */
-export const DEFAULT_FOUNDER_PASSWORD = "Sandeep@Meeraj#Truvi2026!";
 
 /**
  * Founder accounts recognised for CEO-OS routing beyond the two provisioned

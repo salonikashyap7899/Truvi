@@ -11,12 +11,14 @@ export default function AmbassadorLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [feedbackTone, setFeedbackTone] = useState<"error" | "notice" | "credentials">("error");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFeedbackTone("error");
     try {
       const user = await login(email, password);
       navigate(dashboardPath(user));
@@ -26,6 +28,16 @@ export default function AmbassadorLoginPage() {
       if (data?.needsVerification) {
         const phoneParam = data.phone ? `&phone=${encodeURIComponent(data.phone)}` : "";
         navigate(`/verify-email?email=${encodeURIComponent(email)}${phoneParam}`);
+        return;
+      }
+      if (err?.response?.status === 429 || data?.code === "LOGIN_RATE_LIMITED") {
+        setFeedbackTone("notice");
+        setError(data?.error || "Sign-in is temporarily paused. Please wait a few minutes before trying again.");
+        return;
+      }
+      if (err?.response?.status === 401) {
+        setFeedbackTone("credentials");
+        setError("Those sign-in details didn't match. Please check your email and password and try again.");
         return;
       }
       setError(data?.error || "Invalid email or password");
@@ -84,7 +96,7 @@ export default function AmbassadorLoginPage() {
                 />
               </div>
               {error && (
-                <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p>
+                <p className={`rounded-lg border px-3 py-2 text-sm ${feedbackTone === "notice" ? "border-sky-400/25 bg-sky-950/40 text-sky-200" : feedbackTone === "credentials" ? "border-white/10 bg-white/[0.04] text-white/75" : "border-red-500/25 bg-red-950/40 text-red-300"}`}>{error}</p>
               )}
               <button
                 type="submit"

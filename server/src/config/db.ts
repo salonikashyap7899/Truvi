@@ -1,7 +1,7 @@
 import type { Db } from "../db";
 import { connectDb, closeDb, getDb } from "../db";
 import { VERIFICATION_BOOT_SQL, ensureVerificationDefaults } from "../db/verificationBootSql";
-import { ensureDefaultFounder } from "../db/bootstrapFounder";
+import { ensureDefaultFounder, FounderProvisioningConfigError } from "../db/bootstrapFounder";
 
 let isConnected = false;
 let connectionError: Error | null = null;
@@ -993,6 +993,7 @@ export async function connectDB(url: string): Promise<boolean> {
     connectionError = error instanceof Error ? error : new Error(String(error));
     isConnected = false;
     await closeDb();
+    if (error instanceof FounderProvisioningConfigError) throw error;
     console.warn(`Database connection unavailable; continuing without it: ${connectionError.message}`);
     return false;
   }

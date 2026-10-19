@@ -120,6 +120,12 @@ Then add the env vars from `server/.env.example` in the Render dashboard
 (`DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
 `NODE_ENV=production` at minimum).
 
+Before the first deployment against a fresh database, also set unique,
+high-entropy `FOUNDER1_PASSWORD` and `FOUNDER2_PASSWORD` secrets in Render.
+The API intentionally fails startup rather than create founder ADMIN accounts
+with a built-in or blank password. For local development, configure these
+values in `server/.env`; `FOUNDER_PASSWORD` is supported as a shared fallback.
+
 **Required — wiring the two origins together:**
 - `CLIENT_URL` on this Render service **must** be set to your deployed
   frontend's exact origin (e.g. `https://truvi.vercel.app`). It's used for
