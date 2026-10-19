@@ -11,6 +11,7 @@ import {
   fundraiseRounds,
   investorUpdates,
   customerFeedback,
+  users,
 } from "../db/schema";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { isFounderEmail } from "../config/env";
