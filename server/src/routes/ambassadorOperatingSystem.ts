@@ -948,12 +948,16 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
     }
   }
   if (parsed.data.status === "SALE_VERIFIED") {
+    if (!current.unitId) return res.status(409).json({ error: "A property unit must be linked before a booking can count as a verified unit sale" });
     if (milestone !== "REGISTRATION_COMPLETED" || !agreementReference?.trim()) {
       return res.status(409).json({ error: "Sale verification requires the Registration Completed milestone and an agreement/registration reference" });
     }
   }
   if (parsed.data.status === "REFUND_PENDING" && !parsed.data.reason?.trim()) {
     return res.status(400).json({ error: "Record the cancellation/refund reason" });
+  }
+  if (parsed.data.status === "REFUND_PENDING" && nextReceived <= 0) {
+    return res.status(409).json({ error: "No funds are recorded as received. Cancel the booking without a refund instead." });
   }
   if (parsed.data.status === "CANCELLED" && nextReceived > 0) {
     return res.status(409).json({ error: "Money has been received. Move the booking to Refund Pending and record the refund receipt before closing it." });
@@ -977,8 +981,10 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
       rejectionReason: parsed.data.status === "REJECTED" ? (parsed.data.reason ?? current.rejectionReason) : current.rejectionReason,
       cancelledAt: ["CANCELLED", "REFUND_PENDING"].includes(parsed.data.status) ? (current.cancelledAt ?? now) : current.cancelledAt,
       cancellationReason: ["CANCELLED", "REFUND_PENDING"].includes(parsed.data.status) ? (parsed.data.reason ?? current.cancellationReason) : current.cancellationReason,
-      refundStatus: parsed.data.status === "REFUNDED" ? "REFUNDED" : parsed.data.status === "REFUND_PENDING" ? "PENDING" : current.refundStatus,
-      refundAmount: parsed.data.refundAmount ?? current.refundAmount,
+      refundStatus: parsed.data.status === "REFUNDED" ? "REFUNDED"
+        : parsed.data.status === "REFUND_PENDING" ? ((parsed.data.refundAmount ?? current.refundAmount) > 0 && (parsed.data.refundAmount ?? current.refundAmount) < nextReceived ? "PARTIAL" : "PENDING")
+        : current.refundStatus,
+      refundAmount: parsed.data.refundAmount ?? (parsed.data.status === "REFUNDED" ? current.amountReceived : current.refundAmount),
       refundReference: parsed.data.refundReference ?? current.refundReference,
       updatedAt: now,
     }).where(and(eq(ambassadorOsPropertyBookings._id, current._id), eq(ambassadorOsPropertyBookings.status, current.status))).returning();
@@ -1000,12 +1006,16 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
       await tx.update(units).set({ status: "SOLD" }).where(eq(units._id, current.unitId));
       await tx.update(leads).set({ stage: "REGISTRATION", updatedAt: now }).where(eq(leads._id, current.leadId));
     }
-    if (current.unitId && parsed.data.status === "CANCELLED") {
-      await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(eq(units._id, current.unitId));
+    if (current.unitId && parsed.data.status === "CANCELLED" && current.status === "VERIFIED") {
+      const allForUnit = await tx.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.unitId, current.unitId));
+      const otherActive = allForUnit.some((b) => b._id !== current._id && ["VERIFIED", "SALE_VERIFIED", "REFUND_PENDING"].includes(b.status));
+      if (!otherActive) await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(and(eq(units._id, current.unitId), eq(units.status, "RESERVED")));
       await tx.update(leads).set({ stage: "NEGOTIATION", updatedAt: now }).where(eq(leads._id, current.leadId));
     }
     if (current.unitId && parsed.data.status === "REFUNDED") {
-      await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(eq(units._id, current.unitId));
+      const allForUnit = await tx.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.unitId, current.unitId));
+      const otherActive = allForUnit.some((b) => b._id !== current._id && ["VERIFIED", "SALE_VERIFIED", "REFUND_PENDING"].includes(b.status));
+      if (!otherActive) await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(and(eq(units._id, current.unitId), or(eq(units.status, "RESERVED"), eq(units.status, "SOLD"))));
       await tx.update(leads).set({ stage: "NEGOTIATION", updatedAt: now }).where(eq(leads._id, current.leadId));
     }
     return updated;
