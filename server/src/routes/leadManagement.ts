@@ -4,7 +4,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, SQL } fro
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
 import {
-  leads, leadActivities, projects, units, users, siteVisits, offers,
+  ambassadorOsProfiles, leads, leadActivities, projects, units, users, siteVisits, offers,
   LeadStage, Role, LeadReferralLink,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
@@ -96,6 +96,7 @@ const fromInventorySchema = z.object({
   visitTime: z.string().regex(VISIT_TIME, "Pick a preferred time"),
   requirement: z.string().trim().min(2, "Add the purpose / requirement").max(300),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  contactConsent: z.boolean().optional(),
   confirmDuplicate: z.boolean().optional(),
 });
 
@@ -125,6 +126,21 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
     .from(users)
     .where(eq(users._id, req.user!.userId));
   if (!me || me.disabled || me.role !== role) return res.status(403).json({ error: "Your account can't add leads" });
+
+  // Ambassadors may not submit sales leads until their OS registration, training,
+  // independent practical/ethics assessment and activation are complete.
+  if (role === "AMBASSADOR") {
+    const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, me._id));
+    if (!profile?.termsAcceptedAt || !me.onboardingVerified || profile.status !== "ACTIVE") {
+      return res.status(403).json({
+        error: "Complete your Ambassador profile, identity verification, seven-day certification and admin activation before submitting sales leads.",
+        code: "AMBASSADOR_ACTIVATION_REQUIRED",
+      });
+    }
+  }
+  if ((role === "CP" || role === "AMBASSADOR") && d.contactConsent !== true) {
+    return res.status(400).json({ error: "Confirm that the customer gave permission to share their contact details with Truvi for this enquiry." });
+  }
 
   // Project must be live; the unit (if any) must belong to it and be unsold.
   const [project] = await db
@@ -266,6 +282,9 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         clientName,
         clientPhone,
         clientEmail,
+        contactConsent: role === "BUYER" ? false : d.contactConsent === true,
+        contactConsentAt: role === "BUYER" ? null : d.contactConsent === true ? new Date() : null,
+        consentTextVersion: role === "BUYER" ? null : d.contactConsent === true ? "TRUVI_LEAD_CONSENT_V1" : null,
         stage: (role === "CP" ? "ASSIGNED" : "GENERATED") as LeadStage,
         source: `INVENTORY_${role}`,
         notes: d.notes || null,
