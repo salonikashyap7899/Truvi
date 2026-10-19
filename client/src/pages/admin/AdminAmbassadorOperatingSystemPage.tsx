@@ -4,7 +4,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock,
+  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock, Briefcase,
   CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined, TrendingUp,
 } from "lucide-react";
 
@@ -76,12 +76,27 @@ type PerformanceRow = {
 type PerformanceResponse = { weights: ScorecardWeights; policy: { version: number; approvalReference?: string | null }; ambassadors: PerformanceRow[] };
 type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
-type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "performance" | "campaigns" | "policies" | "incentives";
+type CareerOpportunity = {
+  _id: string; title: string; opportunityType: string; description: string; location?: string | null;
+  targetLevel: string; requiredSkills: string[]; eligibility: Record<string,unknown>; vacancies: number;
+  applicationDeadline?: string | null; status: string; applicationsCount?: number; publishedAt?: string | null;
+};
+type CareerApplication = {
+  _id: string; opportunityId: string; ambassadorId: string; statement: string; evidenceReference?: string | null;
+  status: string; reviewNotes?: string | null; opportunityTitle: string; opportunityType: string; targetLevel: string;
+  ambassadorName: string; ambassadorEmail: string; currentLevel?: string | null; profileStatus?: string | null;
+};
+type CareerAssessment = {
+  _id: string; targetLevel: string; assessmentType: string; score: number; passed: boolean;
+  evidenceReference: string; notes: string; reviewedAt: string;
+};
+type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "performance" | "career" | "campaigns" | "policies" | "incentives";
 const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
   { id: "overview", label: "Overview", Icon: ChartNoAxesCombined }, { id: "ambassadors", label: "Ambassadors", Icon: Users },
   { id: "training", label: "Training Reviews", Icon: GraduationCap }, { id: "training-content", label: "Learning Content", Icon: BookOpen }, { id: "tasks", label: "Tasks", Icon: ClipboardList },
   { id: "sales", label: "Sales & Bookings", Icon: ChartNoAxesCombined }, { id: "followups", label: "Follow-ups", Icon: Clock },
   { id: "performance", label: "Performance Scorecards", Icon: TrendingUp },
+  { id: "career", label: "Career Engine", Icon: Briefcase },
   { id: "campaigns", label: "Campaigns", Icon: Building2 }, { id: "policies", label: "Incentive Policies", Icon: ShieldCheck },
   { id: "incentives", label: "Payouts", Icon: Wallet },
 ];
@@ -103,6 +118,19 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [scorecardApprovalReference, setScorecardApprovalReference] = useState("");
   const [performanceInputs, setPerformanceInputs] = useState<Record<string,ScoreInput>>({});
   const [savingPerformance, setSavingPerformance] = useState<string | null>(null);
+  const [careerOpportunities, setCareerOpportunities] = useState<CareerOpportunity[]>([]);
+  const [careerApplications, setCareerApplications] = useState<CareerApplication[]>([]);
+  const [careerAssessments, setCareerAssessments] = useState<CareerAssessment[]>([]);
+  const [careerAmbassadorId, setCareerAmbassadorId] = useState("");
+  const [savingCareerOpportunity, setSavingCareerOpportunity] = useState(false);
+  const [savingCareerAssessment, setSavingCareerAssessment] = useState(false);
+  const [careerOpportunityForm, setCareerOpportunityForm] = useState({
+    title: "", opportunityType: "INTERNSHIP", description: "", location: "Lucknow",
+    targetLevel: "L1", requiredSkills: "", vacancies: 1, applicationDeadline: "", status: "DRAFT",
+  });
+  const [careerAssessmentForm, setCareerAssessmentForm] = useState({
+    targetLevel: "L4", score: 0, evidenceReference: "", notes: "",
+  });
   const [savingWeights, setSavingWeights] = useState(false);
   const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -304,6 +332,82 @@ export default function AdminAmbassadorOperatingSystemPage() {
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not save training review"); }
   }
+  async function loadCareerEngine() {
+    try {
+      const [opportunitiesRes, applicationsRes] = await Promise.all([
+        api.get("/ambassador-os/admin/career/opportunities"),
+        api.get("/ambassador-os/admin/career/applications"),
+      ]);
+      setCareerOpportunities(opportunitiesRes.data.opportunities ?? []);
+      setCareerApplications(applicationsRes.data.applications ?? []);
+      if (!careerAmbassadorId && data?.profiles[0]) {
+        setCareerAmbassadorId(data.profiles[0].profile.userId);
+      }
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load career opportunities/applications"); }
+  }
+
+  async function loadCareerAssessments(userId: string) {
+    setCareerAmbassadorId(userId);
+    setCareerAssessments([]);
+    if (!userId) return;
+    try {
+      const res = await api.get(`/ambassador-os/admin/career/assessments/${userId}`);
+      setCareerAssessments(res.data.assessments ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load career assessment history"); }
+  }
+
+  async function createCareerOpportunity(e: React.FormEvent) {
+    e.preventDefault(); setSavingCareerOpportunity(true);
+    try {
+      await api.post("/ambassador-os/admin/career/opportunities", {
+        ...careerOpportunityForm,
+        vacancies: Number(careerOpportunityForm.vacancies),
+        requiredSkills: careerOpportunityForm.requiredSkills.split("\n").map((v)=>v.trim()).filter(Boolean),
+        applicationDeadline: careerOpportunityForm.applicationDeadline ? new Date(careerOpportunityForm.applicationDeadline).toISOString() : undefined,
+      });
+      toast.success(careerOpportunityForm.status==="PUBLISHED"?"Opportunity published":"Opportunity saved as draft");
+      setCareerOpportunityForm({title:"",opportunityType:"INTERNSHIP",description:"",location:"Lucknow",targetLevel:"L1",requiredSkills:"",vacancies:1,applicationDeadline:"",status:"DRAFT"});
+      await loadCareerEngine();
+    } catch (error:any) { toast.error(error?.response?.data?.error || "Could not create career opportunity"); }
+    finally { setSavingCareerOpportunity(false); }
+  }
+
+  async function updateCareerOpportunity(opportunity: CareerOpportunity, status: "DRAFT"|"PUBLISHED"|"CLOSED") {
+    try {
+      await api.patch(`/ambassador-os/admin/career/opportunities/${opportunity._id}`, { status });
+      toast.success(`Opportunity ${status.toLowerCase()}`);
+      await loadCareerEngine();
+    } catch (error:any) { toast.error(error?.response?.data?.error || "Could not update opportunity"); }
+  }
+
+  async function submitCareerAssessment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!careerAmbassadorId) { toast.error("Select an Ambassador first"); return; }
+    setSavingCareerAssessment(true);
+    try {
+      const assessmentType = careerAssessmentForm.targetLevel === "L4" ? "MENTORING" : careerAssessmentForm.targetLevel === "L5" ? "TEAM_MANAGEMENT" : "ADVANCED";
+      await api.post("/ambassador-os/admin/career/assessments", {
+        ambassadorId: careerAmbassadorId, targetLevel: careerAssessmentForm.targetLevel, assessmentType,
+        score: Number(careerAssessmentForm.score), evidenceReference: careerAssessmentForm.evidenceReference,
+        notes: careerAssessmentForm.notes,
+      });
+      toast.success(Number(careerAssessmentForm.score)>=80?"Career assessment passed and recorded":"Assessment recorded; score is below the 80/100 passing threshold");
+      setCareerAssessmentForm((v)=>({...v,score:0,evidenceReference:"",notes:""}));
+      await loadCareerAssessments(careerAmbassadorId);
+    } catch (error:any) { toast.error(error?.response?.data?.error || "Could not record career assessment"); }
+    finally { setSavingCareerAssessment(false); }
+  }
+
+  async function reviewCareerApplication(app: CareerApplication, status: "UNDER_REVIEW"|"SHORTLISTED"|"REJECTED"|"SELECTED") {
+    const reviewNotes=window.prompt("Enter evidence-based review notes (minimum 5 characters):");
+    if (!reviewNotes?.trim() || reviewNotes.trim().length<5) { toast.info("No review saved; reviewer notes are required."); return; }
+    try {
+      await api.patch(`/ambassador-os/admin/career/applications/${app._id}/review`,{status,reviewNotes:reviewNotes.trim()});
+      toast.success(`Application marked ${status.toLowerCase().replace(/_/g," ")}`);
+      await loadCareerEngine();
+    } catch(error:any){toast.error(error?.response?.data?.error || "Could not review application");}
+  }
+
   async function loadPerformance() {
     setLoadingPerformance(true);
     try {
@@ -488,7 +592,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   return (
     <main className="min-h-screen space-y-6 p-4 text-white md:p-7">
       <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.18em] text-sky-300">Truvi · Program Management</p><h1 className="mt-1 text-2xl font-semibold md:text-3xl">Ambassador Operating System</h1><p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage registration, certification, tasks, campaigns, approved incentive policies and payouts from one workspace.</p></div><Button variant="outline" onClick={() => { setLoading(true); void load(); }}><RefreshCw size={15} className="mr-2" />Refresh</Button></header>
-      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); if (id === "performance") void loadPerformance(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
+      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); if (id === "performance") void loadPerformance(); if (id === "career") void loadCareerEngine(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
 
       {tab === "overview" && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
