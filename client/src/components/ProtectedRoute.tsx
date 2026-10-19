@@ -20,8 +20,22 @@ const CP_UNGATED = new Set(["/cp/guide"]);
 export function ProtectedRoute({ roles, children }: { roles: Role[]; children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const { pathname } = useLocation();
 
+  // Do not send a user to login just because the in-memory token has not yet
+  // been restored from the HTTP-only refresh cookie after a reload.
+  if (!isInitialized) {
+    return (
+      <div
+        className="flex min-h-[50vh] items-center justify-center"
+        role="status"
+        aria-label="Restoring your session"
+      >
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+      </div>
+    );
+  }
   if (!accessToken || !user) return <Navigate to="/login" replace />;
   if (!roles.includes(user.role)) return <Navigate to={dashboardPath(user)} replace />;
 
