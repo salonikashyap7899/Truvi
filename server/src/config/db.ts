@@ -1035,6 +1035,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "lesson" text NOT NULL,
        "key_points" jsonb NOT NULL DEFAULT '[]'::jsonb,
        "assignment" text NOT NULL,
+       "questions" jsonb NOT NULL DEFAULT '[]'::jsonb,
        "video_url" text,
        "version" integer NOT NULL DEFAULT 1,
        "is_published" boolean NOT NULL DEFAULT false,
@@ -1045,6 +1046,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_training_modules_day_pub_idx" ON "ambassador_os_training_modules" ("day", "is_published", "version")`,
+    `ALTER TABLE "ambassador_os_training_modules" ADD COLUMN IF NOT EXISTS "questions" jsonb NOT NULL DEFAULT '[]'::jsonb`,
 
     `CREATE TABLE IF NOT EXISTS "ambassador_os_campaigns" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
