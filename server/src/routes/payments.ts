@@ -251,7 +251,7 @@ router.post("/verify", async (req, res) => {
   }
 
   // The conditional update makes voucher redemption and notifications run only
-  // for the first successful CREATED → PAID transition.
+  // for the first successful non-PAID → PAID transition.
   if (row.status !== "PAID") {
     const [updated] = await db
       .update(payments)
