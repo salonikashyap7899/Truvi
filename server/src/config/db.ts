@@ -1010,6 +1010,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "project_name" text NOT NULL,
        "location" text NOT NULL,
        "target_inventory" integer NOT NULL,
+       "sales_target" integer NOT NULL DEFAULT 114,
        "unit_area_sq_ft" integer NOT NULL,
        "target_days" integer NOT NULL,
        "starts_at" timestamptz,
@@ -1021,6 +1022,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `ALTER TABLE "ambassador_os_campaigns" ADD COLUMN IF NOT EXISTS "project_id" uuid REFERENCES "projects"("id")`,
+    `ALTER TABLE "ambassador_os_campaigns" ADD COLUMN IF NOT EXISTS "sales_target" integer NOT NULL DEFAULT 114`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_campaign_status_idx" ON "ambassador_os_campaigns" ("status")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_tasks" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
