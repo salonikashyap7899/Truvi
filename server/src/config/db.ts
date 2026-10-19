@@ -989,6 +989,7 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_training_user_day_unique" ON "ambassador_os_training_progress" ("user_id", "day")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_training_status_idx" ON "ambassador_os_training_progress" ("status", "day")`,
+    `ALTER TABLE "ambassador_os_campaigns" ADD COLUMN IF NOT EXISTS "project_id" uuid REFERENCES "projects"("id")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_campaigns" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "project_id" uuid REFERENCES "projects"("id"),
