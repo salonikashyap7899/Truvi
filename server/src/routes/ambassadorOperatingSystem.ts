@@ -301,6 +301,24 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
   res.json({ tasks });
 });
 
+router.post("/tasks/:id/start", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const db = getDb();
+  const [task] = await db.select().from(ambassadorOsTasks).where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
+  if (!task) return res.status(404).json({ error: "Task not found" });
+  if (task.status !== "ASSIGNED") return res.status(409).json({ error: "Only assigned tasks can be started" });
+  if (task.category !== "TRAINING") {
+    const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+    const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+    if (!profile?.termsAcceptedAt || !account?.onboardingVerified || profile.status !== "ACTIVE") {
+      return res.status(403).json({ error: "Complete verification, certification and activation before starting sales or field tasks", code: "AMBASSADOR_ACTIVATION_REQUIRED" });
+    }
+  }
+  const [updated] = await db.update(ambassadorOsTasks).set({ status: "IN_PROGRESS" }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, "ASSIGNED"))).returning();
+  if (!updated) return res.status(409).json({ error: "The task changed. Refresh and try again." });
+  res.json({ task: updated });
+});
+
 const evidenceSchema = z.object({ evidenceText: z.string().trim().min(5).max(5000), evidenceUrl: z.string().url().optional().or(z.literal("")) });
 
 router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
@@ -311,6 +329,13 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   const [task] = await db.select().from(ambassadorOsTasks).where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
   if (!task) return res.status(404).json({ error: "Task not found" });
   if (!["ASSIGNED", "IN_PROGRESS", "REJECTED"].includes(task.status)) return res.status(409).json({ error: "This task cannot accept a submission in its current state" });
+  if (task.category !== "TRAINING") {
+    const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+    const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+    if (!profile?.termsAcceptedAt || !account?.onboardingVerified || profile.status !== "ACTIVE") {
+      return res.status(403).json({ error: "Complete verification, certification and activation before submitting sales or field work", code: "AMBASSADOR_ACTIVATION_REQUIRED" });
+    }
+  }
   const [updated] = await db.update(ambassadorOsTasks).set({
     status: "SUBMITTED", evidenceText: parsed.data.evidenceText, evidenceUrl: parsed.data.evidenceUrl || null,
     reviewReason: null, reviewedById: null, reviewedAt: null,
