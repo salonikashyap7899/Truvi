@@ -48,6 +48,7 @@ type BookingRecord = {
   expectedIncentivePayoutAt?: string | null; cancellationReason?: string | null; refundStatus?: string;
   refundAmount?: number; refundReference?: string | null; sourceChannel?: string | null; customerName: string; submitterName?: string | null;
 };
+type SalesOwner = { userId: string; name: string; email: string; role: string };
 type SalesPipeline = { leads: PipelineLead[]; bookings: BookingRecord[]; campaigns: Campaign[]; channelCosts: Array<{ _id: string; campaignId: string; sourceChannel: string; amount: number; periodStart: string; periodEnd: string; notes?: string | null }> };
 type SalesSummary = {
   totals: { campaigns: number; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; commissionEarned: number };
@@ -71,6 +72,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [salesPipeline, setSalesPipeline] = useState<SalesPipeline | null>(null);
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null);
+  const [salesOwners, setSalesOwners] = useState<SalesOwner[]>([]);
   const [followUps, setFollowUps] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSales, setLoadingSales] = useState(false);
@@ -145,14 +147,16 @@ export default function AdminAmbassadorOperatingSystemPage() {
   async function loadSalesWorkspace() {
     setLoadingSales(true);
     try {
-      const [pipelineRes, summaryRes, followRes] = await Promise.all([
+      const [pipelineRes, summaryRes, followRes, ownersRes] = await Promise.all([
         api.get("/ambassador-os/admin/sales-pipeline"),
         api.get("/ambassador-os/admin/sales-dashboard"),
         api.get("/ambassador-os/admin/follow-ups"),
+        api.get("/ambassador-os/admin/sales-owners"),
       ]);
       setSalesPipeline(pipelineRes.data as SalesPipeline);
       setSalesSummary(summaryRes.data as SalesSummary);
       setFollowUps(followRes.data.followUps ?? []);
+      setSalesOwners(ownersRes.data.salesOwners ?? []);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Could not load sales workspace");
     } finally {
@@ -474,6 +478,11 @@ export default function AdminAmbassadorOperatingSystemPage() {
             ["Qualified leads",salesSummary.totals.qualifiedLeads],["Visits scheduled",salesSummary.totals.siteVisitsScheduled],["Visits completed",salesSummary.totals.siteVisitsCompleted],["Bookings pending verification",salesSummary.totals.bookingsPendingVerification],
             ["Cancelled bookings",salesSummary.totals.cancelledBookings],["Commission earned",money(salesSummary.totals.commissionEarned)],
           ].map(([label,value])=><Card key={String(label)} className="border-white/10 bg-white/[0.035] p-4"><p className="text-xs text-muted-foreground">{String(label)}</p><p className="mt-2 text-2xl font-semibold">{String(value)}</p></Card>)}</div>
+          <Card className="border-white/10 bg-white/[0.035] p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Lead qualification & ownership review</h2><Badge variant="info">{salesPipeline.leads.length} leads</Badge></div>
+            {salesPipeline.leads.length===0?<Empty text="No leads recorded for the campaign portfolio."/>:<div className="overflow-x-auto"><table className="w-full min-w-[1180px] text-left text-xs"><thead className="text-muted-foreground"><tr><th className="pb-2 pr-3">Lead / project</th><th className="pb-2 pr-3">Qualification</th><th className="pb-2 pr-3">Stage</th><th className="pb-2 pr-3">Sales owner</th><th className="pb-2 pr-3">Ownership review</th><th className="pb-2 pr-3">Action</th></tr></thead><tbody>{salesPipeline.leads.map((lead)=><tr key={lead._id} className="border-t border-white/10 align-top"><td className="py-3 pr-3"><p className="font-medium">{lead.leadReference} · {lead.projectName}</p><p className="mt-1 text-muted-foreground">{lead.clientName} · {lead.clientPhone}</p><p className="mt-1 text-muted-foreground">{lead.unitNumber?"Unit "+lead.unitNumber:"Project enquiry"}{lead.isDuplicate?" · DUPLICATE FLAG":""}</p><p className="mt-1 text-muted-foreground">Consent: {lead.creatorRole==="BUYER"?"Buyer account":lead.contactConsent&&lead.contactConsentAt&&lead.consentTextVersion?"Recorded":"Missing"}</p></td><td className="py-3 pr-3"><p>{pretty(lead.purchasePurpose??"UNDECIDED")} · {lead.budgetRange??"Budget not set"}</p><p className="mt-1 text-muted-foreground">{lead.preferredPlotSize??lead.requirement??"Size not set"}</p><p className="mt-1 text-muted-foreground">Timeline: {pretty(lead.purchaseTimeline??"NOT_DECIDED")} · Source: {pretty(lead.sourceChannel??"OTHER")}</p></td><td className="py-3 pr-3"><select className="rounded-lg border border-white/10 bg-slate-950 p-2" value={lead.stage} onChange={(e)=>void reviewLead(lead,{stage:e.target.value})}>{["GENERATED","ASSIGNED","CONTACTED","INTERESTED","SITE_VISIT","NEGOTIATION","BOOKING","REGISTRATION","COMPLETED","LOST"].map((v)=><option key={v}>{v}</option>)}</select><p className="mt-1 text-muted-foreground">Created {new Date(lead.createdAt).toLocaleDateString()}</p></td><td className="py-3 pr-3"><select className="max-w-[220px] rounded-lg border border-white/10 bg-slate-950 p-2" value={lead.assignedToId??""} onChange={(e)=>void reviewLead(lead,{assignedToId:e.target.value||null})}><option value="">Unassigned</option>{salesOwners.map((owner)=><option key={owner.userId} value={owner.userId}>{owner.name} · {owner.role}</option>)}</select></td><td className="py-3 pr-3"><Badge variant={lead.ownershipReviewStatus==="RESOLVED"||lead.ownershipReviewStatus==="NOT_REQUIRED"?"info":"warning"}>{pretty(lead.ownershipReviewStatus)}</Badge><input className="mt-2 h-9 w-full min-w-[190px] rounded-lg border border-white/10 bg-slate-950 px-2" placeholder="Ownership review note" value={reviewBookingReason["lead:"+lead._id]??lead.ownershipReviewNotes??""} onChange={(e)=>setReviewBookingReason((p)=>({...p,["lead:"+lead._id]:e.target.value}))}/></td><td className="py-3 pr-3"><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={()=>void reviewLead(lead,{ownershipReviewStatus:"OPEN",ownershipReviewNotes:reviewBookingReason["lead:"+lead._id]??lead.ownershipReviewNotes??"Admin review requested"})}>Flag dispute</Button>{["OPEN","UNDER_REVIEW"].includes(lead.ownershipReviewStatus)&&<><Button size="sm" variant="outline" onClick={()=>void reviewLead(lead,{ownershipReviewStatus:"UNDER_REVIEW",ownershipReviewNotes:reviewBookingReason["lead:"+lead._id]??lead.ownershipReviewNotes??""})}>Investigate</Button><Button size="sm" onClick={()=>void reviewLead(lead,{ownershipReviewStatus:"RESOLVED",ownershipReviewNotes:reviewBookingReason["lead:"+lead._id]??lead.ownershipReviewNotes??"Resolved by Admin"})}>Resolve</Button></>}</div><p className="mt-1 text-muted-foreground">Lead ownership is preserved in the referral audit chain.</p></td></tr>)}</tbody></table></div>}
+          </Card>
+
           <div className="grid gap-5 xl:grid-cols-[400px_1fr]">
             <Card className="h-fit border-white/10 bg-white/[0.035] p-5">
               <h2 className="mb-1 font-semibold">Record property booking</h2><p className="mb-4 text-xs text-muted-foreground">This records a separate property booking, not a lead status shortcut. Sale targets only count units marked Sale Verified after registration evidence.</p>
