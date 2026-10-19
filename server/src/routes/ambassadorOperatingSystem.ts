@@ -17,6 +17,7 @@ import {
 } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { logAudit } from "../services/audit";
+import { createNotifications, type NotificationInput } from "../services/notificationService";
 import {
   canActivateAmbassador,
   calculateIncentiveAmount,
@@ -28,6 +29,15 @@ import {
 
 const router = Router();
 router.use(authenticate);
+
+async function notifySafely(userIds: string[], input: NotificationInput) {
+  try {
+    await createNotifications(userIds, input);
+  } catch (error) {
+    // Notification failure must not undo or mask a successful business operation.
+    console.error("Ambassador OS notification failed:", error instanceof Error ? error.message : "unknown error");
+  }
+}
 
 type Question = { prompt: string; options: string[]; answer: number };
 type TrainingModule = {
@@ -523,6 +533,17 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
     updatedAt: now,
   }).where(eq(ambassadorOsProfiles.userId, String(req.params.userId)));
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.training.review", resourceType: "ambassador_os_training", resourceId: updated._id, metadata: { ambassadorId: displayProfile(profile).ambassadorId, day, status, practicalStatus, ethicsStatus } });
+  await notifySafely([String(req.params.userId)], {
+    type: "ambassador_training_reviewed",
+    title: status === "COMPLETED" ? "Training module approved" : "Training review updated",
+    message: status === "COMPLETED"
+      ? `Day ${day} is approved. ${day === 7 ? "Your internal certificate is now available." : "You can continue to the next module."}`
+      : `Day ${day} needs your attention. Review the trainer feedback and next steps in your Ambassador workspace.`,
+    data: { screen: "AmbassadorOperatingSystem", day, status },
+    actorUserId: req.user!.userId,
+    priority: status === "RETAKE_REQUIRED" ? "high" : "normal",
+    dedupeKey: `${updated._id}:${status}:${now.toISOString()}`,
+  });
   res.json({ progress: updated });
 });
 
@@ -571,6 +592,17 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
   }
   const [updated] = await db.update(ambassadorOsProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(ambassadorOsProfiles.userId, profile.userId)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.profile.admin_update", resourceType: "ambassador_os_profile", resourceId: updated._id, metadata: { ...updates, promotionReason: promotionReason ?? null } });
+  if (updated.status !== profile.status) {
+    await notifySafely([profile.userId], {
+      type: "ambassador_status_updated",
+      title: "Ambassador account status updated",
+      message: `Your Ambassador program status is now ${updated.status.replace(/_/g, " ").toLowerCase()}.`,
+      data: { screen: "AmbassadorOperatingSystem", status: updated.status },
+      actorUserId: req.user!.userId,
+      priority: ["SUSPENDED", "EXITED"].includes(updated.status) ? "high" : "normal",
+      dedupeKey: `${updated._id}:${updated.status}`,
+    });
+  }
   res.json({ profile: displayProfile(updated) });
 });
 
@@ -600,6 +632,15 @@ router.post("/admin/tasks", requireRole("ADMIN"), async (req: AuthedRequest, res
     campaignId: parsed.data.campaignId ?? null, createdById: req.user!.userId,
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.create", resourceType: "ambassador_os_task", resourceId: task._id, metadata: { title: task.title, category: task.category, assignedToId: task.assignedToId } });
+  await notifySafely([assignee._id], {
+    type: "ambassador_task_assigned",
+    title: "New Ambassador task assigned",
+    message: `You have a new task: ${task.title}`,
+    data: { screen: "AmbassadorOperatingSystem", taskId: task._id },
+    actorUserId: req.user!.userId,
+    priority: "normal",
+    dedupeKey: task._id,
+  });
   res.status(201).json({ task });
 });
 
@@ -625,6 +666,19 @@ router.patch("/admin/tasks/:id/review", requireRole("ADMIN"), async (req: Authed
     completedAt: parsed.data.status === "APPROVED" ? now : null,
   }).where(eq(ambassadorOsTasks._id, task._id)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.review", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, reviewReason: updated.reviewReason } });
+  await notifySafely([task.assignedToId], {
+    type: "ambassador_task_reviewed",
+    title: updated.status === "APPROVED" ? "Ambassador task approved" : "Ambassador task review updated",
+    message: updated.status === "REJECTED"
+      ? `The task "${updated.title}" needs changes: ${updated.reviewReason}`
+      : updated.status === "APPROVED"
+        ? `The task "${updated.title}" has been approved.`
+        : `The task "${updated.title}" was closed by the program team.`,
+    data: { screen: "AmbassadorOperatingSystem", taskId: updated._id, status: updated.status },
+    actorUserId: req.user!.userId,
+    priority: updated.status === "REJECTED" ? "high" : "normal",
+    dedupeKey: `${updated._id}:${updated.status}:${now.toISOString()}`,
+  });
   res.json({ task: updated });
 });
 
@@ -706,6 +760,20 @@ router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedReq
   }
   const [updated] = await db.update(ambassadorOsCampaigns).set({ ...parsed.data, projectId, updatedAt: new Date() }).where(eq(ambassadorOsCampaigns._id, current._id)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign.update", resourceType: "ambassador_os_campaign", resourceId: updated._id, metadata: parsed.data });
+  if (updated.status === "ACTIVE" && current.status !== "ACTIVE") {
+    const activeAmbassadors = await db.select({ userId: ambassadorOsProfiles.userId })
+      .from(ambassadorOsProfiles)
+      .where(eq(ambassadorOsProfiles.status, "ACTIVE"));
+    await notifySafely(activeAmbassadors.map((row) => row.userId), {
+      type: "ambassador_campaign_published",
+      title: "A new Ambassador campaign is live",
+      message: `${updated.name} is now active. Review the verified project details in your Ambassador workspace.`,
+      data: { screen: "AmbassadorOperatingSystem", campaignId: updated._id },
+      actorUserId: req.user!.userId,
+      priority: "normal",
+      dedupeKey: updated._id,
+    });
+  }
   res.json({ campaign: updated });
 });
 
@@ -823,6 +891,15 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
     amount, status: "PENDING", createdById: req.user!.userId,
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.create", resourceType: "ambassador_os_incentive", resourceId: incentive._id, metadata: { userId: ambassador._id, policyId: policy._id, policyVersion: policy.version, amount } });
+  await notifySafely([ambassador._id], {
+    type: "ambassador_incentive_recorded",
+    title: "Eligible sale incentive recorded",
+    message: "An incentive record has been created and is waiting for approval. This is not yet a payable amount.",
+    data: { screen: "AmbassadorOperatingSystem", incentiveId: incentive._id, status: incentive.status },
+    actorUserId: req.user!.userId,
+    priority: "normal",
+    dedupeKey: incentive._id,
+  });
   res.status(201).json({ incentive });
 });
 
@@ -848,6 +925,17 @@ router.patch("/admin/incentives/:id/status", requireRole("ADMIN"), async (req: A
     paidAt: parsed.data.status === "PAID" ? now : current.paidAt,
   }).where(eq(ambassadorOsIncentives._id, current._id)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.status", resourceType: "ambassador_os_incentive", resourceId: updated._id, metadata: { from: current.status, to: updated.status, paymentReference: updated.paymentReference } });
+  await notifySafely([current.userId], {
+    type: "ambassador_incentive_status",
+    title: updated.status === "PAID" ? "Ambassador incentive paid" : "Ambassador incentive status updated",
+    message: updated.status === "PAID"
+      ? "Your incentive has been marked paid. Open your private ledger to view the payment reference."
+      : `Your incentive status is now ${updated.status.toLowerCase()}.`,
+    data: { screen: "AmbassadorOperatingSystem", incentiveId: updated._id, status: updated.status },
+    actorUserId: req.user!.userId,
+    priority: updated.status === "PAID" ? "high" : "normal",
+    dedupeKey: `${updated._id}:${updated.status}`,
+  });
   res.json({ incentive: updated });
 });
 
