@@ -51,6 +51,7 @@ type Question = { prompt: string; options: string[]; answer: number };
 type TrainingModule = {
   day: number; title: string; summary: string; lesson: string;
   keyPoints: string[]; assignment: string; questions: Question[];
+  videoUrl?: string | null; version?: number;
 };
 
 // Quiz answer keys stay on the server. Each quiz is five questions x 20 points;
@@ -149,6 +150,29 @@ const MODULES: TrainingModule[] = [
   },
 ];
 
+async function getEffectiveModules(): Promise<TrainingModule[]> {
+  const publishedRows = await getDb().select().from(ambassadorOsTrainingModules)
+    .where(eq(ambassadorOsTrainingModules.isPublished, true))
+    .orderBy(desc(ambassadorOsTrainingModules.version));
+  const latestByDay = new Map<number, typeof publishedRows[number]>();
+  for (const row of publishedRows) if (!latestByDay.has(row.day)) latestByDay.set(row.day, row);
+  return MODULES.map((fallback) => {
+    const row = latestByDay.get(fallback.day);
+    if (!row) return fallback;
+    return {
+      day: row.day,
+      title: row.title,
+      summary: row.summary,
+      lesson: row.lesson,
+      keyPoints: row.keyPoints ?? fallback.keyPoints,
+      assignment: row.assignment,
+      questions: row.questions?.length === 5 ? row.questions : fallback.questions,
+      videoUrl: row.videoUrl,
+      version: row.version,
+    };
+  });
+}
+
 function safeModule(module: TrainingModule) {
   return {
     day: module.day,
@@ -158,6 +182,8 @@ function safeModule(module: TrainingModule) {
     keyPoints: module.keyPoints,
     assignment: module.assignment,
     questions: module.questions.map(({ prompt, options }) => ({ prompt, options })),
+    videoUrl: module.videoUrl ?? null,
+    version: module.version ?? 1,
   };
 }
 
@@ -194,6 +220,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
+  const effectiveModules = await getEffectiveModules();
   const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const [progress, tasks, campaigns, incentives, ownLeads, registeredLeadRows] = await Promise.all([
     db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId)),
@@ -360,17 +387,18 @@ router.get("/training", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
+  const effectiveModules = await getEffectiveModules();
   const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const progress = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId));
   const byDay = new Map(progress.map((p) => [p.day, p]));
-  res.json({ modules: MODULES.map((m) => {
+  res.json({ modules: effectiveModules.map((m) => {
     const previousComplete = m.day === 1 || byDay.get(m.day - 1)?.status === "COMPLETED";
     return { ...safeModule(m), unlocked: previousComplete && Boolean(profile.termsAcceptedAt) && account?.onboardingVerified === true, progress: byDay.get(m.day) ?? null };
   })});
 });
 
 const quizSubmitSchema = z.object({
-  answers: z.array(z.number().int().min(0).max(3)).length(5),
+  answers: z.array(z.number().int().min(0).max(4)).length(5),
   assignmentText: z.string().trim().min(5).max(5000),
 });
 
@@ -396,7 +424,11 @@ router.post("/training/:day/submit", async (req: AuthedRequest, res) => {
   if (day > 1 && existing.find((row) => row.day === day - 1)?.status !== "COMPLETED") {
     return res.status(409).json({ error: "Complete the previous training day and receive trainer approval before proceeding" });
   }
-  const module = MODULES[day - 1];
+  const currentModules = await getEffectiveModules();
+  const module = currentModules.find((m) => m.day === day) ?? MODULES[day - 1];
+  if (parsed.data.answers.some((answer, index) => answer >= module.questions[index].options.length)) {
+    return res.status(400).json({ error: "One or more quiz answers are outside the published answer options" });
+  }
   const correct = parsed.data.answers.reduce((sum, answer, i) => sum + (answer === module.questions[i].answer ? 1 : 0), 0);
   const quizScore = correct * 20;
   const status = quizScore >= 80 ? "ASSESSMENT_PENDING" as const : "RETAKE_REQUIRED" as const;
@@ -404,6 +436,7 @@ router.post("/training/:day/submit", async (req: AuthedRequest, res) => {
   const [progress] = await db.insert(ambassadorOsTrainingProgress).values({
     userId: req.user!.userId, day, quizScore, answers: parsed.data.answers, assignmentText: parsed.data.assignmentText,
     practicalStatus: "PENDING", ethicsStatus: "PENDING", status, trainerFeedback: null,
+    lessonVersion: module.version ?? 1,
     reviewedById: null, reviewedAt: null, completedAt: null, updatedAt: now,
   }).onConflictDoUpdate({
     target: [ambassadorOsTrainingProgress.userId, ambassadorOsTrainingProgress.day],
