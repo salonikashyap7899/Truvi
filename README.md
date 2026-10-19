@@ -51,8 +51,10 @@ npm install
 
 npm run db:push    # creates/updates all tables in Supabase from src/db/schema.ts
 npm test           # commission engine — tests must pass
-npm run seed       # seeds realistic data across every role/stage
+NODE_ENV=development ALLOW_DESTRUCTIVE_SEED=true npm run seed  # LOCAL/TEST ONLY; deletes existing application data
 npm run dev        # starts the API with Socket.io
+
+**Security warning:** Never run the destructive seed against production. It refuses to run unless NODE_ENV is explicitly development or test and ALLOW_DESTRUCTIVE_SEED=true.
 ```
 
 ### 3. Frontend
