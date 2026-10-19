@@ -1082,6 +1082,47 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_channel_cost_campaign_idx" ON "ambassador_os_channel_costs" ("campaign_id", "source_channel", "period_start")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_scorecard_policies" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "version" integer NOT NULL DEFAULT 1,
+       "genuine_lead_quality_weight" integer NOT NULL DEFAULT 25,
+       "customer_communication_weight" integer NOT NULL DEFAULT 20,
+       "site_visit_contribution_weight" integer NOT NULL DEFAULT 15,
+       "verified_sales_contribution_weight" integer NOT NULL DEFAULT 15,
+       "crm_discipline_weight" integer NOT NULL DEFAULT 10,
+       "training_skill_development_weight" integer NOT NULL DEFAULT 10,
+       "ethics_compliance_weight" integer NOT NULL DEFAULT 5,
+       "active" boolean NOT NULL DEFAULT true,
+       "approval_reference" text,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_scorecard_policy_version_unique" ON "ambassador_os_scorecard_policies" ("version")`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_scorecard_policy_active_idx" ON "ambassador_os_scorecard_policies" ("active")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_performance_reviews" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "ambassador_id" uuid NOT NULL REFERENCES "users"("id"),
+       "period_start" timestamptz NOT NULL,
+       "period_end" timestamptz NOT NULL,
+       "scorecard_policy_version" integer NOT NULL,
+       "genuine_lead_quality_score" integer NOT NULL,
+       "customer_communication_score" integer NOT NULL,
+       "site_visit_contribution_score" integer NOT NULL,
+       "verified_sales_contribution_score" integer NOT NULL,
+       "crm_discipline_score" integer NOT NULL,
+       "training_skill_development_score" integer NOT NULL,
+       "ethics_compliance_score" integer NOT NULL,
+       "weighted_score" double precision NOT NULL,
+       "serious_misconduct" boolean NOT NULL DEFAULT false,
+       "compliance_notes" text,
+       "review_notes" text,
+       "reviewed_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "reviewed_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_performance_ambassador_period_idx" ON "ambassador_os_performance_reviews" ("ambassador_id", "period_end")`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_performance_misconduct_idx" ON "ambassador_os_performance_reviews" ("serious_misconduct", "period_end")`,
+
 
     // Real-estate bookings are distinct from enquiry/lead records and incentives.
     `CREATE TABLE IF NOT EXISTS "ambassador_os_property_bookings" (
