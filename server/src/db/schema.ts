@@ -2396,6 +2396,10 @@ export const ambassadorOsProfiles = pgTable(
     preferredRole: text("preferred_role").notNull().default("SALES"),
     weeklyAvailabilityHours: integer("weekly_availability_hours").notNull().default(5),
     termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }),
+    termsVersion: text("terms_version"),
+    certificateNo: text("certificate_no"),
+    certifiedAt: timestamp("certified_at", { withTimezone: true, mode: "date" }),
+    certifiedById: uuid("certified_by_id").references(() => users._id),
     status: text("status").$type<AmbassadorOsStatus>().notNull().default("REGISTERED"),
     currentLevel: text("current_level").notNull().default("L0"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
@@ -2404,6 +2408,7 @@ export const ambassadorOsProfiles = pgTable(
   (t) => [
     uniqueIndex("ambassador_os_profiles_user_unique").on(t.userId),
     uniqueIndex("ambassador_os_profiles_number_unique").on(t.ambassadorNo),
+    uniqueIndex("ambassador_os_profiles_certificate_unique").on(t.certificateNo),
     index("ambassador_os_profiles_status_idx").on(t.status),
   ]
 );
