@@ -103,5 +103,8 @@ export function verifyBuyerDocSignature(docId: string, exp: string, sig: string)
  * stored /uploads URL so existing documents continue to open.
  */
 export function presentBuyerDocUrl(docId: string, stored: string): string {
-  return isPrivateRef(stored) ? signedBuyerDocUrl(docId) : stored;
+  // Never re-expose a legacy public URL through an authenticated API. Run the
+  // migration script to move existing files into private storage; unconverted
+  // documents intentionally have no downloadable URL until migrated.
+  return isPrivateRef(stored) ? signedBuyerDocUrl(docId) : "";
 }
