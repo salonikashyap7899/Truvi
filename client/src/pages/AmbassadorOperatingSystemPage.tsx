@@ -40,6 +40,7 @@ type AmbassadorLead = {
   nextFollowUpAt?: string | null; createdAt: string; isDuplicate: boolean; ownershipReviewStatus: string;
   contactConsentRecorded: boolean; canScheduleFollowUp: boolean;
 };
+type PrivacyRequest = { _id: string; requestType: string; reason: string; status: string; reviewNotes?: string | null; completionReference?: string | null; requestedAt: string; updatedAt: string; completedAt?: string | null };
 type FollowUp = {
   _id: string; leadReference: string; leadStage: string; projectName: string; dueAt: string; channel: string; note: string;
   status: string; outcome?: string | null; isOverdue: boolean;
@@ -80,6 +81,9 @@ export default function AmbassadorOperatingSystemPage() {
   const [myLeaderboardRank, setMyLeaderboardRank] = useState<LeaderboardEntry | null>(null);
   const [myLeads, setMyLeads] = useState<AmbassadorLead[]>([]);
   const [approvedMaterials, setApprovedMaterials] = useState<MarketingMaterial[]>([]);
+  const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([]);
+  const [privacyForm, setPrivacyForm] = useState({ requestType: "ACCESS", reason: "" });
+  const [submittingPrivacy, setSubmittingPrivacy] = useState(false);
   const [materialForm, setMaterialForm] = useState({ campaignId: "", title: "", channel: "WHATSAPP", content: "", assetUrl: "" });
   const [submittingMaterial, setSubmittingMaterial] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -103,12 +107,13 @@ export default function AmbassadorOperatingSystemPage() {
 
   async function load() {
     try {
-      const [res, rankRes, leadsRes, followUpsRes, marketingRes] = await Promise.all([
+      const [res, rankRes, leadsRes, followUpsRes, marketingRes, privacyRes] = await Promise.all([
         api.get("/ambassador-os/me"),
         api.get("/ambassador-os/leaderboard").catch(() => ({ data: { leaderboard: [], mine: null } })),
         api.get("/ambassador-os/leads/me").catch(() => ({ data: { leads: [] as AmbassadorLead[] } })),
         api.get("/ambassador-os/follow-ups/me").catch(() => ({ data: { followUps: [] as FollowUp[] } })),
         api.get("/ambassador-os/marketing-materials").catch(() => ({ data: { materials: [] as MarketingMaterial[] } })),
+        api.get("/ambassador-os/privacy/requests/me").catch(() => ({ data: { requests: [] as PrivacyRequest[] } })),
       ]);
       const data = res.data as Snapshot;
       setSnapshot(data);
@@ -117,6 +122,7 @@ export default function AmbassadorOperatingSystemPage() {
       setMyLeads(leadsRes.data.leads ?? []);
       setFollowUps(followUpsRes.data.followUps ?? []);
       setApprovedMaterials(marketingRes.data.materials ?? []);
+      setPrivacyRequests(privacyRes.data.requests ?? []);
       setMaterialForm((form) => ({ ...form, campaignId: form.campaignId || data.campaigns[0]?.id || "" }));
       setCollege(data.profile.college ?? "");
       setCourse(data.profile.course ?? "");
@@ -192,7 +198,7 @@ export default function AmbassadorOperatingSystemPage() {
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not start task"); }
   }
 
-  async function acknowledgeCampaign(campaign: Campaign) {
+  async function submitPrivacyRequest(e: React.FormEvent) {\n    e.preventDefault();\n    if (privacyForm.reason.trim().length < 10) { toast.error("Please describe the request in at least 10 characters."); return; }\n    setSubmittingPrivacy(true);\n    try {\n      await api.post("/ambassador-os/privacy/requests", { requestType: privacyForm.requestType, reason: privacyForm.reason.trim() });\n      toast.success("Privacy request submitted to the Truvi review queue.");\n      setPrivacyForm((form) => ({...form,reason:""}));\n      await load();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit privacy request"); }\n    finally { setSubmittingPrivacy(false); }\n  }\n\n  async function acknowledgeCampaign(campaign: Campaign) {
     if (!campaign.marketingGuidelines) { toast.error("The Truvi program team must publish approved guidelines for this campaign first."); return; }
     try {
       await api.post(`/ambassador-os/campaigns/${campaign.id}/acknowledge`, { version: campaign.marketingGuidelines.version, confirmed: true });
@@ -446,6 +452,18 @@ export default function AmbassadorOperatingSystemPage() {
           {myLeaderboardRank && myLeaderboardRank.scorecardReviewed && myLeaderboardRank.rank !== null && myLeaderboardRank.rank > 10 && <p className="mt-3 rounded-lg border border-white/10 p-3 text-sm text-muted-foreground">Your current position: #{myLeaderboardRank.rank} with {myLeaderboardRank.weightedScore?.toFixed(2)}/100 weighted points.</p>}
           {myLeaderboardRank && myLeaderboardRank.scorecardReviewed && myLeaderboardRank.rank !== null && myLeaderboardRank.rank <= 10 && <p className="mt-3 text-xs text-muted-foreground">You're currently ranked #{myLeaderboardRank.rank} · {myLeaderboardRank.weightedScore?.toFixed(2)}/100, using scorecard policy v{myLeaderboardRank.scorecardPolicyVersion}.</p>}
           {!myLeaderboardRank && <p className="mt-3 text-xs text-muted-foreground">Ranking is available after activation and a reviewed performance scorecard.</p>}
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="text-sky-300" /> My privacy & data requests</h2><p className="mt-1 text-sm text-muted-foreground">Request access to your OS records, correction of data, or review of a deletion request. Sensitive records and legally-required audit/finance history may need restricted handling; submission does not automatically erase records.</p></div>
+        <Card className="border-white/10 bg-white/[0.035] p-5"><form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void submitPrivacyRequest(e)}>
+          <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Request type</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={privacyForm.requestType} onChange={(e) => setPrivacyForm((f) => ({...f,requestType:e.target.value}))}>{[["ACCESS","Access to my records"],["RECTIFICATION","Correct my data"],["DELETION","Review a deletion request"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+          <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Details and scope</span><textarea required minLength={10} maxLength={3000} rows={3} className="w-full rounded-lg border border-white/10 bg-slate-950 p-3" value={privacyForm.reason} onChange={(e) => setPrivacyForm((f) => ({...f,reason:e.target.value}))} placeholder="Describe the records or correction you are requesting…" /></label>
+          <div className="md:col-span-3"><Button type="submit" disabled={submittingPrivacy || privacyForm.reason.trim().length < 10}>{submittingPrivacy ? "Submitting…" : "Submit privacy request"}</Button></div>
+        </form></Card>
+        <Card className="border-white/10 bg-white/[0.035] p-4"><h3 className="mb-3 font-semibold">Request history</h3>
+          {privacyRequests.length === 0 ? <Empty text="You have not submitted a privacy request yet."/> : <div className="space-y-3">{privacyRequests.map((request) => <div key={request._id} className="rounded-lg border border-white/10 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-medium">{request.requestType.replace(/_/g," ")}</p><p className="text-xs text-muted-foreground">Submitted {new Date(request.requestedAt).toLocaleString("en-IN")}</p></div><Badge variant={request.status === "COMPLETED" ? "success" : request.status === "REJECTED" ? "danger" : "info"}>{statusText[request.status] ?? request.status.replace(/_/g," ")}</Badge></div><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{request.reason}</p>{request.reviewNotes && <p className="mt-2 text-sm">Reviewer note: {request.reviewNotes}</p>}{request.completionReference && <p className="mt-1 text-xs text-muted-foreground">Case reference: {request.completionReference}</p>}</div>)}</div>}
         </Card>
       </section>
 
