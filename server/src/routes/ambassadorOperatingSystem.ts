@@ -4,10 +4,15 @@ import { z } from "zod";
 import { getDb } from "../config/db";
 import {
   ambassadorOsCampaigns,
+  ambassadorOsChannelCosts,
+  ambassadorOsFollowUps,
   ambassadorOsIncentivePolicies,
   ambassadorOsIncentives,
   ambassadorOsProfiles,
+  ambassadorOsPropertyBookingHistory,
+  ambassadorOsPropertyBookings,
   ambassadorOsTasks,
+  ambassadorOsTrainingModules,
   ambassadorOsTrainingProgress,
   leads,
   projects,
@@ -469,6 +474,365 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
     dedupeKey: `${updated._id}:SUBMITTED:${Date.now()}`,
   });
   res.json({ task: updated });
+});
+
+
+const adminLeadReviewSchema = z.object({
+  stage: z.enum(["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"]).optional(),
+  assignedToId: z.string().uuid().nullable().optional(),
+  budgetRange: z.string().trim().max(80).optional().or(z.literal("")),
+  purchasePurpose: z.enum(["SELF_USE", "INVESTMENT", "UNDECIDED"]).optional(),
+  preferredPlotSize: z.string().trim().max(100).optional().or(z.literal("")),
+  purchaseTimeline: z.enum(["IMMEDIATE", "WITHIN_3_MONTHS", "3_TO_6_MONTHS", "6_TO_12_MONTHS", "MORE_THAN_12_MONTHS", "NOT_DECIDED"]).optional(),
+  sourceChannel: z.enum(["AMBASSADOR_REFERRAL", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "ORGANIC_WEBSITE", "PAID_ADVERTISEMENT", "CUSTOMER_REFERRAL", "TELECALLER", "CHANNEL_PARTNER", "DIRECT_ENQUIRY", "OTHER"]).optional(),
+  ownershipReviewStatus: z.enum(["NOT_REQUIRED", "OPEN", "UNDER_REVIEW", "RESOLVED"]).optional(),
+  ownershipReviewNotes: z.string().trim().max(2000).optional(),
+  nextFollowUpAt: z.string().datetime().nullable().optional(),
+  lostReason: z.string().trim().max(1000).optional(),
+});
+
+router.get("/admin/sales-pipeline", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const db = getDb();
+  const [leadRows, bookingRows, campaigns, costs] = await Promise.all([
+    db.select({
+      lead: leads,
+      projectName: projects.name,
+      unitNumber: units.unitNumber,
+      submitterName: users.name,
+      submitterEmail: users.email,
+    }).from(leads)
+      .innerJoin(projects, eq(leads.projectId, projects._id))
+      .leftJoin(units, eq(leads.unitId, units._id))
+      .leftJoin(users, eq(leads.submittedById, users._id))
+      .orderBy(desc(leads.createdAt)).limit(500),
+    db.select({
+      booking: ambassadorOsPropertyBookings,
+      leadNo: leads.leadNo,
+      customerName: leads.clientName,
+      sourceChannel: leads.sourceChannel,
+      submittedById: leads.submittedById,
+      projectName: projects.name,
+      unitNumber: units.unitNumber,
+      submitterName: users.name,
+    }).from(ambassadorOsPropertyBookings)
+      .innerJoin(leads, eq(ambassadorOsPropertyBookings.leadId, leads._id))
+      .innerJoin(projects, eq(ambassadorOsPropertyBookings.projectId, projects._id))
+      .leftJoin(units, eq(ambassadorOsPropertyBookings.unitId, units._id))
+      .leftJoin(users, eq(leads.submittedById, users._id))
+      .orderBy(desc(ambassadorOsPropertyBookings.createdAt)).limit(300),
+    db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt)),
+    db.select().from(ambassadorOsChannelCosts).orderBy(desc(ambassadorOsChannelCosts.createdAt)).limit(500),
+  ]);
+  const [ambassadorProfiles] = await Promise.all([
+    db.select({ userId: ambassadorOsProfiles.userId, ambassadorId: ambassadorOsProfiles.ambassadorNo, cityCode: ambassadorOsProfiles.cityCode }).from(ambassadorOsProfiles),
+  ]);
+  const ambassadorByUser = new Map(ambassadorProfiles.map((p) => [p.userId, p]));
+  res.json({
+    leads: leadRows.map((r) => ({
+      ...r.lead,
+      leadReference: r.lead.leadNo ? `TRV-L-${String(r.lead.leadNo).padStart(6, "0")}` : r.lead._id.slice(0, 8).toUpperCase(),
+      projectName: r.projectName,
+      unitNumber: r.unitNumber,
+      submitterName: r.submitterName,
+      submitterEmail: r.submitterEmail,
+      ambassadorId: ambassadorByUser.has(r.lead.submittedById)
+        ? `TRUVI-${ambassadorByUser.get(r.lead.submittedById)!.cityCode}-${String(ambassadorByUser.get(r.lead.submittedById)!.ambassadorId).padStart(4, "0")}`
+        : null,
+    })),
+    bookings: bookingRows.map((r) => ({
+      ...r.booking,
+      leadReference: r.leadNo ? `TRV-L-${String(r.leadNo).padStart(6, "0")}` : r.booking.leadId.slice(0, 8).toUpperCase(),
+      customerName: r.customerName,
+      projectName: r.projectName,
+      unitNumber: r.unitNumber,
+      sourceChannel: r.sourceChannel,
+      submitterName: r.submitterName,
+    })),
+    campaigns,
+    channelCosts: costs,
+  });
+});
+
+const adminLeadQualificationSchema = adminLeadReviewSchema.refine(
+  (body) => Object.keys(body).some((key) => (body as Record<string, unknown>)[key] !== undefined),
+  { message: "Provide at least one lead update" },
+);
+
+router.patch("/admin/leads/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = adminLeadQualificationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid lead review" });
+  const db = getDb();
+  const [lead] = await db.select().from(leads).where(eq(leads._id, String(req.params.id)));
+  if (!lead) return res.status(404).json({ error: "Lead not found" });
+  if (parsed.data.assignedToId) {
+    const [assignee] = await db.select({ _id: users._id, role: users.role, disabled: users.disabled }).from(users).where(eq(users._id, parsed.data.assignedToId));
+    if (!assignee || assignee.disabled || !["ADMIN", "CP", "DEVELOPER"].includes(assignee.role)) {
+      return res.status(400).json({ error: "Select an active Admin, Channel Partner or Developer as sales owner" });
+    }
+  }
+  const now = new Date();
+  const nextStage = parsed.data.stage ?? lead.stage;
+  const [updated] = await db.update(leads).set({
+    ...("stage" in parsed.data ? { stage: nextStage } : {}),
+    ...("assignedToId" in parsed.data ? { assignedToId: parsed.data.assignedToId ?? null } : {}),
+    ...("budgetRange" in parsed.data ? { budgetRange: parsed.data.budgetRange || null } : {}),
+    ...("purchasePurpose" in parsed.data ? { purchasePurpose: parsed.data.purchasePurpose } : {}),
+    ...("preferredPlotSize" in parsed.data ? { preferredPlotSize: parsed.data.preferredPlotSize || null } : {}),
+    ...("purchaseTimeline" in parsed.data ? { purchaseTimeline: parsed.data.purchaseTimeline } : {}),
+    ...("sourceChannel" in parsed.data ? { sourceChannel: parsed.data.sourceChannel } : {}),
+    ...("ownershipReviewStatus" in parsed.data ? {
+      ownershipReviewStatus: parsed.data.ownershipReviewStatus,
+      ownershipReviewedById: parsed.data.ownershipReviewStatus === "RESOLVED" ? req.user!.userId : lead.ownershipReviewedById,
+      ownershipReviewedAt: parsed.data.ownershipReviewStatus === "RESOLVED" ? now : lead.ownershipReviewedAt,
+    } : {}),
+    ...("ownershipReviewNotes" in parsed.data ? { ownershipReviewNotes: parsed.data.ownershipReviewNotes || null } : {}),
+    ...("nextFollowUpAt" in parsed.data ? { nextFollowUpAt: parsed.data.nextFollowUpAt ? new Date(parsed.data.nextFollowUpAt) : null } : {}),
+    ...("lostReason" in parsed.data ? { lostReason: parsed.data.lostReason || null } : {}),
+    contactAttemptedAt: ["CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"].includes(nextStage)
+      ? (lead.contactAttemptedAt ?? now) : lead.contactAttemptedAt,
+    qualifiedAt: ["INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"].includes(nextStage)
+      ? (lead.qualifiedAt ?? now) : lead.qualifiedAt,
+    updatedAt: now,
+  }).where(eq(leads._id, lead._id)).returning();
+  await db.insert((await import("../db/schema")).leadActivities).values({
+    leadId: lead._id,
+    cpId: (lead.assignedToId ?? lead.submittedById),
+    type: "STAGE_CHANGE",
+    content: "Lead reviewed by Truvi Admin.",
+    metadata: { actorUserId: req.user!.userId, fromStage: lead.stage, toStage: nextStage, ownershipReviewStatus: updated.ownershipReviewStatus },
+  }).catch(() => []);
+  await logAudit({
+    userId: req.user!.userId,
+    action: "ambassador_os.lead.review",
+    resourceType: "lead",
+    resourceId: lead._id,
+    metadata: { fromStage: lead.stage, toStage: nextStage, ownershipReviewStatus: updated.ownershipReviewStatus },
+  });
+  res.json({ lead: updated });
+});
+
+const createPropertyBookingSchema = z.object({
+  leadId: z.string().uuid(),
+  campaignId: z.string().uuid().optional().nullable(),
+  bookingValue: z.number().positive().max(10_000_000_000),
+  amountReceived: z.number().nonnegative().max(10_000_000_000).default(0),
+  paymentMilestone: z.enum(["BOOKING_CONFIRMED", "TOKEN_RECEIVED", "AGREEMENT_SIGNED", "REGISTRATION_COMPLETED", "CUSTOM_MILESTONE"]).default("BOOKING_CONFIRMED"),
+  paymentMilestoneNotes: z.string().trim().max(2000).optional(),
+  agreementReference: z.string().trim().max(300).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+
+router.post("/admin/bookings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = createPropertyBookingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid property booking" });
+  const db = getDb();
+  const [lead] = await db.select().from(leads).where(eq(leads._id, parsed.data.leadId));
+  if (!lead) return res.status(404).json({ error: "Lead not found" });
+  if (lead.isDuplicate) return res.status(409).json({ error: "Duplicate leads cannot be booked until an authorized reviewer resolves ownership" });
+  if (lead.ownershipReviewStatus === "OPEN" || lead.ownershipReviewStatus === "UNDER_REVIEW") {
+    return res.status(409).json({ error: "Resolve the lead ownership review before recording a booking" });
+  }
+  if (lead.creatorRole !== "BUYER" && (!lead.contactConsent || !lead.contactConsentAt || !lead.consentTextVersion)) {
+    return res.status(409).json({ error: "A third-party lead needs recorded customer contact consent before booking verification" });
+  }
+  if (!["NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)) {
+    return res.status(409).json({ error: "Move the lead through qualification/site visit/negotiation before recording a booking" });
+  }
+  let campaign = null as (typeof ambassadorOsCampaigns.$inferSelect) | null;
+  if (parsed.data.campaignId) {
+    const [found] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, parsed.data.campaignId));
+    if (!found || found.projectId !== lead.projectId || found.status !== "ACTIVE" || !found.officialDataVerified) {
+      return res.status(409).json({ error: "Choose an active, verified campaign for the lead's project" });
+    }
+    campaign = found;
+  }
+  const [existingBookings] = await Promise.all([
+    db.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.leadId, lead._id)),
+  ]);
+  if (existingBookings.some((b) => ["SUBMITTED", "UNDER_REVIEW", "VERIFIED", "SALE_VERIFIED", "REFUND_PENDING"].includes(b.status))) {
+    return res.status(409).json({ error: "This lead already has an open or verified booking record" });
+  }
+  const reference = `TRUVI-BKG-${String(lead.leadNo ?? 0).padStart(6, "0")}-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date();
+  const booking = await db.transaction(async (tx) => {
+    if (lead.unitId) {
+      const [unit] = await tx.select().from(units).where(eq(units._id, lead.unitId)).for("update");
+      if (!unit || unit.projectId !== lead.projectId) throw new Error("BOOKING_UNIT_PROJECT_MISMATCH");
+      if (unit.status !== "AVAILABLE") throw new Error("BOOKING_UNIT_NOT_AVAILABLE");
+    }
+    const [created] = await tx.insert(ambassadorOsPropertyBookings).values({
+      bookingReference: reference,
+      leadId: lead._id,
+      campaignId: campaign?._id ?? null,
+      projectId: lead.projectId,
+      unitId: lead.unitId,
+      status: "SUBMITTED",
+      bookingValue: parsed.data.bookingValue,
+      amountReceived: parsed.data.amountReceived,
+      paymentMilestone: parsed.data.paymentMilestone,
+      paymentMilestoneNotes: parsed.data.paymentMilestoneNotes ?? null,
+      agreementReference: parsed.data.agreementReference ?? null,
+      sourceSnapshot: lead.sourceChannel ?? lead.source,
+      notes: parsed.data.notes ?? null,
+      createdById: req.user!.userId,
+      updatedAt: now,
+    }).returning();
+    await tx.insert(ambassadorOsPropertyBookingHistory).values({
+      bookingId: created._id, fromStatus: null, toStatus: "SUBMITTED",
+      reason: "Booking record created by authorized Truvi Admin.",
+      metadata: { leadId: lead._id, projectId: lead.projectId, campaignId: campaign?._id ?? null },
+      actorUserId: req.user!.userId,
+    });
+    if (!["REGISTRATION", "COMPLETED"].includes(lead.stage)) {
+      await tx.update(leads).set({ stage: "BOOKING", updatedAt: now }).where(eq(leads._id, lead._id));
+    }
+    return created;
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "BOOKING_UNIT_NOT_AVAILABLE") return null;
+    if (error instanceof Error && error.message === "BOOKING_UNIT_PROJECT_MISMATCH") return null;
+    throw error;
+  });
+  if (!booking) return res.status(409).json({ error: "The linked inventory unit is unavailable or does not belong to this project" });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.booking.create", resourceType: "ambassador_os_property_booking", resourceId: booking._id, metadata: { bookingReference: booking.bookingReference, leadId: lead._id, campaignId: booking.campaignId, bookingValue: booking.bookingValue } });
+  res.status(201).json({ booking });
+});
+
+const propertyBookingStatusSchema = z.object({
+  status: z.enum(["UNDER_REVIEW", "VERIFIED", "SALE_VERIFIED", "REJECTED", "CANCELLED", "REFUND_PENDING", "REFUNDED"]),
+  reason: z.string().trim().max(2000).optional(),
+  amountReceived: z.number().nonnegative().max(10_000_000_000).optional(),
+  paymentMilestone: z.enum(["BOOKING_CONFIRMED", "TOKEN_RECEIVED", "AGREEMENT_SIGNED", "REGISTRATION_COMPLETED", "CUSTOM_MILESTONE"]).optional(),
+  paymentMilestoneNotes: z.string().trim().max(2000).optional(),
+  agreementReference: z.string().trim().max(300).optional(),
+  refundAmount: z.number().nonnegative().max(10_000_000_000).optional(),
+  refundReference: z.string().trim().max(300).optional(),
+});
+
+const PROPERTY_BOOKING_TRANSITIONS: Record<string, string[]> = {
+  SUBMITTED: ["UNDER_REVIEW", "REJECTED", "CANCELLED", "REFUND_PENDING"],
+  UNDER_REVIEW: ["VERIFIED", "REJECTED", "CANCELLED", "REFUND_PENDING"],
+  VERIFIED: ["SALE_VERIFIED", "CANCELLED", "REFUND_PENDING"],
+  SALE_VERIFIED: ["REFUND_PENDING"],
+  REFUND_PENDING: ["REFUNDED"],
+  REJECTED: [],
+  CANCELLED: [],
+  REFUNDED: [],
+};
+
+router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = propertyBookingStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid booking status update" });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Booking not found" });
+  if (!PROPERTY_BOOKING_TRANSITIONS[current.status]?.includes(parsed.data.status)) {
+    return res.status(409).json({ error: `Invalid booking transition: ${current.status} → ${parsed.data.status}` });
+  }
+  const [lead] = await db.select().from(leads).where(eq(leads._id, current.leadId));
+  if (!lead) return res.status(409).json({ error: "Booking's source lead no longer exists" });
+  const now = new Date();
+  const nextReceived = parsed.data.amountReceived ?? current.amountReceived;
+  const milestone = parsed.data.paymentMilestone ?? current.paymentMilestone;
+  const agreementReference = parsed.data.agreementReference ?? current.agreementReference;
+  if (parsed.data.status === "VERIFIED") {
+    const [project] = await db.select().from(projects).where(eq(projects._id, current.projectId));
+    if (!project || project.approvalStatus !== "APPROVED" || !project.isVerified || !project.priceListUrl) {
+      return res.status(409).json({ error: "The booking's project must remain approved, Truvi-verified and linked to its official price list" });
+    }
+    if (current.unitId) {
+      const [unit] = await db.select().from(units).where(eq(units._id, current.unitId));
+      if (!unit || unit.projectId !== current.projectId || !["AVAILABLE", "RESERVED"].includes(unit.status)) {
+        return res.status(409).json({ error: "The linked unit is not available for booking verification" });
+      }
+      const live = await db.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.unitId, current.unitId));
+      if (live.some((b) => b._id !== current._id && ["VERIFIED", "SALE_VERIFIED", "REFUND_PENDING"].includes(b.status))) {
+        return res.status(409).json({ error: "Another active booking already holds this unit" });
+      }
+    }
+  }
+  if (parsed.data.status === "SALE_VERIFIED") {
+    if (milestone !== "REGISTRATION_COMPLETED" || !agreementReference?.trim()) {
+      return res.status(409).json({ error: "Sale verification requires the Registration Completed milestone and an agreement/registration reference" });
+    }
+  }
+  if (parsed.data.status === "REFUND_PENDING" && !parsed.data.reason?.trim()) {
+    return res.status(400).json({ error: "Record the cancellation/refund reason" });
+  }
+  if (parsed.data.status === "CANCELLED" && nextReceived > 0) {
+    return res.status(409).json({ error: "Money has been received. Move the booking to Refund Pending and record the refund receipt before closing it." });
+  }
+  if (parsed.data.status === "REFUNDED") {
+    if (!parsed.data.refundReference?.trim()) return res.status(400).json({ error: "Refund receipt/reference is required" });
+    const amount = parsed.data.refundAmount ?? current.amountReceived;
+    if (amount < current.amountReceived) return res.status(409).json({ error: "The final refund must reconcile the full recorded received amount; record partial refunds in the notes first." });
+  }
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(ambassadorOsPropertyBookings).set({
+      status: parsed.data.status,
+      amountReceived: nextReceived,
+      paymentMilestone: milestone,
+      paymentMilestoneNotes: parsed.data.paymentMilestoneNotes ?? current.paymentMilestoneNotes,
+      agreementReference,
+      verifiedById: parsed.data.status === "VERIFIED" ? req.user!.userId : current.verifiedById,
+      verifiedAt: parsed.data.status === "VERIFIED" ? now : current.verifiedAt,
+      rejectedById: parsed.data.status === "REJECTED" ? req.user!.userId : current.rejectedById,
+      rejectedAt: parsed.data.status === "REJECTED" ? now : current.rejectedAt,
+      rejectionReason: parsed.data.status === "REJECTED" ? (parsed.data.reason ?? current.rejectionReason) : current.rejectionReason,
+      cancelledAt: ["CANCELLED", "REFUND_PENDING"].includes(parsed.data.status) ? (current.cancelledAt ?? now) : current.cancelledAt,
+      cancellationReason: ["CANCELLED", "REFUND_PENDING"].includes(parsed.data.status) ? (parsed.data.reason ?? current.cancellationReason) : current.cancellationReason,
+      refundStatus: parsed.data.status === "REFUNDED" ? "REFUNDED" : parsed.data.status === "REFUND_PENDING" ? "PENDING" : current.refundStatus,
+      refundAmount: parsed.data.refundAmount ?? current.refundAmount,
+      refundReference: parsed.data.refundReference ?? current.refundReference,
+      updatedAt: now,
+    }).where(and(eq(ambassadorOsPropertyBookings._id, current._id), eq(ambassadorOsPropertyBookings.status, current.status))).returning();
+    if (!updated) return null;
+    await tx.insert(ambassadorOsPropertyBookingHistory).values({
+      bookingId: current._id, fromStatus: current.status, toStatus: updated.status,
+      reason: parsed.data.reason ?? null,
+      metadata: {
+        amountReceived: updated.amountReceived, paymentMilestone: updated.paymentMilestone,
+        agreementReference: updated.agreementReference, refundAmount: updated.refundAmount,
+        refundReference: updated.refundReference,
+      },
+      actorUserId: req.user!.userId,
+    });
+    if (current.unitId && parsed.data.status === "VERIFIED") {
+      await tx.update(units).set({ status: "RESERVED" }).where(eq(units._id, current.unitId));
+    }
+    if (current.unitId && parsed.data.status === "SALE_VERIFIED") {
+      await tx.update(units).set({ status: "SOLD" }).where(eq(units._id, current.unitId));
+      await tx.update(leads).set({ stage: "REGISTRATION", updatedAt: now }).where(eq(leads._id, current.leadId));
+    }
+    if (current.unitId && parsed.data.status === "CANCELLED") {
+      await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(eq(units._id, current.unitId));
+      await tx.update(leads).set({ stage: "NEGOTIATION", updatedAt: now }).where(eq(leads._id, current.leadId));
+    }
+    if (current.unitId && parsed.data.status === "REFUNDED") {
+      await tx.update(units).set({ status: "AVAILABLE", lockedByCPId: null, lockExpiresAt: null }).where(eq(units._id, current.unitId));
+      await tx.update(leads).set({ stage: "NEGOTIATION", updatedAt: now }).where(eq(leads._id, current.leadId));
+    }
+    return updated;
+  });
+  if (!result) return res.status(409).json({ error: "The booking was changed by another administrator. Refresh before updating it." });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.booking.status", resourceType: "ambassador_os_property_booking", resourceId: current._id, metadata: { bookingReference: current.bookingReference, from: current.status, to: result.status, reason: parsed.data.reason ?? null } });
+  const recipients = [lead.submittedById, ...((lead.referralChain ?? []).map((r) => r.userId))].filter((id, index, all) => Boolean(id) && all.indexOf(id) === index);
+  await notifySafely(recipients, {
+    type: "ambassador_booking_status",
+    title: "Property booking status updated",
+    message: `${result.bookingReference}: ${result.status.replace(/_/g, " ").toLowerCase()}`,
+    data: { screen: "AmbassadorOperatingSystem", bookingId: result._id, status: result.status },
+    actorUserId: req.user!.userId,
+    priority: ["SALE_VERIFIED", "REFUND_PENDING", "REFUNDED"].includes(result.status) ? "high" : "normal",
+    dedupeKey: `${result._id}:${result.status}`,
+  });
+  res.json({ booking: result });
+});
+
+router.get("/admin/booking-history/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const rows = await getDb().select().from(ambassadorOsPropertyBookingHistory)
+    .where(eq(ambassadorOsPropertyBookingHistory.bookingId, String(req.params.id)))
+    .orderBy(desc(ambassadorOsPropertyBookingHistory.createdAt));
+  res.json({ history: rows });
 });
 
 router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
