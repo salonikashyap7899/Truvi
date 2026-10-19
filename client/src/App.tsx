@@ -29,6 +29,7 @@ import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
 import { IS_NATIVE, showsTabBar } from "@/lib/native";
 import { useLocationStore } from "@/store/locationStore";
+import { initializeAuthSession } from "@/lib/api";
 import "@/styles/mobile-app.css";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
@@ -242,6 +243,12 @@ function WelcomeRoute() {
 
 
 export default function App() {
+  // Access tokens are memory-only. Restore a valid session from the HTTP-only
+  // refresh cookie before protected routes decide whether to redirect to login.
+  useEffect(() => {
+    void initializeAuthSession();
+  }, []);
+
   // In the installed app, ask for the user's location on open so "Near Me" and
   // property distances work right away. On the web we ask only when needed.
   useEffect(() => {
