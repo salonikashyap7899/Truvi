@@ -25,6 +25,7 @@ import {
   computeAmbassadorQualityScore,
   isEligibleAmbassadorSale,
   isTrainingDayComplete,
+  hasCompleteSevenDayCurriculum,
   statusAfterTrainingReview,
 } from "../services/ambassadorOperatingSystem.rules";
 
@@ -532,8 +533,8 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   }).where(eq(ambassadorOsTrainingProgress._id, current._id)).returning();
   const profile = await ensureProfile(String(req.params.userId));
   const all = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, String(req.params.userId)));
-  const allComplete = all.some((p) => p.day === 7 && p.status === "COMPLETED");
-  const completedDaySeven = all.some((p) => p.day === 7 && p.status === "COMPLETED");
+  const allComplete = hasCompleteSevenDayCurriculum(all);
+  const completedDaySeven = allComplete;
   const certificateNo = completedDaySeven
     ? (profile.certificateNo ?? `TRUVI-CERT-${String(profile.ambassadorNo).padStart(6, "0")}`)
     : null;
@@ -582,7 +583,7 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
   const { promotionReason, ...updates } = parsed.data;
   if (parsed.data.currentLevel && parsed.data.currentLevel !== profile.currentLevel) {
     const levelNumber = Number(parsed.data.currentLevel.slice(1));
-    if (levelNumber >= 1 && !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
+    if (levelNumber >= 1 && !hasCompleteSevenDayCurriculum(training)) {
       return res.status(409).json({ error: "Complete all seven modules and receive written, practical and ethics approval before promotion to L1 or above" });
     }
     if (levelNumber >= 2 && profile.status !== "ACTIVE" && parsed.data.status !== "ACTIVE") {
