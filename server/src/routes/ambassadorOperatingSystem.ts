@@ -337,6 +337,177 @@ router.get("/me", async (req: AuthedRequest, res) => {
  * sale; -2 per lost lead and -3 per duplicate lead. This is recognition only,
  * not a commission formula or a promise of income.
  */
+
+const scorecardWeightsSchema = z.object({
+  genuineLeadQuality: z.number().int().min(0).max(100),
+  customerCommunication: z.number().int().min(0).max(100),
+  siteVisitContribution: z.number().int().min(0).max(100),
+  verifiedSalesContribution: z.number().int().min(0).max(100),
+  crmDiscipline: z.number().int().min(0).max(100),
+  trainingSkillDevelopment: z.number().int().min(0).max(100),
+  ethicsCompliance: z.number().int().min(0).max(100),
+  approvalReference: z.string().trim().min(5).max(500),
+}).refine((v) => areValidScorecardWeights({
+  genuineLeadQuality: v.genuineLeadQuality,
+  customerCommunication: v.customerCommunication,
+  siteVisitContribution: v.siteVisitContribution,
+  verifiedSalesContribution: v.verifiedSalesContribution,
+  crmDiscipline: v.crmDiscipline,
+  trainingSkillDevelopment: v.trainingSkillDevelopment,
+  ethicsCompliance: v.ethicsCompliance,
+}), { message: "The seven scorecard weights must total exactly 100%" });
+
+router.get("/admin/scorecard/weights", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const policy = await getActiveScorecardPolicy(req.user!.userId);
+  const weights = publicScorecardWeights(policy);
+  res.json({ policy, weights, totalWeight: Object.values(weights).reduce((sum, value) => sum + value, 0) });
+});
+
+router.put("/admin/scorecard/weights", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = scorecardWeightsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid performance weights" });
+  const db = getDb();
+  const existingRows = await db.select().from(ambassadorOsScorecardPolicies).orderBy(desc(ambassadorOsScorecardPolicies.version));
+  const nextVersion = (existingRows[0]?.version ?? 0) + 1;
+  await db.update(ambassadorOsScorecardPolicies).set({ active: false }).where(eq(ambassadorOsScorecardPolicies.active, true));
+  const [policy] = await db.insert(ambassadorOsScorecardPolicies).values({
+    version: nextVersion,
+    genuineLeadQualityWeight: parsed.data.genuineLeadQuality,
+    customerCommunicationWeight: parsed.data.customerCommunication,
+    siteVisitContributionWeight: parsed.data.siteVisitContribution,
+    verifiedSalesContributionWeight: parsed.data.verifiedSalesContribution,
+    crmDisciplineWeight: parsed.data.crmDiscipline,
+    trainingSkillDevelopmentWeight: parsed.data.trainingSkillDevelopment,
+    ethicsComplianceWeight: parsed.data.ethicsCompliance,
+    active: true,
+    approvalReference: parsed.data.approvalReference,
+    createdById: req.user!.userId,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.scorecard_weights.update", resourceType: "ambassador_os_scorecard_policy", resourceId: policy._id, metadata: { version: policy.version, weights: publicScorecardWeights(policy), approvalReference: policy.approvalReference } });
+  const weights = publicScorecardWeights(policy);
+  res.json({ policy, weights, totalWeight: 100 });
+});
+
+const performanceReviewSchema = z.object({
+  ambassadorId: z.string().uuid(),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  genuineLeadQualityScore: z.number().int().min(0).max(100),
+  customerCommunicationScore: z.number().int().min(0).max(100),
+  siteVisitContributionScore: z.number().int().min(0).max(100),
+  verifiedSalesContributionScore: z.number().int().min(0).max(100),
+  crmDisciplineScore: z.number().int().min(0).max(100),
+  trainingSkillDevelopmentScore: z.number().int().min(0).max(100),
+  ethicsComplianceScore: z.number().int().min(0).max(100),
+  seriousMisconduct: z.boolean().default(false),
+  complianceNotes: z.string().trim().max(2000).optional(),
+  reviewNotes: z.string().trim().min(5).max(3000),
+}).refine((v) => new Date(v.periodEnd).getTime() >= new Date(v.periodStart).getTime(), { message: "Review period end must be on or after its start" })
+  .refine((v) => !v.seriousMisconduct || Boolean(v.complianceNotes?.trim()), { message: "Serious misconduct requires the specific compliance finding to be recorded" });
+
+router.get("/admin/performance-reviews", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const policy = await getActiveScorecardPolicy(req.user!.userId);
+  const [profiles, reviewRows, progress, tasks, allLeads, completedVisits, bookings, followUps] = await Promise.all([
+    db.select({ profile: ambassadorOsProfiles, name: users.name, email: users.email, onboardingVerified: users.onboardingVerified })
+      .from(ambassadorOsProfiles).innerJoin(users, eq(ambassadorOsProfiles.userId, users._id)).orderBy(ambassadorOsProfiles.ambassadorNo),
+    db.select().from(ambassadorOsPerformanceReviews).orderBy(desc(ambassadorOsPerformanceReviews.periodEnd), desc(ambassadorOsPerformanceReviews.reviewedAt)),
+    db.select().from(ambassadorOsTrainingProgress),
+    db.select().from(ambassadorOsTasks),
+    db.select().from(leads),
+    db.select({ leadId: siteVisits.leadId }).from(siteVisits).where(eq(siteVisits.status, "COMPLETED")),
+    db.select().from(ambassadorOsPropertyBookings),
+    db.select().from(ambassadorOsFollowUps),
+  ]);
+  const latestByUser = new Map<string, typeof reviewRows[number]>();
+  for (const review of reviewRows) if (!latestByUser.has(review.ambassadorId)) latestByUser.set(review.ambassadorId, review);
+  const completedVisitIds = new Set(completedVisits.map((row) => row.leadId).filter(Boolean));
+  res.json({
+    policy,
+    weights: publicScorecardWeights(policy),
+    ambassadors: profiles.map(({ profile, name, email, onboardingVerified }) => {
+      const attributed = allLeads.filter((lead) => lead.submittedById === profile.userId || (lead.referralChain ?? []).some((r) => r.userId === profile.userId));
+      const genuineLeads = attributed.filter((lead) => !lead.isDuplicate && (
+        lead.creatorRole === "BUYER" || (lead.contactConsent === true && Boolean(lead.contactConsentAt) && Boolean(lead.consentTextVersion))
+      ));
+      const review = latestByUser.get(profile.userId);
+      return {
+        profile: displayProfile(profile),
+        name,
+        email,
+        onboardingVerified,
+        latestReview: review ?? null,
+        metrics: {
+          totalAttributedLeads: attributed.length,
+          genuineLeads: genuineLeads.length,
+          qualifiedLeads: genuineLeads.filter((lead) => Boolean(lead.qualifiedAt) || ["INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length,
+          duplicateLeads: attributed.filter((lead) => lead.isDuplicate).length,
+          completedSiteVisits: genuineLeads.filter((lead) => completedVisitIds.has(lead._id)).length,
+          verifiedSales: bookings.filter((booking) => booking.status === "SALE_VERIFIED" && genuineLeads.some((lead) => lead._id === booking.leadId)).length,
+          completedTrainingDays: progress.filter((row) => row.userId === profile.userId && row.status === "COMPLETED").length,
+          approvedTasks: tasks.filter((row) => row.assignedToId === profile.userId && row.status === "APPROVED").length,
+          totalTasks: tasks.filter((row) => row.assignedToId === profile.userId).length,
+          followUpsCompleted: followUps.filter((row) => row.ambassadorId === profile.userId && row.status === "DONE").length,
+          followUpsDueOrMissed: followUps.filter((row) => row.ambassadorId === profile.userId && ["PENDING", "MISSED"].includes(row.status)).length,
+          lostLeads: attributed.filter((lead) => lead.stage === "LOST" && !lead.isDuplicate).length,
+        },
+      };
+    }),
+  });
+});
+
+router.post("/admin/performance-reviews", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = performanceReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid performance review" });
+  const db = getDb();
+  const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, parsed.data.ambassadorId));
+  if (!profile) return res.status(404).json({ error: "Ambassador profile not found" });
+  const policy = await getActiveScorecardPolicy(req.user!.userId);
+  const scores = {
+    genuineLeadQuality: parsed.data.genuineLeadQualityScore,
+    customerCommunication: parsed.data.customerCommunicationScore,
+    siteVisitContribution: parsed.data.siteVisitContributionScore,
+    verifiedSalesContribution: parsed.data.verifiedSalesContributionScore,
+    crmDiscipline: parsed.data.crmDisciplineScore,
+    trainingSkillDevelopment: parsed.data.trainingSkillDevelopmentScore,
+    ethicsCompliance: parsed.data.ethicsComplianceScore,
+  };
+  const weighted = calculateWeightedPerformanceScore({ scores, weights: publicScorecardWeights(policy), seriousMisconduct: parsed.data.seriousMisconduct });
+  if (!weighted) return res.status(400).json({ error: "Active performance scorecard policy is invalid" });
+  const [review] = await db.insert(ambassadorOsPerformanceReviews).values({
+    ambassadorId: profile.userId,
+    periodStart: new Date(parsed.data.periodStart),
+    periodEnd: new Date(parsed.data.periodEnd),
+    scorecardPolicyVersion: policy.version,
+    genuineLeadQualityScore: scores.genuineLeadQuality,
+    customerCommunicationScore: scores.customerCommunication,
+    siteVisitContributionScore: scores.siteVisitContribution,
+    verifiedSalesContributionScore: scores.verifiedSalesContribution,
+    crmDisciplineScore: scores.crmDiscipline,
+    trainingSkillDevelopmentScore: scores.trainingSkillDevelopment,
+    ethicsComplianceScore: scores.ethicsCompliance,
+    weightedScore: weighted.score,
+    seriousMisconduct: parsed.data.seriousMisconduct,
+    complianceNotes: parsed.data.complianceNotes ?? null,
+    reviewNotes: parsed.data.reviewNotes,
+    reviewedById: req.user!.userId,
+  }).returning();
+  if (parsed.data.seriousMisconduct) {
+    await db.update(ambassadorOsProfiles).set({ status: "SUSPENDED", updatedAt: new Date() }).where(eq(ambassadorOsProfiles.userId, profile.userId));
+    await notifySafely([profile.userId], {
+      type: "ambassador_compliance_review",
+      title: "Ambassador account suspended pending conduct review",
+      message: "A serious conduct finding was recorded by Truvi. Contact the program administrator for the review outcome.",
+      data: { screen: "AmbassadorOperatingSystem", status: "SUSPENDED" },
+      actorUserId: req.user!.userId,
+      priority: "high",
+      dedupeKey: String(review._id) + ":serious-misconduct",
+    });
+  }
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.performance.review", resourceType: "ambassador_os_performance_review", resourceId: review._id, metadata: { ambassadorId: profile.userId, periodStart: review.periodStart, periodEnd: review.periodEnd, weightedScore: review.weightedScore, policyVersion: policy.version, seriousMisconduct: review.seriousMisconduct } });
+  res.status(201).json({ review, weightedScore: review.weightedScore, eligibleForLeaderboard: weighted.eligibleForLeaderboard });
+});
+
 router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const [profileRows, completedModules, approvedTasks, allLeads, completedVisits] = await Promise.all([
