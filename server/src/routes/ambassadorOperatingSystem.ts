@@ -416,13 +416,13 @@ const scorecardWeightsSchema = z.object({
   ethicsCompliance: v.ethicsCompliance,
 }), { message: "The seven scorecard weights must total exactly 100%" });
 
-router.get("/admin/scorecard/weights", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.get("/admin/scorecard/weights", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const policy = await getActiveScorecardPolicy(req.user!.userId);
   const weights = publicScorecardWeights(policy);
   res.json({ policy, weights, totalWeight: Object.values(weights).reduce((sum, value) => sum + value, 0) });
 });
 
-router.put("/admin/scorecard/weights", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.put("/admin/scorecard/weights", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = scorecardWeightsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid performance weights" });
   const db = getDb();
@@ -464,7 +464,7 @@ const performanceReviewSchema = z.object({
 }).refine((v) => new Date(v.periodEnd).getTime() >= new Date(v.periodStart).getTime(), { message: "Review period end must be on or after its start" })
   .refine((v) => !v.seriousMisconduct || Boolean(v.complianceNotes?.trim()), { message: "Serious misconduct requires the specific compliance finding to be recorded" });
 
-router.get("/admin/performance-reviews", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.get("/admin/performance-reviews", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const policy = await getActiveScorecardPolicy(req.user!.userId);
   const [profiles, reviewRows, progress, tasks, allLeads, completedVisits, bookings, followUps] = await Promise.all([
@@ -515,7 +515,7 @@ router.get("/admin/performance-reviews", requireRole("ADMIN"), async (req: Authe
   });
 });
 
-router.post("/admin/performance-reviews", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/performance-reviews", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = performanceReviewSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid performance review" });
   const db = getDb();
@@ -845,7 +845,7 @@ const adminLeadReviewSchema = z.object({
 });
 
 
-router.get("/admin/sales-dashboard", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/sales-dashboard", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const db = getDb();
   const sourceKey = sql<string>`coalesce(${leads.sourceChannel}, ${leads.source})`;
   const [
@@ -1007,7 +1007,7 @@ router.get("/admin/sales-dashboard", requireRole("ADMIN"), async (_req: AuthedRe
   res.json({ campaigns: results, totals, metricBasis: "Verified bookings marked SALE_VERIFIED; enquiry and funnel metrics derive from existing Truvi leads and site visits." });
 });
 
-router.get("/admin/sales-owners", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/sales-owners", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const rows = await getDb().select({ userId: users._id, name: users.name, email: users.email, role: users.role })
     .from(users)
     .where(and(inArray(users.role, ["ADMIN", "CP", "DEVELOPER"]), eq(users.disabled, false)))
@@ -1015,7 +1015,7 @@ router.get("/admin/sales-owners", requireRole("ADMIN"), async (_req: AuthedReque
   res.json({ salesOwners: rows });
 });
 
-router.get("/admin/sales-pipeline", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/sales-pipeline", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const db = getDb();
   const [leadRows, bookingRows, campaigns, costs] = await Promise.all([
     db.select({
@@ -1082,7 +1082,7 @@ const adminLeadQualificationSchema = adminLeadReviewSchema.refine(
   { message: "Provide at least one lead update" },
 );
 
-router.patch("/admin/leads/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/leads/:id/review", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = adminLeadQualificationSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid lead review" });
   const db = getDb();
@@ -1146,7 +1146,7 @@ const createPropertyBookingSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
-router.post("/admin/bookings", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/bookings", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = createPropertyBookingSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid property booking" });
   const db = getDb();
@@ -1243,7 +1243,7 @@ const PROPERTY_BOOKING_TRANSITIONS: Record<string, string[]> = {
   REFUNDED: [],
 };
 
-router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/bookings/:id/status", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = propertyBookingStatusSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid booking status update" });
   const db = getDb();
@@ -1434,7 +1434,7 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
   res.json({ booking: result });
 });
 
-router.get("/admin/booking-history/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.get("/admin/booking-history/:id", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const rows = await getDb().select().from(ambassadorOsPropertyBookingHistory)
     .where(eq(ambassadorOsPropertyBookingHistory.bookingId, String(req.params.id)))
     .orderBy(desc(ambassadorOsPropertyBookingHistory.createdAt));
@@ -1497,7 +1497,7 @@ const reviewSchema = z.object({
   trainerFeedback: z.string().trim().max(2000).optional(),
 });
 
-router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/training/:userId/:day/review", requireOsStaffRole("TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const day = Number(String(req.params.day));
   if (!Number.isInteger(day) || day < 1 || day > 7) return res.status(400).json({ error: "Training day must be between 1 and 7" });
   const parsed = reviewSchema.safeParse(req.body);
@@ -1572,7 +1572,7 @@ const statusSchema = z.object({
 }).refine((body) => body.status !== undefined || body.currentLevel !== undefined, { message: "Provide a status or career level" })
   .refine((body) => body.currentLevel === undefined || Boolean(body.promotionReason?.trim()), { message: "A promotion reason is required for every career-level change" });
 
-router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/profiles/:userId", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = statusSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid profile update" });
   const db = getDb();
@@ -1698,12 +1698,12 @@ const createTaskSchema = z.object({
   campaignId: z.string().uuid().optional(),
 });
 
-router.get("/admin/tasks", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (_req: AuthedRequest, res) => {
   const rows = await getDb().select({ task: ambassadorOsTasks, ambassadorName: users.name, ambassadorEmail: users.email }).from(ambassadorOsTasks).innerJoin(users, eq(ambassadorOsTasks.assignedToId, users._id)).orderBy(desc(ambassadorOsTasks.createdAt));
   res.json({ tasks: rows.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })) });
 });
 
-router.post("/admin/tasks", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const parsed = createTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid task" });
   const db = getDb();
@@ -1736,7 +1736,7 @@ const taskReviewSchema = z.object({
   reviewReason: z.string().trim().max(2000).optional(),
 });
 
-router.patch("/admin/tasks/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/tasks/:id/review", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const parsed = taskReviewSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid task review" });
   const db = getDb();
@@ -1807,7 +1807,7 @@ router.get("/campaigns", async (req: AuthedRequest, res) => {
   res.json({ campaigns });
 });
 
-router.post("/admin/campaigns", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/campaigns", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = campaignSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid campaign" });
   const db = getDb();
@@ -1835,7 +1835,7 @@ const campaignUpdateSchema = z.object({
   officialDataNotes: z.string().trim().max(2000).optional(),
 });
 
-router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/campaigns/:id", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = campaignUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid campaign update" });
   const db = getDb();
@@ -1901,7 +1901,7 @@ const policySchema = z.object({
   effectiveFrom: z.string().datetime().optional(),
 });
 
-router.post("/admin/policies", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/policies", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = policySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid incentive policy" });
   if (parsed.data.calculationType === "PERCENT_OF_VALUE" && parsed.data.amount > 100) {
@@ -1934,7 +1934,7 @@ const policyActivationSchema = z.object({
   effectiveFrom: z.string().datetime().optional(),
 });
 
-router.patch("/admin/policies/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/policies/:id", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = policyActivationSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid policy update" });
   const db = getDb();
@@ -2172,13 +2172,13 @@ const trainingContentSchema = z.object({
   isPublished: z.boolean().default(false),
 });
 
-router.get("/admin/training-modules", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/training-modules", requireOsStaffRole("TRAINING_COORDINATOR"), async (_req: AuthedRequest, res) => {
   const modules = await getDb().select().from(ambassadorOsTrainingModules)
     .orderBy(ambassadorOsTrainingModules.day, desc(ambassadorOsTrainingModules.version));
   res.json({ modules });
 });
 
-router.post("/admin/training-modules", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/training-modules", requireOsStaffRole("TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const parsed = trainingContentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid training module" });
   const db = getDb();
@@ -2344,7 +2344,7 @@ router.patch("/follow-ups/:id/status", async (req: AuthedRequest, res) => {
   res.json({ followUp: updated });
 });
 
-router.get("/admin/follow-ups", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/follow-ups", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const rows = await getDb().select({
     followUp: ambassadorOsFollowUps,
     leadNo: leads.leadNo,
@@ -2378,7 +2378,7 @@ const channelCostSchema = z.object({
   notes: z.string().trim().max(1500).optional(),
 }).refine((input) => new Date(input.periodEnd).getTime() >= new Date(input.periodStart).getTime(), { message: "Cost period end must be on or after its start" });
 
-router.post("/admin/channel-costs", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/channel-costs", requireOsStaffRole("SALES_COORDINATOR", "PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = channelCostSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid marketing cost" });
   const db = getDb();
@@ -2497,7 +2497,7 @@ router.post("/career/opportunities/:id/apply", async (req: AuthedRequest, res) =
   res.status(201).json({ application, message: "Application submitted for review. Selection is not guaranteed." });
 });
 
-router.get("/admin/career/opportunities", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/career/opportunities", requireOsStaffRole("PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const [opportunities, applicationCounts] = await Promise.all([
     getDb().select().from(ambassadorOsCareerOpportunities).orderBy(desc(ambassadorOsCareerOpportunities.createdAt)),
     getDb().select({ opportunityId: ambassadorOsCareerApplications.opportunityId, count: sql<number>`count(*)`.mapWith(Number) })
@@ -2507,7 +2507,7 @@ router.get("/admin/career/opportunities", requireRole("ADMIN"), async (_req: Aut
   res.json({ opportunities: opportunities.map((row) => ({ ...row, applicationsCount: counts.get(row._id) ?? 0 })) });
 });
 
-router.post("/admin/career/opportunities", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/career/opportunities", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = careerOpportunitySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid career opportunity" });
   const now = new Date();
@@ -2531,7 +2531,7 @@ router.post("/admin/career/opportunities", requireRole("ADMIN"), async (req: Aut
   res.status(201).json({ opportunity });
 });
 
-router.patch("/admin/career/opportunities/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/career/opportunities/:id", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = z.object({
     status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).optional(),
     vacancies: z.number().int().positive().max(10000).optional(),
@@ -2553,7 +2553,7 @@ router.patch("/admin/career/opportunities/:id", requireRole("ADMIN"), async (req
   res.json({ opportunity: updated });
 });
 
-router.get("/admin/career/applications", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/career/applications", requireOsStaffRole("PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
   const rows = await getDb().select({
     application: ambassadorOsCareerApplications,
     opportunity: ambassadorOsCareerOpportunities,
@@ -2569,7 +2569,7 @@ router.get("/admin/career/applications", requireRole("ADMIN"), async (_req: Auth
   res.json({ applications: rows.map((row) => ({ ...row.application, opportunityTitle: row.opportunity.title, opportunityType: row.opportunity.opportunityType, targetLevel: row.opportunity.targetLevel, ambassadorName: row.name, ambassadorEmail: row.email, currentLevel: row.currentLevel, profileStatus: row.profileStatus })) });
 });
 
-router.patch("/admin/career/applications/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/career/applications/:id/review", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = z.object({
     status: z.enum(["UNDER_REVIEW", "SHORTLISTED", "REJECTED", "SELECTED"]),
     reviewNotes: z.string().trim().min(5).max(3000),
@@ -2614,14 +2614,14 @@ const careerAssessmentSchema = z.object({
   (v.targetLevel === "L6" && v.assessmentType === "ADVANCED"),
 { message: "Assessment type must match the target career level" });
 
-router.get("/admin/career/assessments/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.get("/admin/career/assessments/:userId", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const assessments = await getDb().select().from(ambassadorOsCareerAssessments)
     .where(eq(ambassadorOsCareerAssessments.ambassadorId, String(req.params.userId)))
     .orderBy(desc(ambassadorOsCareerAssessments.reviewedAt));
   res.json({ assessments });
 });
 
-router.post("/admin/career/assessments", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/career/assessments", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = careerAssessmentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid career assessment" });
   const [profile] = await getDb().select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, parsed.data.ambassadorId));
@@ -2655,7 +2655,7 @@ const campaignGuidelinePublishSchema = z.object({
   approvalReference: z.string().trim().min(5).max(500),
 });
 
-router.post("/admin/campaigns/:id/guidelines", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.post("/admin/campaigns/:id/guidelines", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = campaignGuidelinePublishSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid campaign guidelines" });
   const db = getDb();
@@ -2763,7 +2763,7 @@ const marketingMaterialReviewSchema = z.object({
   reviewReason: z.string().trim().max(2000).optional(),
   validTo: z.string().datetime().nullable().optional(),
 });
-router.patch("/admin/marketing-materials/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/marketing-materials/:id/review", requireOsStaffRole("PROGRAM_MANAGER"), async (req: AuthedRequest, res) => {
   const parsed = marketingMaterialReviewSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid marketing material review" });
   if (parsed.data.status === "REJECTED" && !parsed.data.reviewReason?.trim()) return res.status(400).json({ error: "A reason is required when rejecting material" });
