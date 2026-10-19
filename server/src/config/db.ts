@@ -1253,6 +1253,19 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'ASSIGNED'`,
     `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "checklist_items" jsonb NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "checklist_responses" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `UPDATE "ambassador_os_tasks"
+       SET "checklist_items" = '[
+         {"key":"official_project_source","label":"Official project/source document is available and current"},
+         {"key":"approved_project_record","label":"Project approval/verification matches the current Truvi project record"},
+         {"key":"current_price_list","label":"Current official price-list source and date have been checked"},
+         {"key":"available_inventory","label":"Unit/plot availability was checked against the current inventory record"},
+         {"key":"unit_details","label":"Plot/unit identifier, area and location match the source record"},
+         {"key":"claims_supported","label":"Amenities and marketing claims have supporting approved evidence"},
+         {"key":"required_disclaimer","label":"Required campaign disclaimer and marketing-guideline rules are followed"},
+         {"key":"evidence_attached","label":"Evidence/reference is attached and any discrepancy is recorded"}
+       ]'::jsonb
+       WHERE "category" = 'VERIFICATION'
+         AND COALESCE(jsonb_array_length("checklist_items"), 0) = 0`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_tasks_due_idx" ON "ambassador_os_tasks" ("due_at")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_follow_ups" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
