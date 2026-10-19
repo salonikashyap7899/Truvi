@@ -8,7 +8,9 @@ import {
   ambassadorOsFollowUps,
   ambassadorOsIncentivePolicies,
   ambassadorOsIncentives,
+  ambassadorOsPerformanceReviews,
   ambassadorOsProfiles,
+  ambassadorOsScorecardPolicies,
   ambassadorOsPropertyBookingHistory,
   ambassadorOsPropertyBookings,
   ambassadorOsTasks,
@@ -29,6 +31,9 @@ import {
   calculateIncentiveAmount,
   canTransitionIncentiveStatus,
   computeAmbassadorQualityScore,
+  areValidScorecardWeights,
+  calculateWeightedPerformanceScore,
+  DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS,
   isEligibleAmbassadorSale,
   isTrainingDayComplete,
   hasCompleteSevenDayCurriculum,
@@ -37,6 +42,51 @@ import {
 
 const router = Router();
 router.use(authenticate);
+
+
+type ScorecardWeightSet = {
+  genuineLeadQuality: number;
+  customerCommunication: number;
+  siteVisitContribution: number;
+  verifiedSalesContribution: number;
+  crmDiscipline: number;
+  trainingSkillDevelopment: number;
+  ethicsCompliance: number;
+};
+
+function publicScorecardWeights(policy: typeof ambassadorOsScorecardPolicies.$inferSelect): ScorecardWeightSet {
+  return {
+    genuineLeadQuality: policy.genuineLeadQualityWeight,
+    customerCommunication: policy.customerCommunicationWeight,
+    siteVisitContribution: policy.siteVisitContributionWeight,
+    verifiedSalesContribution: policy.verifiedSalesContributionWeight,
+    crmDiscipline: policy.crmDisciplineWeight,
+    trainingSkillDevelopment: policy.trainingSkillDevelopmentWeight,
+    ethicsCompliance: policy.ethicsComplianceWeight,
+  };
+}
+
+async function getActiveScorecardPolicy(createdById: string) {
+  const db = getDb();
+  const [active] = await db.select().from(ambassadorOsScorecardPolicies)
+    .where(eq(ambassadorOsScorecardPolicies.active, true))
+    .orderBy(desc(ambassadorOsScorecardPolicies.version)).limit(1);
+  if (active) return active;
+  const [created] = await db.insert(ambassadorOsScorecardPolicies).values({
+    version: 1,
+    genuineLeadQualityWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.genuineLeadQuality,
+    customerCommunicationWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.customerCommunication,
+    siteVisitContributionWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.siteVisitContribution,
+    verifiedSalesContributionWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.verifiedSalesContribution,
+    crmDisciplineWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.crmDiscipline,
+    trainingSkillDevelopmentWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.trainingSkillDevelopment,
+    ethicsComplianceWeight: DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS.ethicsCompliance,
+    active: true,
+    approvalReference: "TRUVI_AMBASSADOR_OS_PDF_V1",
+    createdById,
+  }).returning();
+  return created;
+}
 
 async function notifySafely(userIds: string[], input: NotificationInput) {
   try {
