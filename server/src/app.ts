@@ -50,6 +50,7 @@ import callRoutes from "./routes/calls";
 import voucherRoutes from "./routes/vouchers";
 import commentRoutes from "./routes/comments";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
+import ambassadorOperatingSystemRoutes from "./routes/ambassadorOperatingSystem";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
 import financeRoutes from "./routes/finance";
@@ -195,6 +196,7 @@ export function createApp() {
   app.use("/api/presentation", presentationRoutes);
   app.use("/api/comments", commentRoutes);
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
+  app.use("/api/ambassador-os", ambassadorOperatingSystemRoutes);
   app.use("/api/legal", legalRoutes);
   app.use("/api/payments", paymentRoutes);
   app.use("/api/finance", financeRoutes);
