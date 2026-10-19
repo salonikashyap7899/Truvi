@@ -24,7 +24,7 @@ type Campaign = { _id: string; projectId?: string | null; name: string; projectN
 type ProjectOption = { _id: string; name: string; city?: string; location?: string; approvalStatus?: string; isVerified?: boolean; priceListUrl?: string | null; totalUnits?: number | null };
 type Policy = { _id: string; name: string; calculationType: string; amount: number; blockSizeSqFt: number; version: number; active: boolean; approvalReference?: string | null; campaignId?: string | null; };
 type Incentive = { _id: string; userId: string; ambassadorName: string; ambassadorEmail: string; bookingReference: string; amount: number; policyNameSnapshot: string; policyVersion: number; status: string; paymentReference?: string | null; };
-type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; verifiedSales: number } };
+type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
 type Tab = "overview" | "ambassadors" | "training" | "tasks" | "campaigns" | "policies" | "incentives";
 const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
@@ -169,7 +169,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
 
       {tab === "overview" && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
-          ["Ambassador profiles",data.stats.ambassadors,Users],["Training reviews",data.stats.awaitingAssessment,GraduationCap],["Task submissions",data.stats.submittedTasks,ClipboardList],["Pending incentive records",data.stats.pendingIncentives,Wallet],
+          ["Ambassador profiles",data.stats.ambassadors,Users],["Training reviews",data.stats.awaitingAssessment,GraduationCap],["Task submissions",data.stats.submittedTasks,ClipboardList],["Pending incentive records",data.stats.pendingIncentives,Wallet],["Registered/completed sales",data.stats.registeredSales,CheckCircle2],
         ].map(([label,value,Icon])=>{const Glyph=Icon as typeof Users;return <Card key={String(label)} className="border-white/10 bg-white/[0.035] p-4"><div className="flex items-center justify-between"><p className="text-sm text-muted-foreground">{String(label)}</p><Glyph size={18} className="text-sky-300" /></div><p className="mt-3 text-2xl font-semibold">{String(value)}</p></Card>;})}</section>
         <div className="grid gap-4 xl:grid-cols-2">
           <Card className="border-white/10 bg-white/[0.035] p-5"><h2 className="mb-3 font-semibold">Needs attention</h2><div className="space-y-3">{[
