@@ -66,6 +66,7 @@ const AmbassadorSignupPage = lazy(() => import("@/pages/AmbassadorSignupPage"));
 const AmbassadorLoginPage = lazy(() => import("@/AmbassadorLoginPage"));
 const AmbassadorDashboardPage = lazy(() => import("@/pages/AmbassadorDashboardPage"));
 const AmbassadorOperatingSystemPage = lazy(() => import("@/pages/AmbassadorOperatingSystemPage"));
+const AmbassadorCertificatePage = lazy(() => import("@/pages/AmbassadorCertificatePage"));
 
 const DeveloperDashboardPage = lazy(() => import("@/pages/developer/DeveloperDashboardPage"));
 const DeveloperInventoryPage = lazy(() => import("@/pages/developer/DeveloperInventoryPage"));
@@ -396,6 +397,7 @@ export default function App() {
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
         <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador/operating-system" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorOperatingSystemPage /></ProtectedRoute>} />
+        <Route path="/ambassador/certificate" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorCertificatePage /></ProtectedRoute>} />
 
         {/* Developer (ADMIN may enter to review the full developer workflow) */}
         <Route path="/developer/dashboard" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperDashboardPage /></ProtectedRoute>} />
