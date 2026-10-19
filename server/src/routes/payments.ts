@@ -305,7 +305,7 @@ router.post("/verify", async (req, res) => {
       email: row.customerEmail,
     },
   });
-}
+});
 
 // ── Create subscription (recurring Pro plans) ──────────────────────────────
 const createSubSchema = z.object({
