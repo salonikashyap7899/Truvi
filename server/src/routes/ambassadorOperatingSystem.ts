@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { NextFunction, Response, Router } from "express";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
@@ -6,6 +6,7 @@ import {
   ambassadorOsCampaigns,
   ambassadorOsCampaignGuidelines,
   ambassadorOsCampaignAcknowledgements,
+  ambassadorOsStaffAssignments,
   ambassadorOsMarketingMaterials,
   ambassadorOsCareerApplications,
   ambassadorOsCareerAssessments,
@@ -48,6 +49,47 @@ import {
 
 const router = Router();
 router.use(authenticate);
+
+const OS_STAFF_ROLES = ["PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"] as const;
+type OsStaffRole = (typeof OS_STAFF_ROLES)[number];
+
+async function getOsStaffRoles(userId: string): Promise<OsStaffRole[]> {
+  const assignments = await getDb().select({ osRole: ambassadorOsStaffAssignments.osRole })
+    .from(ambassadorOsStaffAssignments)
+    .where(and(eq(ambassadorOsStaffAssignments.userId, userId), eq(ambassadorOsStaffAssignments.active, true)));
+  return assignments.map((row) => row.osRole).filter((role): role is OsStaffRole => (OS_STAFF_ROLES as readonly string[]).includes(role));
+}
+
+async function hasOsStaffRole(userId: string, role: OsStaffRole): Promise<boolean> {
+  const [assignment] = await getDb().select({ _id: ambassadorOsStaffAssignments._id })
+    .from(ambassadorOsStaffAssignments)
+    .where(and(eq(ambassadorOsStaffAssignments.userId, userId), eq(ambassadorOsStaffAssignments.osRole, role), eq(ambassadorOsStaffAssignments.active, true)))
+    .limit(1);
+  return Boolean(assignment);
+}
+
+function requireOsStaffRole(...allowedRoles: OsStaffRole[]) {
+  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: "Not authenticated" });
+    if (req.user.role === "ADMIN") return next();
+    try {
+      const active = await getOsStaffRoles(req.user.userId);
+      if (active.some((role) => allowedRoles.includes(role))) return next();
+      return res.status(403).json({ error: "You do not have an active Ambassador OS staff assignment for this workflow." });
+    } catch (error) { return next(error); }
+  };
+}
+
+function taskCategoryRoles(category: string): OsStaffRole[] {
+  if (category === "TRAINING") return ["TRAINING_COORDINATOR", "PROGRAM_MANAGER"];
+  if (["SALES", "LEAD_MANAGEMENT", "SITE_VISIT"].includes(category)) return ["SALES_COORDINATOR", "PROGRAM_MANAGER"];
+  return ["PROGRAM_MANAGER", "TRAINING_COORDINATOR"];
+}
+
+async function canReviewTaskCategory(userId: string, category: string): Promise<boolean> {
+  const roles = await getOsStaffRoles(userId);
+  return taskCategoryRoles(category).some((role) => roles.includes(role));
+}
 
 
 type ScorecardWeightSet = {
