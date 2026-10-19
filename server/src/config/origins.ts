@@ -1,44 +1,54 @@
 /**
- * Origins allowed to make cross-origin (and Socket.io) requests to this
- * server. Supports Replit's proxied preview domains (*.replit.dev / *.repl.co),
- * any explicitly configured CLIENT_URL value(s), and Render's RENDER_EXTERNAL_URL.
+ * Exact origins trusted for browser and Socket.io requests.
+ * Never return wildcard/boolean CORS when credentials are enabled.
  */
-export function getAllowedOrigins(): string[] | boolean {
-  const replitDomains = process.env.REPLIT_DOMAINS;
-  if (replitDomains) {
-    return true;
+function normalizedOrigin(value: string): string | null {
+  const local = ["development", "test"].includes((process.env.NODE_ENV || "").trim().toLowerCase());
+  try {
+    const candidate = /^(https?:\/\/|capacitor:\/\/)/i.test(value) ? value : "https://" + value;
+    const url = new URL(candidate);
+    if (url.protocol === "capacitor:") return url.host ? "capacitor://" + url.host : null;
+    if (url.protocol === "https:") return url.origin;
+    if (local && url.protocol === "http:") return url.origin;
+    return null;
+  } catch {
+    return null;
   }
+}
 
-  const configured =
-    process.env.CLIENT_URL?.split(",")
-      .map((origin) => origin.trim())
-      .filter(Boolean) ?? [];
+export function getAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+  const local = ["development", "test"].includes((process.env.NODE_ENV || "").trim().toLowerCase());
 
-  // The public site is reachable on both apex and www hosts. Treat those as
-  // equivalent allowed frontend origins so API requests keep working when a
-  // visitor follows a link that uses the other host.
-  for (const origin of [...configured]) {
+  const addOrigin = (raw: string) => {
+    const origin = normalizedOrigin(raw.trim());
+    if (!origin) return;
+    origins.add(origin);
     try {
       const url = new URL(origin);
-      if (url.hostname === "truviventures.com") {
-        configured.push(`${url.protocol}//www.truviventures.com`);
-      } else if (url.hostname === "www.truviventures.com") {
-        configured.push(`${url.protocol}//truviventures.com`);
-      }
+      if (url.protocol === "https:" && url.hostname === "truviventures.com") origins.add("https://www.truviventures.com");
+      else if (url.protocol === "https:" && url.hostname === "www.truviventures.com") origins.add("https://truviventures.com");
     } catch {
-      // Keep malformed configured origins unchanged; CORS will not match them.
+      // Non-HTTP schemes such as capacitor://localhost are handled above.
     }
+  };
+
+  // CLIENT_URL is the exact frontend allow-list; comma-separated origins are supported.
+  for (const origin of (process.env.CLIENT_URL || "").split(",")) if (origin.trim()) addOrigin(origin);
+
+  // REPLIT_DOMAINS supplies exact environment-owned hosts, not permission to
+  // accept arbitrary origins. Each configured host is added separately.
+  for (const domain of (process.env.REPLIT_DOMAINS || "").split(",")) if (domain.trim()) addOrigin(domain);
+  if (process.env.RENDER_EXTERNAL_URL) addOrigin(process.env.RENDER_EXTERNAL_URL);
+
+  // Capacitor's bundled application origin; generic HTTP localhost is local-only.
+  origins.add("https://localhost");
+  origins.add("capacitor://localhost");
+  if (local) {
+    origins.add("http://localhost");
+    origins.add("http://localhost:5173");
+    origins.add("http://localhost:5000");
   }
 
-  if (process.env.RENDER_EXTERNAL_URL) configured.push(process.env.RENDER_EXTERNAL_URL);
-  if (configured.length === 0) configured.push("http://localhost:5173", "http://localhost:5000");
-
-  // The installed Capacitor (Android) app serves its bundled UI from
-  // https://localhost and calls this API cross-origin, so those origins must
-  // always be allowed for the app's requests (and its refresh cookie) to work.
-  for (const origin of ["https://localhost", "capacitor://localhost", "http://localhost"]) {
-    if (!configured.includes(origin)) configured.push(origin);
-  }
-
-  return configured;
+  return [...origins];
 }
