@@ -1320,6 +1320,35 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_incentives_booking_unique" ON "ambassador_os_incentives" ("booking_reference")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_incentives_user_status_idx" ON "ambassador_os_incentives" ("user_id", "status")`,
 
+    // Self-service privacy request history and legally-approved retention controls.
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_privacy_requests" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "request_type" text NOT NULL,
+       "reason" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'SUBMITTED',
+       "review_notes" text,
+       "reviewer_user_id" uuid REFERENCES "users"("id"),
+       "completion_reference" text,
+       "requested_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       "completed_at" timestamptz
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_privacy_request_user_idx" ON "ambassador_os_privacy_requests" ("requester_user_id", "requested_at")`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_privacy_request_status_idx" ON "ambassador_os_privacy_requests" ("status", "requested_at")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_retention_policies" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "data_category" text NOT NULL,
+       "retention_days" integer NOT NULL,
+       "active" boolean NOT NULL DEFAULT false,
+       "legal_approval_reference" text,
+       "policy_version" integer NOT NULL DEFAULT 1,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("data_category", "policy_version")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_retention_active_idx" ON "ambassador_os_retention_policies" ("active", "data_category")`,
     // Staff roles are scoped to this operating system and never elevate global permissions.
     `CREATE TABLE IF NOT EXISTS "ambassador_os_staff_assignments" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
