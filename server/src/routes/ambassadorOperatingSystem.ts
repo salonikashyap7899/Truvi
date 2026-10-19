@@ -762,7 +762,7 @@ router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedReq
   if (!current) return res.status(404).json({ error: "Campaign not found" });
   const projectId = parsed.data.projectId ?? current.projectId;
   const isBeingPublished = (parsed.data.status ?? current.status) === "ACTIVE" || parsed.data.officialDataVerified === true;
-  if (parsed.data.status === "ACTIVE" && !(parsed.data.officialDataVerified ?? current.officialDataVerified)) {
+  if ((parsed.data.status ?? current.status) === "ACTIVE" && !(parsed.data.officialDataVerified ?? current.officialDataVerified)) {
     return res.status(409).json({ error: "Verify official project, legal, pricing and inventory information before activating a campaign" });
   }
   if (isBeingPublished) {
