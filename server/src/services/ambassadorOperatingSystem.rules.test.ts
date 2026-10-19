@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import {
+  canActivateAmbassador,
+  calculateIncentiveAmount,
+  canTransitionIncentiveStatus,
+  computeAmbassadorQualityScore,
+  isEligibleAmbassadorSale,
+  isTrainingDayComplete,
+} from "./ambassadorOperatingSystem.rules";
+
+describe("Ambassador OS training certification", () => {
+  it("requires 80/100 plus both practical and ethics approval", () => {
+    expect(isTrainingDayComplete(80, "APPROVED", "APPROVED")).toBe(true);
+    expect(isTrainingDayComplete(79, "APPROVED", "APPROVED")).toBe(false);
+    expect(isTrainingDayComplete(100, "PENDING", "APPROVED")).toBe(false);
+    expect(isTrainingDayComplete(100, "APPROVED", "REJECTED")).toBe(false);
+  });
+
+  it("blocks activation until the terms, identity and final training day are complete", () => {
+    expect(canActivateAmbassador({ termsAccepted: true, identityVerified: true, finalDayComplete: true })).toBe(true);
+    expect(canActivateAmbassador({ termsAccepted: false, identityVerified: true, finalDayComplete: true })).toBe(false);
+    expect(canActivateAmbassador({ termsAccepted: true, identityVerified: false, finalDayComplete: true })).toBe(false);
+    expect(canActivateAmbassador({ termsAccepted: true, identityVerified: true, finalDayComplete: false })).toBe(false);
+  });
+});
+
+describe("Ambassador OS sale eligibility", () => {
+  it("requires registration/completion, non-duplicate status and referral attribution", () => {
+    expect(isEligibleAmbassadorSale({ stage: "REGISTRATION", isDuplicate: false, referralAttributed: true })).toBe(true);
+    expect(isEligibleAmbassadorSale({ stage: "COMPLETED", isDuplicate: false, referralAttributed: true })).toBe(true);
+    expect(isEligibleAmbassadorSale({ stage: "BOOKING", isDuplicate: false, referralAttributed: true })).toBe(false);
+    expect(isEligibleAmbassadorSale({ stage: "REGISTRATION", isDuplicate: true, referralAttributed: true })).toBe(false);
+    expect(isEligibleAmbassadorSale({ stage: "REGISTRATION", isDuplicate: false, referralAttributed: false })).toBe(false);
+  });
+});
+
+describe("Ambassador OS incentives and payouts", () => {
+  it("calculates complete verified-area blocks and rejects values below one block", () => {
+    expect(calculateIncentiveAmount({
+      calculationType: "PER_SQ_FT_BLOCK", amount: 100000, blockSizeSqFt: 1000, verifiedAreaSqFt: 1250,
+    })).toBe(100000);
+    expect(calculateIncentiveAmount({
+      calculationType: "PER_SQ_FT_BLOCK", amount: 100000, blockSizeSqFt: 1000, verifiedAreaSqFt: 900,
+    })).toBeNull();
+  });
+
+  it("validates fixed and percentage policies", () => {
+    expect(calculateIncentiveAmount({
+      calculationType: "FIXED", amount: 5000, blockSizeSqFt: 1000, verifiedAreaSqFt: 1250,
+    })).toBe(5000);
+    expect(calculateIncentiveAmount({
+      calculationType: "PERCENT_OF_VALUE", amount: 2, blockSizeSqFt: 1000, verifiedAreaSqFt: 1250, bookingValue: 10000000,
+    })).toBe(200000);
+    expect(calculateIncentiveAmount({
+      calculationType: "PERCENT_OF_VALUE", amount: 150, blockSizeSqFt: 1000, verifiedAreaSqFt: 1250, bookingValue: 10000000,
+    })).toBeNull();
+    expect(calculateIncentiveAmount({
+      calculationType: "PERCENT_OF_VALUE", amount: 2, blockSizeSqFt: 1000, verifiedAreaSqFt: 1250,
+    })).toBeNull();
+  });
+
+  it("allows only forward payout transitions and requires explicit terminal states", () => {
+    expect(canTransitionIncentiveStatus("PENDING", "APPROVED")).toBe(true);
+    expect(canTransitionIncentiveStatus("APPROVED", "PAYABLE")).toBe(true);
+    expect(canTransitionIncentiveStatus("PAYABLE", "PAID")).toBe(true);
+    expect(canTransitionIncentiveStatus("PAID", "PENDING")).toBe(false);
+    expect(canTransitionIncentiveStatus("CANCELLED", "APPROVED")).toBe(false);
+    expect(canTransitionIncentiveStatus("PENDING", "PAID")).toBe(false);
+  });
+});
+
+describe("Ambassador OS quality scoring", () => {
+  it("rewards verified contribution and applies quality penalties", () => {
+    expect(computeAmbassadorQualityScore({
+      modulesCompleted: 7, approvedTasks: 2, completedSiteVisits: 1, verifiedSales: 1, lostLeads: 1, duplicateLeads: 1,
+    })).toBe(48);
+    expect(computeAmbassadorQualityScore({
+      modulesCompleted: 0, approvedTasks: 0, completedSiteVisits: 0, verifiedSales: 0, lostLeads: 10, duplicateLeads: 10,
+    })).toBe(0);
+  });
+});
