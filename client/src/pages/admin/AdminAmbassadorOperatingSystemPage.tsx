@@ -4,7 +4,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock, Briefcase, Megaphone,
+  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock, Briefcase,
   CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined, TrendingUp,
 } from "lucide-react";
 
