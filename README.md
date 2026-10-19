@@ -62,14 +62,6 @@ cd client
 npm install
 cp .env.example .env   # VITE_API_URL defaults to http://localhost:5000
 npm run dev             # starts on :5173
-```
-
-Visit `http://localhost:5173`.
-
-## Seeded login credentials
-
-All seeded users share the password: **`Password123!`**
-
 
 
 - Real-time inventory synchronization
