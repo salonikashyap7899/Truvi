@@ -580,6 +580,11 @@ export const leads = pgTable(
     clientName: text("client_name").notNull(),
     clientPhone: text("client_phone").notNull(),
     clientEmail: text("client_email"),
+    // Consent record for sharing a non-user customer's contact details with Truvi.
+    // Buyer-owned enquiries do not use this field as third-party consent.
+    contactConsent: boolean("contact_consent").notNull().default(false),
+    contactConsentAt: timestamp("contact_consent_at", { withTimezone: true, mode: "date" }),
+    consentTextVersion: text("consent_text_version"),
     stage: text("stage").$type<LeadStage>().notNull().default("GENERATED"),
     source: text("source").notNull(),
     notes: text("notes"),
