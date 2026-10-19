@@ -12,18 +12,40 @@ import {
   investorUpdates,
   customerFeedback,
 } from "../db/schema";
-import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
+import { authenticate, AuthedRequest } from "../middleware/auth";
+import { isFounderEmail } from "../config/env";
 
 /**
  * Founder-only operating modules (Team, Marketing, Land Bank, Investor). These
  * back the previously-placeholder sections of the Founder "CEO OS" dashboard.
- * The founder is an ADMIN-role account, so every route is ADMIN-gated. All
- * figures are derived from rows the founder actually enters — nothing here is
- * fabricated (platform data-integrity rule).
+ * These routes are restricted to configured founder identities, not all
+ * operational ADMIN accounts. All figures are derived from rows the founder
+ * actually enters — nothing here is fabricated (platform data-integrity rule).
  */
 const router = Router();
 router.use(authenticate);
-router.use(requireRole("ADMIN"));
+
+// Re-resolve identity from the database rather than trusting client routing
+// or only the ADMIN role embedded in an access token.
+router.use(async (req: AuthedRequest, res, next) => {
+  if (!req.user || req.user.role !== "ADMIN") {
+    return res.status(403).json({ error: "Founder access required" });
+  }
+  try {
+    const db = getDb();
+    const [account] = await db
+      .select({ email: users.email, role: users.role, disabled: users.disabled })
+      .from(users)
+      .where(eq(users._id, req.user.userId))
+      .limit(1);
+    if (!account || account.disabled || account.role !== "ADMIN" || !isFounderEmail(account.email)) {
+      return res.status(403).json({ error: "Founder access required" });
+    }
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+});
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
