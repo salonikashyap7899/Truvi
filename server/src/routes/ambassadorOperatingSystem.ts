@@ -245,11 +245,12 @@ router.get("/training", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
+  const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const progress = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId));
   const byDay = new Map(progress.map((p) => [p.day, p]));
   res.json({ modules: MODULES.map((m) => {
     const previousComplete = m.day === 1 || byDay.get(m.day - 1)?.status === "COMPLETED";
-    return { ...safeModule(m), unlocked: previousComplete && Boolean(profile.termsAcceptedAt) && req.user!.onboardingVerified === true, progress: byDay.get(m.day) ?? null };
+    return { ...safeModule(m), unlocked: previousComplete && Boolean(profile.termsAcceptedAt) && account?.onboardingVerified === true, progress: byDay.get(m.day) ?? null };
   })});
 });
 
@@ -260,13 +261,14 @@ const quizSubmitSchema = z.object({
 
 router.post("/training/:day/submit", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
-  if (req.user!.onboardingVerified !== true) return res.status(403).json({ error: "Complete identity verification before training assessments" });
   const day = Number(String(req.params.day));
   if (!Number.isInteger(day) || day < 1 || day > 7) return res.status(400).json({ error: "Training day must be between 1 and 7" });
   const parsed = quizSubmitSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid assessment" });
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
+  const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
+  if (!account?.onboardingVerified) return res.status(403).json({ error: "Complete identity verification before training assessments" });
   if (!profile.termsAcceptedAt) return res.status(403).json({ error: "Complete your profile and accept the program terms first" });
   const existing = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId));
   if (day > 1 && existing.find((row) => row.day === day - 1)?.status !== "COMPLETED") {
@@ -501,6 +503,9 @@ router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedReq
   if (parsed.data.status === "ACTIVE" && !(parsed.data.officialDataVerified ?? current.officialDataVerified)) {
     return res.status(409).json({ error: "Verify official project, legal, pricing and inventory information before activating a campaign" });
   }
+  if (parsed.data.officialDataVerified === true && !(parsed.data.officialDataNotes ?? current.officialDataNotes)?.trim()) {
+    return res.status(400).json({ error: "Record the official source/document review notes before marking campaign data verified" });
+  }
   const [updated] = await db.update(ambassadorOsCampaigns).set({ ...parsed.data, updatedAt: new Date() }).where(eq(ambassadorOsCampaigns._id, current._id)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign.update", resourceType: "ambassador_os_campaign", resourceId: updated._id, metadata: parsed.data });
   res.json({ campaign: updated });
@@ -591,6 +596,9 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   if (!attributionPresent || lead.isDuplicate || lead.stage === "LOST") return res.status(409).json({ error: "Verified referral attribution is required for an eligible non-duplicate sale" });
   const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, parsed.data.policyId));
   if (!policy || !policy.active || !policy.approvalReference?.trim()) return res.status(409).json({ error: "The selected incentive policy is not active and approved" });
+  if (policy.effectiveFrom && policy.effectiveFrom.getTime() > Date.now()) return res.status(409).json({ error: "The selected incentive policy is not effective yet" });
+  const [existingIncentive] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.bookingReference, lead._id));
+  if (existingIncentive) return res.status(409).json({ error: "An incentive record already exists for this sale reference" });
   const amount = policy.calculationType === "FIXED"
     ? policy.amount
     : policy.calculationType === "PER_SQ_FT_BLOCK"
