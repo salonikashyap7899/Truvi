@@ -1240,6 +1240,8 @@ async function ensureSchema(db: Db): Promise<void> {
        "status" text NOT NULL DEFAULT 'ASSIGNED',
        "evidence_text" text,
        "evidence_url" text,
+       "checklist_items" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "checklist_responses" jsonb NOT NULL DEFAULT '[]'::jsonb,
        "review_reason" text,
        "reviewed_by_id" uuid REFERENCES "users"("id"),
        "reviewed_at" timestamptz,
@@ -1249,6 +1251,8 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_tasks_assignee_status_idx" ON "ambassador_os_tasks" ("assigned_to_id", "status")`,
     `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'ASSIGNED'`,
+    `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "checklist_items" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "checklist_responses" jsonb NOT NULL DEFAULT '[]'::jsonb`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_tasks_due_idx" ON "ambassador_os_tasks" ("due_at")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_follow_ups" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
