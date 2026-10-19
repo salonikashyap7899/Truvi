@@ -93,7 +93,9 @@ export function getEnv() {
  */
 const BUILTIN_FOUNDER_EMAILS = new Set(
   [
-    "founder@truvi.app",
+    // Keep only the specifically identified owner account as a built-in entry.
+    // Legacy/generic founder identities must be explicitly configured through
+    // FOUNDER_EMAILS instead of being trusted by default.
     "isalonikashyap@gmail.com",
     ...String(process.env.FOUNDER_EMAILS ?? "").split(","),
   ]
