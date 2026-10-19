@@ -2877,3 +2877,16 @@ export const ambassadorOsMarketingMaterials = pgTable("ambassador_os_marketing_m
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 }, (t) => [index("ambassador_os_marketing_material_status_idx").on(t.status, t.campaignId), index("ambassador_os_marketing_material_dates_idx").on(t.validFrom, t.validTo)]);
+
+/** OS-scoped internal responsibilities; these do not grant global Admin access. */
+export type AmbassadorOsStaffRole = "PROGRAM_MANAGER" | "SALES_COORDINATOR" | "TRAINING_COORDINATOR";
+export const ambassadorOsStaffAssignments = pgTable("ambassador_os_staff_assignments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id),
+  osRole: text("os_role").$type<AmbassadorOsStaffRole>().notNull(),
+  active: boolean("active").notNull().default(true),
+  grantedById: uuid("granted_by_id").notNull().references(() => users._id),
+  grantedAt: timestamp("granted_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_staff_assignment_unique").on(t.userId, t.osRole), index("ambassador_os_staff_active_role_idx").on(t.active, t.osRole)]);
+export type IAmbassadorOsStaffAssignment = typeof ambassadorOsStaffAssignments.$inferSelect;
