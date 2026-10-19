@@ -453,8 +453,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
       const questions = JSON.parse(trainingContentForm.questionsJson);
       await api.post("/ambassador-os/admin/training-modules", {
         ...trainingContentForm, day: Number(trainingContentForm.day),
-        keyPoints: trainingContentForm.keyPoints.split("
-").map((item) => item.trim()).filter(Boolean),
+        keyPoints: trainingContentForm.keyPoints.split("\n").map((item) => item.trim()).filter(Boolean),
         videoUrl: trainingContentForm.videoUrl || undefined, questions,
       });
       toast.success(trainingContentForm.isPublished ? "Training module version published" : "Training module draft saved");
@@ -467,8 +466,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   async function loadTrainingModule(module: any) {
     setTrainingContentForm({
       day: module.day, title: module.title, summary: module.summary, lesson: module.lesson,
-      keyPoints: (module.keyPoints ?? []).join("
-"), assignment: module.assignment,
+      keyPoints: (module.keyPoints ?? []).join("\n"), assignment: module.assignment,
       videoUrl: module.videoUrl ?? "", questionsJson: JSON.stringify(module.questions ?? [], null, 2), isPublished: false,
     });
   }
@@ -524,8 +522,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
       await api.post("/ambassador-os/admin/career/opportunities", {
         ...careerOpportunityForm,
         vacancies: Number(careerOpportunityForm.vacancies),
-        requiredSkills: careerOpportunityForm.requiredSkills.split("
-").map((v)=>v.trim()).filter(Boolean),
+        requiredSkills: careerOpportunityForm.requiredSkills.split("\n").map((v)=>v.trim()).filter(Boolean),
         applicationDeadline: careerOpportunityForm.applicationDeadline ? new Date(careerOpportunityForm.applicationDeadline).toISOString() : undefined,
       });
       toast.success(careerOpportunityForm.status==="PUBLISHED"?"Opportunity published":"Opportunity saved as draft");
