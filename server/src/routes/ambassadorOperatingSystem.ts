@@ -510,7 +510,8 @@ router.post("/admin/performance-reviews", requireRole("ADMIN"), async (req: Auth
 
 router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: AuthedRequest, res) => {
   const db = getDb();
-  const [profileRows, completedModules, approvedTasks, allLeads, completedVisits] = await Promise.all([
+  const policy = await getActiveScorecardPolicy(req.user!.userId);
+  const [profileRows, completedModules, approvedTasks, allLeads, completedVisits, reviewRows, propertyBookings] = await Promise.all([
     db.select({ profile: ambassadorOsProfiles, name: users.name })
       .from(ambassadorOsProfiles)
       .innerJoin(users, eq(ambassadorOsProfiles.userId, users._id))
@@ -526,50 +527,74 @@ router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: Authe
       stage: leads.stage, isDuplicate: leads.isDuplicate, creatorRole: leads.creatorRole,
       contactConsent: leads.contactConsent, contactConsentAt: leads.contactConsentAt, consentTextVersion: leads.consentTextVersion,
     }).from(leads),
-    db.select({ leadId: siteVisits.leadId })
-      .from(siteVisits)
-      .where(eq(siteVisits.status, "COMPLETED")),
+    db.select({ leadId: siteVisits.leadId }).from(siteVisits).where(eq(siteVisits.status, "COMPLETED")),
+    db.select().from(ambassadorOsPerformanceReviews).orderBy(desc(ambassadorOsPerformanceReviews.periodEnd), desc(ambassadorOsPerformanceReviews.reviewedAt)),
+    db.select({ leadId: ambassadorOsPropertyBookings.leadId, status: ambassadorOsPropertyBookings.status })
+      .from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.status, "SALE_VERIFIED")),
   ]);
-  const visitLeadIds = new Set(completedVisits.map((v) => v.leadId).filter(Boolean));
+  const completedVisitIds = new Set(completedVisits.map((v) => v.leadId).filter(Boolean));
+  const verifiedSaleLeadIds = new Set(propertyBookings.map((b) => b.leadId));
+  const latestReviews = new Map<string, typeof reviewRows[number]>();
+  for (const review of reviewRows) if (!latestReviews.has(review.ambassadorId)) latestReviews.set(review.ambassadorId, review);
+  const weights = publicScorecardWeights(policy);
   const rows = profileRows.map(({ profile, name }) => {
     const attributed = allLeads.filter((lead) =>
       lead.submittedById === profile.userId || (lead.referralChain ?? []).some((referral) => referral.userId === profile.userId)
     );
     const consentEligible = (lead: typeof attributed[number]) => lead.creatorRole === "BUYER" ||
       (lead.contactConsent === true && Boolean(lead.contactConsentAt) && Boolean(lead.consentTextVersion));
-    const nonDuplicate = attributed.filter((lead) => !lead.isDuplicate && consentEligible(lead));
-    const moduleCount = completedModules.filter((module) => module.userId === profile.userId).length;
-    const taskCount = approvedTasks.filter((task) => task.userId === profile.userId).length;
-    const siteVisitCount = nonDuplicate.filter((lead) => visitLeadIds.has(lead._id)).length;
-    const saleCount = nonDuplicate.filter((lead) => ["REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
-    const lostCount = attributed.filter((lead) => lead.stage === "LOST" && !lead.isDuplicate).length;
-    const duplicateCount = attributed.filter((lead) => lead.isDuplicate).length;
-    const qualityScore = computeAmbassadorQualityScore({
-      modulesCompleted: moduleCount, approvedTasks: taskCount, completedSiteVisits: siteVisitCount,
-      verifiedSales: saleCount, lostLeads: lostCount, duplicateLeads: duplicateCount,
-    });
+    const genuine = attributed.filter((lead) => !lead.isDuplicate && consentEligible(lead));
+    const latestReview = latestReviews.get(profile.userId);
     const nameParts = name.trim().split(/\s+/).filter(Boolean);
-    const displayName = nameParts.length > 1 ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.` : (nameParts[0] ?? "Ambassador");
+    const displayName = nameParts.length > 1 ? nameParts[0] + " " + nameParts[nameParts.length - 1][0] + "." : (nameParts[0] ?? "Ambassador");
+    const saleCount = genuine.filter((lead) => verifiedSaleLeadIds.has(lead._id)).length;
     return {
       userId: profile.userId,
       displayName,
-      ambassadorId: `TRUVI-${profile.cityCode}-${String(profile.ambassadorNo).padStart(4, "0")}`,
+      ambassadorId: "TRUVI-" + profile.cityCode + "-" + String(profile.ambassadorNo).padStart(4, "0"),
       currentLevel: profile.currentLevel,
-      modulesCompleted: moduleCount,
-      approvedTasks: taskCount,
-      completedSiteVisits: siteVisitCount,
+      modulesCompleted: completedModules.filter((module) => module.userId === profile.userId).length,
+      approvedTasks: approvedTasks.filter((task) => task.userId === profile.userId).length,
+      genuineEnquiries: genuine.length,
+      qualifiedLeads: genuine.filter((lead) => Boolean((lead as any).qualifiedAt) || ["INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length,
+      completedSiteVisits: genuine.filter((lead) => completedVisitIds.has(lead._id)).length,
       verifiedSales: saleCount,
-      lostLeads: lostCount,
-      duplicateLeads: duplicateCount,
-      qualityScore,
+      lostLeads: attributed.filter((lead) => lead.stage === "LOST" && !lead.isDuplicate).length,
+      duplicateLeads: attributed.filter((lead) => lead.isDuplicate).length,
+      scorecardReviewed: Boolean(latestReview),
+      seriousMisconduct: latestReview?.seriousMisconduct ?? false,
+      weightedScore: latestReview?.weightedScore ?? null,
+      scores: latestReview ? {
+        genuineLeadQuality: latestReview.genuineLeadQualityScore,
+        customerCommunication: latestReview.customerCommunicationScore,
+        siteVisitContribution: latestReview.siteVisitContributionScore,
+        verifiedSalesContribution: latestReview.verifiedSalesContributionScore,
+        crmDiscipline: latestReview.crmDisciplineScore,
+        trainingSkillDevelopment: latestReview.trainingSkillDevelopmentScore,
+        ethicsCompliance: latestReview.ethicsComplianceScore,
+      } : null,
+      scorecardPolicyVersion: latestReview?.scorecardPolicyVersion ?? null,
+      reviewPeriodEnd: latestReview?.periodEnd ?? null,
     };
-  }).sort((a, b) => b.qualityScore - a.qualityScore || a.ambassadorId.localeCompare(b.ambassadorId))
-    .map((row, index) => ({ rank: index + 1, ...row }));
-  const publicRows = rows.map(({ userId, ...row }) => ({ ...row, isMine: userId === req.user!.userId }));
+  });
+  const rankable = rows.filter((row) => row.scorecardReviewed && !row.seriousMisconduct && row.weightedScore !== null)
+    .sort((a, b) => (b.weightedScore ?? 0) - (a.weightedScore ?? 0) || a.ambassadorId.localeCompare(b.ambassadorId))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+  const rankByUser = new Map(rankable.map((row) => [row.userId, row.rank]));
+  const rankedPublic = rankable.map(({ userId, ...row }) => ({ ...row, isMine: userId === req.user!.userId }));
+  const ownRow = rows.find((row) => row.userId === req.user!.userId) ?? null;
+  const mine = ownRow ? {
+    ...ownRow,
+    rank: rankByUser.get(ownRow.userId) ?? null,
+    isMine: true,
+  } : null;
   res.json({
-    scoring: { moduleCompleted: 2, approvedTask: 5, completedSiteVisit: 8, verifiedSale: 25, lostLeadPenalty: 2, duplicateLeadPenalty: 3 },
-    leaderboard: publicRows.slice(0, 10),
-    mine: publicRows.find((row) => row.isMine) ?? null,
+    scoring: weights,
+    totalWeight: Object.values(weights).reduce((sum, value) => sum + value, 0),
+    leaderboard: rankedPublic.slice(0, 10),
+    mine,
+    unscoredActiveAmbassadors: rows.filter((row) => !row.scorecardReviewed && !row.seriousMisconduct).length,
+    excludedForComplianceReview: rows.filter((row) => row.seriousMisconduct).length,
   });
 });
 
