@@ -1217,6 +1217,12 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "property_booking_id" uuid REFERENCES "ambassador_os_property_bookings"("id")`,
     `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "expected_payout_at" timestamptz`,
+    `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "recovery_status" text NOT NULL DEFAULT 'NOT_REQUIRED'`,
+    `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "recovery_amount" double precision NOT NULL DEFAULT 0`,
+    `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "recovery_reference" text`,
+    `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "recovery_reviewed_by_id" uuid REFERENCES "users"("id")`,
+    `ALTER TABLE "ambassador_os_incentives" ADD COLUMN IF NOT EXISTS "recovery_reviewed_at" timestamptz`,
+
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_incentives_property_booking_unique" ON "ambassador_os_incentives" ("property_booking_id")`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_incentives_booking_unique" ON "ambassador_os_incentives" ("booking_reference")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_incentives_user_status_idx" ON "ambassador_os_incentives" ("user_id", "status")`,
