@@ -3,7 +3,7 @@ import { zodMessage } from "../lib/validationError";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { payments, subscriptions, subscriptionPlans, vouchers } from "../db/schema";
 import { getEnv, isRazorpayConfigured } from "../config/env";
@@ -261,7 +261,7 @@ router.post("/verify", async (req, res) => {
         razorpaySignature: razorpay_signature,
         updatedAt: new Date(),
       })
-      .where(and(eq(payments._id, row._id), eq(payments.status, "CREATED")))
+      .where(and(eq(payments._id, row._id), ne(payments.status, "PAID")))
       .returning({ _id: payments._id });
 
     if (updated) {
@@ -522,11 +522,14 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
           Number(entity.amount) === expectedAmount &&
           entity.currency === row.currency;
         if (matchesOrder && row.status !== "PAID") {
-          await db
+          const [updated] = await db
             .update(payments)
             .set({ status: "PAID", razorpayPaymentId: paymentId, updatedAt: new Date() })
-            .where(and(eq(payments._id, row._id), eq(payments.status, "CREATED")));
-          void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, row.amountPaise + row.gstPaise, paymentId ?? "");
+            .where(and(eq(payments._id, row._id), ne(payments.status, "PAID")))
+            .returning({ _id: payments._id });
+          if (updated) {
+            void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, expectedAmount, paymentId);
+          }
         }
       }
     } else if (event.event === "payment.failed" && entity) {
