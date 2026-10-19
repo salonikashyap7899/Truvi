@@ -4,6 +4,9 @@ import { z } from "zod";
 import { getDb } from "../config/db";
 import {
   ambassadorOsCampaigns,
+  ambassadorOsCampaignGuidelines,
+  ambassadorOsCampaignAcknowledgements,
+  ambassadorOsMarketingMaterials,
   ambassadorOsCareerApplications,
   ambassadorOsCareerAssessments,
   ambassadorOsCareerOpportunities,
@@ -1729,10 +1732,26 @@ const campaignSchema = z.object({
 
 router.get("/campaigns", async (req: AuthedRequest, res) => {
   const db = getDb();
-  const rows = req.user!.role === "ADMIN"
-    ? await db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt))
-    : await db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true))).orderBy(desc(ambassadorOsCampaigns.createdAt));
-  res.json({ campaigns: rows });
+  if (req.user!.role === "ADMIN") {
+    const rows = await db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt));
+    return res.json({ campaigns: rows });
+  }
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const rows = await db.select().from(ambassadorOsCampaigns)
+    .where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true)))
+    .orderBy(desc(ambassadorOsCampaigns.createdAt));
+  if (rows.length === 0) return res.json({ campaigns: [] });
+  const campaignIds = rows.map((row) => row._id);
+  const [guidelines, acknowledgements] = await Promise.all([
+    db.select().from(ambassadorOsCampaignGuidelines).where(inArray(ambassadorOsCampaignGuidelines.campaignId, campaignIds)),
+    db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, req.user!.userId)),
+  ]);
+  const campaigns = rows.map((campaign) => {
+    const latest = guidelines.filter((item) => item.campaignId === campaign._id).sort((a, b) => b.version - a.version)[0];
+    const acknowledged = latest && acknowledgements.some((item) => item.campaignId === campaign._id && item.guidelineVersion === latest.version);
+    return { ...campaign, marketingGuidelines: latest ? { version: latest.version, content: latest.content, publishedAt: latest.publishedAt, approvalReference: latest.approvalReference } : null, guidelinesAcknowledged: Boolean(acknowledged) };
+  });
+  res.json({ campaigns });
 });
 
 router.post("/admin/campaigns", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
@@ -2577,5 +2596,139 @@ router.post("/admin/career/assessments", requireRole("ADMIN"), async (req: Authe
   res.status(201).json({ assessment });
 });
 
+
+const campaignGuidelinePublishSchema = z.object({
+  content: z.string().trim().min(50).max(15000),
+  approvalReference: z.string().trim().min(5).max(500),
+});
+
+router.post("/admin/campaigns/:id/guidelines", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = campaignGuidelinePublishSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid campaign guidelines" });
+  const db = getDb();
+  const [campaign] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, String(req.params.id)));
+  if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+  if (campaign.status !== "ACTIVE" || !campaign.officialDataVerified) return res.status(409).json({ error: "Publish campaign guidelines only after official project details are verified and the campaign is active" });
+  const previous = await db.select().from(ambassadorOsCampaignGuidelines).where(eq(ambassadorOsCampaignGuidelines.campaignId, campaign._id));
+  const version = previous.reduce((max, row) => Math.max(max, row.version), 0) + 1;
+  const now = new Date();
+  const [guideline] = await db.insert(ambassadorOsCampaignGuidelines).values({
+    campaignId: campaign._id, version, content: parsed.data.content, approvalReference: parsed.data.approvalReference,
+    createdById: req.user!.userId, publishedAt: now, createdAt: now,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign_guidelines.publish", resourceType: "ambassador_os_campaign_guidelines", resourceId: guideline._id, metadata: { campaignId: campaign._id, version, approvalReference: guideline.approvalReference } });
+  const activeAmbassadors = await db.select({ userId: ambassadorOsProfiles.userId }).from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.status, "ACTIVE"));
+  await notifySafely(activeAmbassadors.map((row) => row.userId), {
+    type: "ambassador_campaign_guidelines_updated", title: "Campaign marketing guidelines updated",
+    message: "The current marketing guidelines for " + campaign.name + " are version " + version + ". Review and acknowledge them before submitting leads or using campaign material.",
+    data: { screen: "AmbassadorOperatingSystem", campaignId: campaign._id, version }, actorUserId: req.user!.userId, priority: "high", dedupeKey: campaign._id + ":" + version,
+  });
+  res.status(201).json({ guideline });
+});
+
+const campaignGuidelineAckSchema = z.object({ version: z.number().int().positive(), confirmed: z.literal(true) });
+router.post("/campaigns/:id/acknowledge", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const parsed = campaignGuidelineAckSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Explicit acknowledgement is required" });
+  const db = getDb();
+  const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+  const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+  if (!profile?.termsAcceptedAt || !account?.onboardingVerified || profile.status !== "ACTIVE") return res.status(403).json({ error: "Only verified, terms-accepting, active Ambassadors may acknowledge campaign guidelines" });
+  const [campaign] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, String(req.params.id)));
+  if (!campaign || campaign.status !== "ACTIVE" || !campaign.officialDataVerified) return res.status(404).json({ error: "Active verified campaign not found" });
+  const published = await db.select().from(ambassadorOsCampaignGuidelines).where(eq(ambassadorOsCampaignGuidelines.campaignId, campaign._id));
+  const latest = published.sort((a, b) => b.version - a.version)[0];
+  if (!latest) return res.status(409).json({ error: "The program team has not published approved marketing guidelines for this campaign yet" });
+  if (latest.version !== parsed.data.version) return res.status(409).json({ error: "Guidelines have changed. Reload and acknowledge the latest version." });
+  const [acknowledgement] = await db.insert(ambassadorOsCampaignAcknowledgements).values({ campaignId: campaign._id, ambassadorId: req.user!.userId, guidelineVersion: latest.version })
+    .onConflictDoNothing().returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign_guidelines.acknowledge", resourceType: "ambassador_os_campaign_guidelines", resourceId: latest._id, metadata: { campaignId: campaign._id, version: latest.version } });
+  res.json({ acknowledged: true, version: latest.version, acknowledgedAt: acknowledgement?.acknowledgedAt ?? new Date() });
+});
+
+const marketingMaterialCreateSchema = z.object({
+  campaignId: z.string().uuid(), title: z.string().trim().min(3).max(180),
+  channel: z.enum(["WHATSAPP", "INSTAGRAM", "FACEBOOK", "POSTER", "EMAIL", "BROCHURE", "OTHER"]),
+  content: z.string().trim().min(10).max(12000),
+  assetUrl: z.string().url().max(2000).optional().or(z.literal("")),
+});
+
+router.get("/marketing-materials", async (req: AuthedRequest, res) => {
+  const db = getDb();
+  if (req.user!.role === "ADMIN") {
+    const materials = await db.select().from(ambassadorOsMarketingMaterials).orderBy(desc(ambassadorOsMarketingMaterials.createdAt));
+    return res.json({ materials });
+  }
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const now = new Date();
+  const [materials, campaigns, acknowledgements, guidelines] = await Promise.all([
+    db.select().from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials.status, "APPROVED")).orderBy(desc(ambassadorOsMarketingMaterials.createdAt)),
+    db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true))),
+    db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, req.user!.userId)),
+    db.select().from(ambassadorOsCampaignGuidelines),
+  ]);
+  const campaignsById = new Map(campaigns.map((item) => [item._id, item]));
+  const currentVersion = new Map<string, number>();
+  for (const guideline of guidelines) currentVersion.set(guideline.campaignId, Math.max(currentVersion.get(guideline.campaignId) ?? 0, guideline.version));
+  const visible = materials.filter((item) => {
+    const campaign = campaignsById.get(item.campaignId);
+    const latestVersion = currentVersion.get(item.campaignId);
+    const acknowledged = latestVersion !== undefined && acknowledgements.some((ack) => ack.campaignId === item.campaignId && ack.guidelineVersion === latestVersion);
+    return Boolean(campaign && acknowledged && (!item.validFrom || item.validFrom <= now) && (!item.validTo || item.validTo > now));
+  });
+  res.json({ materials: visible });
+});
+
+router.post("/marketing-materials", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const parsed = marketingMaterialCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid marketing material" });
+  const db = getDb();
+  const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+  const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+  if (!profile?.termsAcceptedAt || !account?.onboardingVerified || profile.status !== "ACTIVE") return res.status(403).json({ error: "Only verified, terms-accepting, active Ambassadors may submit marketing material" });
+  const [campaign] = await db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns._id, parsed.data.campaignId), eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true)));
+  if (!campaign) return res.status(404).json({ error: "Active verified campaign not found" });
+  const published = await db.select().from(ambassadorOsCampaignGuidelines).where(eq(ambassadorOsCampaignGuidelines.campaignId, campaign._id));
+  const latest = published.sort((a, b) => b.version - a.version)[0];
+  if (!latest) return res.status(409).json({ error: "Approved campaign marketing guidelines are not published yet" });
+  const [ack] = await db.select().from(ambassadorOsCampaignAcknowledgements).where(and(eq(ambassadorOsCampaignAcknowledgements.campaignId, campaign._id), eq(ambassadorOsCampaignAcknowledgements.ambassadorId, req.user!.userId), eq(ambassadorOsCampaignAcknowledgements.guidelineVersion, latest.version)));
+  if (!ack) return res.status(409).json({ error: "Acknowledge the current campaign marketing guidelines before submitting material" });
+  const [material] = await db.insert(ambassadorOsMarketingMaterials).values({
+    campaignId: campaign._id, title: parsed.data.title, channel: parsed.data.channel, content: parsed.data.content,
+    assetUrl: parsed.data.assetUrl || null, status: "SUBMITTED", createdById: req.user!.userId, updatedAt: new Date(),
+  }).returning();
+  const admins = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
+  await notifySafely(admins.map((item) => item.userId), { type: "ambassador_marketing_material_review", title: "Marketing material needs approval", message: material.title + " was submitted for review.", data: { screen: "AdminAmbassadorOperatingSystem", materialId: material._id }, actorUserId: req.user!.userId, priority: "normal", dedupeKey: material._id });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.marketing_material.submit", resourceType: "ambassador_os_marketing_material", resourceId: material._id, metadata: { campaignId: campaign._id, channel: material.channel, status: material.status } });
+  res.status(201).json({ material, message: "Submitted for review. Only approved material is available for campaign sharing." });
+});
+
+const marketingMaterialReviewSchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED", "RETIRED"]),
+  reviewReason: z.string().trim().max(2000).optional(),
+  validTo: z.string().datetime().nullable().optional(),
+});
+router.patch("/admin/marketing-materials/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = marketingMaterialReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid marketing material review" });
+  if (parsed.data.status === "REJECTED" && !parsed.data.reviewReason?.trim()) return res.status(400).json({ error: "A reason is required when rejecting material" });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Marketing material not found" });
+  if (current.status !== "SUBMITTED" && !(current.status === "APPROVED" && parsed.data.status === "RETIRED")) return res.status(409).json({ error: "Only submitted material can be approved/rejected; approved material can be retired" });
+  const now = new Date();
+  const validTo = parsed.data.validTo === undefined ? current.validTo : parsed.data.validTo ? new Date(parsed.data.validTo) : null;
+  if (parsed.data.status === "APPROVED" && validTo && validTo <= now) return res.status(400).json({ error: "The material expiry must be in the future" });
+  const [updated] = await db.update(ambassadorOsMarketingMaterials).set({
+    status: parsed.data.status, reviewerId: req.user!.userId, reviewedAt: now, reviewReason: parsed.data.reviewReason ?? null,
+    validFrom: parsed.data.status === "APPROVED" ? now : current.validFrom, validTo, updatedAt: now,
+  }).where(and(eq(ambassadorOsMarketingMaterials._id, current._id), eq(ambassadorOsMarketingMaterials.status, current.status))).returning();
+  if (!updated) return res.status(409).json({ error: "Material changed during review; refresh and retry" });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.marketing_material.review", resourceType: "ambassador_os_marketing_material", resourceId: updated._id, metadata: { previousStatus: current.status, status: updated.status, reason: updated.reviewReason } });
+  await notifySafely([current.createdById], { type: "ambassador_marketing_material_reviewed", title: "Marketing material review updated", message: updated.status === "APPROVED" ? "Your marketing material "" + updated.title + "" is approved for the valid period." : updated.status === "REJECTED" ? "Your marketing material "" + updated.title + "" needs changes: " + (updated.reviewReason ?? "") : "Your marketing material "" + updated.title + "" has been retired.", data: { screen: "AmbassadorOperatingSystem", materialId: updated._id, status: updated.status }, actorUserId: req.user!.userId, priority: updated.status === "REJECTED" ? "high" : "normal", dedupeKey: updated._id + ":" + updated.status + ":" + now.toISOString() });
+  res.json({ material: updated });
+});
 
 export default router;
