@@ -1,6 +1,7 @@
 import axios from "axios";
 import { Capacitor } from "@capacitor/core";
 import { useAuthStore } from "@/store/authStore";
+import type { User } from "@/types";
 
 // The installed Android app is bundled and served from https://localhost, so
 // window.location.origin points at the device, not our API. Native builds must
@@ -28,6 +29,7 @@ api.interceptors.request.use((config) => {
 });
 
 let refreshPromise: Promise<string | null> | null = null;
+let sessionInitializationPromise: Promise<void> | null = null;
 
 // Public/session-establishment endpoints must not trigger a refresh loop.
 // Protected endpoints under /auth (notably /auth/submit-kyc and /auth/me) DO
@@ -46,47 +48,75 @@ const NO_REFRESH_RETRY_ENDPOINTS = new Set([
 
 function shouldSkipTokenRefresh(url?: string): boolean {
   if (!url) return false;
-  const path = url.split("?")[0].replace(/\/+$/, "");
+  const path = url.split("?")[0].replace(/\\/+$/, "");
   return [...NO_REFRESH_RETRY_ENDPOINTS].some((endpoint) => path === endpoint || path.endsWith(endpoint));
 }
 
+/**
+ * Access tokens are memory-only. The durable session is the HTTP-only refresh
+ * cookie, so restoring the session always fetches a fresh token and current user
+ * from the server rather than reading an old token/user snapshot from storage.
+ */
 async function refreshAccessToken(): Promise<string | null> {
+  const initial = useAuthStore.getState();
   try {
     const res = await axios.post(`${API_BASE}/api/auth/refresh`, {}, { withCredentials: true });
     const newToken = res.data.accessToken as string;
-    const currentUser = useAuthStore.getState().user;
-    if (currentUser) {
-      useAuthStore.getState().setAuth(currentUser, newToken);
-      // Best-effort: also refresh the cached user snapshot so role/verification
-      // gates and the UI reflect the latest account state (e.g. right after an
-      // admin approves KYC) without requiring a re-login.
-      try {
-        const me = await axios.get(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${newToken}` },
-          withCredentials: true,
-        });
-        const fresh = me.data.user;
-        useAuthStore.getState().setAuth(
-          {
-            ...currentUser,
-            role: fresh.role,
-            approvalStatus: fresh.approvalStatus,
-            emailVerified: fresh.emailVerified,
-            phoneVerified: fresh.phoneVerified,
-            onboardingVerified: fresh.onboardingVerified,
-            onboardingChecks: fresh.onboardingChecks,
-          },
-          newToken,
-        );
-      } catch {
-        /* keep the token-only update */
-      }
+    if (!newToken) throw new Error("Refresh endpoint returned no access token");
+
+    const me = await axios.get(`${API_BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${newToken}` },
+      withCredentials: true,
+    });
+    const freshUser = me.data.user as User;
+    if (!freshUser || !freshUser.role || !freshUser.email) {
+      throw new Error("Session endpoint returned an invalid user");
     }
-    return newToken;
+
+    // Do not overwrite a newer login/logout if it happened while the refresh
+    // request was in flight.
+    const latest = useAuthStore.getState();
+    const unchanged =
+      latest.accessToken === initial.accessToken &&
+      latest.isInitialized === initial.isInitialized &&
+      latest.user === initial.user;
+    if (unchanged) {
+      latest.setAuth(freshUser, newToken);
+      return newToken;
+    }
+    return latest.accessToken;
   } catch {
-    useAuthStore.getState().clearAuth();
-    return null;
+    // A startup restoration failure must not erase a login completed while the
+    // request was in flight; a normal expired-session refresh still clears auth.
+    const latest = useAuthStore.getState();
+    const unchanged =
+      latest.accessToken === initial.accessToken &&
+      latest.isInitialized === initial.isInitialized &&
+      latest.user === initial.user;
+    if (unchanged) latest.clearAuth();
+    return latest.accessToken;
   }
+}
+
+/** Run once on app startup; route guards wait until this finishes. */
+export function initializeAuthSession(): Promise<void> {
+  if (useAuthStore.getState().isInitialized) return Promise.resolve();
+  if (!sessionInitializationPromise) {
+    sessionInitializationPromise = (async () => {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshAccessToken().finally(() => {
+            refreshPromise = null;
+          });
+        }
+        await refreshPromise;
+      } finally {
+        const state = useAuthStore.getState();
+        if (!state.isInitialized) state.setInitialized();
+      }
+    })();
+  }
+  return sessionInitializationPromise;
 }
 
 api.interceptors.response.use(
