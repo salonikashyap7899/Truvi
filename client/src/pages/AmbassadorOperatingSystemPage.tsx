@@ -44,9 +44,12 @@ type FollowUp = {
   status: string; outcome?: string | null; isOverdue: boolean;
 };
 type LeaderboardEntry = {
-  rank: number; isMine: boolean; displayName: string; ambassadorId: string; currentLevel: string;
-  modulesCompleted: number; approvedTasks: number; completedSiteVisits: number; verifiedSales: number;
-  lostLeads: number; duplicateLeads: number; qualityScore: number;
+  rank: number | null; isMine: boolean; displayName: string; ambassadorId: string; currentLevel: string;
+  modulesCompleted: number; approvedTasks: number; genuineEnquiries: number; qualifiedLeads: number;
+  completedSiteVisits: number; verifiedSales: number; lostLeads: number; duplicateLeads: number;
+  scorecardReviewed: boolean; seriousMisconduct: boolean; weightedScore: number | null;
+  scores?: { genuineLeadQuality: number; customerCommunication: number; siteVisitContribution: number; verifiedSalesContribution: number; crmDiscipline: number; trainingSkillDevelopment: number; ethicsCompliance: number } | null;
+  scorecardPolicyVersion?: number | null; reviewPeriodEnd?: string | null;
 };
 type Snapshot = {
   profile: Profile;
@@ -371,11 +374,14 @@ export default function AmbassadorOperatingSystemPage() {
       </section>
 
       <section className="space-y-4">
-        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><Award className="text-amber-300" /> Quality Leaderboard</h2><p className="mt-1 text-sm text-muted-foreground">Active Ambassadors only. The score uses approved learning, approved tasks, completed site visits, verified sales, lost leads and duplicates. It is recognition only—not a commission or earnings formula.</p></div>
+        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><Award className="text-amber-300" /> Quality Leaderboard</h2><p className="mt-1 text-sm text-muted-foreground">Weighted scorecards follow the PDF: genuine lead quality 25%, customer communication 20%, site visits 15%, verified sales 15%, CRM discipline 10%, training/skills 10%, ethics/compliance 5%. Serious misconduct excludes an Ambassador regardless of sales score. This is recognition—not a commission formula.</p></div>
         <Card className="border-white/10 bg-white/[0.035] p-4">
-          {leaderboard.length === 0 ? <Empty text="The leaderboard appears when Ambassadors are formally activated."/> : <div className="space-y-2">{leaderboard.map((entry) => <div key={entry.ambassadorId} className={"flex flex-wrap items-center gap-3 rounded-xl border p-3 " + (entry.isMine ? "border-sky-400/30 bg-sky-400/[0.06]" : "border-white/10 bg-black/10")}><div className={"grid size-9 shrink-0 place-items-center rounded-xl font-semibold " + (entry.rank <= 3 ? "bg-amber-400/15 text-amber-200" : "bg-white/5 text-muted-foreground")}>{entry.rank}</div><div className="min-w-0 flex-1"><p className="font-medium">{entry.displayName}</p><p className="text-xs text-muted-foreground">{entry.ambassadorId} · {entry.currentLevel}</p></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4"><TinyStat label="Score" value={String(entry.qualityScore)}/><TinyStat label="Verified sales" value={String(entry.verifiedSales)}/><TinyStat label="Site visits" value={String(entry.completedSiteVisits)}/><TinyStat label="Approved tasks" value={String(entry.approvedTasks)}/></div></div>)}</div>}
-          {myLeaderboardRank && myLeaderboardRank.rank > 10 && <p className="mt-3 rounded-lg border border-white/10 p-3 text-sm text-muted-foreground">Your current position: #{myLeaderboardRank.rank} with {myLeaderboardRank.qualityScore} quality points.</p>}
-          {myLeaderboardRank && myLeaderboardRank.rank <= 10 && <p className="mt-3 text-xs text-muted-foreground">You're currently ranked #{myLeaderboardRank.rank}. Scores are calculated from the current verified records and can change after review.</p>}
+          {leaderboard.length === 0 ? <Empty text="No weighted scorecards have been approved yet. Admin must review the seven dimensions before Ambassadors can be ranked."/> : <div className="space-y-2">{leaderboard.map((entry) => <div key={entry.ambassadorId} className={"flex flex-wrap items-center gap-3 rounded-xl border p-3 " + (entry.isMine ? "border-sky-400/30 bg-sky-400/[0.06]" : "border-white/10 bg-black/10")}><div className={"grid size-9 shrink-0 place-items-center rounded-xl font-semibold " + (entry.rank <= 3 ? "bg-amber-400/15 text-amber-200" : "bg-white/5 text-muted-foreground")}>{entry.rank??"—"}</div><div className="min-w-0 flex-1"><p className="font-medium">{entry.displayName}</p><p className="text-xs text-muted-foreground">{entry.ambassadorId} · {entry.currentLevel}</p></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4"><TinyStat label="Weighted score" value={entry.weightedScore===null?"Not reviewed":entry.weightedScore.toFixed(2)+"/100"}/><TinyStat label="Genuine enquiries" value={String(entry.genuineEnquiries)}/><TinyStat label="Qualified leads" value={String(entry.qualifiedLeads)}/><TinyStat label="Verified sales" value={String(entry.verifiedSales)}/></div></div>)}</div>}
+          {myLeaderboardRank && myLeaderboardRank.seriousMisconduct && <p className="mt-3 rounded-lg border border-amber-500/20 p-3 text-sm text-amber-200">Your scorecard has a serious-conduct finding. You are excluded from ranking while this finding remains in effect.</p>}
+          {myLeaderboardRank && !myLeaderboardRank.seriousMisconduct && !myLeaderboardRank.scorecardReviewed && <p className="mt-3 rounded-lg border border-white/10 p-3 text-sm text-muted-foreground">Your activity metrics are recorded, but your weighted scorecard has not been reviewed yet; you are not ranked until an authorized reviewer scores all seven dimensions.</p>}
+          {myLeaderboardRank && myLeaderboardRank.scorecardReviewed && myLeaderboardRank.rank !== null && myLeaderboardRank.rank > 10 && <p className="mt-3 rounded-lg border border-white/10 p-3 text-sm text-muted-foreground">Your current position: #{myLeaderboardRank.rank} with {myLeaderboardRank.weightedScore?.toFixed(2)}/100 weighted points.</p>}
+          {myLeaderboardRank && myLeaderboardRank.scorecardReviewed && myLeaderboardRank.rank !== null && myLeaderboardRank.rank <= 10 && <p className="mt-3 text-xs text-muted-foreground">You're currently ranked #{myLeaderboardRank.rank} · {myLeaderboardRank.weightedScore?.toFixed(2)}/100, using scorecard policy v{myLeaderboardRank.scorecardPolicyVersion}.</p>}
+          {!myLeaderboardRank && <p className="mt-3 text-xs text-muted-foreground">Ranking is available after activation and a reviewed performance scorecard.</p>}
         </Card>
       </section>
 
