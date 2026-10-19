@@ -2528,7 +2528,7 @@ export const ambassadorOsTasks = pgTable(
     assignedToId: uuid("assigned_to_id").notNull().references(() => users._id),
     campaignId: uuid("campaign_id"),
     dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
-    status: text("status").$type<"ASSIGNED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CLOSED">().notNull().default("ASSIGNED"),
+    status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CLOSED">().notNull().default("ASSIGNED"),
     evidenceText: text("evidence_text"),
     evidenceUrl: text("evidence_url"),
     reviewReason: text("review_reason"),
