@@ -2350,3 +2350,176 @@ export const habitatProjectCategories = pgTable(
     index("habitat_project_categories_project_idx").on(t.projectId, t.enabled),
   ]
 );
+
+
+// ---------------------------------------------------------------------------
+// Truvi Ambassador Operating System — additive pilot tables.
+// Kept separate from existing CP/lead tables so the pilot can evolve without
+// changing the established sales and commission workflows.
+// ---------------------------------------------------------------------------
+
+export type AmbassadorOsStatus =
+  | "REGISTERED"
+  | "VERIFICATION_PENDING"
+  | "TRAINING_IN_PROGRESS"
+  | "ASSESSMENT_PENDING"
+  | "CERTIFIED"
+  | "ACTIVE"
+  | "TEMPORARILY_INACTIVE"
+  | "SUSPENDED"
+  | "EXITED";
+
+export type AmbassadorOsTrainingStatus =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "ASSESSMENT_PENDING"
+  | "RETAKE_REQUIRED"
+  | "COMPLETED";
+
+export const ambassadorOsProfiles = pgTable(
+  "ambassador_os_profiles",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    // Stable internal sequence. Display IDs are rendered as TRUVI-{cityCode}-{number}.
+    ambassadorNo: bigserial("ambassador_no", { mode: "number" }).notNull().unique(),
+    cityCode: text("city_code").notNull().default("LKO"),
+    college: text("college"),
+    course: text("course"),
+    academicYear: text("academic_year"),
+    city: text("city").notNull().default("Lucknow"),
+    preferredRole: text("preferred_role").notNull().default("SALES"),
+    weeklyAvailabilityHours: integer("weekly_availability_hours").notNull().default(5),
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<AmbassadorOsStatus>().notNull().default("REGISTERED"),
+    currentLevel: text("current_level").notNull().default("L0"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_profiles_user_unique").on(t.userId),
+    uniqueIndex("ambassador_os_profiles_number_unique").on(t.ambassadorNo),
+    index("ambassador_os_profiles_status_idx").on(t.status),
+  ]
+);
+
+export const ambassadorOsTrainingProgress = pgTable(
+  "ambassador_os_training_progress",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    day: integer("day").notNull(),
+    quizScore: integer("quiz_score").notNull().default(0),
+    answers: jsonb("answers").$type<number[]>().notNull().default([]),
+    assignmentText: text("assignment_text"),
+    practicalStatus: text("practical_status").$type<"PENDING" | "APPROVED" | "REJECTED">().notNull().default("PENDING"),
+    ethicsStatus: text("ethics_status").$type<"PENDING" | "APPROVED" | "REJECTED">().notNull().default("PENDING"),
+    trainerFeedback: text("trainer_feedback"),
+    status: text("status").$type<AmbassadorOsTrainingStatus>().notNull().default("NOT_STARTED"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_training_user_day_unique").on(t.userId, t.day),
+    index("ambassador_os_training_status_idx").on(t.status, t.day),
+  ]
+);
+
+export const ambassadorOsTasks = pgTable(
+  "ambassador_os_tasks",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    category: text("category").$type<"TRAINING" | "SALES" | "MARKETING" | "LEAD_MANAGEMENT" | "SITE_VISIT" | "RESEARCH" | "VERIFICATION">().notNull(),
+    description: text("description").notNull(),
+    assignedToId: uuid("assigned_to_id").notNull().references(() => users._id),
+    campaignId: uuid("campaign_id"),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<"ASSIGNED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CLOSED">().notNull().default("ASSIGNED"),
+    evidenceText: text("evidence_text"),
+    evidenceUrl: text("evidence_url"),
+    reviewReason: text("review_reason"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("ambassador_os_tasks_assignee_status_idx").on(t.assignedToId, t.status),
+    index("ambassador_os_tasks_due_idx").on(t.dueAt),
+  ]
+);
+
+export const ambassadorOsCampaigns = pgTable(
+  "ambassador_os_campaigns",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    projectName: text("project_name").notNull(),
+    location: text("location").notNull(),
+    targetInventory: integer("target_inventory").notNull(),
+    unitAreaSqFt: integer("unit_area_sq_ft").notNull(),
+    targetDays: integer("target_days").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<"PLANNED" | "ACTIVE" | "PAUSED" | "COMPLETED">().notNull().default("PLANNED"),
+    officialDataVerified: boolean("official_data_verified").notNull().default(false),
+    officialDataNotes: text("official_data_notes"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_os_campaign_status_idx").on(t.status)]
+);
+
+export const ambassadorOsIncentivePolicies = pgTable(
+  "ambassador_os_incentive_policies",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    campaignId: uuid("campaign_id").references(() => ambassadorOsCampaigns._id),
+    calculationType: text("calculation_type").$type<"FIXED" | "PER_SQ_FT_BLOCK" | "PERCENT_OF_VALUE">().notNull(),
+    amount: doublePrecision("amount").notNull(),
+    blockSizeSqFt: integer("block_size_sq_ft").notNull().default(1000),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(false),
+    approvalReference: text("approval_reference"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_policy_name_version_unique").on(t.name, t.version),
+    index("ambassador_os_policy_active_idx").on(t.active),
+  ]
+);
+
+export const ambassadorOsIncentives = pgTable(
+  "ambassador_os_incentives",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    campaignId: uuid("campaign_id").references(() => ambassadorOsCampaigns._id),
+    policyId: uuid("policy_id").notNull().references(() => ambassadorOsIncentivePolicies._id),
+    policyNameSnapshot: text("policy_name_snapshot").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    bookingReference: text("booking_reference").notNull().unique(),
+    verifiedAreaSqFt: integer("verified_area_sq_ft").notNull(),
+    propertyValue: doublePrecision("property_value"),
+    amount: doublePrecision("amount").notNull(),
+    status: text("status").$type<"PENDING" | "APPROVED" | "PAYABLE" | "PAID" | "CANCELLED">().notNull().default("PENDING"),
+    paymentReference: text("payment_reference"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    approvedById: uuid("approved_by_id").references(() => users._id),
+    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_incentives_booking_unique").on(t.bookingReference),
+    index("ambassador_os_incentives_user_status_idx").on(t.userId, t.status),
+  ]
+);
