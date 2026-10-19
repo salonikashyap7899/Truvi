@@ -30,5 +30,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (user, accessToken) => set({ user, accessToken, isInitialized: true }),
   setUser: (user) => set({ user, isInitialized: true }),
   setInitialized: () => set({ isInitialized: true }),
-  clearAuth: () => set({ user: null, accessToken: null, isInitialized: true }),
+  clearAuth: () => {
+    try {
+      if (typeof window !== "undefined") window.localStorage.removeItem("truvi_auth");
+    } catch {
+      // Storage may be unavailable; the in-memory session is still cleared.
+    }
+    set({ user: null, accessToken: null, isInitialized: true });
+  },
 }));
