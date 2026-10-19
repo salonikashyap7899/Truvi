@@ -4,6 +4,9 @@ import { z } from "zod";
 import { getDb } from "../config/db";
 import {
   ambassadorOsCampaigns,
+  ambassadorOsCareerApplications,
+  ambassadorOsCareerAssessments,
+  ambassadorOsCareerOpportunities,
   ambassadorOsChannelCosts,
   ambassadorOsFollowUps,
   ambassadorOsIncentivePolicies,
@@ -2254,6 +2257,259 @@ router.post("/admin/channel-costs", requireRole("ADMIN"), async (req: AuthedRequ
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.channel_cost.create", resourceType: "ambassador_os_channel_cost", resourceId: cost._id, metadata: { campaignId: cost.campaignId, sourceChannel: cost.sourceChannel, amount: cost.amount } });
   res.status(201).json({ cost });
+});
+
+
+
+const careerOpportunitySchema = z.object({
+  title: z.string().trim().min(3).max(180),
+  opportunityType: z.enum(["INTERNSHIP", "JOB", "CAMPUS_LEADERSHIP", "MENTORING"]),
+  description: z.string().trim().min(20).max(6000),
+  location: z.string().trim().max(180).optional(),
+  targetLevel: z.enum(["L1", "L2", "L3", "L4", "L5", "L6"]),
+  requiredSkills: z.array(z.string().trim().min(2).max(100)).max(30).default([]),
+  eligibility: z.record(z.string(), z.unknown()).default({}),
+  vacancies: z.number().int().positive().max(10000).default(1),
+  applicationDeadline: z.string().datetime().optional().nullable(),
+  status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).default("DRAFT"),
+});
+
+router.get("/career/opportunities", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const db = getDb();
+  const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+  const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+  const [opportunities, applications] = await Promise.all([
+    db.select().from(ambassadorOsCareerOpportunities)
+      .where(eq(ambassadorOsCareerOpportunities.status, "PUBLISHED"))
+      .orderBy(desc(ambassadorOsCareerOpportunities.publishedAt)),
+    db.select().from(ambassadorOsCareerApplications).where(eq(ambassadorOsCareerApplications.ambassadorId, req.user!.userId)),
+  ]);
+  const applicationByOpportunity = new Map(applications.map((application) => [application.opportunityId, application]));
+  const levelNumber = Number((profile?.currentLevel ?? "L0").slice(1));
+  const now = Date.now();
+  res.json({
+    opportunities: opportunities.map((opportunity) => ({
+      ...opportunity,
+      application: applicationByOpportunity.get(opportunity._id) ?? null,
+      meetsLevel: levelNumber >= Number(opportunity.targetLevel.slice(1)),
+      canApply: Boolean(profile?.termsAcceptedAt && account?.onboardingVerified && profile.status === "ACTIVE" &&
+        levelNumber >= Number(opportunity.targetLevel.slice(1)) &&
+        (!opportunity.applicationDeadline || opportunity.applicationDeadline.getTime() >= now) &&
+        !applicationByOpportunity.has(opportunity._id)),
+    })),
+    note: "Opportunities are subject to eligibility, availability, review and selection; they are not guaranteed rewards.",
+  });
+});
+
+router.get("/career/applications/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const rows = await getDb().select({ application: ambassadorOsCareerApplications, opportunity: ambassadorOsCareerOpportunities })
+    .from(ambassadorOsCareerApplications)
+    .innerJoin(ambassadorOsCareerOpportunities, eq(ambassadorOsCareerApplications.opportunityId, ambassadorOsCareerOpportunities._id))
+    .where(eq(ambassadorOsCareerApplications.ambassadorId, req.user!.userId))
+    .orderBy(desc(ambassadorOsCareerApplications.createdAt));
+  res.json({ applications: rows.map((row) => ({ ...row.application, opportunityTitle: row.opportunity.title, opportunityType: row.opportunity.opportunityType, targetLevel: row.opportunity.targetLevel })) });
+});
+
+const careerApplicationSchema = z.object({
+  statement: z.string().trim().min(20).max(4000),
+  evidenceReference: z.string().trim().max(1000).optional(),
+});
+
+router.post("/career/opportunities/:id/apply", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const parsed = careerApplicationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid application" });
+  const db = getDb();
+  const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
+  const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
+  if (!profile?.termsAcceptedAt || !account?.onboardingVerified || profile.status !== "ACTIVE") {
+    return res.status(403).json({ error: "Applications are available to verified, active Ambassadors only" });
+  }
+  const [opportunity] = await db.select().from(ambassadorOsCareerOpportunities)
+    .where(eq(ambassadorOsCareerOpportunities._id, String(req.params.id)));
+  if (!opportunity || opportunity.status !== "PUBLISHED") return res.status(404).json({ error: "Published opportunity not found" });
+  if (opportunity.applicationDeadline && opportunity.applicationDeadline.getTime() < Date.now()) {
+    return res.status(409).json({ error: "The application deadline has passed" });
+  }
+  if (Number(profile.currentLevel.slice(1)) < Number(opportunity.targetLevel.slice(1))) {
+    return res.status(403).json({ error: "Your current career level does not meet this opportunity's minimum level" });
+  }
+  const [existing] = await db.select().from(ambassadorOsCareerApplications)
+    .where(and(eq(ambassadorOsCareerApplications.opportunityId, opportunity._id), eq(ambassadorOsCareerApplications.ambassadorId, req.user!.userId)));
+  if (existing) return res.status(409).json({ error: "You have already applied to this opportunity" });
+  const [application] = await db.insert(ambassadorOsCareerApplications).values({
+    opportunityId: opportunity._id,
+    ambassadorId: req.user!.userId,
+    statement: parsed.data.statement,
+    evidenceReference: parsed.data.evidenceReference ?? null,
+    status: "SUBMITTED",
+  }).returning();
+  const admins = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
+  await notifySafely(admins.map((a) => a.userId), {
+    type: "ambassador_career_application",
+    title: "Ambassador opportunity application received",
+    message: \`An Ambassador applied for \${opportunity.title}; review eligibility and evidence before selecting.\`,
+    data: { screen: "AdminAmbassadorOperatingSystem", applicationId: application._id, opportunityId: opportunity._id },
+    actorUserId: req.user!.userId,
+    priority: "normal",
+    dedupeKey: application._id,
+  });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.career.apply", resourceType: "ambassador_os_career_application", resourceId: application._id, metadata: { opportunityId: opportunity._id, targetLevel: opportunity.targetLevel } });
+  res.status(201).json({ application, message: "Application submitted for review. Selection is not guaranteed." });
+});
+
+router.get("/admin/career/opportunities", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const [opportunities, applicationCounts] = await Promise.all([
+    getDb().select().from(ambassadorOsCareerOpportunities).orderBy(desc(ambassadorOsCareerOpportunities.createdAt)),
+    getDb().select({ opportunityId: ambassadorOsCareerApplications.opportunityId, count: sql<number>\`count(*)\`.mapWith(Number) })
+      .from(ambassadorOsCareerApplications).groupBy(ambassadorOsCareerApplications.opportunityId),
+  ]);
+  const counts = new Map(applicationCounts.map((row) => [row.opportunityId, row.count]));
+  res.json({ opportunities: opportunities.map((row) => ({ ...row, applicationsCount: counts.get(row._id) ?? 0 })) });
+});
+
+router.post("/admin/career/opportunities", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = careerOpportunitySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid career opportunity" });
+  const now = new Date();
+  const [opportunity] = await getDb().insert(ambassadorOsCareerOpportunities).values({
+    title: parsed.data.title,
+    opportunityType: parsed.data.opportunityType,
+    description: parsed.data.description,
+    location: parsed.data.location ?? null,
+    targetLevel: parsed.data.targetLevel,
+    requiredSkills: parsed.data.requiredSkills,
+    eligibility: parsed.data.eligibility,
+    vacancies: parsed.data.vacancies,
+    applicationDeadline: parsed.data.applicationDeadline ? new Date(parsed.data.applicationDeadline) : null,
+    status: parsed.data.status,
+    createdById: req.user!.userId,
+    publishedAt: parsed.data.status === "PUBLISHED" ? now : null,
+    closedAt: parsed.data.status === "CLOSED" ? now : null,
+    updatedAt: now,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.career.opportunity_create", resourceType: "ambassador_os_career_opportunity", resourceId: opportunity._id, metadata: { title: opportunity.title, type: opportunity.opportunityType, level: opportunity.targetLevel, status: opportunity.status } });
+  res.status(201).json({ opportunity });
+});
+
+router.patch("/admin/career/opportunities/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = z.object({
+    status: z.enum(["DRAFT", "PUBLISHED", "CLOSED"]).optional(),
+    vacancies: z.number().int().positive().max(10000).optional(),
+    applicationDeadline: z.string().datetime().nullable().optional(),
+  }).refine((v) => v.status !== undefined || v.vacancies !== undefined || v.applicationDeadline !== undefined).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid opportunity update" });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsCareerOpportunities).where(eq(ambassadorOsCareerOpportunities._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Opportunity not found" });
+  const now = new Date();
+  const [updated] = await db.update(ambassadorOsCareerOpportunities).set({
+    ...parsed.data,
+    applicationDeadline: parsed.data.applicationDeadline === undefined ? current.applicationDeadline : parsed.data.applicationDeadline ? new Date(parsed.data.applicationDeadline) : null,
+    publishedAt: parsed.data.status === "PUBLISHED" ? (current.publishedAt ?? now) : current.publishedAt,
+    closedAt: parsed.data.status === "CLOSED" ? (current.closedAt ?? now) : parsed.data.status === "PUBLISHED" ? null : current.closedAt,
+    updatedAt: now,
+  }).where(eq(ambassadorOsCareerOpportunities._id, current._id)).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.career.opportunity_update", resourceType: "ambassador_os_career_opportunity", resourceId: current._id, metadata: { status: updated.status, vacancies: updated.vacancies } });
+  res.json({ opportunity: updated });
+});
+
+router.get("/admin/career/applications", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({
+    application: ambassadorOsCareerApplications,
+    opportunity: ambassadorOsCareerOpportunities,
+    name: users.name,
+    email: users.email,
+    currentLevel: ambassadorOsProfiles.currentLevel,
+    profileStatus: ambassadorOsProfiles.status,
+  }).from(ambassadorOsCareerApplications)
+    .innerJoin(ambassadorOsCareerOpportunities, eq(ambassadorOsCareerApplications.opportunityId, ambassadorOsCareerOpportunities._id))
+    .innerJoin(users, eq(ambassadorOsCareerApplications.ambassadorId, users._id))
+    .leftJoin(ambassadorOsProfiles, eq(ambassadorOsCareerApplications.ambassadorId, ambassadorOsProfiles.userId))
+    .orderBy(desc(ambassadorOsCareerApplications.createdAt));
+  res.json({ applications: rows.map((row) => ({ ...row.application, opportunityTitle: row.opportunity.title, opportunityType: row.opportunity.opportunityType, targetLevel: row.opportunity.targetLevel, ambassadorName: row.name, ambassadorEmail: row.email, currentLevel: row.currentLevel, profileStatus: row.profileStatus })) });
+});
+
+router.patch("/admin/career/applications/:id/review", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = z.object({
+    status: z.enum(["UNDER_REVIEW", "SHORTLISTED", "REJECTED", "SELECTED"]),
+    reviewNotes: z.string().trim().min(5).max(3000),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid career application review" });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsCareerApplications).where(eq(ambassadorOsCareerApplications._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Application not found" });
+  if (["REJECTED", "SELECTED", "WITHDRAWN"].includes(current.status)) return res.status(409).json({ error: "This application is already finalized" });
+  const now = new Date();
+  const [updated] = await db.update(ambassadorOsCareerApplications).set({
+    status: parsed.data.status,
+    reviewNotes: parsed.data.reviewNotes,
+    reviewerId: req.user!.userId,
+    reviewedAt: now,
+    updatedAt: now,
+  }).where(and(eq(ambassadorOsCareerApplications._id, current._id), eq(ambassadorOsCareerApplications.status, current.status))).returning();
+  if (!updated) return res.status(409).json({ error: "The application changed while being reviewed; refresh and retry" });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.career.application_review", resourceType: "ambassador_os_career_application", resourceId: updated._id, metadata: { previousStatus: current.status, status: updated.status, opportunityId: current.opportunityId } });
+  await notifySafely([current.ambassadorId], {
+    type: "ambassador_career_application_review",
+    title: "Career opportunity application updated",
+    message: \`Your career opportunity application was marked \${updated.status.toLowerCase().replace(/_/g, " ")}. \${parsed.data.reviewNotes}\`,
+    data: { screen: "AmbassadorOperatingSystem", applicationId: updated._id, status: updated.status },
+    actorUserId: req.user!.userId,
+    priority: updated.status === "REJECTED" ? "normal" : "high",
+    dedupeKey: \`\${updated._id}:\${updated.status}\`,
+  });
+  res.json({ application: updated });
+});
+
+const careerAssessmentSchema = z.object({
+  ambassadorId: z.string().uuid(),
+  targetLevel: z.enum(["L4", "L5", "L6"]),
+  assessmentType: z.enum(["MENTORING", "TEAM_MANAGEMENT", "ADVANCED"]),
+  score: z.number().int().min(0).max(100),
+  evidenceReference: z.string().trim().min(3).max(1000),
+  notes: z.string().trim().min(10).max(3000),
+}).refine((v) =>
+  (v.targetLevel === "L4" && v.assessmentType === "MENTORING") ||
+  (v.targetLevel === "L5" && v.assessmentType === "TEAM_MANAGEMENT") ||
+  (v.targetLevel === "L6" && v.assessmentType === "ADVANCED"),
+{ message: "Assessment type must match the target career level" });
+
+router.get("/admin/career/assessments/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const assessments = await getDb().select().from(ambassadorOsCareerAssessments)
+    .where(eq(ambassadorOsCareerAssessments.ambassadorId, String(req.params.userId)))
+    .orderBy(desc(ambassadorOsCareerAssessments.reviewedAt));
+  res.json({ assessments });
+});
+
+router.post("/admin/career/assessments", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = careerAssessmentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid career assessment" });
+  const [profile] = await getDb().select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, parsed.data.ambassadorId));
+  if (!profile) return res.status(404).json({ error: "Ambassador profile not found" });
+  const [assessment] = await getDb().insert(ambassadorOsCareerAssessments).values({
+    ambassadorId: profile.userId,
+    targetLevel: parsed.data.targetLevel,
+    assessmentType: parsed.data.assessmentType,
+    score: parsed.data.score,
+    passed: parsed.data.score >= 80,
+    evidenceReference: parsed.data.evidenceReference,
+    notes: parsed.data.notes,
+    reviewerId: req.user!.userId,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.career.assessment", resourceType: "ambassador_os_career_assessment", resourceId: assessment._id, metadata: { ambassadorId: profile.userId, targetLevel: assessment.targetLevel, assessmentType: assessment.assessmentType, score: assessment.score, passed: assessment.passed } });
+  await notifySafely([profile.userId], {
+    type: "ambassador_career_assessment",
+    title: "Career progression assessment recorded",
+    message: \`Your \${assessment.targetLevel} \${assessment.assessmentType.toLowerCase().replace(/_/g, " ")} assessment scored \${assessment.score}/100 and \${assessment.passed ? "passed" : "needs further development"}.\`,
+    data: { screen: "AmbassadorOperatingSystem", targetLevel: assessment.targetLevel, passed: assessment.passed },
+    actorUserId: req.user!.userId,
+    priority: "normal",
+    dedupeKey: assessment._id,
+  });
+  res.status(201).json({ assessment });
 });
 
 
