@@ -226,6 +226,8 @@ router.put("/profile", async (req: AuthedRequest, res) => {
   const current = await ensureProfile(req.user!.userId);
   const data = parsed.data;
   const now = new Date();
+  const normalizedCity = (data.city ?? current.city).trim().toUpperCase();
+  const cityCodes: Record<string, string> = { LUCKNOW: "LKO", MEERUT: "MRT", DELHI: "DEL", "NEW DELHI": "DEL", NOIDA: "NOI", GURUGRAM: "GGN", GURGAON: "GGN", KANPUR: "KNP", AGRA: "AGR", VARANASI: "VNS", JAIPUR: "JAI", MUMBAI: "MUM", PUNE: "PUN", BENGALURU: "BLR", BANGALORE: "BLR", HYDERABAD: "HYD", CHENNAI: "MAA", KOLKATA: "CCU" };
   const [updated] = await db.update(ambassadorOsProfiles).set({
     college: data.college ?? current.college,
     course: data.course ?? current.course,
@@ -236,7 +238,7 @@ router.put("/profile", async (req: AuthedRequest, res) => {
     termsAcceptedAt: data.acceptTerms === true ? (current.termsAcceptedAt ?? now) : current.termsAcceptedAt,
     termsVersion: data.acceptTerms === true ? (current.termsVersion ?? "TRUVI_AMBASSADOR_TERMS_V1") : current.termsVersion,
     cityCode: !current.termsAcceptedAt && data.acceptTerms === true
-      ? (data.city ?? current.city).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "TRU"
+      ? (cityCodes[normalizedCity] ?? normalizedCity.replace(/[^A-Z0-9]/g, "").slice(0, 3) || "TRU")
       : current.cityCode,
     status: data.acceptTerms === true && !current.termsAcceptedAt && !req.user!.onboardingVerified
       ? "VERIFICATION_PENDING"
