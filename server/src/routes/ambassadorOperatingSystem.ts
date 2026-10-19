@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
@@ -686,6 +686,14 @@ router.get("/admin/sales-dashboard", requireRole("ADMIN"), async (_req: AuthedRe
     commissionEarned: a.commissionEarned + r.commissionEarned,
   }), { campaigns: 0, targetUnits: 0, verifiedUnitsSold: 0, unitsRemaining: 0, totalEnquiries: 0, qualifiedLeads: 0, siteVisitsScheduled: 0, siteVisitsCompleted: 0, bookingsPendingVerification: 0, cancelledBookings: 0, commissionEarned: 0 });
   res.json({ campaigns: results, totals, metricBasis: "Verified bookings marked SALE_VERIFIED; enquiry and funnel metrics derive from existing Truvi leads and site visits." });
+});
+
+router.get("/admin/sales-owners", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({ userId: users._id, name: users.name, email: users.email, role: users.role })
+    .from(users)
+    .where(and(inArray(users.role, ["ADMIN", "CP", "DEVELOPER"]), eq(users.disabled, false)))
+    .orderBy(users.name);
+  res.json({ salesOwners: rows });
 });
 
 router.get("/admin/sales-pipeline", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
