@@ -18,7 +18,7 @@ type Progress = {
 type Question = { prompt: string; options: string[] };
 type Module = {
   day: number; title: string; summary: string; lesson: string; keyPoints: string[];
-  assignment: string; questions: Question[]; unlocked: boolean; progress: Progress | null;
+  assignment: string; questions: Question[]; videoUrl?: string | null; version?: number; unlocked: boolean; progress: Progress | null;
 };
 type Profile = {
   _id: string; ambassadorId: string; college?: string | null; course?: string | null;
@@ -31,7 +31,18 @@ type Task = {
   dueAt?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; reviewReason?: string | null;
 };
 type Campaign = { id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales: number; unitAreaSqFt: number; targetDays: number; status: string };
-type Incentive = { _id: string; bookingReference: string; policyNameSnapshot: string; policyVersion: number; amount: number; status: string; paymentReference?: string | null; createdAt: string };
+type Incentive = { _id: string; bookingReference: string; policyNameSnapshot: string; policyVersion: number; amount: number; status: string; paymentReference?: string | null; expectedPayoutAt?: string | null; recoveryStatus?: string | null; recoveryAmount?: number; createdAt: string };
+type AmbassadorLead = {
+  _id: string; leadReference: string; projectName: string; unitNumber?: string | null; stage: string;
+  requirement?: string | null; budgetRange?: string | null; purchasePurpose?: string | null; preferredPlotSize?: string | null;
+  purchaseTimeline?: string | null; sourceChannel?: string | null; customerDisplayName: string; customerPhone?: string | null;
+  nextFollowUpAt?: string | null; createdAt: string; isDuplicate: boolean; ownershipReviewStatus: string;
+  contactConsentRecorded: boolean; canScheduleFollowUp: boolean;
+};
+type FollowUp = {
+  _id: string; leadReference: string; leadStage: string; projectName: string; dueAt: string; channel: string; note: string;
+  status: string; outcome?: string | null; isOverdue: boolean;
+};
 type LeaderboardEntry = {
   rank: number; isMine: boolean; displayName: string; ambassadorId: string; currentLevel: string;
   modulesCompleted: number; approvedTasks: number; completedSiteVisits: number; verifiedSales: number;
@@ -63,7 +74,11 @@ export default function AmbassadorOperatingSystemPage() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myLeaderboardRank, setMyLeaderboardRank] = useState<LeaderboardEntry | null>(null);
+  const [myLeads, setMyLeads] = useState<AmbassadorLead[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [followUpForm, setFollowUpForm] = useState<Record<string,{dueAt:string;channel:string;note:string}>>({});
   const [loading, setLoading] = useState(true);
+  const [savingFollowUp, setSavingFollowUp] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [college, setCollege] = useState("");
   const [course, setCourse] = useState("");
@@ -81,14 +96,18 @@ export default function AmbassadorOperatingSystemPage() {
 
   async function load() {
     try {
-      const [res, rankRes] = await Promise.all([
+      const [res, rankRes, leadsRes, followUpsRes] = await Promise.all([
         api.get("/ambassador-os/me"),
         api.get("/ambassador-os/leaderboard").catch(() => ({ data: { leaderboard: [], mine: null } })),
+        api.get("/ambassador-os/leads/me").catch(() => ({ data: { leads: [] as AmbassadorLead[] } })),
+        api.get("/ambassador-os/follow-ups/me").catch(() => ({ data: { followUps: [] as FollowUp[] } })),
       ]);
       const data = res.data as Snapshot;
       setSnapshot(data);
       setLeaderboard(rankRes.data.leaderboard ?? []);
       setMyLeaderboardRank(rankRes.data.mine ?? null);
+      setMyLeads(leadsRes.data.leads ?? []);
+      setFollowUps(followUpsRes.data.followUps ?? []);
       setCollege(data.profile.college ?? "");
       setCourse(data.profile.course ?? "");
       setAcademicYear(data.profile.academicYear ?? "");
@@ -153,6 +172,35 @@ export default function AmbassadorOperatingSystemPage() {
       toast.success("Task marked in progress");
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not start task"); }
+  }
+
+  async function scheduleFollowUp(lead: AmbassadorLead) {
+    const values = followUpForm[lead._id] ?? { dueAt: "", channel: "CALL", note: "" };
+    if (!values.dueAt || values.note.trim().length < 5) {
+      toast.error("Choose a future follow-up time and add a useful note");
+      return;
+    }
+    setSavingFollowUp(lead._id);
+    try {
+      await api.post("/ambassador-os/follow-ups", {
+        leadId: lead._id, dueAt: new Date(values.dueAt).toISOString(),
+        channel: values.channel, note: values.note.trim(),
+      });
+      toast.success("Follow-up reminder scheduled");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not schedule follow-up");
+    } finally { setSavingFollowUp(null); }
+  }
+
+  async function updateFollowUp(item: FollowUp, status: "DONE" | "MISSED" | "CANCELLED") {
+    try {
+      await api.patch("/ambassador-os/follow-ups/" + item._id + "/status", {
+        status, outcome: status === "DONE" ? "Completed by Ambassador" : status === "MISSED" ? "Follow-up attempt missed" : "Cancelled by Ambassador",
+      });
+      toast.success("Reminder updated");
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update reminder"); }
   }
 
   async function submitTask(task: Task) {
@@ -267,7 +315,7 @@ export default function AmbassadorOperatingSystemPage() {
           </div>
           <Card className="min-w-0 border-white/10 bg-white/[0.035] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.16em] text-sky-300">Day {selectedModule.day} of 7</p><h3 className="mt-1 text-xl font-semibold">{selectedModule.title}</h3><p className="mt-1 text-sm text-muted-foreground">{selectedModule.summary}</p></div>{selectedModule.progress && <Badge variant={selectedModule.progress.status === "COMPLETED" ? "success" : "warning"}>{statusText[selectedModule.progress.status]}</Badge>}</div>
-            <div className="mt-5 rounded-xl border border-white/10 bg-black/10 p-4"><h4 className="font-medium">Lesson</h4><p className="mt-2 text-sm leading-6 text-muted-foreground">{selectedModule.lesson}</p><ul className="mt-3 space-y-1.5">{selectedModule.keyPoints.map((point) => <li key={point} className="flex gap-2 text-sm"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" /><span>{point}</span></li>)}</ul></div>
+            <div className="mt-5 rounded-xl border border-white/10 bg-black/10 p-4"><h4 className="font-medium">Lesson</h4>{selectedModule.videoUrl && <a href={selectedModule.videoUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-sm text-sky-300 underline">Watch published lesson video</a>}<p className="mt-2 text-sm leading-6 text-muted-foreground">{selectedModule.lesson}</p><ul className="mt-3 space-y-1.5">{selectedModule.keyPoints.map((point) => <li key={point} className="flex gap-2 text-sm"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" /><span>{point}</span></li>)}</ul></div>
             {selectedModule.unlocked && selectedModule.progress?.status !== "COMPLETED" ? <div className="mt-5 space-y-5">
               <div><h4 className="font-medium">Practical assignment</h4><p className="mt-1 text-sm text-muted-foreground">{selectedModule.assignment}</p><textarea rows={4} className="mt-3 w-full rounded-xl border border-white/10 bg-slate-950 p-3 text-sm outline-none focus:border-sky-400/50" placeholder="Write your assignment here…" value={assignments[selectedModule.day] ?? selectedModule.progress?.assignmentText ?? ""} onChange={(e) => setAssignments((prev) => ({ ...prev, [selectedModule.day]: e.target.value }))} /></div>
               <div className="space-y-4"><h4 className="font-medium">Written quiz · 5 questions</h4>{selectedModule.questions.map((question, index) => <div key={question.prompt} className="rounded-xl border border-white/10 p-4"><p className="text-sm font-medium">{index + 1}. {question.prompt}</p><div className="mt-3 space-y-2">{question.options.map((option, optionIndex) => <label key={option} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm ${selectedAnswers[index] === optionIndex ? "border-sky-400/40 bg-sky-400/10" : "border-transparent bg-white/[0.025]"}`}><input type="radio" name={`day-${selectedModule.day}-q-${index}`} checked={selectedAnswers[index] === optionIndex} onChange={() => setAnswers((prev) => { const next = [...(prev[selectedModule.day] ?? Array(5).fill(-1))]; next[index] = optionIndex; return { ...prev, [selectedModule.day]: next }; })} className="mt-1" /><span>{option}</span></label>)}</div></div>)}</div>
@@ -300,8 +348,26 @@ export default function AmbassadorOperatingSystemPage() {
         </Card>
         <Card className="border-white/10 bg-white/[0.035] p-5">
           <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold"><Wallet className="text-sky-300" /> My Incentives & Payouts</h2><p className="mb-4 text-sm text-muted-foreground">Only verified, policy-eligible sales appear here. Estimated or unapproved rewards are not earnings.</p>
-          {incentives.length === 0 ? <Empty text="No eligible incentive records have been approved for you yet." /> : <div className="overflow-x-auto"><table className="w-full min-w-[500px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="pb-3 pr-3">Sale reference</th><th className="pb-3 pr-3">Policy</th><th className="pb-3 pr-3">Amount</th><th className="pb-3 pr-3">Status</th></tr></thead><tbody>{incentives.map((item)=><tr key={item._id} className="border-t border-white/10"><td className="py-3 pr-3">{item.bookingReference.slice(0,8).toUpperCase()}</td><td className="py-3 pr-3">{item.policyNameSnapshot} · v{item.policyVersion}</td><td className="py-3 pr-3 font-medium">{money(item.amount)}</td><td className="py-3 pr-3"><Badge variant={item.status === "PAID" ? "success" : "info"}>{statusText[item.status] ?? item.status}</Badge>{item.paymentReference && <p className="mt-1 text-xs text-muted-foreground">{item.paymentReference}</p>}</td></tr>)}</tbody></table></div>}
+          {incentives.length === 0 ? <Empty text="No eligible incentive records have been approved for you yet." /> : <div className="overflow-x-auto"><table className="w-full min-w-[500px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="pb-3 pr-3">Booking reference</th><th className="pb-3 pr-3">Policy</th><th className="pb-3 pr-3">Amount</th><th className="pb-3 pr-3">Expected date</th><th className="pb-3 pr-3">Status / review</th></tr></thead><tbody>{incentives.map((item)=><tr key={item._id} className="border-t border-white/10"><td className="py-3 pr-3">{item.bookingReference.slice(0,8).toUpperCase()}</td><td className="py-3 pr-3">{item.policyNameSnapshot} · v{item.policyVersion}</td><td className="py-3 pr-3 font-medium">{money(item.amount)}</td><td className="py-3 pr-3"><Badge variant={item.status === "PAID" ? "success" : "info"}>{statusText[item.status] ?? item.status}</Badge>{item.paymentReference && <p className="mt-1 text-xs text-muted-foreground">{item.paymentReference}</p>}</td></tr>)}</tbody></table></div>}
         </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><Clock3 className="text-sky-300" /> My Follow-up Reminders</h2><p className="mt-1 text-sm text-muted-foreground">Schedule consent-safe follow-ups, record the next action and mark outcomes. Only your attributed leads are available.</p></div>
+        <Card className="border-white/10 bg-white/[0.035] p-4">
+          {followUps.length===0 ? <Empty text="No follow-up reminders are scheduled yet."/> : <div className="space-y-2">{followUps.map((item)=><div key={item._id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 p-3"><div className="min-w-0 flex-1"><p className="font-medium">{item.leadReference} · {item.projectName}</p><p className="mt-1 text-xs text-muted-foreground">{pretty(item.channel)} · Due {new Date(item.dueAt).toLocaleString("en-IN")}</p><p className="mt-1 text-sm">{item.note}</p><Badge variant={item.isOverdue?"warning":item.status==="DONE"?"success":"info"}>{item.isOverdue?"Overdue":pretty(item.status)}</Badge>{item.outcome&&<p className="mt-1 text-xs text-muted-foreground">{item.outcome}</p>}</div>{item.status==="PENDING"&&<div className="flex gap-2"><Button size="sm" onClick={()=>void updateFollowUp(item,"DONE")}>Done</Button><Button size="sm" variant="outline" onClick={()=>void updateFollowUp(item,"MISSED")}>Missed</Button><Button size="sm" variant="outline" onClick={()=>void updateFollowUp(item,"CANCELLED")}>Cancel</Button></div>}</div>)}</div>}
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><Users className="text-sky-300" /> My Lead Records</h2><p className="mt-1 text-sm text-muted-foreground">Customer contact details are shown only for your own consent-recorded submissions. Do not export or share contact details outside Truvi workflows.</p></div>
+        {myLeads.length===0 ? <Empty text="Your consented lead submissions and attributable referral leads will appear here."/> : <div className="space-y-3">{myLeads.map((lead)=> {
+          const values = followUpForm[lead._id] ?? {dueAt:"",channel:"CALL",note:""};
+          return <Card key={lead._id} className="border-white/10 bg-white/[0.035] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold">{lead.leadReference} · {lead.projectName}</p><p className="mt-1 text-sm text-muted-foreground">{lead.customerDisplayName}{lead.customerPhone ? " · "+lead.customerPhone : ""}</p><p className="mt-1 text-xs text-muted-foreground">{pretty(lead.stage)} · {pretty(lead.sourceChannel??"OTHER")}{lead.unitNumber?" · Unit "+lead.unitNumber:""}</p><p className="mt-1 text-xs text-muted-foreground">{pretty(lead.purchasePurpose??"UNDECIDED")} · {lead.budgetRange??"Budget not set"} · {lead.preferredPlotSize??lead.requirement??"Size not set"} · {pretty(lead.purchaseTimeline??"NOT_DECIDED")}</p></div><div className="text-right"><Badge variant={lead.contactConsentRecorded?"success":"warning"}>{lead.contactConsentRecorded?"Consent recorded":"Consent missing"}</Badge><p className="mt-1 text-xs text-muted-foreground">{lead.nextFollowUpAt ? "Next follow-up "+new Date(lead.nextFollowUpAt).toLocaleString("en-IN") : "No next follow-up date"}</p>{lead.isDuplicate&&<Badge variant="danger">Duplicate review</Badge>}{["OPEN","UNDER_REVIEW"].includes(lead.ownershipReviewStatus)&&<Badge variant="warning">Ownership review</Badge>}</div></div>
+            {lead.canScheduleFollowUp&&<div className="mt-4 grid gap-2 border-t border-white/10 pt-3 sm:grid-cols-4"><label className="text-xs text-muted-foreground">Due date and time<input type="datetime-local" className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-2 text-sm" value={values.dueAt} onChange={(e)=>setFollowUpForm((prev)=>({...prev,[lead._id]:{...values,dueAt:e.target.value}}))}/></label><label className="text-xs text-muted-foreground">Channel<select className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-2 text-sm" value={values.channel} onChange={(e)=>setFollowUpForm((prev)=>({...prev,[lead._id]:{...values,channel:e.target.value}}))}>{[["CALL","Call"],["WHATSAPP","WhatsApp"],["EMAIL","Email"],["MEETING","Meeting"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><label className="text-xs text-muted-foreground sm:col-span-2">Next step / note<input className="mt-1 h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm" placeholder="Agreed call, visit or information follow-up" value={values.note} onChange={(e)=>setFollowUpForm((prev)=>({...prev,[lead._id]:{...values,note:e.target.value}}))}/></label><div className="sm:col-span-4"><Button size="sm" onClick={()=>void scheduleFollowUp(lead)} disabled={savingFollowUp===lead._id}>{savingFollowUp===lead._id?"Scheduling…":"Schedule reminder"}</Button></div></div>}
+          </Card>;
+        })}</div>}
       </section>
 
       <section className="space-y-4">
