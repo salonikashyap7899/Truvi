@@ -198,7 +198,20 @@ export default function AmbassadorOperatingSystemPage() {
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not start task"); }
   }
 
-  async function submitPrivacyRequest(e: React.FormEvent) {\n    e.preventDefault();\n    if (privacyForm.reason.trim().length < 10) { toast.error("Please describe the request in at least 10 characters."); return; }\n    setSubmittingPrivacy(true);\n    try {\n      await api.post("/ambassador-os/privacy/requests", { requestType: privacyForm.requestType, reason: privacyForm.reason.trim() });\n      toast.success("Privacy request submitted to the Truvi review queue.");\n      setPrivacyForm((form) => ({...form,reason:""}));\n      await load();\n    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit privacy request"); }\n    finally { setSubmittingPrivacy(false); }\n  }\n\n  async function acknowledgeCampaign(campaign: Campaign) {
+  async function submitPrivacyRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (privacyForm.reason.trim().length < 10) { toast.error("Please describe the request in at least 10 characters."); return; }
+    setSubmittingPrivacy(true);
+    try {
+      await api.post("/ambassador-os/privacy/requests", { requestType: privacyForm.requestType, reason: privacyForm.reason.trim() });
+      toast.success("Privacy request submitted to the Truvi review queue.");
+      setPrivacyForm((form) => ({...form,reason:""}));
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit privacy request"); }
+    finally { setSubmittingPrivacy(false); }
+  }
+
+  async function acknowledgeCampaign(campaign: Campaign) {
     if (!campaign.marketingGuidelines) { toast.error("The Truvi program team must publish approved guidelines for this campaign first."); return; }
     try {
       await api.post(`/ambassador-os/campaigns/${campaign.id}/acknowledge`, { version: campaign.marketingGuidelines.version, confirmed: true });
