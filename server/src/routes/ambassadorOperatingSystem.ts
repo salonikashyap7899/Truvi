@@ -1712,14 +1712,17 @@ const createTaskSchema = z.object({
   campaignId: z.string().uuid().optional(),
 });
 
-router.get("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (_req: AuthedRequest, res) => {
+router.get("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const rows = await getDb().select({ task: ambassadorOsTasks, ambassadorName: users.name, ambassadorEmail: users.email }).from(ambassadorOsTasks).innerJoin(users, eq(ambassadorOsTasks.assignedToId, users._id)).orderBy(desc(ambassadorOsTasks.createdAt));
-  res.json({ tasks: rows.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })) });
+  const roles: OsStaffRole[] = req.user!.role === "ADMIN" ? [...OS_STAFF_ROLES] : await getOsStaffRoles(req.user!.userId);
+  const visible = rows.filter((row) => req.user!.role === "ADMIN" || taskCategoryRoles(row.task.category).some((role) => roles.includes(role)));
+  res.json({ tasks: visible.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })) });
 });
 
 router.post("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const parsed = createTaskSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid task" });
+  if (req.user!.role !== "ADMIN" && !(await canReviewTaskCategory(req.user!.userId, parsed.data.category))) return res.status(403).json({ error: "Your OS staff role cannot create this category of task." });
   const db = getDb();
   const [assignee] = await db.select().from(users).where(eq(users._id, parsed.data.assignedToId));
   if (!assignee || assignee.role !== "AMBASSADOR") return res.status(400).json({ error: "Task assignee must be an existing Ambassador account" });
@@ -1756,6 +1759,7 @@ router.patch("/admin/tasks/:id/review", requireOsStaffRole("PROGRAM_MANAGER", "S
   const db = getDb();
   const [task] = await db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks._id, String(req.params.id)));
   if (!task) return res.status(404).json({ error: "Task not found" });
+  if (req.user!.role !== "ADMIN" && !(await canReviewTaskCategory(req.user!.userId, task.category))) return res.status(403).json({ error: "Your OS staff role cannot review this category of task." });
   if (parsed.data.status !== "CLOSED" && task.status !== "SUBMITTED") return res.status(409).json({ error: "Only submitted tasks can be approved or rejected" });
   if (parsed.data.status === "REJECTED" && !parsed.data.reviewReason?.trim()) return res.status(400).json({ error: "A rejection reason is required" });
   const now = new Date();
@@ -2723,11 +2727,11 @@ const marketingMaterialCreateSchema = z.object({
 
 router.get("/marketing-materials", async (req: AuthedRequest, res) => {
   const db = getDb();
-  if (req.user!.role === "ADMIN") {
+  if (req.user!.role === "ADMIN" || (req.user!.role !== "AMBASSADOR" && await hasOsStaffRole(req.user!.userId, "PROGRAM_MANAGER"))) {
     const materials = await db.select().from(ambassadorOsMarketingMaterials).orderBy(desc(ambassadorOsMarketingMaterials.createdAt));
     return res.json({ materials });
   }
-  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Marketing material access is limited to active Program Managers and Ambassadors." });
   const now = new Date();
   const [materials, campaigns, acknowledgements, guidelines] = await Promise.all([
     db.select().from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials.status, "APPROVED")).orderBy(desc(ambassadorOsMarketingMaterials.createdAt)),
@@ -2803,6 +2807,71 @@ router.patch("/admin/marketing-materials/:id/review", requireOsStaffRole("PROGRA
     dedupeKey: updated._id + ":" + updated.status + ":" + now.toISOString(),
   });
   res.json({ material: updated });
+});
+
+
+const staffAssignmentSchema = z.object({
+  userId: z.string().uuid(),
+  osRole: z.enum(["PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"]),
+});
+
+router.get("/staff/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role === "ADMIN") return res.json({ osRoles: ["ADMIN"], isAdmin: true });
+  const osRoles = await getOsStaffRoles(req.user!.userId);
+  if (osRoles.length === 0) return res.status(403).json({ error: "No active Ambassador OS staff assignment was found for this account." });
+  const responsibilities: Record<OsStaffRole, string[]> = {
+    PROGRAM_MANAGER: ["Ambassador lifecycle", "Campaigns and approved marketing", "Incentive policy configuration", "Performance scorecards", "Career opportunities"],
+    SALES_COORDINATOR: ["Lead qualification and ownership review", "Site visits and property booking verification", "Follow-ups and channel funnel"],
+    TRAINING_COORDINATOR: ["Seven-day Academy content", "Attendance, practical and ethics reviews", "Training tasks and evidence"],
+  };
+  res.json({ osRoles, isAdmin: false, responsibilities: Object.fromEntries(osRoles.map((role) => [role, responsibilities[role]])) });
+});
+
+router.get("/staff/projects", requireOsStaffRole("PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({ _id: projects._id, name: projects.name, city: projects.city, location: projects.location, approvalStatus: projects.approvalStatus, isVerified: projects.isVerified, priceListUrl: projects.priceListUrl, totalUnits: projects.totalUnits }).from(projects).where(eq(projects.approvalStatus, "APPROVED"));
+  res.json({ projects: rows.filter((row) => row.isVerified && Boolean(row.priceListUrl)) });
+});
+
+router.get("/admin/staff-eligible-users", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({ userId: users._id, name: users.name, email: users.email, role: users.role, disabled: users.disabled, onboardingVerified: users.onboardingVerified, cpJoined: users.cpJoined })
+    .from(users).where(inArray(users.role, ["DEVELOPER", "CP", "VERIFIER"]));
+  res.json({ users: rows.filter((user) => !user.disabled && (user.role !== "CP" || (user.onboardingVerified && user.cpJoined !== false))) });
+});
+
+router.get("/admin/staff-assignments", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({ assignment: ambassadorOsStaffAssignments, name: users.name, email: users.email, baseRole: users.role })
+    .from(ambassadorOsStaffAssignments).innerJoin(users, eq(ambassadorOsStaffAssignments.userId, users._id))
+    .orderBy(desc(ambassadorOsStaffAssignments.updatedAt));
+  res.json({ assignments: rows.map((row) => ({ ...row.assignment, name: row.name, email: row.email, baseRole: row.baseRole })) });
+});
+
+router.post("/admin/staff-assignments", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = staffAssignmentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid staff assignment" });
+  const db = getDb();
+  const [account] = await db.select().from(users).where(eq(users._id, parsed.data.userId));
+  if (!account || account.disabled || !["DEVELOPER", "CP", "VERIFIER"].includes(account.role) || (account.role === "CP" && (!account.onboardingVerified || account.cpJoined === false))) {
+    return res.status(400).json({ error: "Choose an active internal account (Developer, verified/active Channel Partner, or Verifier). Buyer and Ambassador accounts cannot receive internal staff permissions." });
+  }
+  const [existing] = await db.select().from(ambassadorOsStaffAssignments)
+    .where(and(eq(ambassadorOsStaffAssignments.userId, account._id), eq(ambassadorOsStaffAssignments.osRole, parsed.data.osRole))).limit(1);
+  const now = new Date();
+  const [assignment] = existing
+    ? await db.update(ambassadorOsStaffAssignments).set({ active: true, grantedById: req.user!.userId, grantedAt: now, updatedAt: now }).where(eq(ambassadorOsStaffAssignments._id, existing._id)).returning()
+    : await db.insert(ambassadorOsStaffAssignments).values({ userId: account._id, osRole: parsed.data.osRole, active: true, grantedById: req.user!.userId, grantedAt: now, updatedAt: now }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.staff_role.assign", resourceType: "ambassador_os_staff_assignment", resourceId: assignment._id, metadata: { userId: account._id, osRole: assignment.osRole, active: assignment.active } });
+  res.status(201).json({ assignment: { ...assignment, name: account.name, email: account.email, baseRole: account.role } });
+});
+
+const updateStaffAssignmentSchema = z.object({ active: z.boolean(), reason: z.string().trim().min(5).max(1000) });
+router.patch("/admin/staff-assignments/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = updateStaffAssignmentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Provide active status and an audit reason." });
+  const [current] = await getDb().select().from(ambassadorOsStaffAssignments).where(eq(ambassadorOsStaffAssignments._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Staff assignment not found" });
+  const [updated] = await getDb().update(ambassadorOsStaffAssignments).set({ active: parsed.data.active, updatedAt: new Date() }).where(eq(ambassadorOsStaffAssignments._id, current._id)).returning();
+  await logAudit({ userId: req.user!.userId, action: parsed.data.active ? "ambassador_os.staff_role.reactivate" : "ambassador_os.staff_role.revoke", resourceType: "ambassador_os_staff_assignment", resourceId: updated._id, metadata: { userId: updated.userId, osRole: updated.osRole, reason: parsed.data.reason } });
+  res.json({ assignment: updated });
 });
 
 export default router;
