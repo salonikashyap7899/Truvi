@@ -466,7 +466,7 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
     data: { screen: "AdminAmbassadorOperatingSystem", taskId: updated._id },
     actorUserId: req.user!.userId,
     priority: "normal",
-    dedupeKey: `${updated._id}:SUBMITTED`,
+    dedupeKey: `${updated._id}:SUBMITTED:${Date.now()}`,
   });
   res.json({ task: updated });
 });
