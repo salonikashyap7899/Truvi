@@ -626,6 +626,10 @@ router.post("/admin/tasks", requireRole("ADMIN"), async (req: AuthedRequest, res
   const db = getDb();
   const [assignee] = await db.select().from(users).where(eq(users._id, parsed.data.assignedToId));
   if (!assignee || assignee.role !== "AMBASSADOR") return res.status(400).json({ error: "Task assignee must be an existing Ambassador account" });
+  if (parsed.data.campaignId) {
+    const [campaign] = await db.select({ _id: ambassadorOsCampaigns._id }).from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, parsed.data.campaignId));
+    if (!campaign) return res.status(404).json({ error: "Selected Ambassador campaign not found" });
+  }
   const [task] = await db.insert(ambassadorOsTasks).values({
     title: parsed.data.title, category: parsed.data.category, description: parsed.data.description,
     assignedToId: parsed.data.assignedToId, dueAt: parsed.data.dueAt ? new Date(parsed.data.dueAt) : null,
