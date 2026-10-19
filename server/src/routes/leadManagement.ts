@@ -122,7 +122,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
 
   // Creator, from the session — never from the body.
   const [me] = await db
-    .select({ _id: users._id, name: users.name, email: users.email, phone: users.phone, role: users.role, disabled: users.disabled, referralCode: users.referralCode, referredBy: users.referredBy })
+    .select({ _id: users._id, name: users.name, email: users.email, phone: users.phone, role: users.role, disabled: users.disabled, onboardingVerified: users.onboardingVerified, referralCode: users.referralCode, referredBy: users.referredBy })
     .from(users)
     .where(eq(users._id, req.user!.userId));
   if (!me || me.disabled || me.role !== role) return res.status(403).json({ error: "Your account can't add leads" });
