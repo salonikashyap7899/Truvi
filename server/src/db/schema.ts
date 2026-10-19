@@ -2531,6 +2531,8 @@ export const ambassadorOsTasks = pgTable(
     status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CLOSED">().notNull().default("ASSIGNED"),
     evidenceText: text("evidence_text"),
     evidenceUrl: text("evidence_url"),
+    checklistItems: jsonb("checklist_items").$type<Array<{ key: string; label: string }>>().notNull().default([]),
+    checklistResponses: jsonb("checklist_responses").$type<string[]>().notNull().default([]),
     reviewReason: text("review_reason"),
     reviewedById: uuid("reviewed_by_id").references(() => users._id),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
