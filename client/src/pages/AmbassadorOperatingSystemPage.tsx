@@ -34,7 +34,7 @@ type Task = {
 type Campaign = { id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales: number; unitAreaSqFt: number; targetDays: number; status: string };
 type Incentive = { _id: string; bookingReference: string; policyNameSnapshot: string; policyVersion: number; amount: number; status: string; paymentReference?: string | null; createdAt: string };
 type LeaderboardEntry = {
-  rank: number; userId: string; displayName: string; ambassadorId: string; currentLevel: string;
+  rank: number; isMine: boolean; displayName: string; ambassadorId: string; currentLevel: string;
   modulesCompleted: number; approvedTasks: number; completedSiteVisits: number; verifiedSales: number;
   lostLeads: number; duplicateLeads: number; qualityScore: number;
 };
@@ -65,7 +65,6 @@ export default function AmbassadorOperatingSystemPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myLeaderboardRank, setMyLeaderboardRank] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
-  const currentUserId = useAuthStore((s) => s.user?._id);
   const [savingProfile, setSavingProfile] = useState(false);
   const [college, setCollege] = useState("");
   const [course, setCourse] = useState("");
@@ -309,7 +308,7 @@ export default function AmbassadorOperatingSystemPage() {
       <section className="space-y-4">
         <div><h2 className="flex items-center gap-2 text-xl font-semibold"><Award className="text-amber-300" /> Quality Leaderboard</h2><p className="mt-1 text-sm text-muted-foreground">Active Ambassadors only. The score uses approved learning, approved tasks, completed site visits, verified sales, lost leads and duplicates. It is recognition only—not a commission or earnings formula.</p></div>
         <Card className="border-white/10 bg-white/[0.035] p-4">
-          {leaderboard.length === 0 ? <Empty text="The leaderboard appears when Ambassadors are formally activated."/> : <div className="space-y-2">{leaderboard.map((entry) => <div key={entry.userId} className={"flex flex-wrap items-center gap-3 rounded-xl border p-3 " + (entry.userId === currentUserId ? "border-sky-400/30 bg-sky-400/[0.06]" : "border-white/10 bg-black/10")}><div className={"grid size-9 shrink-0 place-items-center rounded-xl font-semibold " + (entry.rank <= 3 ? "bg-amber-400/15 text-amber-200" : "bg-white/5 text-muted-foreground")}>{entry.rank}</div><div className="min-w-0 flex-1"><p className="font-medium">{entry.displayName}</p><p className="text-xs text-muted-foreground">{entry.ambassadorId} · {entry.currentLevel}</p></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4"><TinyStat label="Score" value={String(entry.qualityScore)}/><TinyStat label="Verified sales" value={String(entry.verifiedSales)}/><TinyStat label="Site visits" value={String(entry.completedSiteVisits)}/><TinyStat label="Approved tasks" value={String(entry.approvedTasks)}/></div></div>)}</div>}
+          {leaderboard.length === 0 ? <Empty text="The leaderboard appears when Ambassadors are formally activated."/> : <div className="space-y-2">{leaderboard.map((entry) => <div key={entry.ambassadorId} className={"flex flex-wrap items-center gap-3 rounded-xl border p-3 " + (entry.isMine ? "border-sky-400/30 bg-sky-400/[0.06]" : "border-white/10 bg-black/10")}><div className={"grid size-9 shrink-0 place-items-center rounded-xl font-semibold " + (entry.rank <= 3 ? "bg-amber-400/15 text-amber-200" : "bg-white/5 text-muted-foreground")}>{entry.rank}</div><div className="min-w-0 flex-1"><p className="font-medium">{entry.displayName}</p><p className="text-xs text-muted-foreground">{entry.ambassadorId} · {entry.currentLevel}</p></div><div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right sm:grid-cols-4"><TinyStat label="Score" value={String(entry.qualityScore)}/><TinyStat label="Verified sales" value={String(entry.verifiedSales)}/><TinyStat label="Site visits" value={String(entry.completedSiteVisits)}/><TinyStat label="Approved tasks" value={String(entry.approvedTasks)}/></div></div>)}</div>}
           {myLeaderboardRank && myLeaderboardRank.rank > 10 && <p className="mt-3 rounded-lg border border-white/10 p-3 text-sm text-muted-foreground">Your current position: #{myLeaderboardRank.rank} with {myLeaderboardRank.qualityScore} quality points.</p>}
           {myLeaderboardRank && myLeaderboardRank.rank <= 10 && <p className="mt-3 text-xs text-muted-foreground">You're currently ranked #{myLeaderboardRank.rank}. Scores are calculated from the current verified records and can change after review.</p>}
         </Card>
