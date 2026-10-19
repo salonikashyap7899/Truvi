@@ -795,7 +795,11 @@ router.post("/tasks/:id/start", async (req: AuthedRequest, res) => {
   res.json({ task: updated });
 });
 
-const evidenceSchema = z.object({ evidenceText: z.string().trim().min(5).max(5000), evidenceUrl: z.string().url().optional().or(z.literal("")) });
+const evidenceSchema = z.object({
+  evidenceText: z.string().trim().min(5).max(5000),
+  evidenceUrl: z.string().url().optional().or(z.literal("")),
+  checklistResponses: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+});
 
 router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
@@ -805,6 +809,15 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   const [task] = await db.select().from(ambassadorOsTasks).where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
   if (!task) return res.status(404).json({ error: "Task not found" });
   if (!["ACCEPTED", "IN_PROGRESS", "REJECTED"].includes(task.status)) return res.status(409).json({ error: "Accept and start the task before submitting it, or resubmit a rejected task" });
+  if (task.category === "VERIFICATION") {
+    const knownKeys = new Set((task.checklistItems ?? []).map((item) => item.key));
+    const suppliedKeys = parsed.data.checklistResponses ?? [];
+    if (suppliedKeys.some((key) => !knownKeys.has(key))) return res.status(400).json({ error: "Checklist responses contain an unknown item. Reload the task and retry." });
+    const missingLabels = (task.checklistItems ?? []).filter((item) => !suppliedKeys.includes(item.key)).map((item) => item.label);
+    if (missingLabels.length > 0) {
+      return res.status(409).json({ error: "Complete every required verification checklist item before submitting.", missingChecklistItems: missingLabels });
+    }
+  }
   if (task.category !== "TRAINING") {
     const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
     const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
@@ -814,7 +827,7 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   }
   const [updated] = await db.update(ambassadorOsTasks).set({
     status: "SUBMITTED", evidenceText: parsed.data.evidenceText, evidenceUrl: parsed.data.evidenceUrl || null,
-    reviewReason: null, reviewedById: null, reviewedAt: null,
+    checklistResponses: parsed.data.checklistResponses ?? [], reviewReason: null, reviewedById: null, reviewedAt: null,
   }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, task.status))).returning();
   if (!updated) return res.status(409).json({ error: "The task changed while you were submitting it. Refresh and try again." });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.submit", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, category: updated.category } });
@@ -1705,6 +1718,17 @@ router.patch("/admin/profiles/:userId", requireOsStaffRole("PROGRAM_MANAGER"), a
   res.json({ profile: displayProfile(updated) });
 });
 
+const DEFAULT_PROPERTY_VERIFICATION_CHECKLIST = [
+  { key: "official_project_source", label: "Official project/source document is available and current" },
+  { key: "approved_project_record", label: "Project approval/verification matches the current Truvi project record" },
+  { key: "current_price_list", label: "Current official price-list source and date have been checked" },
+  { key: "available_inventory", label: "Unit/plot availability was checked against the current inventory record" },
+  { key: "unit_details", label: "Plot/unit identifier, area and location match the source record" },
+  { key: "claims_supported", label: "Amenities and marketing claims have supporting approved evidence" },
+  { key: "required_disclaimer", label: "Required campaign disclaimer and marketing-guideline rules are followed" },
+  { key: "evidence_attached", label: "Evidence/reference is attached and any discrepancy is recorded" },
+];
+
 const createTaskSchema = z.object({
   title: z.string().trim().min(3).max(180),
   category: z.enum(["TRAINING", "SALES", "MARKETING", "LEAD_MANAGEMENT", "SITE_VISIT", "RESEARCH", "VERIFICATION"]),
@@ -1712,6 +1736,13 @@ const createTaskSchema = z.object({
   assignedToId: z.string().uuid(),
   dueAt: z.string().datetime().optional(),
   campaignId: z.string().uuid().optional(),
+  checklistItems: z.array(z.object({ key: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/), label: z.string().trim().min(5).max(300) })).max(30).optional(),
+}).superRefine((value, ctx) => {
+  if (value.category !== "VERIFICATION" && value.checklistItems?.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["checklistItems"], message: "Structured checklists are only supported for Verification tasks." });
+  }
+  const keys = value.checklistItems?.map((item) => item.key) ?? [];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["checklistItems"], message: "Checklist keys must be unique." });
 });
 
 router.get("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
@@ -1736,6 +1767,8 @@ router.post("/admin/tasks", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDIN
     title: parsed.data.title, category: parsed.data.category, description: parsed.data.description,
     assignedToId: parsed.data.assignedToId, dueAt: parsed.data.dueAt ? new Date(parsed.data.dueAt) : null,
     campaignId: parsed.data.campaignId ?? null, createdById: req.user!.userId,
+    checklistItems: parsed.data.category === "VERIFICATION" ? (parsed.data.checklistItems?.length ? parsed.data.checklistItems : DEFAULT_PROPERTY_VERIFICATION_CHECKLIST) : [],
+    checklistResponses: [],
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.create", resourceType: "ambassador_os_task", resourceId: task._id, metadata: { title: task.title, category: task.category, assignedToId: task.assignedToId } });
   await notifySafely([assignee._id], {
