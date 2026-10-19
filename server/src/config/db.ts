@@ -1320,6 +1320,18 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_incentives_booking_unique" ON "ambassador_os_incentives" ("booking_reference")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_incentives_user_status_idx" ON "ambassador_os_incentives" ("user_id", "status")`,
 
+    // Staff roles are scoped to this operating system and never elevate global permissions.
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_staff_assignments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "os_role" text NOT NULL,
+       "active" boolean NOT NULL DEFAULT true,
+       "granted_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "granted_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("user_id", "os_role")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_staff_active_role_idx" ON "ambassador_os_staff_assignments" ("active", "os_role")`,
     // Versioned campaign-specific marketing rules and acknowledgement evidence.
     `CREATE TABLE IF NOT EXISTS "ambassador_os_campaign_guidelines" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
