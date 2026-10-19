@@ -1320,6 +1320,48 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_incentives_booking_unique" ON "ambassador_os_incentives" ("booking_reference")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_incentives_user_status_idx" ON "ambassador_os_incentives" ("user_id", "status")`,
 
+    // Versioned campaign-specific marketing rules and acknowledgement evidence.
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_campaign_guidelines" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "ambassador_os_campaigns"("id"),
+       "version" integer NOT NULL,
+       "content" text NOT NULL,
+       "approval_reference" text NOT NULL,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "published_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("campaign_id", "version")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_campaign_guidelines_current_idx" ON "ambassador_os_campaign_guidelines" ("campaign_id", "published_at")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_campaign_acknowledgements" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "ambassador_os_campaigns"("id"),
+       "ambassador_id" uuid NOT NULL REFERENCES "users"("id"),
+       "guideline_version" integer NOT NULL,
+       "acknowledged_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("campaign_id", "ambassador_id", "guideline_version")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_campaign_ack_user_idx" ON "ambassador_os_campaign_acknowledgements" ("ambassador_id", "campaign_id", "guideline_version")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_marketing_materials" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "ambassador_os_campaigns"("id"),
+       "title" text NOT NULL,
+       "channel" text NOT NULL,
+       "content" text NOT NULL,
+       "asset_url" text,
+       "version" integer NOT NULL DEFAULT 1,
+       "status" text NOT NULL DEFAULT 'SUBMITTED',
+       "valid_from" timestamptz,
+       "valid_to" timestamptz,
+       "reviewer_id" uuid REFERENCES "users"("id"),
+       "reviewed_at" timestamptz,
+       "review_reason" text,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_marketing_material_status_idx" ON "ambassador_os_marketing_materials" ("status", "campaign_id")`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_marketing_material_dates_idx" ON "ambassador_os_marketing_materials" ("valid_from", "valid_to")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
