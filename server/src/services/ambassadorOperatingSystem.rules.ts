@@ -110,3 +110,12 @@ export function statusAfterTrainingReview(input: {
   if (input.reviewedDayComplete) return "TRAINING_IN_PROGRESS";
   return "ASSESSMENT_PENDING";
 }
+
+
+export function hasCompleteSevenDayCurriculum(
+  progress: Array<{ day: number; status: string }>,
+): boolean {
+  return [1, 2, 3, 4, 5, 6, 7].every((day) =>
+    progress.some((item) => item.day === day && item.status === "COMPLETED")
+  );
+}
