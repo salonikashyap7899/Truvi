@@ -27,6 +27,9 @@ jobs:
         run: |
           npm ci
           npm run typecheck
+      - name: Run Ambassador OS business-rule tests
+        working-directory: server
+        run: npx vitest run src/services/ambassadorOperatingSystem.rules.test.ts
       - name: Install frontend dependencies and build
         working-directory: client
         run: |
