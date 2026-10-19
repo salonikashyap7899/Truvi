@@ -11,6 +11,7 @@ import {
   areValidScorecardWeights,
   calculateWeightedPerformanceScore,
   DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS,
+  validateVerificationChecklist,
 } from "./ambassadorOperatingSystem.rules";
 
 describe("Ambassador OS training certification", () => {
@@ -137,5 +138,27 @@ describe("Ambassador OS PDF-weighted scorecard", () => {
       .toEqual({ score: 100, eligibleForLeaderboard: true });
     expect(calculateWeightedPerformanceScore({ scores: perfect, weights, seriousMisconduct: true }))
       .toEqual({ score: 0, eligibleForLeaderboard: false });
+  });
+});
+
+describe("Ambassador OS verification checklists", () => {
+  const items = [
+    { key: "price_list", label: "Current official price list checked" },
+    { key: "inventory", label: "Inventory status confirmed" },
+  ];
+
+  it("accepts only a complete set of checklist responses", () => {
+    expect(validateVerificationChecklist(items, ["price_list", "inventory"])).toEqual({
+      valid: true, missing: [], unknown: [],
+    });
+  });
+
+  it("reports missing required items and refuses unknown item keys", () => {
+    expect(validateVerificationChecklist(items, ["price_list"])).toEqual({
+      valid: false, missing: ["Inventory status confirmed"], unknown: [],
+    });
+    expect(validateVerificationChecklist(items, ["price_list", "forged_key"])).toEqual({
+      valid: false, missing: ["Inventory status confirmed"], unknown: ["forged_key"],
+    });
   });
 });
