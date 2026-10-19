@@ -2660,6 +2660,85 @@ export const ambassadorOsPerformanceReviews = pgTable(
 );
 export type IAmbassadorOsPerformanceReview = typeof ambassadorOsPerformanceReviews.$inferSelect;
 
+export type AmbassadorCareerAssessmentType = "MENTORING" | "TEAM_MANAGEMENT" | "ADVANCED";
+
+export const ambassadorOsCareerAssessments = pgTable(
+  "ambassador_os_career_assessments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    targetLevel: text("target_level").$type<"L4" | "L5" | "L6">().notNull(),
+    assessmentType: text("assessment_type").$type<AmbassadorCareerAssessmentType>().notNull(),
+    score: integer("score").notNull(),
+    passed: boolean("passed").notNull().default(false),
+    evidenceReference: text("evidence_reference").notNull(),
+    notes: text("notes").notNull(),
+    reviewerId: uuid("reviewer_id").notNull().references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_career_assessments_ambassador_level_idx").on(t.ambassadorId, t.targetLevel, t.reviewedAt),
+    index("ambassador_os_career_assessments_result_idx").on(t.targetLevel, t.passed, t.reviewedAt),
+  ]
+);
+export type IAmbassadorOsCareerAssessment = typeof ambassadorOsCareerAssessments.$inferSelect;
+
+export type AmbassadorCareerOpportunityStatus = "DRAFT" | "PUBLISHED" | "CLOSED";
+export type AmbassadorCareerOpportunityType = "INTERNSHIP" | "JOB" | "CAMPUS_LEADERSHIP" | "MENTORING";
+
+export const ambassadorOsCareerOpportunities = pgTable(
+  "ambassador_os_career_opportunities",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    opportunityType: text("opportunity_type").$type<AmbassadorCareerOpportunityType>().notNull(),
+    description: text("description").notNull(),
+    location: text("location"),
+    targetLevel: text("target_level").$type<"L1" | "L2" | "L3" | "L4" | "L5" | "L6">().notNull(),
+    requiredSkills: jsonb("required_skills").$type<string[]>().notNull().default([]),
+    eligibility: jsonb("eligibility").$type<Record<string, unknown>>().notNull().default({}),
+    vacancies: integer("vacancies").notNull().default(1),
+    applicationDeadline: timestamp("application_deadline", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<AmbassadorCareerOpportunityStatus>().notNull().default("DRAFT"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_opportunities_status_deadline_idx").on(t.status, t.applicationDeadline),
+    index("ambassador_os_opportunities_level_idx").on(t.targetLevel, t.status),
+  ]
+);
+export type IAmbassadorOsCareerOpportunity = typeof ambassadorOsCareerOpportunities.$inferSelect;
+
+export type AmbassadorCareerApplicationStatus = "SUBMITTED" | "UNDER_REVIEW" | "SHORTLISTED" | "REJECTED" | "SELECTED" | "WITHDRAWN";
+
+export const ambassadorOsCareerApplications = pgTable(
+  "ambassador_os_career_applications",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    opportunityId: uuid("opportunity_id").notNull().references(() => ambassadorOsCareerOpportunities._id),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    statement: text("statement").notNull(),
+    evidenceReference: text("evidence_reference"),
+    status: text("status").$type<AmbassadorCareerApplicationStatus>().notNull().default("SUBMITTED"),
+    reviewerId: uuid("reviewer_id").references(() => users._id),
+    reviewNotes: text("review_notes"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_career_application_unique").on(t.opportunityId, t.ambassadorId),
+    index("ambassador_os_career_applications_status_idx").on(t.status, t.createdAt),
+    index("ambassador_os_career_applications_ambassador_idx").on(t.ambassadorId, t.createdAt),
+  ]
+);
+export type IAmbassadorOsCareerApplication = typeof ambassadorOsCareerApplications.$inferSelect;
+
 export const ambassadorOsChannelCosts = pgTable(
   "ambassador_os_channel_costs",
   {
