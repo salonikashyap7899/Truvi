@@ -59,11 +59,13 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
   const [visitTime, setVisitTime] = useState(initialDraft?.visitTime ?? "11:00");
   const [requirement, setRequirement] = useState(initialDraft?.requirement ?? "");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
+  const [contactConsent, setContactConsent] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<string | null>(null);
   const [needsJoining, setNeedsJoining] = useState(false);
+  const [needsAmbassadorActivation, setNeedsAmbassadorActivation] = useState(false);
   // Bring an error / duplicate prompt into view (it sits below the fields).
   const alertRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -99,6 +101,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
   function validate(): string | null {
     if (!isGuest && !isBuyer && !canBook) return "Site visit booking is available to buyers, channel partners, and ambassadors.";
     if (!isGuest && !isBuyer) {
+      if (!contactConsent) return "Confirm the customer gave permission to share their contact details with Truvi.";
       if (name.trim().length < 2) return "Enter the customer's name";
       if (!normalizeMobile(phone)) return "Enter a valid 10-digit mobile number";
       if (email && !/^\S+@\S+\.\S+$/.test(email)) return "Enter a valid email";
@@ -137,6 +140,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
         visitTime,
         requirement: requirement.trim(),
         notes: notes.trim() || undefined,
+        contactConsent: role === "CP" || role === "AMBASSADOR" ? contactConsent : undefined,
         confirmDuplicate,
       });
       setDuplicate(null);
@@ -148,6 +152,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
         setDuplicate(data.message);
       } else {
         setNeedsJoining(err?.response?.status === 403 && role === "CP");
+        setNeedsAmbassadorActivation(err?.response?.status === 403 && role === "AMBASSADOR" && data?.code === "AMBASSADOR_ACTIVATION_REQUIRED");
         setError(data?.error || "Couldn't submit the lead. Please try again.");
       }
     } finally {
@@ -296,12 +301,22 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
                 <textarea className={`${field} min-h-[70px] resize-y`} placeholder="Anything the team should know" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={1000} />
               </div>
 
+              {!isBuyer && !isGuest && (role === "CP" || role === "AMBASSADOR") && (
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-sky-400/20 bg-sky-400/[0.06] p-3 text-xs leading-5 text-white/75">
+                  <input type="checkbox" checked={contactConsent} onChange={(e) => setContactConsent(e.target.checked)} className="mt-1 accent-sky-400" />
+                  <span>I confirm the customer has agreed to share their contact details with Truvi so the team can respond to this enquiry and arrange the requested follow-up or site visit.</span>
+                </label>
+              )}
+
               <div ref={alertRef} className="space-y-2 scroll-mb-4">
                 {error && (
                   <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200" role="alert">
                     {error}
                     {needsJoining && (
                       <Link to="/cp/dashboard" onClick={onClose} className="ml-1 font-semibold text-white underline">Complete it now</Link>
+                    )}
+                    {needsAmbassadorActivation && (
+                      <Link to="/ambassador/operating-system" onClick={onClose} className="ml-1 font-semibold text-white underline">Open Ambassador OS</Link>
                     )}
                   </p>
                 )}
