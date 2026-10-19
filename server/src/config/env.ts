@@ -147,6 +147,8 @@ export function assertRequiredEnvForProduction(): void {
   const accessSecret = requireEnv("JWT_ACCESS_SECRET");
   const refreshSecret = requireEnv("JWT_REFRESH_SECRET");
   requireEnv("DATABASE_URL");
+  // Production browser/API deployments must configure an explicit CORS allow-list.
+  requireEnv("CLIENT_URL");
 
   if (accessSecret === DEV_JWT_ACCESS_DEFAULT || refreshSecret === DEV_JWT_REFRESH_DEFAULT) {
     throw new Error(
