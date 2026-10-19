@@ -2452,6 +2452,7 @@ export const ambassadorOsTrainingModules = pgTable(
     lesson: text("lesson").notNull(),
     keyPoints: jsonb("key_points").$type<string[]>().notNull().default([]),
     assignment: text("assignment").notNull(),
+    questions: jsonb("questions").$type<Array<{ prompt: string; options: string[]; answer: number }>>().notNull().default([]),
     videoUrl: text("video_url"),
     version: integer("version").notNull().default(1),
     isPublished: boolean("is_published").notNull().default(false),
