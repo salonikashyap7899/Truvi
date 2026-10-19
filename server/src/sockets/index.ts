@@ -2,6 +2,9 @@ import { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { verifyAccessToken } from "../lib/jwt";
 import { getAllowedOrigins } from "../config/origins";
+import { getDb } from "../config/db";
+import { projects } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 let io: SocketIOServer | null = null;
 
@@ -43,7 +46,35 @@ function getIO(): SocketIOServer {
 // --- Typed emit helpers, used by route handlers after a successful write ---
 
 export function emitUnitUpdate(projectId: string, unit: unknown) {
-  getIO().emit("unit:update", { projectId, unit });
+  // Never broadcast inventory to every connected role. Approved inventory is
+  // shared with CPs/buyers; admins and the owning developer can also receive
+  // events for pending/unapproved projects.
+  void (async () => {
+    try {
+      const db = getDb();
+      const [project] = await db
+        .select({ developerId: projects.developerId, approvalStatus: projects.approvalStatus })
+        .from(projects)
+        .where(eq(projects._id, projectId))
+        .limit(1);
+      if (!project) return;
+
+      const rooms = new Set<string>(["role:ADMIN", `user:${project.developerId}`]);
+      if (project.approvalStatus === "APPROVED") {
+        rooms.add("role:CP");
+        rooms.add("role:BUYER");
+      }
+
+      // A unit update does not need to disclose the identity of the CP holding it.
+      const raw = unit && typeof unit === "object" ? unit as Record<string, unknown> : {};
+      const safeUnit = { ...raw };
+      delete safeUnit.lockedByCPId;
+      getIO().to([...rooms]).emit("unit:update", { projectId, unit: safeUnit });
+    } catch (error) {
+      // Event delivery is best-effort; failed lookups must never trigger a global broadcast.
+      console.error("Unit update broadcast skipped:", error instanceof Error ? error.message : error);
+    }
+  })();
 }
 
 /**

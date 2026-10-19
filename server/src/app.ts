@@ -1,4 +1,38 @@
 import express from "express";
+import { getDb } from "./config/db";
+import { buyerDocuments } from "./db/schema";
+
+// Cache the exact filenames that legacy buyer-document rows still reference.
+// New uploads use private storage; this avoids a database scan on every public
+// image request while ensuring old identity documents are not served publicly.
+let legacyBuyerUploadNamesPromise: Promise<Set<string>> | undefined;
+
+function legacyBuyerUploadName(storedUrl: string): string | null {
+  try {
+    const pathname = storedUrl.startsWith("http") ? new URL(storedUrl).pathname : storedUrl;
+    const marker = "/uploads/";
+    const at = pathname.indexOf(marker);
+    if (at < 0) return null;
+    const name = path.basename(decodeURIComponent(pathname.slice(at + marker.length)));
+    return name && name !== "." && name !== ".." ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLegacyBuyerUploadNames(): Promise<Set<string>> {
+  if (!legacyBuyerUploadNamesPromise) {
+    legacyBuyerUploadNamesPromise = getDb()
+      .select({ fileUrl: buyerDocuments.fileUrl })
+      .from(buyerDocuments)
+      .then((rows) => new Set(rows.map((row) => legacyBuyerUploadName(row.fileUrl)).filter((name): name is string => Boolean(name))))
+      .catch((error) => {
+        legacyBuyerUploadNamesPromise = undefined;
+        throw error;
+      });
+  }
+  return legacyBuyerUploadNamesPromise;
+}
 import cors from "cors";
 import compression from "compression";
 import morgan from "morgan";
@@ -135,6 +169,22 @@ export function createApp() {
   // stops any files it left behind from being served (or cached by a CDN).
   app.use("/uploads/aadhaar", (_req, res) => {
     res.status(404).end();
+  });
+
+  // Defense in depth during migration: if a public upload URL is still
+  // referenced by a buyerDocuments record, do not serve it from /uploads.
+  // The migration script can still read the file directly from disk.
+  app.use("/uploads", async (req, res, next) => {
+    const filename = path.basename(req.path);
+    if (!filename || filename === "." || filename === "..") return next();
+    try {
+      const legacyNames = await getLegacyBuyerUploadNames();
+      if (legacyNames.has(filename)) return res.status(404).end();
+      return next();
+    } catch (error) {
+      // Fail closed if the server cannot confirm that the file is public.
+      return next(error);
+    }
   });
 
   app.use(

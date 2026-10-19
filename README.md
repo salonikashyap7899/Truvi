@@ -51,8 +51,10 @@ npm install
 
 npm run db:push    # creates/updates all tables in Supabase from src/db/schema.ts
 npm test           # commission engine — tests must pass
-npm run seed       # seeds realistic data across every role/stage
+NODE_ENV=development ALLOW_DESTRUCTIVE_SEED=true npm run seed  # LOCAL/TEST ONLY; deletes existing application data
 npm run dev        # starts the API with Socket.io
+
+**Security warning:** Never run the destructive seed against production. It refuses to run unless NODE_ENV is explicitly development or test and ALLOW_DESTRUCTIVE_SEED=true.
 ```
 
 ### 3. Frontend
@@ -145,6 +147,16 @@ photos) would normally be lost on every redeploy/restart. `render.yaml`
 attaches a persistent Disk (`UPLOAD_DIR=/var/data/uploads`, paid plans only)
 to avoid that; on the free plan, drop the `disk:` block and `UPLOAD_DIR` and
 either accept the ephemeral storage or migrate `uploadService.ts` to S3.
+
+## Security-sensitive deployment checklist
+
+- Set `CLIENT_URL` to the exact HTTPS origin(s) serving the production frontend. The API refuses non-development startup when it is missing. `REPLIT_DOMAINS`, if present, is treated as a list of exact domains rather than a wildcard.
+- Browser access tokens are memory-only and are not persisted to `localStorage`. On app startup, the client restores the session through the HTTP-only refresh cookie, then fetches the current user from `/api/auth/me`; protected pages wait for this check before redirecting.
+- Keep `PRIVATE_UPLOAD_DIR` outside the public `UPLOAD_DIR` and on persistent private storage. Do not place buyer ID, address, or income proofs under `/uploads`.
+- Existing buyer documents may still reference public URLs from older deployments. First run `npm run db:private-docs` in the backend environment to review the dry-run report. Confirm `DATABASE_URL`, `UPLOAD_DIR`, and `PRIVATE_UPLOAD_DIR` point to the actual production resources, then run `npm run db:private-docs -- --apply`. Verify the migrated records and files before considering the migration complete.
+- After applying the document migration, purge Cloudflare/CDN cache for old `/uploads/*` URLs. Purging is necessary because older files may have been cached publicly.
+- Audit the production database for legacy demo accounts (including `admin@truvi.app`, `buyer1@truvi.app`, `dev1@truvi.app`, `cp1@truvi.app`, and `ambassador1@truvi.app`). Disable/delete any unintended accounts and reset any reused passwords. The local seed script is destructive and must never be run against production.
+- Before merging security changes, run `npm run typecheck` and `npm test` from `server/`, then exercise founder-vs-admin permissions, cross-project document uploads, CORS from an untrusted origin, payment failure/replay cases, and legacy file URLs in a staging deployment.
 
 ## Project structure
 

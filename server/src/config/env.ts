@@ -87,13 +87,14 @@ export function getEnv() {
 
 /**
  * Founder accounts recognised for CEO-OS routing beyond the two provisioned
- * founders — the legacy `founder@truvi.app` placeholder and any owner accounts
- * that must always land on /founder/dashboard. Additional emails can also be
- * supplied at runtime via FOUNDER_EMAILS (comma-separated) without a code change.
+ * founders. Additional owner identities (including any legacy placeholder
+ * address still in use) must be explicitly supplied via FOUNDER_EMAILS.
  */
 const BUILTIN_FOUNDER_EMAILS = new Set(
   [
-    "founder@truvi.app",
+    // Keep only the specifically identified owner account as a built-in entry.
+    // Legacy/generic founder identities must be explicitly configured through
+    // FOUNDER_EMAILS instead of being trusted by default.
     "isalonikashyap@gmail.com",
     ...String(process.env.FOUNDER_EMAILS ?? "").split(","),
   ]
@@ -147,6 +148,8 @@ export function assertRequiredEnvForProduction(): void {
   const accessSecret = requireEnv("JWT_ACCESS_SECRET");
   const refreshSecret = requireEnv("JWT_REFRESH_SECRET");
   requireEnv("DATABASE_URL");
+  // Production browser/API deployments must configure an explicit CORS allow-list.
+  requireEnv("CLIENT_URL");
 
   if (accessSecret === DEV_JWT_ACCESS_DEFAULT || refreshSecret === DEV_JWT_REFRESH_DEFAULT) {
     throw new Error(

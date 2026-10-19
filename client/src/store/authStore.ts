@@ -4,37 +4,38 @@ import type { User } from "@/types";
 interface AuthState {
   user: User | null;
   accessToken: string | null;
+  /** True after refresh-cookie restoration succeeds or is conclusively rejected. */
+  isInitialized: boolean;
   setAuth: (user: User, accessToken: string) => void;
   setUser: (user: User) => void;
+  setInitialized: () => void;
   clearAuth: () => void;
 }
 
-const STORAGE_KEY = "truvi_auth";
-
-function loadInitial(): { user: User | null; accessToken: string | null } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { user: null, accessToken: null };
-    return JSON.parse(raw);
-  } catch {
-    return { user: null, accessToken: null };
+// Previous versions persisted the access token and user snapshot in localStorage.
+// Remove that legacy value once on app startup so it cannot remain behind after
+// switching to an in-memory access token.
+try {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem("truvi_auth");
   }
+} catch {
+  // Storage may be unavailable in hardened browser contexts; auth still works.
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  ...loadInitial(),
-  setAuth: (user, accessToken) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, accessToken }));
-    set({ user, accessToken });
-  },
-  setUser: (user) => {
-    set((s) => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, accessToken: s.accessToken }));
-      return { user };
-    });
-  },
+  user: null,
+  accessToken: null,
+  isInitialized: false,
+  setAuth: (user, accessToken) => set({ user, accessToken, isInitialized: true }),
+  setUser: (user) => set({ user, isInitialized: true }),
+  setInitialized: () => set({ isInitialized: true }),
   clearAuth: () => {
-    localStorage.removeItem(STORAGE_KEY);
-    set({ user: null, accessToken: null });
+    try {
+      if (typeof window !== "undefined") window.localStorage.removeItem("truvi_auth");
+    } catch {
+      // Storage may be unavailable; the in-memory session is still cleared.
+    }
+    set({ user: null, accessToken: null, isInitialized: true });
   },
 }));

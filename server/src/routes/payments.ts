@@ -3,7 +3,7 @@ import { zodMessage } from "../lib/validationError";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { payments, subscriptions, subscriptionPlans, vouchers } from "../db/schema";
 import { getEnv, isRazorpayConfigured } from "../config/env";
@@ -189,9 +189,9 @@ router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, re
 
 // ── Verify payment (called by the browser after the modal succeeds) ────────
 const verifySchema = z.object({
-  razorpay_order_id: z.string().min(1),
-  razorpay_payment_id: z.string().min(1),
-  razorpay_signature: z.string().min(1),
+  razorpay_order_id: z.string().min(1).max(200),
+  razorpay_payment_id: z.string().min(1).max(200),
+  razorpay_signature: z.string().regex(/^[0-9a-f]{64}$/i, "Invalid signature format"),
 });
 
 router.post("/verify", async (req, res) => {
@@ -199,61 +199,100 @@ router.post("/verify", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
 
   const env = getEnv();
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
+  const razorpay = getRazorpay();
+  if (!razorpay || !env.razorpayKeySecret) {
+    return res.status(503).json({ error: "Payment verification is not configured." });
+  }
 
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
   const expected = crypto
     .createHmac("sha256", env.razorpayKeySecret)
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
-
   const valid =
     expected.length === razorpay_signature.length &&
-    crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature));
-
+    crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(razorpay_signature, "hex"));
   if (!valid) return res.status(400).json({ error: "Payment signature verification failed" });
 
   const db = getDb();
   const [row] = await db.select().from(payments).where(eq(payments.razorpayOrderId, razorpay_order_id));
   if (!row) return res.status(404).json({ error: "Order not found" });
 
-  // Idempotent: if already PAID, just return success.
+  const expectedAmount = row.amountPaise + row.gstPaise;
+  let providerOrder: any;
+  let providerPayment: any;
+  try {
+    [providerOrder, providerPayment] = await Promise.all([
+      razorpay.orders.fetch(razorpay_order_id),
+      razorpay.payments.fetch(razorpay_payment_id),
+    ]);
+  } catch {
+    return res.status(502).json({ error: "Unable to confirm payment status with the payment provider. Please retry." });
+  }
+
+  // A browser signature is necessary but not sufficient: confirm the provider's
+  // live order and payment records before granting paid access.
+  if (
+    String(providerOrder.id) !== razorpay_order_id ||
+    Number(providerOrder.amount) !== expectedAmount ||
+    providerOrder.currency !== row.currency ||
+    String(providerPayment.order_id || "") !== razorpay_order_id ||
+    String(providerPayment.id || "") !== razorpay_payment_id ||
+    Number(providerPayment.amount) !== expectedAmount ||
+    providerPayment.currency !== row.currency
+  ) {
+    return res.status(400).json({ error: "Payment details do not match the order." });
+  }
+  if (providerPayment.status !== "captured") {
+    return res.status(409).json({ error: "Payment has not been captured yet. Please wait for confirmation." });
+  }
+  if (row.status === "PAID" && row.razorpayPaymentId && row.razorpayPaymentId !== razorpay_payment_id) {
+    return res.status(409).json({ error: "This order has already been paid with a different payment." });
+  }
+
+  // The conditional update makes voucher redemption and notifications run only
+  // for the first successful non-PAID → PAID transition.
   if (row.status !== "PAID") {
-    await db
+    const [updated] = await db
       .update(payments)
-      .set({ status: "PAID", razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature, updatedAt: new Date() })
-      .where(eq(payments._id, row._id));
+      .set({
+        status: "PAID",
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(payments._id, row._id), ne(payments.status, "PAID")))
+      .returning({ _id: payments._id });
 
-    // Count the voucher redemption only on a real, verified payment (never on an
-    // abandoned order), so usage limits reflect actual use.
-    if (row.voucherCode) {
-      await db
-        .update(vouchers)
-        .set({ redeemedCount: sql`${vouchers.redeemedCount} + 1`, updatedAt: new Date() })
-        .where(eq(vouchers.code, row.voucherCode))
-        .catch(() => {});
-    }
-
-    void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, row.amountPaise + row.gstPaise, razorpay_payment_id);
-
-    // Bell/push notifications: confirm to the payer + alert admins/founders.
-    try {
-      const amount = ((row.amountPaise + row.gstPaise) / 100).toLocaleString("en-IN");
-      await notifyRole("ADMIN", {
-        type: "payment_received",
-        title: "Payment received",
-        message: `${row.customerName} paid ₹${amount} for ${row.planLabel}.`,
-        data: { href: "/admin/payments" },
-      });
-      if (row.userId) {
-        await notifyUser(String(row.userId), {
-          type: "payment_received",
-          title: "Payment successful ✅",
-          message: `Your payment of ₹${amount} for ${row.planLabel} was received.`,
-          priority: "high",
-        });
+    if (updated) {
+      if (row.voucherCode) {
+        await db
+          .update(vouchers)
+          .set({ redeemedCount: sql`${vouchers.redeemedCount} + 1`, updatedAt: new Date() })
+          .where(eq(vouchers.code, row.voucherCode))
+          .catch(() => {});
       }
-    } catch {
-      /* non-fatal */
+
+      void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, expectedAmount, razorpay_payment_id);
+      try {
+        const amount = (expectedAmount / 100).toLocaleString("en-IN");
+        await notifyRole("ADMIN", {
+          type: "payment_received",
+          title: "Payment received",
+          message: `${row.customerName} paid ₹${amount} for ${row.planLabel}.`,
+          data: { href: "/admin/payments" },
+        });
+        if (row.userId) {
+          await notifyUser(String(row.userId), {
+            type: "payment_received",
+            title: "Payment successful ✅",
+            message: `Your payment of ₹${amount} for ${row.planLabel} was received.`,
+            priority: "high",
+          });
+        }
+      } catch {
+        /* non-fatal */
+      }
     }
   }
 
@@ -261,7 +300,7 @@ router.post("/verify", async (req, res) => {
     ok: true,
     payment: {
       planLabel: row.planLabel,
-      amountPaise: row.amountPaise + row.gstPaise,
+      amountPaise: expectedAmount,
       paymentId: razorpay_payment_id,
       email: row.customerEmail,
     },
@@ -346,9 +385,9 @@ router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequ
 
 // ── Verify subscription (browser calls after the modal succeeds) ───────────
 const verifySubSchema = z.object({
-  razorpay_payment_id: z.string().min(1),
-  razorpay_subscription_id: z.string().min(1),
-  razorpay_signature: z.string().min(1),
+  razorpay_payment_id: z.string().min(1).max(200),
+  razorpay_subscription_id: z.string().min(1).max(200),
+  razorpay_signature: z.string().regex(/^[0-9a-f]{64}$/i, "Invalid signature format"),
 });
 
 router.post("/verify-subscription", async (req, res) => {
@@ -369,9 +408,28 @@ router.post("/verify-subscription", async (req, res) => {
     crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature));
   if (!valid) return res.status(400).json({ error: "Subscription signature verification failed" });
 
+  const razorpay = getRazorpay();
+  if (!razorpay) return res.status(503).json({ error: "Payment verification is not configured." });
+
   const db = getDb();
   const [row] = await db.select().from(subscriptions).where(eq(subscriptions.razorpaySubscriptionId, razorpay_subscription_id));
   if (!row) return res.status(404).json({ error: "Subscription not found" });
+
+  let providerPayment: any;
+  try {
+    providerPayment = await razorpay.payments.fetch(razorpay_payment_id);
+  } catch {
+    return res.status(502).json({ error: "Unable to confirm subscription payment with the provider." });
+  }
+  if (
+    String(providerPayment.id || "") !== razorpay_payment_id ||
+    String(providerPayment.subscription_id || "") !== razorpay_subscription_id ||
+    Number(providerPayment.amount) !== row.basePaise + row.gstPaise ||
+    providerPayment.currency !== "INR" ||
+    providerPayment.status !== "captured"
+  ) {
+    return res.status(409).json({ error: "Subscription payment is not captured or does not match the expected subscription amount." });
+  }
 
   if (row.status !== "ACTIVE") {
     await db
@@ -432,13 +490,18 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
   const signature = req.headers["x-razorpay-signature"];
   const raw = req.body as Buffer; // express.raw → Buffer
 
-  if (!env.razorpayWebhookSecret || typeof signature !== "string" || !Buffer.isBuffer(raw)) {
+  if (
+    !env.razorpayWebhookSecret ||
+    typeof signature !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(signature) ||
+    !Buffer.isBuffer(raw)
+  ) {
     return res.status(400).json({ error: "Invalid webhook" });
   }
 
   const expected = crypto.createHmac("sha256", env.razorpayWebhookSecret).update(raw).digest("hex");
   const valid =
-    expected.length === signature.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    expected.length === signature.length && crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
   if (!valid) return res.status(400).json({ error: "Invalid signature" });
 
   let event: any;
@@ -457,12 +520,21 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
       const paymentId = entity.id as string | undefined;
       if (orderId) {
         const [row] = await db.select().from(payments).where(eq(payments.razorpayOrderId, orderId));
-        if (row && row.status !== "PAID") {
-          await db
+        const expectedAmount = row ? row.amountPaise + row.gstPaise : -1;
+        const matchesOrder = !!row &&
+          !!paymentId &&
+          entity.order_id === row.razorpayOrderId &&
+          Number(entity.amount) === expectedAmount &&
+          entity.currency === row.currency;
+        if (row && paymentId && matchesOrder && row.status !== "PAID") {
+          const [updated] = await db
             .update(payments)
-            .set({ status: "PAID", razorpayPaymentId: paymentId ?? row.razorpayPaymentId, updatedAt: new Date() })
-            .where(eq(payments._id, row._id));
-          void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, row.amountPaise + row.gstPaise, paymentId ?? "");
+            .set({ status: "PAID", razorpayPaymentId: paymentId, updatedAt: new Date() })
+            .where(and(eq(payments._id, row._id), ne(payments.status, "PAID")))
+            .returning({ _id: payments._id });
+          if (updated) {
+            void sendPaymentConfirmation(row.customerEmail, row.customerName, row.planLabel, expectedAmount, paymentId);
+          }
         }
       }
     } else if (event.event === "payment.failed" && entity) {

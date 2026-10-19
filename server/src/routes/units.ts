@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
-import { and, asc, eq, lt, or } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, or } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { units, projects, UnitStatus } from "../db/schema";
 import { isValidId } from "../lib/ids";
@@ -16,18 +16,49 @@ router.use(authenticate);
 
 router.get("/", async (req: AuthedRequest, res) => {
   await expireStaleLocks();
-  const { projectId, status } = req.query;
-  if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
+  const role = req.user!.role;
+  if (role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  const conditions = [];
-  if (projectId) {
-    if (!isValidId(String(projectId))) return res.json({ units: [] });
-    conditions.push(eq(units.projectId, String(projectId)));
+  if (role !== "ADMIN" && role !== "DEVELOPER" && role !== "CP" && role !== "BUYER") {
+    return res.status(403).json({ error: "You are not allowed to view inventory" });
   }
-  if (status) conditions.push(eq(units.status, String(status) as UnitStatus));
+
+  const { projectId, status } = req.query;
+  if (projectId && !isValidId(String(projectId))) {
+    return res.status(400).json({ error: "Invalid projectId" });
+  }
 
   const db = getDb();
+  const conditions = [];
+  let visibleProjectIds: string[] | null = null;
+
+  if (role === "DEVELOPER") {
+    const owned = await db
+      .select({ _id: projects._id })
+      .from(projects)
+      .where(eq(projects.developerId, req.user!.userId));
+    visibleProjectIds = owned.map((p) => String(p._id));
+  } else if (role === "CP" || role === "BUYER") {
+    const approved = await db
+      .select({ _id: projects._id })
+      .from(projects)
+      .where(eq(projects.approvalStatus, "APPROVED"));
+    visibleProjectIds = approved.map((p) => String(p._id));
+  }
+
+  // A developer can only inspect their own project inventory. Buyers and CPs
+  // can inspect approved listings only. Admins retain platform-wide visibility.
+  if (visibleProjectIds !== null) {
+    if (projectId && !visibleProjectIds.includes(String(projectId))) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    if (visibleProjectIds.length === 0) return res.json({ units: [] });
+    conditions.push(inArray(units.projectId, visibleProjectIds));
+  }
+  if (projectId) conditions.push(eq(units.projectId, String(projectId)));
+  if (status) conditions.push(eq(units.status, String(status) as UnitStatus));
+
   const rows = await db
     .select()
     .from(units)
@@ -35,7 +66,6 @@ router.get("/", async (req: AuthedRequest, res) => {
     .orderBy(asc(units.unitNumber));
   res.json({ units: rows });
 });
-
 router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = createUnitSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -235,16 +265,34 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
 });
 
 router.get("/:id", async (req: AuthedRequest, res) => {
-  if (req.user?.role === "CP" && req.user?.onboardingVerified !== true) {
+  const role = req.user!.role;
+  if (role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
+  if (role !== "ADMIN" && role !== "DEVELOPER" && role !== "CP" && role !== "BUYER") {
+    return res.status(403).json({ error: "You are not allowed to view inventory" });
+  }
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
+
   const db = getDb();
   const [unit] = await db.select().from(units).where(eq(units._id, req.params.id));
   if (!unit) return res.status(404).json({ error: "Unit not found" });
+
+  if (role !== "ADMIN") {
+    const [project] = await db
+      .select({ developerId: projects.developerId, approvalStatus: projects.approvalStatus })
+      .from(projects)
+      .where(eq(projects._id, unit.projectId));
+    if (!project) return res.status(404).json({ error: "Unit not found" });
+    if (role === "DEVELOPER" && String(project.developerId) !== req.user!.userId) {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+    if ((role === "CP" || role === "BUYER") && project.approvalStatus !== "APPROVED") {
+      return res.status(404).json({ error: "Unit not found" });
+    }
+  }
   res.json({ unit });
 });
-
 router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
   const db = getDb();
