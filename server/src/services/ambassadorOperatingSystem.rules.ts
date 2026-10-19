@@ -86,3 +86,27 @@ export function computeAmbassadorQualityScore(input: {
       input.duplicateLeads * 3,
   );
 }
+
+
+export type AmbassadorOperationalStatus =
+  | "REGISTERED" | "VERIFICATION_PENDING" | "TRAINING_IN_PROGRESS"
+  | "ASSESSMENT_PENDING" | "CERTIFIED" | "ACTIVE"
+  | "TEMPORARILY_INACTIVE" | "SUSPENDED" | "EXITED";
+
+/**
+ * Training reviews may change a training-state profile, but must not silently
+ * reactivate or demote an operationally active, suspended, exited, or inactive
+ * Ambassador. Reactivation remains an explicit Admin action.
+ */
+export function statusAfterTrainingReview(input: {
+  currentStatus: AmbassadorOperationalStatus;
+  allTrainingComplete: boolean;
+  reviewedDayComplete: boolean;
+}): AmbassadorOperationalStatus {
+  if (["ACTIVE", "SUSPENDED", "EXITED", "TEMPORARILY_INACTIVE"].includes(input.currentStatus)) {
+    return input.currentStatus;
+  }
+  if (input.allTrainingComplete) return "CERTIFIED";
+  if (input.reviewedDayComplete) return "TRAINING_IN_PROGRESS";
+  return "ASSESSMENT_PENDING";
+}
