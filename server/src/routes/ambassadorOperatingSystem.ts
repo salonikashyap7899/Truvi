@@ -881,6 +881,23 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   if (!isEligibleAmbassadorSale({ stage: lead.stage, isDuplicate: lead.isDuplicate, referralAttributed: attributionPresent })) {
     return res.status(409).json({ error: "A non-duplicate registration/completed sale with verified referral attribution is required" });
   }
+  if (lead.creatorRole && lead.creatorRole !== "BUYER" &&
+      (!lead.contactConsent || !lead.contactConsentAt || !lead.consentTextVersion)) {
+    return res.status(409).json({ error: "This third-party lead has no recorded customer contact consent and is not eligible for an Ambassador incentive." });
+  }
+  let verifiedAreaSqFt = parsed.data.verifiedAreaSqFt;
+  if (lead.unitId) {
+    const [linkedUnit] = await db.select({
+      areaSqft: units.areaSqft,
+      projectId: units.projectId,
+    }).from(units).where(eq(units._id, lead.unitId));
+    if (!linkedUnit || linkedUnit.projectId !== lead.projectId) {
+      return res.status(409).json({ error: "The lead's linked inventory unit could not be verified against its project." });
+    }
+    // When a lead references an inventory unit, use the official unit area
+    // rather than trusting a manually-entered size from the admin form.
+    verifiedAreaSqFt = Math.round(linkedUnit.areaSqft);
+  }
   const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, parsed.data.policyId));
   if (!policy || !policy.active || !policy.approvalReference?.trim()) return res.status(409).json({ error: "The selected incentive policy is not active and approved" });
   if (policy.effectiveFrom && policy.effectiveFrom.getTime() > Date.now()) return res.status(409).json({ error: "The selected incentive policy is not effective yet" });
@@ -896,14 +913,14 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
     calculationType: policy.calculationType,
     amount: policy.amount,
     blockSizeSqFt: policy.blockSizeSqFt,
-    verifiedAreaSqFt: parsed.data.verifiedAreaSqFt,
+    verifiedAreaSqFt,
     bookingValue: parsed.data.bookingValue,
   });
   if (amount === null) return res.status(400).json({ error: "Verified area/value does not meet the selected policy's valid calculation basis" });
   const [incentive] = await db.insert(ambassadorOsIncentives).values({
     userId: ambassador._id, campaignId: policy.campaignId, policyId: policy._id,
     policyNameSnapshot: policy.name, policyVersion: policy.version, bookingReference: lead._id,
-    verifiedAreaSqFt: parsed.data.verifiedAreaSqFt, propertyValue: parsed.data.bookingValue ?? null,
+    verifiedAreaSqFt, propertyValue: parsed.data.bookingValue ?? null,
     amount, status: "PENDING", createdById: req.user!.userId,
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.create", resourceType: "ambassador_os_incentive", resourceId: incentive._id, metadata: { userId: ambassador._id, policyId: policy._id, policyVersion: policy.version, amount } });
