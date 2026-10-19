@@ -9,9 +9,9 @@ import {
   ambassadorOsProfiles,
   ambassadorOsTasks,
   ambassadorOsTrainingProgress,
-  commissions,
   leads,
   projects,
+  siteVisits,
   units,
   users,
 } from "../db/schema";
@@ -370,7 +370,7 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
     db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt)),
     db.select().from(ambassadorOsIncentivePolicies).orderBy(desc(ambassadorOsIncentivePolicies.createdAt)),
     db.select({ incentive: ambassadorOsIncentives, ambassadorName: users.name, ambassadorEmail: users.email }).from(ambassadorOsIncentives).innerJoin(users, eq(ambassadorOsIncentives.userId, users._id)).orderBy(desc(ambassadorOsIncentives.createdAt)),
-    db.select({ submittedById: leads.submittedById, referralChain: leads.referralChain }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
+    db.select({ submittedById: leads.submittedById, referralChain: leads.referralChain, projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
   ]);
   const ambassadorIds = new Set(profiles.map((row) => row.profile.userId));
   const registeredSales = registeredLeadRows.filter((lead) => ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId))).length;
@@ -378,7 +378,11 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
     profiles: profiles.map((row) => ({ ...row, profile: displayProfile(row.profile) })),
     trainingReviews: progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING" || row.progress.status === "RETAKE_REQUIRED").map((row) => ({ ...row.progress, ambassadorName: row.name, ambassadorEmail: row.email })),
     tasks: tasks.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName })),
-    campaigns, policies,
+    campaigns: campaigns.map((campaign) => ({
+      ...campaign,
+      verifiedSales: registeredLeadRows.filter((lead) => lead.projectId === campaign.projectId && !lead.isDuplicate).length,
+    })),
+    policies,
     incentives: incentives.map((row) => ({ ...row.incentive, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })),
     stats: {
       ambassadors: profiles.length,
@@ -543,6 +547,7 @@ router.post("/admin/campaigns", requireRole("ADMIN"), async (req: AuthedRequest,
   if (parsed.data.projectId && !linkedProject) return res.status(404).json({ error: "Linked Truvi project not found" });
   const [campaign] = await db.insert(ambassadorOsCampaigns).values({
     ...parsed.data,
+    salesTarget: parsed.data.salesTarget ?? parsed.data.targetInventory,
     projectId: linkedProject?._id ?? null,
     projectName: linkedProject?.name ?? parsed.data.projectName,
     location: linkedProject ? `${linkedProject.location}, ${linkedProject.city}` : parsed.data.location,
