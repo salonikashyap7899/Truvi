@@ -2458,6 +2458,7 @@ export const ambassadorOsCampaigns = pgTable(
   "ambassador_os_campaigns",
   {
     _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").references(() => projects._id),
     name: text("name").notNull(),
     projectName: text("project_name").notNull(),
     location: text("location").notNull(),
