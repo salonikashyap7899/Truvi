@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
@@ -320,14 +320,26 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
 
 router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
   const db = getDb();
-  const [profiles, progress, tasks, campaigns, policies, incentives] = await Promise.all([
+  // Make sure existing Ambassador accounts appear in the directory even if they
+  // have not visited the new workspace yet. Bulk insert is additive and race-safe.
+  const ambassadorUsers = await db.select({ userId: users._id }).from(users).where(eq(users.role, "AMBASSADOR"));
+  const existingProfiles = await db.select({ userId: ambassadorOsProfiles.userId }).from(ambassadorOsProfiles);
+  const existingProfileIds = new Set(existingProfiles.map((row) => row.userId));
+  const missingProfiles = ambassadorUsers.filter((row) => !existingProfileIds.has(row.userId));
+  if (missingProfiles.length) {
+    await db.insert(ambassadorOsProfiles).values(missingProfiles.map((row) => ({ userId: row.userId }))).onConflictDoNothing();
+  }
+  const [profiles, progress, tasks, campaigns, policies, incentives, registeredLeadRows] = await Promise.all([
     db.select({ profile: ambassadorOsProfiles, name: users.name, email: users.email, onboardingVerified: users.onboardingVerified }).from(ambassadorOsProfiles).innerJoin(users, eq(ambassadorOsProfiles.userId, users._id)).orderBy(desc(ambassadorOsProfiles.createdAt)),
     db.select({ progress: ambassadorOsTrainingProgress, name: users.name, email: users.email }).from(ambassadorOsTrainingProgress).innerJoin(users, eq(ambassadorOsTrainingProgress.userId, users._id)).orderBy(desc(ambassadorOsTrainingProgress.updatedAt)),
     db.select({ task: ambassadorOsTasks, ambassadorName: users.name }).from(ambassadorOsTasks).innerJoin(users, eq(ambassadorOsTasks.assignedToId, users._id)).orderBy(desc(ambassadorOsTasks.createdAt)),
     db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt)),
     db.select().from(ambassadorOsIncentivePolicies).orderBy(desc(ambassadorOsIncentivePolicies.createdAt)),
     db.select({ incentive: ambassadorOsIncentives, ambassadorName: users.name, ambassadorEmail: users.email }).from(ambassadorOsIncentives).innerJoin(users, eq(ambassadorOsIncentives.userId, users._id)).orderBy(desc(ambassadorOsIncentives.createdAt)),
+    db.select({ submittedById: leads.submittedById, referralChain: leads.referralChain }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
   ]);
+  const ambassadorIds = new Set(profiles.map((row) => row.profile.userId));
+  const registeredSales = registeredLeadRows.filter((lead) => ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId))).length;
   res.json({
     profiles: profiles.map((row) => ({ ...row, profile: displayProfile(row.profile) })),
     trainingReviews: progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING" || row.progress.status === "RETAKE_REQUIRED").map((row) => ({ ...row.progress, ambassadorName: row.name, ambassadorEmail: row.email })),
@@ -341,7 +353,7 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
       submittedTasks: tasks.filter((row) => row.task.status === "SUBMITTED").length,
       activeCampaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
       pendingIncentives: incentives.filter((row) => ["PENDING", "APPROVED", "PAYABLE"].includes(row.incentive.status)).length,
-      verifiedSales: 0, // Sales reporting is derived from verified lead/booking records elsewhere; not inferred here.
+      registeredSales,
     },
   });
 });
@@ -363,7 +375,7 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   const practicalStatus = parsed.data.practicalStatus ?? current.practicalStatus;
   const ethicsStatus = parsed.data.ethicsStatus ?? current.ethicsStatus;
   const canComplete = current.quizScore >= 80 && practicalStatus === "APPROVED" && ethicsStatus === "APPROVED";
-  const status = canComplete ? "COMPLETED" as const : (practicalStatus === "REJECTED" || ethicsStatus === "REJECTED" ? "RETAKE_REQUIRED" as const : "ASSESSMENT_PENDING" as const);
+  const status = canComplete ? "COMPLETED" as const : (current.quizScore < 80 || practicalStatus === "REJECTED" || ethicsStatus === "REJECTED" ? "RETAKE_REQUIRED" as const : "ASSESSMENT_PENDING" as const);
   const now = new Date();
   const [updated] = await db.update(ambassadorOsTrainingProgress).set({
     practicalStatus, ethicsStatus, trainerFeedback: parsed.data.trainerFeedback ?? current.trainerFeedback,
