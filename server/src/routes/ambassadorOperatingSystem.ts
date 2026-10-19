@@ -25,6 +25,7 @@ import {
   computeAmbassadorQualityScore,
   isEligibleAmbassadorSale,
   isTrainingDayComplete,
+  statusAfterTrainingReview,
 } from "../services/ambassadorOperatingSystem.rules";
 
 const router = Router();
@@ -536,12 +537,11 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   const certificateNo = completedDaySeven
     ? (profile.certificateNo ?? `TRUVI-CERT-${String(profile.ambassadorNo).padStart(6, "0")}`)
     : null;
-  const preserveOperationalStatus = ["ACTIVE", "SUSPENDED", "EXITED", "TEMPORARILY_INACTIVE"].includes(profile.status);
-  const nextProfileStatus = preserveOperationalStatus
-    ? profile.status
-    : allComplete ? "CERTIFIED" as const
-      : canComplete ? "TRAINING_IN_PROGRESS" as const
-        : "ASSESSMENT_PENDING" as const;
+  const nextProfileStatus = statusAfterTrainingReview({
+    currentStatus: profile.status,
+    allTrainingComplete: allComplete,
+    reviewedDayComplete: canComplete,
+  });
   await db.update(ambassadorOsProfiles).set({
     status: nextProfileStatus,
     certificateNo,
