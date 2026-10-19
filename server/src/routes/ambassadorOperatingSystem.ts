@@ -224,6 +224,71 @@ router.get("/me", async (req: AuthedRequest, res) => {
   });
 });
 
+/**
+ * Privacy-safe quality leaderboard. Only active Ambassadors appear, and the
+ * response intentionally contains aggregate performance only—never buyer names,
+ * phone numbers, emails, lead notes, or payout details.
+ *
+ * Transparent internal score: +2 per approved learning module, +5 per approved
+ * task, +8 per unique completed site visit, +25 per non-duplicate registered
+ * sale; -2 per lost lead and -3 per duplicate lead. This is recognition only,
+ * not a commission formula or a promise of income.
+ */
+router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [profileRows, completedModules, approvedTasks, allLeads, completedVisits] = await Promise.all([
+    db.select({ profile: ambassadorOsProfiles, name: users.name })
+      .from(ambassadorOsProfiles)
+      .innerJoin(users, eq(ambassadorOsProfiles.userId, users._id))
+      .where(eq(ambassadorOsProfiles.status, "ACTIVE")),
+    db.select({ userId: ambassadorOsTrainingProgress.userId, day: ambassadorOsTrainingProgress.day })
+      .from(ambassadorOsTrainingProgress)
+      .where(eq(ambassadorOsTrainingProgress.status, "COMPLETED")),
+    db.select({ userId: ambassadorOsTasks.assignedToId })
+      .from(ambassadorOsTasks)
+      .where(eq(ambassadorOsTasks.status, "APPROVED")),
+    db.select({ _id: leads._id, submittedById: leads.submittedById, referralChain: leads.referralChain, stage: leads.stage, isDuplicate: leads.isDuplicate }).from(leads),
+    db.select({ leadId: siteVisits.leadId })
+      .from(siteVisits)
+      .where(eq(siteVisits.status, "COMPLETED")),
+  ]);
+  const visitLeadIds = new Set(completedVisits.map((v) => v.leadId).filter(Boolean));
+  const rows = profileRows.map(({ profile, name }) => {
+    const attributed = allLeads.filter((lead) =>
+      lead.submittedById === profile.userId || (lead.referralChain ?? []).some((referral) => referral.userId === profile.userId)
+    );
+    const nonDuplicate = attributed.filter((lead) => !lead.isDuplicate);
+    const moduleCount = completedModules.filter((module) => module.userId === profile.userId).length;
+    const taskCount = approvedTasks.filter((task) => task.userId === profile.userId).length;
+    const siteVisitCount = nonDuplicate.filter((lead) => visitLeadIds.has(lead._id)).length;
+    const saleCount = nonDuplicate.filter((lead) => ["REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
+    const lostCount = attributed.filter((lead) => lead.stage === "LOST" && !lead.isDuplicate).length;
+    const duplicateCount = attributed.filter((lead) => lead.isDuplicate).length;
+    const qualityScore = Math.max(0, moduleCount * 2 + taskCount * 5 + siteVisitCount * 8 + saleCount * 25 - lostCount * 2 - duplicateCount * 3);
+    const nameParts = name.trim().split(/\s+/).filter(Boolean);
+    const displayName = nameParts.length > 1 ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.` : (nameParts[0] ?? "Ambassador");
+    return {
+      userId: profile.userId,
+      displayName,
+      ambassadorId: `TRUVI-${profile.cityCode}-${String(profile.ambassadorNo).padStart(4, "0")}`,
+      currentLevel: profile.currentLevel,
+      modulesCompleted: moduleCount,
+      approvedTasks: taskCount,
+      completedSiteVisits: siteVisitCount,
+      verifiedSales: saleCount,
+      lostLeads: lostCount,
+      duplicateLeads: duplicateCount,
+      qualityScore,
+    };
+  }).sort((a, b) => b.qualityScore - a.qualityScore || a.ambassadorId.localeCompare(b.ambassadorId))
+    .map((row, index) => ({ rank: index + 1, ...row }));
+  res.json({
+    scoring: { moduleCompleted: 2, approvedTask: 5, completedSiteVisit: 8, verifiedSale: 25, lostLeadPenalty: 2, duplicateLeadPenalty: 3 },
+    leaderboard: rows.slice(0, 10),
+    mine: rows.find((row) => row.userId === req.user!.userId) ?? null,
+  });
+});
+
 router.put("/profile", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const parsed = profileSchema.safeParse(req.body);
