@@ -19,7 +19,7 @@ The pilot is integrated into the existing Truvi web application and retains the 
 6. Confirm the final approved assessment creates an internal certificate. Use **Print / Save PDF** to export it.
 7. From Admin, assign a task and test submission, rejection with a required reason, and approval.
 8. Configure a campaign linked to an existing Truvi project. The campaign must remain Planned until the project is Admin-approved, Truvi-verified, has a current price list, has at least the required count of available units, and the Admin records source/document review notes. Activate only after verifying those facts outside this UI.
-9. Create incentive policy versions as inactive. Use the recorded written approval reference only after the responsible business/finance approver has approved the actual terms.
+9. Create incentive policy versions as inactive. Use the recorded written approval reference only after the responsible business/finance approver has approved the actual terms. In Admin, select an Ambassador to load the eligible registered/completed sales list; the form deliberately does not ask staff to paste a raw lead UUID.
 10. Test the entire payout state sequence with a non-production sale: Pending → Approved → Payable → Paid. A payment receipt/reference is required for Paid.
 11. Check role boundaries with separate Admin, verified/active Ambassador, and unactivated Ambassador accounts. Confirm other Ambassadors cannot read each other's leads or incentive ledger.
 
@@ -28,7 +28,7 @@ The pilot is integrated into the existing Truvi web application and retains the 
 - The Paradise Town project name and targets (114 units, 1,250 sq ft and 60 days) are planning defaults from the operating-system blueprint—not verified property claims. They must be linked to the actual Truvi project and current inventory before publication.
 - The proposed ₹1 lakh per 1,000 sq ft incentive stays inactive unless there is a formal written approval. Do not activate an example policy just because the form pre-fills an amount.
 - Historical/draft Level 2 or Level 3 referral percentages are not activated by this implementation. Use only a separately approved current policy.
-- The operating-system leaderboard is a transparent internal recognition score, not a commission formula or promise of earnings.
+- The operating-system leaderboard's pilot point weights are implementation defaults that need business-owner approval before being used for incentives or promotions. The score is internal recognition only, not a commission formula or promise of earnings.
 - The certificate is internal Truvi training evidence, not a government licence, academic degree or guarantee of employment.
 - A task submission, enquiry or booking by itself does not make an incentive payable; the sale must meet the eligibility checks and the payout must be approved and recorded.
 
