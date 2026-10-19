@@ -24,6 +24,7 @@ type Profile = {
   _id: string; ambassadorId: string; college?: string | null; course?: string | null;
   academicYear?: string | null; city: string; preferredRole: string;
   weeklyAvailabilityHours: number; termsAccepted: boolean; status: string; currentLevel: string;
+  certificateNo?: string | null; certifiedAt?: string | null;
 };
 type Task = {
   _id: string; title: string; category: string; description: string; status: string;
@@ -214,6 +215,7 @@ export default function AmbassadorOperatingSystemPage() {
 
         <Card className="border-white/10 bg-white/[0.035] p-5">
           <div className="mb-4 flex items-center gap-2"><Award size={19} className="text-sky-300" /><h2 className="text-lg font-semibold">My Journey</h2></div>
+          {profile.certificateNo && profile.certifiedAt && <div className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-4"><p className="flex items-center gap-2 text-sm font-semibold text-emerald-200"><Award size={16}/> Certification earned</p><p className="mt-1 text-xs text-muted-foreground">{profile.certificateNo} · {new Date(profile.certifiedAt).toLocaleDateString()}</p><Link to="/ambassador/certificate" className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-emerald-200 hover:text-emerald-100">View / print certificate →</Link></div>}
           <div className="mb-4 rounded-xl border border-white/10 bg-black/10 p-4"><p className="text-xs text-muted-foreground">Current level</p><p className="mt-1 text-xl font-semibold">{nextLevel?.level} · {nextLevel?.title}</p><p className="mt-2 text-sm text-muted-foreground">{nextLevel?.requirement}</p></div>
           <div className="space-y-3">
             {careerLevels.map((level) => {
