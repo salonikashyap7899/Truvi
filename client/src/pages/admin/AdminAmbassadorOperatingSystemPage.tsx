@@ -4,7 +4,7 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock, Briefcase,
+  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock, Briefcase, Megaphone,
   CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined, TrendingUp,
 } from "lucide-react";
 
@@ -86,11 +86,12 @@ type CareerApplication = {
   status: string; reviewNotes?: string | null; opportunityTitle: string; opportunityType: string; targetLevel: string;
   ambassadorName: string; ambassadorEmail: string; currentLevel?: string | null; profileStatus?: string | null;
 };
+type MarketingMaterial = { _id: string; campaignId: string; title: string; channel: string; content: string; assetUrl?: string | null; status: string; reviewReason?: string | null; validFrom?: string | null; validTo?: string | null; createdAt: string };
 type CareerAssessment = {
   _id: string; targetLevel: string; assessmentType: string; score: number; passed: boolean;
   evidenceReference: string; notes: string; reviewedAt: string;
 };
-type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "performance" | "career" | "campaigns" | "policies" | "incentives";
+type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "performance" | "career" | "campaigns" | "policies" | "incentives" | "marketing";
 const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
   { id: "overview", label: "Overview", Icon: ChartNoAxesCombined }, { id: "ambassadors", label: "Ambassadors", Icon: Users },
   { id: "training", label: "Training Reviews", Icon: GraduationCap }, { id: "training-content", label: "Learning Content", Icon: BookOpen }, { id: "tasks", label: "Tasks", Icon: ClipboardList },
@@ -174,6 +175,10 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [taskReviews, setTaskReviews] = useState<Record<string, { reviewReason: string; paymentReference: string }>>({});
   const [policyApproval, setPolicyApproval] = useState<Record<string, string>>({});
   const [campaignNotes, setCampaignNotes] = useState<Record<string, string>>({});
+  const [marketingMaterials, setMarketingMaterials] = useState<MarketingMaterial[]>([]);
+  const [guidelineForm, setGuidelineForm] = useState({ campaignId: "", content: "", approvalReference: "" });
+  const [publishingGuidelines, setPublishingGuidelines] = useState(false);
+  const [materialReviewReason, setMaterialReviewReason] = useState<Record<string, string>>({});
 
   async function load() {
     try {
@@ -187,6 +192,45 @@ export default function AdminAmbassadorOperatingSystemPage() {
     finally { setLoading(false); }
   }
   useEffect(() => { void load(); void loadTrainingContent(); }, []);
+
+  async function loadMarketingGovernance() {
+    try {
+      const res = await api.get("/ambassador-os/marketing-materials");
+      setMarketingMaterials(res.data.materials ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load marketing governance"); }
+  }
+
+  async function publishCampaignGuidelines(e: React.FormEvent) {
+    e.preventDefault();
+    if (guidelineForm.content.trim().length < 50 || guidelineForm.approvalReference.trim().length < 5) {
+      toast.error("Guidelines need at least 50 characters and a written approval reference."); return;
+    }
+    setPublishingGuidelines(true);
+    try {
+      const res = await api.post(`/ambassador-os/admin/campaigns/${guidelineForm.campaignId}/guidelines`, {
+        content: guidelineForm.content.trim(), approvalReference: guidelineForm.approvalReference.trim(),
+      });
+      toast.success(`Published campaign marketing guidelines v${res.data.guideline.version}. Ambassadors must acknowledge this version.`);
+      setGuidelineForm((form) => ({ ...form, content: "", approvalReference: "" }));
+      await Promise.all([load(), loadMarketingGovernance()]);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not publish campaign guidelines"); }
+    finally { setPublishingGuidelines(false); }
+  }
+
+  async function reviewMarketingMaterial(material: MarketingMaterial, status: "APPROVED" | "REJECTED" | "RETIRED") {
+    let reason = materialReviewReason[material._id] ?? "";
+    if (status === "REJECTED" && reason.trim().length < 5) {
+      const entered = window.prompt("Enter a specific reason so the author can correct the material (minimum 5 characters):");
+      if (!entered?.trim() || entered.trim().length < 5) { toast.info("No review saved; a rejection reason is required."); return; }
+      reason = entered.trim();
+      setMaterialReviewReason((prev) => ({ ...prev, [material._id]: reason }));
+    }
+    try {
+      await api.patch(`/ambassador-os/admin/marketing-materials/${material._id}/review`, { status, reviewReason: reason || undefined });
+      toast.success(`Marketing material ${status.toLowerCase()}`);
+      await loadMarketingGovernance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not review marketing material"); }
+  }
 
   async function loadEligibleBookings(userId: string) {
     setEligibleBookings([]);
@@ -592,7 +636,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   return (
     <main className="min-h-screen space-y-6 p-4 text-white md:p-7">
       <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.18em] text-sky-300">Truvi · Program Management</p><h1 className="mt-1 text-2xl font-semibold md:text-3xl">Ambassador Operating System</h1><p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage registration, certification, tasks, campaigns, approved incentive policies and payouts from one workspace.</p></div><Button variant="outline" onClick={() => { setLoading(true); void load(); }}><RefreshCw size={15} className="mr-2" />Refresh</Button></header>
-      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); if (id === "performance") void loadPerformance(); if (id === "career") void loadCareerEngine(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
+      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); if (id === "performance") void loadPerformance(); if (id === "career") void loadCareerEngine(); if (id === "marketing") void loadMarketingGovernance(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
 
       {tab === "overview" && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
@@ -805,6 +849,29 @@ export default function AdminAmbassadorOperatingSystemPage() {
             </Card>;
           })}</div>}
         </>}
+      </div>}
+
+
+      {tab === "marketing" && <div className="space-y-5">
+        <div><h2 className="text-xl font-semibold">Marketing governance · campaign guidelines</h2><p className="mt-1 text-sm text-muted-foreground">Publish versioned rules using an approved reference. Each campaign version requires a fresh acknowledgement before an Ambassador can submit leads or access approved materials.</p></div>
+        <Card className="border-white/10 bg-white/[0.035] p-5">
+          <h3 className="mb-3 font-semibold">Publish campaign guidelines</h3>
+          <form className="grid gap-3 md:grid-cols-2" onSubmit={(e) => void publishCampaignGuidelines(e)}>
+            <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Active, verified campaign</span><select required className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={guidelineForm.campaignId} onChange={(e) => setGuidelineForm((f) => ({...f,campaignId:e.target.value}))}><option value="">Select campaign</option>{data.campaigns.filter((campaign) => campaign.status === "ACTIVE" && campaign.officialDataVerified).map((campaign) => <option key={campaign._id} value={campaign._id}>{campaign.name} · {campaign.projectName}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Written approval reference</span><input required minLength={5} maxLength={500} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={guidelineForm.approvalReference} onChange={(e) => setGuidelineForm((f) => ({...f,approvalReference:e.target.value}))} placeholder="Policy memo / approval ticket / document reference"/></label>
+            <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Current campaign marketing rules</span><textarea required minLength={50} maxLength={15000} rows={6} className="w-full rounded-lg border border-white/10 bg-slate-950 p-3" value={guidelineForm.content} onChange={(e) => setGuidelineForm((f) => ({...f,content:e.target.value}))} placeholder="Approved claims, restricted statements, required disclaimer, current price/inventory source, content and conduct rules…"/></label>
+            <div className="md:col-span-2"><Button type="submit" disabled={publishingGuidelines || !guidelineForm.campaignId}>{publishingGuidelines ? "Publishing…" : "Publish new version"}</Button><p className="mt-2 text-xs text-amber-200">Publishing a new version invalidates earlier acknowledgements for lead submission.</p></div>
+          </form>
+        </Card>
+        <div className="space-y-3"><h3 className="font-semibold">Submitted marketing material</h3>
+          {marketingMaterials.length === 0 ? <Empty text="No marketing material has been submitted yet."/> : marketingMaterials.map((material) => <Card key={material._id} className="border-white/10 bg-white/[0.035] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-semibold">{material.title}</h4><p className="mt-1 text-xs text-sky-300">{pretty(material.channel)} · {data.campaigns.find((campaign) => campaign._id === material.campaignId)?.name ?? "Campaign"}</p></div><Badge variant={material.status === "APPROVED" ? "success" : material.status === "REJECTED" ? "danger" : "info"}>{pretty(material.status)}</Badge></div>
+            <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{material.content}</p>{material.assetUrl && <a href={material.assetUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-sm text-sky-300 underline">Open submitted asset ↗</a>}
+            {material.reviewReason && <p className="mt-2 text-sm text-amber-200">Review note: {material.reviewReason}</p>}
+            {material.status === "SUBMITTED" && <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" onClick={() => void reviewMarketingMaterial(material,"APPROVED")}>Approve</Button><Button size="sm" variant="outline" onClick={() => void reviewMarketingMaterial(material,"REJECTED")}>Reject with reason</Button></div>}
+            {material.status === "APPROVED" && <Button size="sm" variant="outline" className="mt-3" onClick={() => void reviewMarketingMaterial(material,"RETIRED")}>Retire material</Button>}
+          </Card>)}
+        </div>
       </div>}
 
       {tab === "career" && <div className="space-y-5">
