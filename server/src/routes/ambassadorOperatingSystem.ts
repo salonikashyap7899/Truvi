@@ -600,12 +600,12 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
     if (!canActivateAmbassador({
       termsAccepted: Boolean(profile.termsAcceptedAt),
       identityVerified: Boolean(account?.onboardingVerified),
-      finalDayComplete: training.some((p) => p.day === 7 && p.status === "COMPLETED"),
+      finalDayComplete: hasCompleteSevenDayCurriculum(training),
     })) {
       return res.status(409).json({ error: "Activation requires accepted terms, verified onboarding, and completed seven-day certification" });
     }
   }
-  if (parsed.data.status === "CERTIFIED" && !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
+  if (parsed.data.status === "CERTIFIED" && !hasCompleteSevenDayCurriculum(training)) {
     return res.status(409).json({ error: "Certification requires all seven modules, quiz, practical and ethics approvals" });
   }
   const [updated] = await db.update(ambassadorOsProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(ambassadorOsProfiles.userId, profile.userId)).returning();
