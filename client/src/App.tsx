@@ -397,6 +397,7 @@ export default function App() {
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
         <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador/operating-system" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorOperatingSystemPage /></ProtectedRoute>} />
+        <Route path="/ambassador/staff-operating-system" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "VERIFIER"]}><AdminAmbassadorOperatingSystemPage /></ProtectedRoute>} />
         <Route path="/ambassador/certificate" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorCertificatePage /></ProtectedRoute>} />
 
         {/* Developer (ADMIN may enter to review the full developer workflow) */}
