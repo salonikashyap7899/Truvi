@@ -194,7 +194,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
     db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, req.user!.userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
     db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true))).orderBy(desc(ambassadorOsCampaigns.createdAt)),
     db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.userId, req.user!.userId)).orderBy(desc(ambassadorOsIncentives.createdAt)),
-    db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.submittedById, req.user!.userId)),
+    db.select({ _id: leads._id, stage: leads.stage, isDuplicate: leads.isDuplicate }).from(leads).where(eq(leads.submittedById, req.user!.userId)),
     db.select({ projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
   ]);
   const progressByDay = new Map(progress.map((row) => [row.day, row]));
@@ -210,7 +210,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
     contacted: ownLeads.filter((l) => ["CONTACTED", "INTERESTED"].includes(l.stage)).length,
     siteVisit: ownLeads.filter((l) => l.stage === "SITE_VISIT").length,
     booking: ownLeads.filter((l) => l.stage === "BOOKING").length,
-    registered: ownLeads.filter((l) => ["REGISTRATION", "COMPLETED"].includes(l.stage)).length,
+    registered: ownLeads.filter((l) => !l.isDuplicate && ["REGISTRATION", "COMPLETED"].includes(l.stage)).length,
     lost: ownLeads.filter((l) => l.stage === "LOST").length,
   };
   res.json({
@@ -267,7 +267,11 @@ router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: Authe
     db.select({ userId: ambassadorOsTasks.assignedToId })
       .from(ambassadorOsTasks)
       .where(eq(ambassadorOsTasks.status, "APPROVED")),
-    db.select({ _id: leads._id, submittedById: leads.submittedById, referralChain: leads.referralChain, stage: leads.stage, isDuplicate: leads.isDuplicate }).from(leads),
+    db.select({
+      _id: leads._id, submittedById: leads.submittedById, referralChain: leads.referralChain,
+      stage: leads.stage, isDuplicate: leads.isDuplicate, creatorRole: leads.creatorRole,
+      contactConsent: leads.contactConsent, contactConsentAt: leads.contactConsentAt, consentTextVersion: leads.consentTextVersion,
+    }).from(leads),
     db.select({ leadId: siteVisits.leadId })
       .from(siteVisits)
       .where(eq(siteVisits.status, "COMPLETED")),
@@ -277,7 +281,9 @@ router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: Authe
     const attributed = allLeads.filter((lead) =>
       lead.submittedById === profile.userId || (lead.referralChain ?? []).some((referral) => referral.userId === profile.userId)
     );
-    const nonDuplicate = attributed.filter((lead) => !lead.isDuplicate);
+    const consentEligible = (lead: typeof attributed[number]) => lead.creatorRole === "BUYER" ||
+      (lead.contactConsent === true && Boolean(lead.contactConsentAt) && Boolean(lead.consentTextVersion));
+    const nonDuplicate = attributed.filter((lead) => !lead.isDuplicate && consentEligible(lead));
     const moduleCount = completedModules.filter((module) => module.userId === profile.userId).length;
     const taskCount = approvedTasks.filter((task) => task.userId === profile.userId).length;
     const siteVisitCount = nonDuplicate.filter((lead) => visitLeadIds.has(lead._id)).length;
@@ -305,10 +311,11 @@ router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: Authe
     };
   }).sort((a, b) => b.qualityScore - a.qualityScore || a.ambassadorId.localeCompare(b.ambassadorId))
     .map((row, index) => ({ rank: index + 1, ...row }));
+  const publicRows = rows.map(({ userId, ...row }) => ({ ...row, isMine: userId === req.user!.userId }));
   res.json({
     scoring: { moduleCompleted: 2, approvedTask: 5, completedSiteVisit: 8, verifiedSale: 25, lostLeadPenalty: 2, duplicateLeadPenalty: 3 },
-    leaderboard: rows.slice(0, 10),
-    mine: rows.find((row) => row.userId === req.user!.userId) ?? null,
+    leaderboard: publicRows.slice(0, 10),
+    mine: publicRows.find((row) => row.isMine) ?? null,
   });
 });
 
@@ -761,7 +768,11 @@ router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedReq
   const [current] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, String(req.params.id)));
   if (!current) return res.status(404).json({ error: "Campaign not found" });
   const projectId = parsed.data.projectId ?? current.projectId;
-  const isBeingPublished = (parsed.data.status ?? current.status) === "ACTIVE" || parsed.data.officialDataVerified === true;
+  const effectiveStatus = parsed.data.status ?? current.status;
+  if (effectiveStatus === "ACTIVE" && current.startsAt && current.startsAt.getTime() > Date.now()) {
+    return res.status(409).json({ error: "This campaign's configured start date is in the future." });
+  }
+  const isBeingPublished = effectiveStatus === "ACTIVE" || parsed.data.officialDataVerified === true;
   if ((parsed.data.status ?? current.status) === "ACTIVE" && !(parsed.data.officialDataVerified ?? current.officialDataVerified)) {
     return res.status(409).json({ error: "Verify official project, legal, pricing and inventory information before activating a campaign" });
   }
