@@ -166,6 +166,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
+  const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
   const [progress, tasks, campaigns, incentives, ownLeads] = await Promise.all([
     db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId)),
     db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, req.user!.userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
@@ -191,7 +192,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
   };
   res.json({
     profile: displayProfile(profile),
-    verification: { emailVerified: req.user!.emailVerified, phoneVerified: req.user!.phoneVerified, onboardingVerified: req.user!.onboardingVerified },
+    verification: { emailVerified: account?.emailVerified ?? false, phoneVerified: account?.phoneVerified ?? false, onboardingVerified: account?.onboardingVerified ?? false },
     modules,
     tasks,
     campaigns: campaigns.map((c) => ({ id: c._id, name: c.name, projectName: c.projectName, location: c.location, targetInventory: c.targetInventory, unitAreaSqFt: c.unitAreaSqFt, targetDays: c.targetDays, status: c.status })),
