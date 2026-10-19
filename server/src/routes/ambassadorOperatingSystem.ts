@@ -1525,8 +1525,13 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
   const [account] = await db.select().from(users).where(eq(users._id, profile.userId));
   const training = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, profile.userId));
   const { promotionReason, ...updates } = parsed.data;
+  const currentLevelNumber = Number(profile.currentLevel.slice(1));
+
   if (parsed.data.currentLevel && parsed.data.currentLevel !== profile.currentLevel) {
     const levelNumber = Number(parsed.data.currentLevel.slice(1));
+    if (levelNumber !== currentLevelNumber + 1) {
+      return res.status(409).json({ error: "Career levels must be approved sequentially. Complete the next level's requirements before skipping a level." });
+    }
     if (levelNumber >= 1 && !hasCompleteSevenDayCurriculum(training)) {
       return res.status(409).json({ error: "Complete all seven modules and receive written, practical and ethics approval before promotion to L1 or above" });
     }
@@ -1534,10 +1539,70 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
       return res.status(409).json({ error: "Formal activation is required before promotion to L2 or above" });
     }
     if (levelNumber >= 3) {
-      const registered = await db.select({ _id: leads._id, submittedById: leads.submittedById, referralChain: leads.referralChain, stage: leads.stage, isDuplicate: leads.isDuplicate })
-        .from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")));
-      const hasVerifiedSale = registered.some((lead) => !lead.isDuplicate && (lead.submittedById === profile.userId || (lead.referralChain ?? []).some((referral) => referral.userId === profile.userId)));
-      if (!hasVerifiedSale) return res.status(409).json({ error: "Promotion to L3 or above requires at least one non-duplicate registered/completed sale attributed to this Ambassador" });
+      const [latestReview] = await db.select().from(ambassadorOsPerformanceReviews)
+        .where(eq(ambassadorOsPerformanceReviews.ambassadorId, profile.userId))
+        .orderBy(desc(ambassadorOsPerformanceReviews.periodEnd)).limit(1);
+      if (!latestReview || latestReview.seriousMisconduct || latestReview.customerCommunicationScore < 70) {
+        return res.status(409).json({ error: "L3 promotion requires a recent approved customer-communication review scoring at least 70/100 with no serious misconduct finding" });
+      }
+      const attributed = await db.select({
+        booking: ambassadorOsPropertyBookings,
+        leadSubmittedById: leads.submittedById,
+        referralChain: leads.referralChain,
+        isDuplicate: leads.isDuplicate,
+      }).from(ambassadorOsPropertyBookings)
+        .innerJoin(leads, eq(ambassadorOsPropertyBookings.leadId, leads._id))
+        .where(eq(ambassadorOsPropertyBookings.status, "SALE_VERIFIED"));
+      const hasSale = attributed.some((row) =>
+        !row.isDuplicate &&
+        (row.leadSubmittedById === profile.userId || (row.referralChain ?? []).some((referral) => referral.userId === profile.userId))
+      );
+      if (!hasSale) return res.status(409).json({ error: "L3 requires at least one authorized SALE_VERIFIED property booking attributed to this Ambassador" });
+    }
+    if (levelNumber === 4) {
+      const cutoff = new Date(Date.now() - 180 * 86400000);
+      const reviews = await db.select().from(ambassadorOsPerformanceReviews)
+        .where(and(eq(ambassadorOsPerformanceReviews.ambassadorId, profile.userId), sql`${ambassadorOsPerformanceReviews.periodEnd} >= ${cutoff}`))
+        .orderBy(desc(ambassadorOsPerformanceReviews.periodEnd));
+      const consistent = reviews.filter((review) => review.weightedScore >= 75 && !review.seriousMisconduct).length >= 2;
+      const [mentoring] = await db.select().from(ambassadorOsCareerAssessments)
+        .where(and(
+          eq(ambassadorOsCareerAssessments.ambassadorId, profile.userId),
+          eq(ambassadorOsCareerAssessments.targetLevel, "L4"),
+          eq(ambassadorOsCareerAssessments.assessmentType, "MENTORING"),
+          eq(ambassadorOsCareerAssessments.passed, true),
+        )).orderBy(desc(ambassadorOsCareerAssessments.reviewedAt)).limit(1);
+      if (!consistent || !mentoring) return res.status(409).json({ error: "L4 requires two performance reviews scoring 75/100 or higher within six months, no serious misconduct, and a passed mentoring assessment with recorded evidence" });
+    }
+    if (levelNumber === 5) {
+      const [teamAssessment] = await db.select().from(ambassadorOsCareerAssessments)
+        .where(and(
+          eq(ambassadorOsCareerAssessments.ambassadorId, profile.userId),
+          eq(ambassadorOsCareerAssessments.targetLevel, "L5"),
+          eq(ambassadorOsCareerAssessments.assessmentType, "TEAM_MANAGEMENT"),
+          eq(ambassadorOsCareerAssessments.passed, true),
+        )).orderBy(desc(ambassadorOsCareerAssessments.reviewedAt)).limit(1);
+      if (profile.currentLevel !== "L4" || !teamAssessment) return res.status(409).json({ error: "L5 requires L4 status and a passed team-management assessment with evidence recorded by Admin" });
+    }
+    if (levelNumber === 6) {
+      const [advancedAssessment] = await db.select().from(ambassadorOsCareerAssessments)
+        .where(and(
+          eq(ambassadorOsCareerAssessments.ambassadorId, profile.userId),
+          eq(ambassadorOsCareerAssessments.targetLevel, "L6"),
+          eq(ambassadorOsCareerAssessments.assessmentType, "ADVANCED"),
+          eq(ambassadorOsCareerAssessments.passed, true),
+        )).orderBy(desc(ambassadorOsCareerAssessments.reviewedAt)).limit(1);
+      const [selectedEligibleOpportunity] = await db.select({ applicationId: ambassadorOsCareerApplications._id })
+        .from(ambassadorOsCareerApplications)
+        .innerJoin(ambassadorOsCareerOpportunities, eq(ambassadorOsCareerApplications.opportunityId, ambassadorOsCareerOpportunities._id))
+        .where(and(
+          eq(ambassadorOsCareerApplications.ambassadorId, profile.userId),
+          eq(ambassadorOsCareerApplications.status, "SELECTED"),
+          eq(ambassadorOsCareerOpportunities.targetLevel, "L6"),
+        )).limit(1);
+      if (profile.currentLevel !== "L5" || !advancedAssessment || !selectedEligibleOpportunity) {
+        return res.status(409).json({ error: "L6 requires L5 status, a passed advanced assessment, and a selected application for an eligible L6 opportunity" });
+      }
     }
   }
   if (parsed.data.status === "ACTIVE") {
