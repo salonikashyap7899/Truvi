@@ -11,6 +11,8 @@ import {
   ambassadorOsTrainingProgress,
   commissions,
   leads,
+  projects,
+  units,
   users,
 } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -460,6 +462,7 @@ router.patch("/admin/tasks/:id/review", requireRole("ADMIN"), async (req: Authed
 
 const campaignSchema = z.object({
   name: z.string().trim().min(3).max(180),
+  projectId: z.string().uuid().optional(),
   projectName: z.string().trim().min(2).max(180),
   location: z.string().trim().min(2).max(180),
   targetInventory: z.number().int().positive().max(1_000_000),
@@ -480,8 +483,17 @@ router.get("/campaigns", async (req: AuthedRequest, res) => {
 router.post("/admin/campaigns", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = campaignSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid campaign" });
-  const [campaign] = await getDb().insert(ambassadorOsCampaigns).values({
-    ...parsed.data, startsAt: parsed.data.startsAt ? new Date(parsed.data.startsAt) : null,
+  const db = getDb();
+  const linkedProject = parsed.data.projectId
+    ? (await db.select().from(projects).where(eq(projects._id, parsed.data.projectId)))[0]
+    : undefined;
+  if (parsed.data.projectId && !linkedProject) return res.status(404).json({ error: "Linked Truvi project not found" });
+  const [campaign] = await db.insert(ambassadorOsCampaigns).values({
+    ...parsed.data,
+    projectId: linkedProject?._id ?? null,
+    projectName: linkedProject?.name ?? parsed.data.projectName,
+    location: linkedProject ? `${linkedProject.location}, ${linkedProject.city}` : parsed.data.location,
+    startsAt: parsed.data.startsAt ? new Date(parsed.data.startsAt) : null,
     createdById: req.user!.userId, status: "PLANNED", officialDataVerified: false,
   }).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign.create", resourceType: "ambassador_os_campaign", resourceId: campaign._id, metadata: { name: campaign.name, targetInventory: campaign.targetInventory } });
@@ -489,6 +501,7 @@ router.post("/admin/campaigns", requireRole("ADMIN"), async (req: AuthedRequest,
 });
 
 const campaignUpdateSchema = z.object({
+  projectId: z.string().uuid().optional(),
   status: z.enum(["PLANNED", "ACTIVE", "PAUSED", "COMPLETED"]).optional(),
   officialDataVerified: z.boolean().optional(),
   officialDataNotes: z.string().trim().max(2000).optional(),
@@ -500,13 +513,28 @@ router.patch("/admin/campaigns/:id", requireRole("ADMIN"), async (req: AuthedReq
   const db = getDb();
   const [current] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, String(req.params.id)));
   if (!current) return res.status(404).json({ error: "Campaign not found" });
+  const projectId = parsed.data.projectId ?? current.projectId;
+  const isBeingPublished = parsed.data.status === "ACTIVE" || parsed.data.officialDataVerified === true;
   if (parsed.data.status === "ACTIVE" && !(parsed.data.officialDataVerified ?? current.officialDataVerified)) {
     return res.status(409).json({ error: "Verify official project, legal, pricing and inventory information before activating a campaign" });
   }
-  if (parsed.data.officialDataVerified === true && !(parsed.data.officialDataNotes ?? current.officialDataNotes)?.trim()) {
-    return res.status(400).json({ error: "Record the official source/document review notes before marking campaign data verified" });
+  if (isBeingPublished) {
+    if (!projectId) return res.status(409).json({ error: "Link this campaign to an existing Truvi project before verification or activation" });
+    const [project] = await db.select().from(projects).where(eq(projects._id, projectId));
+    if (!project) return res.status(404).json({ error: "Linked Truvi project not found" });
+    if (project.approvalStatus !== "APPROVED" || !project.isVerified) {
+      return res.status(409).json({ error: "The linked project must be admin-approved and Truvi-verified before this campaign can be published" });
+    }
+    if (!project.priceListUrl) return res.status(409).json({ error: "The linked project needs an official price list before the campaign can be published" });
+    const availableUnits = await db.select({ _id: units._id }).from(units).where(and(eq(units.projectId, projectId), eq(units.status, "AVAILABLE")));
+    if (availableUnits.length < current.targetInventory) {
+      return res.status(409).json({ error: `The campaign target is ${current.targetInventory} units but only ${availableUnits.length} units are currently available in the verified project inventory` });
+    }
+    if (!(parsed.data.officialDataNotes ?? current.officialDataNotes)?.trim()) {
+      return res.status(400).json({ error: "Record the official source/document review notes before marking campaign data verified" });
+    }
   }
-  const [updated] = await db.update(ambassadorOsCampaigns).set({ ...parsed.data, updatedAt: new Date() }).where(eq(ambassadorOsCampaigns._id, current._id)).returning();
+  const [updated] = await db.update(ambassadorOsCampaigns).set({ ...parsed.data, projectId, updatedAt: new Date() }).where(eq(ambassadorOsCampaigns._id, current._id)).returning();
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.campaign.update", resourceType: "ambassador_os_campaign", resourceId: updated._id, metadata: parsed.data });
   res.json({ campaign: updated });
 });
