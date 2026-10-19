@@ -2890,3 +2890,32 @@ export const ambassadorOsStaffAssignments = pgTable("ambassador_os_staff_assignm
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("ambassador_os_staff_assignment_unique").on(t.userId, t.osRole), index("ambassador_os_staff_active_role_idx").on(t.active, t.osRole)]);
 export type IAmbassadorOsStaffAssignment = typeof ambassadorOsStaffAssignments.$inferSelect;
+
+export type AmbassadorOsPrivacyRequestType = "ACCESS" | "RECTIFICATION" | "DELETION";
+export type AmbassadorOsPrivacyRequestStatus = "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
+export const ambassadorOsPrivacyRequests = pgTable("ambassador_os_privacy_requests", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  requestType: text("request_type").$type<AmbassadorOsPrivacyRequestType>().notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").$type<AmbassadorOsPrivacyRequestStatus>().notNull().default("SUBMITTED"),
+  reviewNotes: text("review_notes"),
+  reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  completionReference: text("completion_reference"),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+}, (t) => [index("ambassador_os_privacy_request_user_idx").on(t.requesterUserId, t.requestedAt), index("ambassador_os_privacy_request_status_idx").on(t.status, t.requestedAt)]);
+
+export type AmbassadorOsRetentionCategory = "TASK_EVIDENCE" | "TRAINING_ASSIGNMENT_TEXT" | "REJECTED_MARKETING_CONTENT";
+export const ambassadorOsRetentionPolicies = pgTable("ambassador_os_retention_policies", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  dataCategory: text("data_category").$type<AmbassadorOsRetentionCategory>().notNull(),
+  retentionDays: integer("retention_days").notNull(),
+  active: boolean("active").notNull().default(false),
+  legalApprovalReference: text("legal_approval_reference"),
+  policyVersion: integer("policy_version").notNull().default(1),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_retention_category_version_unique").on(t.dataCategory, t.policyVersion), index("ambassador_os_retention_active_idx").on(t.active, t.dataCategory)]);
