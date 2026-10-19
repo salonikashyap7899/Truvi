@@ -99,8 +99,8 @@ export function verifyBuyerDocSignature(docId: string, exp: string, sig: string)
 
 /**
  * The URL a client should use to open a buyer document: privately-stored files
- * get a fresh signed link; legacy files uploaded before this change keep their
- * stored /uploads URL so existing documents continue to open.
+ * get a fresh signed link. Legacy public URLs are intentionally suppressed
+ * until the one-time migration moves the underlying files into private storage.
  */
 export function presentBuyerDocUrl(docId: string, stored: string): string {
   // Never re-expose a legacy public URL through an authenticated API. Run the
