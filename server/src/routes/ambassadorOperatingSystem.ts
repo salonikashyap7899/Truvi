@@ -446,8 +446,19 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   const [updated] = await db.update(ambassadorOsTasks).set({
     status: "SUBMITTED", evidenceText: parsed.data.evidenceText, evidenceUrl: parsed.data.evidenceUrl || null,
     reviewReason: null, reviewedById: null, reviewedAt: null,
-  }).where(eq(ambassadorOsTasks._id, task._id)).returning();
+  }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, task.status))).returning();
+  if (!updated) return res.status(409).json({ error: "The task changed while you were submitting it. Refresh and try again." });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.submit", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, category: updated.category } });
+  const admins = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
+  await notifySafely(admins.map((admin) => admin.userId), {
+    type: "ambassador_task_submission",
+    title: "Ambassador task submitted for review",
+    message: `An Ambassador submitted evidence for: ${updated.title}`,
+    data: { screen: "AdminAmbassadorOperatingSystem", taskId: updated._id },
+    actorUserId: req.user!.userId,
+    priority: "normal",
+    dedupeKey: `${updated._id}:SUBMITTED`,
+  });
   res.json({ task: updated });
 });
 
