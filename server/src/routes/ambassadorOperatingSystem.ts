@@ -14,6 +14,7 @@ import {
   ambassadorOsTasks,
   ambassadorOsTrainingModules,
   ambassadorOsTrainingProgress,
+  leadActivities,
   leads,
   projects,
   siteVisits,
@@ -594,7 +595,7 @@ router.patch("/admin/leads/:id/review", requireRole("ADMIN"), async (req: Authed
       ? (lead.qualifiedAt ?? now) : lead.qualifiedAt,
     updatedAt: now,
   }).where(eq(leads._id, lead._id)).returning();
-  await db.insert((await import("../db/schema")).leadActivities).values({
+  await db.insert(leadActivities).values({
     leadId: lead._id,
     cpId: (lead.assignedToId ?? lead.submittedById),
     type: "STAGE_CHANGE",
@@ -1181,6 +1182,13 @@ const policySchema = z.object({
   calculationType: z.enum(["FIXED", "PER_SQ_FT_BLOCK", "PERCENT_OF_VALUE"]),
   amount: z.number().positive().max(100_000_000),
   blockSizeSqFt: z.number().int().positive().max(1_000_000).optional(),
+  eligibleSources: z.array(z.enum(["AMBASSADOR_REFERRAL", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "ORGANIC_WEBSITE", "PAID_ADVERTISEMENT", "CUSTOMER_REFERRAL", "TELECALLER", "CHANNEL_PARTNER", "DIRECT_ENQUIRY", "OTHER"])).max(11).optional(),
+  requiredBookingStatus: z.enum(["VERIFIED", "SALE_VERIFIED"]).default("SALE_VERIFIED"),
+  paymentMilestone: z.enum(["BOOKING_CONFIRMED", "TOKEN_RECEIVED", "AGREEMENT_SIGNED", "REGISTRATION_COMPLETED", "CUSTOM_MILESTONE"]).default("BOOKING_CONFIRMED"),
+  cancellationTreatment: z.enum(["CANCEL_INCENTIVE", "RECOVER_PAID", "MANUAL_REVIEW"]).default("CANCEL_INCENTIVE"),
+  payoutDelayDays: z.number().int().min(0).max(365).default(30),
+  approvalAuthority: z.string().trim().max(300).optional(),
+  commissionAgreementReference: z.string().trim().max(500).optional(),
   effectiveFrom: z.string().datetime().optional(),
 });
 
@@ -1195,16 +1203,27 @@ router.post("/admin/policies", requireRole("ADMIN"), async (req: AuthedRequest, 
   const version = existing.reduce((max, row) => Math.max(max, row.version), 0) + 1;
   const [policy] = await db.insert(ambassadorOsIncentivePolicies).values({
     ...parsed.data,
+    eligibleSources: parsed.data.eligibleSources ?? [],
+    requiredBookingStatus: parsed.data.requiredBookingStatus,
+    paymentMilestone: parsed.data.paymentMilestone,
+    cancellationTreatment: parsed.data.cancellationTreatment,
+    payoutDelayDays: parsed.data.payoutDelayDays,
+    approvalAuthority: parsed.data.approvalAuthority ?? null,
+    commissionAgreementReference: parsed.data.commissionAgreementReference ?? null,
     blockSizeSqFt: parsed.data.blockSizeSqFt ?? 1000,
     version, active: false, approvalReference: null,
     effectiveFrom: parsed.data.effectiveFrom ? new Date(parsed.data.effectiveFrom) : null,
     createdById: req.user!.userId,
   }).returning();
-  await logAudit({ userId: req.user!.userId, action: "ambassador_os.policy.create", resourceType: "ambassador_os_incentive_policy", resourceId: policy._id, metadata: { name: policy.name, version, calculationType: policy.calculationType, active: false } });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.policy.create", resourceType: "ambassador_os_incentive_policy", resourceId: policy._id, metadata: { name: policy.name, version, calculationType: policy.calculationType, requiredBookingStatus: policy.requiredBookingStatus, eligibleSources: policy.eligibleSources, active: false } });
   res.status(201).json({ policy, message: "Policy created inactive. Add written approval evidence before activation." });
 });
 
-const policyActivationSchema = z.object({ active: z.boolean(), approvalReference: z.string().trim().max(500).optional(), effectiveFrom: z.string().datetime().optional() });
+const policyActivationSchema = z.object({
+  active: z.boolean(),
+  approvalReference: z.string().trim().max(500).optional(),
+  effectiveFrom: z.string().datetime().optional(),
+});
 
 router.patch("/admin/policies/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = policyActivationSchema.safeParse(req.body);
@@ -1232,15 +1251,12 @@ router.patch("/admin/policies/:id", requireRole("ADMIN"), async (req: AuthedRequ
   res.json({ policy: updated });
 });
 
-router.get("/admin/eligible-sales/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.get("/admin/eligible-bookings/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const db = getDb();
-  const [ambassador] = await db.select({ _id: users._id, role: users.role })
-    .from(users).where(eq(users._id, String(req.params.userId)));
-  if (!ambassador || ambassador.role !== "AMBASSADOR") {
-    return res.status(404).json({ error: "Ambassador account not found" });
-  }
+  const [ambassador] = await db.select({ _id: users._id, role: users.role }).from(users).where(eq(users._id, String(req.params.userId)));
+  if (!ambassador || ambassador.role !== "AMBASSADOR") return res.status(404).json({ error: "Ambassador account not found" });
   const rows = await db.select({
-    leadId: leads._id,
+    booking: ambassadorOsPropertyBookings,
     leadNo: leads.leadNo,
     stage: leads.stage,
     isDuplicate: leads.isDuplicate,
@@ -1250,52 +1266,48 @@ router.get("/admin/eligible-sales/:userId", requireRole("ADMIN"), async (req: Au
     consentTextVersion: leads.consentTextVersion,
     submittedById: leads.submittedById,
     referralChain: leads.referralChain,
-    projectId: leads.projectId,
     projectName: projects.name,
-    unitId: leads.unitId,
     unitNumber: units.unitNumber,
     areaSqft: units.areaSqft,
-  }).from(leads)
-    .innerJoin(projects, eq(leads.projectId, projects._id))
-    .leftJoin(units, eq(leads.unitId, units._id))
-    .where(and(
-      or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")),
-      or(
-        eq(leads.submittedById, ambassador._id),
-        sql`${leads.referralChain} @> ${JSON.stringify([{ userId: ambassador._id }])}::jsonb`,
-      ),
-    ))
-    .orderBy(desc(leads.createdAt));
-  const eligibleSales = rows.filter((lead) => {
-    const attributed = lead.submittedById === ambassador._id ||
-      (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
-    const consentOK = lead.creatorRole === "BUYER" ||
-      (lead.contactConsent === true && Boolean(lead.contactConsentAt) && Boolean(lead.consentTextVersion));
-    return attributed && !lead.isDuplicate && consentOK && ["REGISTRATION", "COMPLETED"].includes(lead.stage);
-  }).map((lead) => ({
-    leadId: lead.leadId,
-    leadReference: lead.leadNo ? `TRV-L-${String(lead.leadNo).padStart(6, "0")}` : `LEAD-${lead.leadId.slice(0, 8).toUpperCase()}`,
-    projectId: lead.projectId,
-    projectName: lead.projectName,
-    unitId: lead.unitId,
-    unitNumber: lead.unitNumber,
-    areaSqFt: lead.areaSqft ? Math.round(lead.areaSqft) : null,
-    stage: lead.stage,
+  }).from(ambassadorOsPropertyBookings)
+    .innerJoin(leads, eq(ambassadorOsPropertyBookings.leadId, leads._id))
+    .innerJoin(projects, eq(ambassadorOsPropertyBookings.projectId, projects._id))
+    .leftJoin(units, eq(ambassadorOsPropertyBookings.unitId, units._id))
+    .where(or(eq(ambassadorOsPropertyBookings.status, "VERIFIED"), eq(ambassadorOsPropertyBookings.status, "SALE_VERIFIED")))
+    .orderBy(desc(ambassadorOsPropertyBookings.verifiedAt));
+  const eligibleBookings = rows.filter((row) => {
+    const attributed = row.submittedById === ambassador._id || (row.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
+    const consentOK = row.creatorRole === "BUYER" || (row.contactConsent === true && Boolean(row.contactConsentAt) && Boolean(row.consentTextVersion));
+    return attributed && !row.isDuplicate && consentOK && !["CANCELLED", "REFUND_PENDING", "REFUNDED"].includes(row.booking.status);
+  }).map((row) => ({
+    bookingId: row.booking._id,
+    bookingReference: row.booking.bookingReference,
+    leadReference: row.leadNo ? `TRV-L-${String(row.leadNo).padStart(6, "0")}` : `LEAD-${row.booking.leadId.slice(0, 8).toUpperCase()}`,
+    projectId: row.booking.projectId,
+    projectName: row.projectName,
+    unitNumber: row.unitNumber,
+    areaSqFt: row.areaSqft ? Math.round(row.areaSqft) : null,
+    bookingValue: row.booking.bookingValue,
+    amountReceived: row.booking.amountReceived,
+    bookingStatus: row.booking.status,
+    paymentMilestone: row.booking.paymentMilestone,
+    stage: row.stage,
   }));
-  res.json({ eligibleSales });
+  res.json({ eligibleBookings });
 });
 
 const createIncentiveSchema = z.object({
   userId: z.string().uuid(),
-  leadId: z.string().uuid(),
+  bookingId: z.string().uuid(),
   policyId: z.string().uuid(),
-  verifiedAreaSqFt: z.number().int().positive().max(10_000_000),
-  bookingValue: z.number().nonnegative().optional(),
+  verifiedAreaSqFt: z.number().int().positive().max(10_000_000).optional(),
 });
 
 router.get("/incentives/me", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
-  const incentives = await getDb().select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.userId, req.user!.userId)).orderBy(desc(ambassadorOsIncentives.createdAt));
+  const incentives = await getDb().select().from(ambassadorOsIncentives)
+    .where(eq(ambassadorOsIncentives.userId, req.user!.userId))
+    .orderBy(desc(ambassadorOsIncentives.createdAt));
   res.json({ incentives });
 });
 
@@ -1309,56 +1321,73 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   if (!profile || !profile.termsAcceptedAt || !ambassador.onboardingVerified || !["ACTIVE", "CERTIFIED"].includes(profile.status)) {
     return res.status(409).json({ error: "The Ambassador must be verified, have accepted terms, and be certified/active before an incentive can be recorded" });
   }
-  const [lead] = await db.select().from(leads).where(eq(leads._id, parsed.data.leadId));
-  if (!lead) return res.status(404).json({ error: "Lead/booking reference not found" });
-  if (!["REGISTRATION", "COMPLETED"].includes(lead.stage)) return res.status(409).json({ error: "Incentives require a registered or completed sale, not merely a submitted lead or booking" });
-  const attributionPresent = lead.submittedById === ambassador._id || (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
-  if (!isEligibleAmbassadorSale({ stage: lead.stage, isDuplicate: lead.isDuplicate, referralAttributed: attributionPresent })) {
-    return res.status(409).json({ error: "A non-duplicate registration/completed sale with verified referral attribution is required" });
+  const [booking] = await db.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings._id, parsed.data.bookingId));
+  if (!booking) return res.status(404).json({ error: "Property booking not found" });
+  const [lead] = await db.select().from(leads).where(eq(leads._id, booking.leadId));
+  if (!lead) return res.status(404).json({ error: "Booking source lead not found" });
+  const attributed = lead.submittedById === ambassador._id || (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
+  if (!attributed || lead.isDuplicate || lead.ownershipReviewStatus === "OPEN" || lead.ownershipReviewStatus === "UNDER_REVIEW") {
+    return res.status(409).json({ error: "The booking must have resolved, non-duplicate referral attribution to this Ambassador" });
   }
-  if (lead.creatorRole !== "BUYER" &&
-      (!lead.contactConsent || !lead.contactConsentAt || !lead.consentTextVersion)) {
-    return res.status(409).json({ error: "This third-party lead has no recorded customer contact consent and is not eligible for an Ambassador incentive." });
-  }
-  let verifiedAreaSqFt = parsed.data.verifiedAreaSqFt;
-  if (lead.unitId) {
-    const [linkedUnit] = await db.select({
-      areaSqft: units.areaSqft,
-      projectId: units.projectId,
-    }).from(units).where(eq(units._id, lead.unitId));
-    if (!linkedUnit || linkedUnit.projectId !== lead.projectId) {
-      return res.status(409).json({ error: "The lead's linked inventory unit could not be verified against its project." });
-    }
-    // When a lead references an inventory unit, use the official unit area
-    // rather than trusting a manually-entered size from the admin form.
-    verifiedAreaSqFt = Math.round(linkedUnit.areaSqft);
+  if (lead.creatorRole !== "BUYER" && (!lead.contactConsent || !lead.contactConsentAt || !lead.consentTextVersion)) {
+    return res.status(409).json({ error: "Third-party lead contact consent is not recorded, so this booking is not incentive-eligible" });
   }
   const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, parsed.data.policyId));
   if (!policy || !policy.active || !policy.approvalReference?.trim()) return res.status(409).json({ error: "The selected incentive policy is not active and approved" });
   if (policy.effectiveFrom && policy.effectiveFrom.getTime() > Date.now()) return res.status(409).json({ error: "The selected incentive policy is not effective yet" });
+  if (booking.status !== policy.requiredBookingStatus) return res.status(409).json({ error: `This policy requires booking status ${policy.requiredBookingStatus}; current status is ${booking.status}` });
+  const milestoneOrder: Record<string, number> = { BOOKING_CONFIRMED: 1, TOKEN_RECEIVED: 2, AGREEMENT_SIGNED: 3, REGISTRATION_COMPLETED: 4 };
+  const currentMilestone = milestoneOrder[booking.paymentMilestone] ?? 0;
+  const requiredMilestone = milestoneOrder[policy.paymentMilestone] ?? 0;
+  if (policy.paymentMilestone === "CUSTOM_MILESTONE" ? booking.paymentMilestone !== "CUSTOM_MILESTONE" : currentMilestone < requiredMilestone) {
+    return res.status(409).json({ error: `This policy requires the ${policy.paymentMilestone.replace(/_/g, " ").toLowerCase()} payment milestone` });
+  }
+  const source = lead.sourceChannel ?? lead.source;
+  if ((policy.eligibleSources?.length ?? 0) > 0 && !policy.eligibleSources.includes(source as any)) {
+    return res.status(409).json({ error: `Lead source ${source} is not allowed by this incentive policy` });
+  }
   if (policy.campaignId) {
     const [campaign] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, policy.campaignId));
-    if (!campaign || campaign.status !== "ACTIVE" || !campaign.officialDataVerified || campaign.projectId !== lead.projectId) {
-      return res.status(409).json({ error: "This incentive policy only applies to eligible registered sales within its verified active campaign project" });
+    if (!campaign || campaign.status !== "ACTIVE" || !campaign.officialDataVerified || campaign.projectId !== booking.projectId || campaign._id !== booking.campaignId) {
+      return res.status(409).json({ error: "This incentive policy only applies to bookings linked to its verified active campaign" });
     }
   }
-  const [existingIncentive] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.bookingReference, lead._id));
-  if (existingIncentive) return res.status(409).json({ error: "An incentive record already exists for this sale reference" });
+  const [existingIncentive] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.propertyBookingId, booking._id));
+  if (existingIncentive) return res.status(409).json({ error: "An incentive record already exists for this property booking" });
+  let verifiedAreaSqFt = parsed.data.verifiedAreaSqFt ?? 0;
+  if (booking.unitId) {
+    const [linkedUnit] = await db.select({ areaSqft: units.areaSqft, projectId: units.projectId }).from(units).where(eq(units._id, booking.unitId));
+    if (!linkedUnit || linkedUnit.projectId !== booking.projectId) return res.status(409).json({ error: "The booking's unit could not be verified against its project" });
+    verifiedAreaSqFt = Math.round(linkedUnit.areaSqft);
+  }
+  if (!verifiedAreaSqFt) return res.status(400).json({ error: "Verified area is required for a project-only booking with no linked unit" });
   const amount = calculateIncentiveAmount({
     calculationType: policy.calculationType,
     amount: policy.amount,
     blockSizeSqFt: policy.blockSizeSqFt,
     verifiedAreaSqFt,
-    bookingValue: parsed.data.bookingValue,
+    bookingValue: booking.bookingValue,
   });
   if (amount === null) return res.status(400).json({ error: "Verified area/value does not meet the selected policy's valid calculation basis" });
+  const baseDate = booking.verifiedAt ?? new Date();
+  const expectedPayoutAt = booking.expectedIncentivePayoutAt ?? new Date(baseDate.getTime() + policy.payoutDelayDays * 86400000);
   const [incentive] = await db.insert(ambassadorOsIncentives).values({
-    userId: ambassador._id, campaignId: policy.campaignId, policyId: policy._id,
-    policyNameSnapshot: policy.name, policyVersion: policy.version, bookingReference: lead._id,
-    verifiedAreaSqFt, propertyValue: parsed.data.bookingValue ?? null,
-    amount, status: "PENDING", createdById: req.user!.userId,
+    userId: ambassador._id,
+    campaignId: booking.campaignId,
+    policyId: policy._id,
+    policyNameSnapshot: policy.name,
+    policyVersion: policy.version,
+    bookingReference: booking.bookingReference,
+    propertyBookingId: booking._id,
+    expectedPayoutAt,
+    verifiedAreaSqFt,
+    propertyValue: booking.bookingValue,
+    amount,
+    status: "PENDING",
+    createdById: req.user!.userId,
   }).returning();
-  await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.create", resourceType: "ambassador_os_incentive", resourceId: incentive._id, metadata: { userId: ambassador._id, policyId: policy._id, policyVersion: policy.version, amount } });
+  await db.update(ambassadorOsPropertyBookings).set({ expectedIncentivePayoutAt: expectedPayoutAt, updatedAt: new Date() }).where(eq(ambassadorOsPropertyBookings._id, booking._id));
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.incentive.create", resourceType: "ambassador_os_incentive", resourceId: incentive._id, metadata: { userId: ambassador._id, bookingId: booking._id, policyId: policy._id, policyVersion: policy.version, amount, expectedPayoutAt } });
   await notifySafely([ambassador._id], {
     type: "ambassador_incentive_recorded",
     title: "Eligible sale incentive recorded",
