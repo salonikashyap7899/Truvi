@@ -1020,6 +1020,32 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "ambassador_os_training_user_day_unique" ON "ambassador_os_training_progress" ("user_id", "day")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_training_status_idx" ON "ambassador_os_training_progress" ("status", "day")`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "real_estate_knowledge_score" integer`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "project_knowledge_score" integer`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "customer_communication_score" integer`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "marketing_knowledge_score" integer`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "ethics_compliance_score" integer`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "attendance_status" text NOT NULL DEFAULT 'NOT_RECORDED'`,
+    `ALTER TABLE "ambassador_os_training_progress" ADD COLUMN IF NOT EXISTS "lesson_version" integer NOT NULL DEFAULT 1`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_training_modules" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "day" integer NOT NULL,
+       "title" text NOT NULL,
+       "summary" text NOT NULL,
+       "lesson" text NOT NULL,
+       "key_points" jsonb NOT NULL DEFAULT '[]'::jsonb,
+       "assignment" text NOT NULL,
+       "video_url" text,
+       "version" integer NOT NULL DEFAULT 1,
+       "is_published" boolean NOT NULL DEFAULT false,
+       "published_by_id" uuid REFERENCES "users"("id"),
+       "published_at" timestamptz,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_training_modules_day_pub_idx" ON "ambassador_os_training_modules" ("day", "is_published", "version")`,
+
     `CREATE TABLE IF NOT EXISTS "ambassador_os_campaigns" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "project_id" uuid REFERENCES "projects"("id"),
@@ -1041,6 +1067,20 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "ambassador_os_campaigns" ADD COLUMN IF NOT EXISTS "project_id" uuid REFERENCES "projects"("id")`,
     `ALTER TABLE "ambassador_os_campaigns" ADD COLUMN IF NOT EXISTS "sales_target" integer NOT NULL DEFAULT 114`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_campaign_status_idx" ON "ambassador_os_campaigns" ("status")`,
+    `CREATE TABLE IF NOT EXISTS "ambassador_os_channel_costs" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "ambassador_os_campaigns"("id"),
+       "source_channel" text NOT NULL,
+       "amount" double precision NOT NULL,
+       "period_start" timestamptz NOT NULL,
+       "period_end" timestamptz NOT NULL,
+       "evidence_reference" text,
+       "notes" text,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "ambassador_os_channel_cost_campaign_idx" ON "ambassador_os_channel_costs" ("campaign_id", "source_channel", "period_start")`,
+
     // Real-estate bookings are distinct from enquiry/lead records and incentives.
     `CREATE TABLE IF NOT EXISTS "ambassador_os_property_bookings" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1146,7 +1186,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "eligible_sources" jsonb NOT NULL DEFAULT '[]'::jsonb`,
-    `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "required_booking_status" text NOT NULL DEFAULT 'VERIFIED'`,
+    `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "required_booking_status" text NOT NULL DEFAULT 'SALE_VERIFIED'`,
     `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "payment_milestone" text NOT NULL DEFAULT 'BOOKING_CONFIRMED'`,
     `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "cancellation_treatment" text NOT NULL DEFAULT 'CANCEL_INCENTIVE'`,
     `ALTER TABLE "ambassador_os_incentive_policies" ADD COLUMN IF NOT EXISTS "payout_delay_days" integer NOT NULL DEFAULT 30`,
