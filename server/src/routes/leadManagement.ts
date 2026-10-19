@@ -97,6 +97,11 @@ const fromInventorySchema = z.object({
   requirement: z.string().trim().min(2, "Add the purpose / requirement").max(300),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
   contactConsent: z.boolean().optional(),
+  budgetRange: z.string().trim().max(80).optional().or(z.literal("")),
+  purchasePurpose: z.enum(["SELF_USE", "INVESTMENT", "UNDECIDED"]).optional(),
+  preferredPlotSize: z.string().trim().max(100).optional().or(z.literal("")),
+  purchaseTimeline: z.enum(["IMMEDIATE", "WITHIN_3_MONTHS", "3_TO_6_MONTHS", "6_TO_12_MONTHS", "MORE_THAN_12_MONTHS", "NOT_DECIDED"]).optional(),
+  sourceChannel: z.enum(["AMBASSADOR_REFERRAL", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "ORGANIC_WEBSITE", "PAID_ADVERTISEMENT", "CUSTOMER_REFERRAL", "TELECALLER", "CHANNEL_PARTNER", "DIRECT_ENQUIRY", "OTHER"]).optional(),
   confirmDuplicate: z.boolean().optional(),
 });
 
@@ -289,6 +294,11 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         source: `INVENTORY_${role}`,
         notes: d.notes || null,
         requirement: d.requirement,
+        budgetRange: d.budgetRange || null,
+        purchasePurpose: d.purchasePurpose ?? "UNDECIDED",
+        preferredPlotSize: d.preferredPlotSize || null,
+        purchaseTimeline: d.purchaseTimeline ?? "NOT_DECIDED",
+        sourceChannel: d.sourceChannel ?? (role === "AMBASSADOR" ? "AMBASSADOR_REFERRAL" : role === "CP" ? "CHANNEL_PARTNER" : "DIRECT_ENQUIRY"),
         visitDate: d.visitDate,
         visitTime: d.visitTime,
         creatorRole: role,
