@@ -2833,9 +2833,9 @@ router.get("/staff/projects", requireOsStaffRole("PROGRAM_MANAGER"), async (_req
 });
 
 router.get("/admin/staff-eligible-users", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
-  const rows = await getDb().select({ userId: users._id, name: users.name, email: users.email, role: users.role, disabled: users.disabled, onboardingVerified: users.onboardingVerified, cpJoined: users.cpJoined })
+  const rows = await getDb().select({ userId: users._id, name: users.name, email: users.email, role: users.role, disabled: users.disabled, onboardingVerified: users.onboardingVerified, cpJoinedAt: users.cpJoinedAt })
     .from(users).where(inArray(users.role, ["DEVELOPER", "CP", "VERIFIER"]));
-  res.json({ users: rows.filter((user) => !user.disabled && (user.role !== "CP" || (user.onboardingVerified && user.cpJoined !== false))) });
+  res.json({ users: rows.filter((user) => !user.disabled && (user.role !== "CP" || (user.onboardingVerified && user.cpJoinedAt !== null))) });
 });
 
 router.get("/admin/staff-assignments", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
@@ -2850,7 +2850,7 @@ router.post("/admin/staff-assignments", requireRole("ADMIN"), async (req: Authed
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid staff assignment" });
   const db = getDb();
   const [account] = await db.select().from(users).where(eq(users._id, parsed.data.userId));
-  if (!account || account.disabled || !["DEVELOPER", "CP", "VERIFIER"].includes(account.role) || (account.role === "CP" && (!account.onboardingVerified || account.cpJoined === false))) {
+  if (!account || account.disabled || !["DEVELOPER", "CP", "VERIFIER"].includes(account.role) || (account.role === "CP" && (!account.onboardingVerified || account.cpJoinedAt === null))) {
     return res.status(400).json({ error: "Choose an active internal account (Developer, verified/active Channel Partner, or Verifier). Buyer and Ambassador accounts cannot receive internal staff permissions." });
   }
   const [existing] = await db.select().from(ambassadorOsStaffAssignments)
