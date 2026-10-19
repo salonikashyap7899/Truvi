@@ -87,9 +87,8 @@ export function getEnv() {
 
 /**
  * Founder accounts recognised for CEO-OS routing beyond the two provisioned
- * founders — the legacy `founder@truvi.app` placeholder and any owner accounts
- * that must always land on /founder/dashboard. Additional emails can also be
- * supplied at runtime via FOUNDER_EMAILS (comma-separated) without a code change.
+ * founders. Additional owner identities (including any legacy placeholder
+ * address still in use) must be explicitly supplied via FOUNDER_EMAILS.
  */
 const BUILTIN_FOUNDER_EMAILS = new Set(
   [
