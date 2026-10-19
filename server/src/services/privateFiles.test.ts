@@ -45,9 +45,9 @@ describe("private buyer document links", () => {
     expect(verifyBuyerDocSignature(DOC_ID, String(Math.floor(Date.now() / 1000) + 60), "short")).toBe(false);
   });
 
-  it("keeps legacy public URLs and signs private ones", () => {
+  it("suppresses legacy public URLs and signs private ones", () => {
     const legacy = "https://truviventures.com/uploads/123-old.pdf";
-    expect(presentBuyerDocUrl(DOC_ID, legacy)).toBe(legacy);
+    expect(presentBuyerDocUrl(DOC_ID, legacy)).toBe("");
     const signed = presentBuyerDocUrl(DOC_ID, privateRef("abc.pdf"));
     expect(signed).toContain(`/api/documents/file/${DOC_ID}?exp=`);
     expect(signed).not.toContain("/uploads/");
