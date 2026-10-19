@@ -2610,6 +2610,56 @@ export const ambassadorOsPropertyBookings = pgTable(
 );
 export type IAmbassadorOsPropertyBooking = typeof ambassadorOsPropertyBookings.$inferSelect;
 
+export const ambassadorOsScorecardPolicies = pgTable(
+  "ambassador_os_scorecard_policies",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    version: integer("version").notNull().default(1),
+    genuineLeadQualityWeight: integer("genuine_lead_quality_weight").notNull().default(25),
+    customerCommunicationWeight: integer("customer_communication_weight").notNull().default(20),
+    siteVisitContributionWeight: integer("site_visit_contribution_weight").notNull().default(15),
+    verifiedSalesContributionWeight: integer("verified_sales_contribution_weight").notNull().default(15),
+    crmDisciplineWeight: integer("crm_discipline_weight").notNull().default(10),
+    trainingSkillDevelopmentWeight: integer("training_skill_development_weight").notNull().default(10),
+    ethicsComplianceWeight: integer("ethics_compliance_weight").notNull().default(5),
+    active: boolean("active").notNull().default(true),
+    approvalReference: text("approval_reference"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ambassador_os_scorecard_policy_version_unique").on(t.version), index("ambassador_os_scorecard_policy_active_idx").on(t.active)]
+);
+
+export const ambassadorOsPerformanceReviews = pgTable(
+  "ambassador_os_performance_reviews",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }).notNull(),
+    scorecardPolicyVersion: integer("scorecard_policy_version").notNull(),
+    genuineLeadQualityScore: integer("genuine_lead_quality_score").notNull(),
+    customerCommunicationScore: integer("customer_communication_score").notNull(),
+    siteVisitContributionScore: integer("site_visit_contribution_score").notNull(),
+    verifiedSalesContributionScore: integer("verified_sales_contribution_score").notNull(),
+    crmDisciplineScore: integer("crm_discipline_score").notNull(),
+    trainingSkillDevelopmentScore: integer("training_skill_development_score").notNull(),
+    ethicsComplianceScore: integer("ethics_compliance_score").notNull(),
+    weightedScore: doublePrecision("weighted_score").notNull(),
+    seriousMisconduct: boolean("serious_misconduct").notNull().default(false),
+    complianceNotes: text("compliance_notes"),
+    reviewNotes: text("review_notes"),
+    reviewedById: uuid("reviewed_by_id").notNull().references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_performance_ambassador_period_idx").on(t.ambassadorId, t.periodEnd),
+    index("ambassador_os_performance_misconduct_idx").on(t.seriousMisconduct, t.periodEnd),
+  ]
+);
+export type IAmbassadorOsPerformanceReview = typeof ambassadorOsPerformanceReviews.$inferSelect;
+
 export const ambassadorOsChannelCosts = pgTable(
   "ambassador_os_channel_costs",
   {
