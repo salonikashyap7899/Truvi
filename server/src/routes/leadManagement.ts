@@ -4,7 +4,8 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, SQL } fro
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
 import {
-  ambassadorOsProfiles, leads, leadActivities, projects, units, users, siteVisits, offers,
+  ambassadorOsProfiles, ambassadorOsCampaigns, ambassadorOsCampaignGuidelines, ambassadorOsCampaignAcknowledgements,
+  leads, leadActivities, projects, units, users, siteVisits, offers,
   LeadStage, Role, LeadReferralLink,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
@@ -161,6 +162,39 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
   if (!project || project.approvalStatus !== "APPROVED") return res.status(404).json({ error: "This project isn't available" });
   if (project.availabilityStatus === "SOLD_OUT") {
     return res.status(409).json({ error: "This project is currently sold out." });
+  }
+
+  // Campaign marketing compliance: require acknowledgement of every active, verified
+  // Ambassador OS campaign currently running for this project before accepting a
+  // referral. An active campaign without published guidelines is a setup blocker,
+  // not a reason to silently bypass the safeguard.
+  if (role === "AMBASSADOR") {
+    const campaigns = await db.select({ _id: ambassadorOsCampaigns._id, name: ambassadorOsCampaigns.name })
+      .from(ambassadorOsCampaigns)
+      .where(and(eq(ambassadorOsCampaigns.projectId, project._id), eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true)));
+    if (campaigns.length > 0) {
+      const campaignIds = campaigns.map((campaign) => campaign._id);
+      const [guidelines, acknowledgements] = await Promise.all([
+        db.select().from(ambassadorOsCampaignGuidelines).where(inArray(ambassadorOsCampaignGuidelines.campaignId, campaignIds)),
+        db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, me._id)),
+      ]);
+      const missing = campaigns.filter((campaign) => {
+        const latest = guidelines.filter((item) => item.campaignId === campaign._id).sort((a, b) => b.version - a.version)[0];
+        return !latest || !acknowledgements.some((ack) => ack.campaignId === campaign._id && ack.guidelineVersion === latest.version);
+      }).map((campaign) => {
+        const latest = guidelines.filter((item) => item.campaignId === campaign._id).sort((a, b) => b.version - a.version)[0];
+        return { campaignId: campaign._id, campaignName: campaign.name, requiredVersion: latest?.version ?? null, guidelinesPublished: Boolean(latest) };
+      });
+      if (missing.length > 0) {
+        return res.status(409).json({
+          error: missing.some((item) => !item.guidelinesPublished)
+            ? "A verified active campaign has no published marketing guidelines yet. Contact the Truvi program team before submitting this project lead."
+            : "Acknowledge the latest marketing guidelines for this campaign before submitting the lead.",
+          code: "CAMPAIGN_GUIDELINES_ACK_REQUIRED",
+          campaigns: missing,
+        });
+      }
+    }
   }
   let unit: { _id: string; unitNumber: string; type: string; areaSqft: number; status: string } | null = null;
   if (d.unitId) {
