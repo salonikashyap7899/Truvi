@@ -20,7 +20,7 @@ router.get("/", async (req: AuthedRequest, res) => {
   if (role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  if (!["ADMIN", "DEVELOPER", "CP", "BUYER"].includes(role)) {
+  if (role !== "ADMIN" && role !== "DEVELOPER" && role !== "CP" && role !== "BUYER") {
     return res.status(403).json({ error: "You are not allowed to view inventory" });
   }
 
@@ -269,7 +269,7 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   if (role === "CP" && req.user?.onboardingVerified !== true) {
     return res.status(403).json({ error: "Complete onboarding verification to access project details" });
   }
-  if (!["ADMIN", "DEVELOPER", "CP", "BUYER"].includes(role)) {
+  if (role !== "ADMIN" && role !== "DEVELOPER" && role !== "CP" && role !== "BUYER") {
     return res.status(403).json({ error: "You are not allowed to view inventory" });
   }
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Unit not found" });
