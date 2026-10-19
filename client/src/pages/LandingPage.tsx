@@ -796,7 +796,7 @@ interface ShowcaseProject {
 
 function LiveProjectsShowcase() {
   const [items, setItems] = useState<ShowcaseProject[] | null>(null);
-  useEffect(() => { api.get("/public/projects", { params: { limit: 6 } }).then((r) => setItems(r.data.projects)).catch(() => setItems([])); }, []);
+  useEffect(() => { api.get("/public/projects", { params: { limit: 24 } }).then((r) => setItems(r.data.projects)).catch(() => setItems([])); }, []);
   if (!items || items.length === 0) return null; // hidden until the first project is live
 
   return (
