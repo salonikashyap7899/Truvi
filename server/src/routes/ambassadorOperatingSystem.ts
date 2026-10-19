@@ -234,6 +234,10 @@ router.put("/profile", async (req: AuthedRequest, res) => {
     preferredRole: data.preferredRole ?? current.preferredRole,
     weeklyAvailabilityHours: data.weeklyAvailabilityHours ?? current.weeklyAvailabilityHours,
     termsAcceptedAt: data.acceptTerms === true ? (current.termsAcceptedAt ?? now) : current.termsAcceptedAt,
+    termsVersion: data.acceptTerms === true ? (current.termsVersion ?? "TRUVI_AMBASSADOR_TERMS_V1") : current.termsVersion,
+    cityCode: !current.termsAcceptedAt && data.acceptTerms === true
+      ? (data.city ?? current.city).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) || "TRU"
+      : current.cityCode,
     status: data.acceptTerms === true && !current.termsAcceptedAt && !req.user!.onboardingVerified
       ? "VERIFICATION_PENDING"
       : current.status,
@@ -412,8 +416,15 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   const profile = await ensureProfile(String(req.params.userId));
   const all = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, String(req.params.userId)));
   const allComplete = all.some((p) => p.day === 7 && p.status === "COMPLETED");
+  const completedDaySeven = all.some((p) => p.day === 7 && p.status === "COMPLETED");
+  const certificateNo = completedDaySeven
+    ? (profile.certificateNo ?? `TRUVI-CERT-${String(profile.ambassadorNo).padStart(6, "0")}`)
+    : null;
   await db.update(ambassadorOsProfiles).set({
     status: allComplete ? "CERTIFIED" : canComplete ? "TRAINING_IN_PROGRESS" : "ASSESSMENT_PENDING",
+    certificateNo,
+    certifiedAt: completedDaySeven ? (profile.certifiedAt ?? now) : null,
+    certifiedById: completedDaySeven ? (profile.certifiedById ?? req.user!.userId) : null,
     updatedAt: now,
   }).where(eq(ambassadorOsProfiles.userId, String(req.params.userId)));
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.training.review", resourceType: "ambassador_os_training", resourceId: updated._id, metadata: { ambassadorId: displayProfile(profile).ambassadorId, day, status, practicalStatus, ethicsStatus } });
