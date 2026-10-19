@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock,
-  CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined, Check, XCircle,
+  CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined,
 } from "lucide-react";
 
 type Profile = {
@@ -49,7 +49,10 @@ type BookingRecord = {
   refundAmount?: number; refundReference?: string | null; sourceChannel?: string | null; customerName: string; submitterName?: string | null;
 };
 type SalesPipeline = { leads: PipelineLead[]; bookings: BookingRecord[]; campaigns: Campaign[]; channelCosts: Array<{ _id: string; campaignId: string; sourceChannel: string; amount: number; periodStart: string; periodEnd: string; notes?: string | null }> };
-type SalesSummary = { campaigns: Array<{ campaignId: string; campaignName: string; projectName: string; location: string; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; campaignDaysRemaining: number | null; commissionEarned: number; totalBookingRecords: number; conversion: { leadToContacted: number; contactedToQualified: number; qualifiedToVisitScheduled: number; scheduledToCompleted: number; completedToBooking: number; bookingToVerifiedSale: number }; channels: Array<{ sourceChannel: string; cost: number; leads: number; qualifiedLeads: number; siteVisits: number; verifiedSales: number; costPerQualifiedLead: number | null }> }> };
+type SalesSummary = {
+  totals: { campaigns: number; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; commissionEarned: number };
+  campaigns: Array<{ campaignId: string; campaignName: string; projectName: string; location: string; status: string; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; campaignDaysRemaining: number | null; commissionEarned: number; commissionPaid?: number; totalBookingRecords: number; newEnquiries?: number; contacted?: number; lostLeads?: number; duplicateLeads?: number; ownershipDisputes?: number; verifiedBookings?: number; cancelledSiteVisits?: number; conversion: { leadToContacted: number | null; contactedToQualified: number | null; qualifiedToVisitScheduled: number | null; scheduledToCompleted: number | null; completedToBooking: number | null; bookingToVerifiedSale: number | null }; channels: Array<{ sourceChannel: string; cost: number; leads: number; qualifiedLeads: number; siteVisits: number; completedSiteVisits?: number; verifiedSales: number; costPerQualifiedLead: number | null }> }>;
+};
 type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
 type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "campaigns" | "policies" | "incentives";
