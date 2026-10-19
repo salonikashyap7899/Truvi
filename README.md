@@ -151,6 +151,7 @@ either accept the ephemeral storage or migrate `uploadService.ts` to S3.
 ## Security-sensitive deployment checklist
 
 - Set `CLIENT_URL` to the exact HTTPS origin(s) serving the production frontend. The API refuses non-development startup when it is missing. `REPLIT_DOMAINS`, if present, is treated as a list of exact domains rather than a wildcard.
+- Browser access tokens are memory-only and are not persisted to `localStorage`. On app startup, the client restores the session through the HTTP-only refresh cookie, then fetches the current user from `/api/auth/me`; protected pages wait for this check before redirecting.
 - Keep `PRIVATE_UPLOAD_DIR` outside the public `UPLOAD_DIR` and on persistent private storage. Do not place buyer ID, address, or income proofs under `/uploads`.
 - Existing buyer documents may still reference public URLs from older deployments. First run `npm run db:private-docs` in the backend environment to review the dry-run report. Confirm `DATABASE_URL`, `UPLOAD_DIR`, and `PRIVATE_UPLOAD_DIR` point to the actual production resources, then run `npm run db:private-docs -- --apply`. Verify the migrated records and files before considering the migration complete.
 - After applying the document migration, purge Cloudflare/CDN cache for old `/uploads/*` URLs. Purging is necessary because older files may have been cached publicly.
