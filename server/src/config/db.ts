@@ -949,6 +949,11 @@ async function ensureSchema(db: Db): Promise<void> {
        ('General Home Maintenance', 'home-maintenance', 15)
      ON CONFLICT ("slug") DO NOTHING`,
 
+    // Lead contact-consent audit fields; existing records default to no third-party consent.
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "contact_consent" boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "contact_consent_at" timestamptz`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "consent_text_version" text`,
+
     // Ambassador Operating System — additive/idempotent pilot tables.
     `CREATE TABLE IF NOT EXISTS "ambassador_os_profiles" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
