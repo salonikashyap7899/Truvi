@@ -1846,6 +1846,7 @@ router.get("/leads/me", async (req: AuthedRequest, res) => {
       ownershipReviewStatus: row.lead.ownershipReviewStatus,
       contactConsentRecorded: Boolean(hasConsent),
       customerDisplayName: mine && hasConsent ? row.lead.clientName : "Referral enquiry",
+      customerPhone: mine && hasConsent ? row.lead.clientPhone : null,
       canScheduleFollowUp: hasConsent && !row.lead.isDuplicate && !["LOST", "COMPLETED"].includes(row.lead.stage) && row.lead.ownershipReviewStatus !== "OPEN" && row.lead.ownershipReviewStatus !== "UNDER_REVIEW",
     };
   });
