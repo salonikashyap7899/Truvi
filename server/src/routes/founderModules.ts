@@ -32,12 +32,13 @@ router.use(async (req: AuthedRequest, res, next) => {
   if (!req.user || req.user.role !== "ADMIN") {
     return res.status(403).json({ error: "Founder access required" });
   }
+  const userId = req.user.userId;
   try {
     const db = getDb();
     const [account] = await db
       .select({ email: users.email, role: users.role, disabled: users.disabled })
       .from(users)
-      .where(eq(users._id, req.user.userId))
+      .where(eq(users._id, userId))
       .limit(1);
     if (!account || account.disabled || account.role !== "ADMIN" || !isFounderEmail(account.email)) {
       return res.status(403).json({ error: "Founder access required" });
