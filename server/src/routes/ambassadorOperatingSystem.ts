@@ -17,6 +17,14 @@ import {
 } from "../db/schema";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { logAudit } from "../services/audit";
+import {
+  canActivateAmbassador,
+  calculateIncentiveAmount,
+  canTransitionIncentiveStatus,
+  computeAmbassadorQualityScore,
+  isEligibleAmbassadorSale,
+  isTrainingDayComplete,
+} from "../services/ambassadorOperatingSystem.rules";
 
 const router = Router();
 router.use(authenticate);
@@ -264,7 +272,10 @@ router.get("/leaderboard", requireRole("ADMIN", "AMBASSADOR"), async (req: Authe
     const saleCount = nonDuplicate.filter((lead) => ["REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
     const lostCount = attributed.filter((lead) => lead.stage === "LOST" && !lead.isDuplicate).length;
     const duplicateCount = attributed.filter((lead) => lead.isDuplicate).length;
-    const qualityScore = Math.max(0, moduleCount * 2 + taskCount * 5 + siteVisitCount * 8 + saleCount * 25 - lostCount * 2 - duplicateCount * 3);
+    const qualityScore = computeAmbassadorQualityScore({
+      modulesCompleted: moduleCount, approvedTasks: taskCount, completedSiteVisits: siteVisitCount,
+      verifiedSales: saleCount, lostLeads: lostCount, duplicateLeads: duplicateCount,
+    });
     const nameParts = name.trim().split(/\s+/).filter(Boolean);
     const displayName = nameParts.length > 1 ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.` : (nameParts[0] ?? "Ambassador");
     return {
@@ -483,7 +494,7 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   if (!current) return res.status(404).json({ error: "Training submission not found" });
   const practicalStatus = parsed.data.practicalStatus ?? current.practicalStatus;
   const ethicsStatus = parsed.data.ethicsStatus ?? current.ethicsStatus;
-  const canComplete = current.quizScore >= 80 && practicalStatus === "APPROVED" && ethicsStatus === "APPROVED";
+  const canComplete = isTrainingDayComplete(current.quizScore, practicalStatus, ethicsStatus);
   const status = canComplete ? "COMPLETED" as const : (current.quizScore < 80 || practicalStatus === "REJECTED" || ethicsStatus === "REJECTED" ? "RETAKE_REQUIRED" as const : "ASSESSMENT_PENDING" as const);
   const now = new Date();
   const [updated] = await db.update(ambassadorOsTrainingProgress).set({
@@ -540,7 +551,11 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
     }
   }
   if (parsed.data.status === "ACTIVE") {
-    if (!profile.termsAcceptedAt || !account?.onboardingVerified || !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
+    if (!canActivateAmbassador({
+      termsAccepted: Boolean(profile.termsAcceptedAt),
+      identityVerified: Boolean(account?.onboardingVerified),
+      finalDayComplete: training.some((p) => p.day === 7 && p.status === "COMPLETED"),
+    })) {
       return res.status(409).json({ error: "Activation requires accepted terms, verified onboarding, and completed seven-day certification" });
     }
   }
@@ -772,7 +787,9 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   if (!lead) return res.status(404).json({ error: "Lead/booking reference not found" });
   if (!["REGISTRATION", "COMPLETED"].includes(lead.stage)) return res.status(409).json({ error: "Incentives require a registered or completed sale, not merely a submitted lead or booking" });
   const attributionPresent = lead.submittedById === ambassador._id || (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
-  if (!attributionPresent || lead.isDuplicate || lead.stage === "LOST") return res.status(409).json({ error: "Verified referral attribution is required for an eligible non-duplicate sale" });
+  if (!isEligibleAmbassadorSale({ stage: lead.stage, isDuplicate: lead.isDuplicate, referralAttributed: attributionPresent })) {
+    return res.status(409).json({ error: "A non-duplicate registration/completed sale with verified referral attribution is required" });
+  }
   const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, parsed.data.policyId));
   if (!policy || !policy.active || !policy.approvalReference?.trim()) return res.status(409).json({ error: "The selected incentive policy is not active and approved" });
   if (policy.effectiveFrom && policy.effectiveFrom.getTime() > Date.now()) return res.status(409).json({ error: "The selected incentive policy is not effective yet" });
@@ -784,12 +801,14 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   }
   const [existingIncentive] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.bookingReference, lead._id));
   if (existingIncentive) return res.status(409).json({ error: "An incentive record already exists for this sale reference" });
-  const amount = policy.calculationType === "FIXED"
-    ? policy.amount
-    : policy.calculationType === "PER_SQ_FT_BLOCK"
-      ? Math.floor(parsed.data.verifiedAreaSqFt / policy.blockSizeSqFt) * policy.amount
-      : ((parsed.data.bookingValue ?? 0) * policy.amount) / 100;
-  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "Verified area/value does not meet the selected policy's minimum calculation basis" });
+  const amount = calculateIncentiveAmount({
+    calculationType: policy.calculationType,
+    amount: policy.amount,
+    blockSizeSqFt: policy.blockSizeSqFt,
+    verifiedAreaSqFt: parsed.data.verifiedAreaSqFt,
+    bookingValue: parsed.data.bookingValue,
+  });
+  if (amount === null) return res.status(400).json({ error: "Verified area/value does not meet the selected policy's valid calculation basis" });
   const [incentive] = await db.insert(ambassadorOsIncentives).values({
     userId: ambassador._id, campaignId: policy.campaignId, policyId: policy._id,
     policyNameSnapshot: policy.name, policyVersion: policy.version, bookingReference: lead._id,
@@ -811,8 +830,7 @@ router.patch("/admin/incentives/:id/status", requireRole("ADMIN"), async (req: A
   const db = getDb();
   const [current] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives._id, String(req.params.id)));
   if (!current) return res.status(404).json({ error: "Incentive record not found" });
-  const allowed: Record<string, string[]> = { PENDING: ["APPROVED", "CANCELLED"], APPROVED: ["PAYABLE", "CANCELLED"], PAYABLE: ["PAID", "CANCELLED"], PAID: [], CANCELLED: [] };
-  if (!allowed[current.status].includes(parsed.data.status)) return res.status(409).json({ error: `Invalid payout transition: ${current.status} → ${parsed.data.status}` });
+  if (!canTransitionIncentiveStatus(current.status, parsed.data.status)) return res.status(409).json({ error: `Invalid payout transition: ${current.status} → ${parsed.data.status}` });
   if (parsed.data.status === "PAID" && !parsed.data.paymentReference?.trim()) return res.status(400).json({ error: "Payment reference/receipt is required before marking an incentive paid" });
   const now = new Date();
   const [updated] = await db.update(ambassadorOsIncentives).set({
