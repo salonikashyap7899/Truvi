@@ -557,7 +557,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
                   ["customerCommunicationScore","Customer communication",state.customerCommunicationScore],
                   ["marketingKnowledgeScore","Marketing knowledge",state.marketingKnowledgeScore],
                   ["ethicsComplianceScore","Ethics & compliance",state.ethicsComplianceScore],
-                ] as const).map(([key,label,value]) => <label key={key} className="text-sm"><span className="mb-1 block text-muted-foreground">{label}</span><input type="number" min={0} max={20} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={value ?? ""} onChange={(e)=>setField({[key]:e.target.value===""?undefined:Number(e.target.value)} as Partial<typeof state>}/></label>)}
+                ] as const).map(([key,label,value]) => <label key={key} className="text-sm"><span className="mb-1 block text-muted-foreground">{label}</span><input type="number" min={0} max={20} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={value ?? ""} onChange={(e)=>setField({[key]:e.target.value===""?undefined:Number(e.target.value)} as Partial<typeof state>)}/></label>)}
               </div>
               {row.day === 7 && <p className="mt-2 text-xs text-muted-foreground">Final certification requires all five scores and a total of at least 80/100, attendance marked Present/Excused, a written pass, and practical and ethics approval.</p>}
             </div>
