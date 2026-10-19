@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
@@ -883,9 +883,14 @@ router.get("/admin/eligible-sales/:userId", requireRole("ADMIN"), async (req: Au
   }).from(leads)
     .innerJoin(projects, eq(leads.projectId, projects._id))
     .leftJoin(units, eq(leads.unitId, units._id))
-    .where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")))
-    .orderBy(desc(leads.createdAt))
-    .limit(250);
+    .where(and(
+      or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")),
+      or(
+        eq(leads.submittedById, ambassador._id),
+        sql`${leads.referralChain} @> ${JSON.stringify([{ userId: ambassador._id }])}::jsonb`,
+      ),
+    ))
+    .orderBy(desc(leads.createdAt));
   const eligibleSales = rows.filter((lead) => {
     const attributed = lead.submittedById === ambassador._id ||
       (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
