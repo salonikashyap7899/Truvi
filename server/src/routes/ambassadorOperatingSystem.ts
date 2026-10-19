@@ -292,6 +292,7 @@ router.post("/training/:day/submit", async (req: AuthedRequest, res) => {
   if (!["ACTIVE", "SUSPENDED", "EXITED"].includes(profile.status)) {
     await db.update(ambassadorOsProfiles).set({ status: status === "ASSESSMENT_PENDING" ? "ASSESSMENT_PENDING" : "TRAINING_IN_PROGRESS", updatedAt: now }).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
   }
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.training.submit", resourceType: "ambassador_os_training", resourceId: progress._id, metadata: { day, quizScore, status } });
   res.json({ progress, passedWrittenAssessment: quizScore >= 80, message: quizScore >= 80 ? "Written assessment passed. Practical and ethics review are still required." : "Score below 80/100. Review the lesson and retake this module." });
 });
 
@@ -316,6 +317,7 @@ router.post("/tasks/:id/start", async (req: AuthedRequest, res) => {
   }
   const [updated] = await db.update(ambassadorOsTasks).set({ status: "IN_PROGRESS" }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, "ASSIGNED"))).returning();
   if (!updated) return res.status(409).json({ error: "The task changed. Refresh and try again." });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.start", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { title: updated.title, category: updated.category } });
   res.json({ task: updated });
 });
 
@@ -340,6 +342,7 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
     status: "SUBMITTED", evidenceText: parsed.data.evidenceText, evidenceUrl: parsed.data.evidenceUrl || null,
     reviewReason: null, reviewedById: null, reviewedAt: null,
   }).where(eq(ambassadorOsTasks._id, task._id)).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.submit", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { status: updated.status, category: updated.category } });
   res.json({ task: updated });
 });
 
@@ -588,6 +591,9 @@ const policySchema = z.object({
 router.post("/admin/policies", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = policySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid incentive policy" });
+  if (parsed.data.calculationType === "PERCENT_OF_VALUE" && parsed.data.amount > 100) {
+    return res.status(400).json({ error: "Percent-of-value policy must be between 0 and 100 percent" });
+  }
   const db = getDb();
   const existing = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies.name, parsed.data.name));
   const version = existing.reduce((max, row) => Math.max(max, row.version), 0) + 1;
