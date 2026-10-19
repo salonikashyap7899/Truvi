@@ -54,13 +54,34 @@ type SalesSummary = {
   totals: { campaigns: number; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; commissionEarned: number };
   campaigns: Array<{ campaignId: string; campaignName: string; projectName: string; location: string; status: string; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; campaignDaysRemaining: number | null; commissionEarned: number; commissionPaid?: number; totalBookingRecords: number; newEnquiries?: number; contacted?: number; lostLeads?: number; duplicateLeads?: number; ownershipDisputes?: number; verifiedBookings?: number; cancelledSiteVisits?: number; conversion: { leadToContacted: number | null; contactedToQualified: number | null; qualifiedToVisitScheduled: number | null; scheduledToCompleted: number | null; completedToBooking: number | null; bookingToVerifiedSale: number | null }; channels: Array<{ sourceChannel: string; cost: number; leads: number; qualifiedLeads: number; siteVisits: number; completedSiteVisits?: number; verifiedSales: number; costPerQualifiedLead: number | null }> }>;
 };
+type ScorecardWeights = {
+  genuineLeadQuality: number; customerCommunication: number; siteVisitContribution: number;
+  verifiedSalesContribution: number; crmDiscipline: number; trainingSkillDevelopment: number; ethicsCompliance: number;
+};
+type ScoreInput = {
+  genuineLeadQualityScore: string; customerCommunicationScore: string; siteVisitContributionScore: string;
+  verifiedSalesContributionScore: string; crmDisciplineScore: string; trainingSkillDevelopmentScore: string;
+  ethicsComplianceScore: string; seriousMisconduct: boolean; complianceNotes: string; reviewNotes: string;
+};
+type PerformanceRow = {
+  profile: ProfileRow["profile"]; name: string; email: string; onboardingVerified: boolean;
+  latestReview: null | {
+    _id: string; periodStart: string; periodEnd: string; weightedScore: number; seriousMisconduct: boolean;
+    genuineLeadQualityScore: number; customerCommunicationScore: number; siteVisitContributionScore: number;
+    verifiedSalesContributionScore: number; crmDisciplineScore: number; trainingSkillDevelopmentScore: number;
+    ethicsComplianceScore: number; scorecardPolicyVersion: number; complianceNotes?: string | null; reviewNotes: string;
+  };
+  metrics: { totalAttributedLeads: number; genuineLeads: number; qualifiedLeads: number; duplicateLeads: number; completedSiteVisits: number; verifiedSales: number; completedTrainingDays: number; approvedTasks: number; totalTasks: number; followUpsCompleted: number; followUpsDueOrMissed: number; lostLeads: number };
+};
+type PerformanceResponse = { weights: ScorecardWeights; policy: { version: number; approvalReference?: string | null }; ambassadors: PerformanceRow[] };
 type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
-type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "campaigns" | "policies" | "incentives";
+type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "performance" | "campaigns" | "policies" | "incentives";
 const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
   { id: "overview", label: "Overview", Icon: ChartNoAxesCombined }, { id: "ambassadors", label: "Ambassadors", Icon: Users },
   { id: "training", label: "Training Reviews", Icon: GraduationCap }, { id: "training-content", label: "Learning Content", Icon: BookOpen }, { id: "tasks", label: "Tasks", Icon: ClipboardList },
   { id: "sales", label: "Sales & Bookings", Icon: ChartNoAxesCombined }, { id: "followups", label: "Follow-ups", Icon: Clock },
+  { id: "performance", label: "Performance Scorecards", Icon: TrendingUp },
   { id: "campaigns", label: "Campaigns", Icon: Building2 }, { id: "policies", label: "Incentive Policies", Icon: ShieldCheck },
   { id: "incentives", label: "Payouts", Icon: Wallet },
 ];
@@ -74,6 +95,16 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null);
   const [salesOwners, setSalesOwners] = useState<SalesOwner[]>([]);
   const [followUps, setFollowUps] = useState<Array<any>>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceResponse | null>(null);
+  const [scorecardWeights, setScorecardWeights] = useState<ScorecardWeights>({
+    genuineLeadQuality: 25, customerCommunication: 20, siteVisitContribution: 15,
+    verifiedSalesContribution: 15, crmDiscipline: 10, trainingSkillDevelopment: 10, ethicsCompliance: 5,
+  });
+  const [scorecardApprovalReference, setScorecardApprovalReference] = useState("");
+  const [performanceInputs, setPerformanceInputs] = useState<Record<string,ScoreInput>>({});
+  const [savingPerformance, setSavingPerformance] = useState<string | null>(null);
+  const [savingWeights, setSavingWeights] = useState(false);
+  const [loadingPerformance, setLoadingPerformance] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingSales, setLoadingSales] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
@@ -273,6 +304,99 @@ export default function AdminAmbassadorOperatingSystemPage() {
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not save training review"); }
   }
+  async function loadPerformance() {
+    setLoadingPerformance(true);
+    try {
+      const res = await api.get("/ambassador-os/admin/performance-reviews");
+      const data = res.data as PerformanceResponse;
+      setPerformanceData(data);
+      setScorecardWeights(data.weights);
+      setPerformanceInputs((previous) => {
+        const next = { ...previous };
+        for (const row of data.ambassadors) {
+          if (!next[row.profile.userId]) {
+            const review = row.latestReview;
+            next[row.profile.userId] = {
+              genuineLeadQualityScore: review ? String(review.genuineLeadQualityScore) : "",
+              customerCommunicationScore: review ? String(review.customerCommunicationScore) : "",
+              siteVisitContributionScore: review ? String(review.siteVisitContributionScore) : "",
+              verifiedSalesContributionScore: review ? String(review.verifiedSalesContributionScore) : "",
+              crmDisciplineScore: review ? String(review.crmDisciplineScore) : "",
+              trainingSkillDevelopmentScore: review ? String(review.trainingSkillDevelopmentScore) : "",
+              ethicsComplianceScore: review ? String(review.ethicsComplianceScore) : "",
+              seriousMisconduct: review?.seriousMisconduct ?? false,
+              complianceNotes: review?.complianceNotes ?? "",
+              reviewNotes: "",
+            };
+          }
+        }
+        return next;
+      });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not load performance scorecards");
+    } finally { setLoadingPerformance(false); }
+  }
+
+  async function saveScorecardWeights(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingWeights(true);
+    try {
+      const response = await api.put("/ambassador-os/admin/scorecard/weights", {
+        ...scorecardWeights, approvalReference: scorecardApprovalReference,
+      });
+      setScorecardWeights(response.data.weights);
+      setScorecardApprovalReference("");
+      toast.success("Scorecard weight version saved and audited");
+      await loadPerformance();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not save weights; all seven must total 100%"); }
+    finally { setSavingWeights(false); }
+  }
+
+  async function savePerformanceReview(row: PerformanceRow) {
+    const input = performanceInputs[row.profile.userId];
+    if (!input) return;
+    const scoreKeys = [
+      "genuineLeadQualityScore","customerCommunicationScore","siteVisitContributionScore",
+      "verifiedSalesContributionScore","crmDisciplineScore","trainingSkillDevelopmentScore","ethicsComplianceScore",
+    ] as const;
+    if (scoreKeys.some((key) => input[key] === "" || Number(input[key]) < 0 || Number(input[key]) > 100)) {
+      toast.error("Enter all seven metric scores between 0 and 100");
+      return;
+    }
+    if (input.reviewNotes.trim().length < 5) {
+      toast.error("Record review evidence/notes before saving the scorecard");
+      return;
+    }
+    if (input.seriousMisconduct && input.complianceNotes.trim().length < 5) {
+      toast.error("A serious misconduct finding needs a specific compliance note");
+      return;
+    }
+    setSavingPerformance(row.profile.userId);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    try {
+      await api.post("/ambassador-os/admin/performance-reviews", {
+        ambassadorId: row.profile.userId,
+        periodStart: monthStart.toISOString(),
+        periodEnd: now.toISOString(),
+        genuineLeadQualityScore: Number(input.genuineLeadQualityScore),
+        customerCommunicationScore: Number(input.customerCommunicationScore),
+        siteVisitContributionScore: Number(input.siteVisitContributionScore),
+        verifiedSalesContributionScore: Number(input.verifiedSalesContributionScore),
+        crmDisciplineScore: Number(input.crmDisciplineScore),
+        trainingSkillDevelopmentScore: Number(input.trainingSkillDevelopmentScore),
+        ethicsComplianceScore: Number(input.ethicsComplianceScore),
+        seriousMisconduct: input.seriousMisconduct,
+        complianceNotes: input.complianceNotes || undefined,
+        reviewNotes: input.reviewNotes.trim(),
+      });
+      toast.success(input.seriousMisconduct ? "Misconduct finding recorded; account suspended and leaderboard exclusion applied" : "Weighted performance review saved");
+      await loadPerformance();
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not save performance review"); }
+    finally { setSavingPerformance(null); }
+  }
+
   async function createTask(e: React.FormEvent) {
     e.preventDefault(); setCreatingTask(true);
     try {
@@ -364,7 +488,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   return (
     <main className="min-h-screen space-y-6 p-4 text-white md:p-7">
       <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.18em] text-sky-300">Truvi · Program Management</p><h1 className="mt-1 text-2xl font-semibold md:text-3xl">Ambassador Operating System</h1><p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage registration, certification, tasks, campaigns, approved incentive policies and payouts from one workspace.</p></div><Button variant="outline" onClick={() => { setLoading(true); void load(); }}><RefreshCw size={15} className="mr-2" />Refresh</Button></header>
-      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
+      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); if (id === "performance") void loadPerformance(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
 
       {tab === "overview" && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
