@@ -169,3 +169,17 @@ export function calculateWeightedPerformanceScore(input: {
     eligibleForLeaderboard: !input.seriousMisconduct,
   };
 }
+
+export type VerificationChecklistItem = { key: string; label: string };
+
+/** Validate that every required verification item is checked and no unknown keys are submitted. */
+export function validateVerificationChecklist(
+  items: VerificationChecklistItem[],
+  responses: string[],
+): { valid: boolean; missing: string[]; unknown: string[] } {
+  const allowed = new Set(items.map((item) => item.key));
+  const checked = new Set(responses);
+  const unknown = [...new Set(responses.filter((key) => !allowed.has(key)))];
+  const missing = items.filter((item) => !checked.has(item.key)).map((item) => item.label);
+  return { valid: unknown.length === 0 && missing.length === 0, missing, unknown };
+}
