@@ -2837,3 +2837,43 @@ export const ambassadorOsIncentives = pgTable(
     index("ambassador_os_incentives_user_status_idx").on(t.userId, t.status),
   ]
 );
+
+/** Versioned marketing guidelines require a new acknowledgement when published content changes. */
+export const ambassadorOsCampaignGuidelines = pgTable("ambassador_os_campaign_guidelines", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  version: integer("version").notNull(),
+  content: text("content").notNull(),
+  approvalReference: text("approval_reference").notNull(),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_campaign_guidelines_version_unique").on(t.campaignId, t.version), index("ambassador_os_campaign_guidelines_current_idx").on(t.campaignId, t.publishedAt)]);
+
+export const ambassadorOsCampaignAcknowledgements = pgTable("ambassador_os_campaign_acknowledgements", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+  guidelineVersion: integer("guideline_version").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_campaign_ack_version_unique").on(t.campaignId, t.ambassadorId, t.guidelineVersion), index("ambassador_os_campaign_ack_user_idx").on(t.ambassadorId, t.campaignId, t.guidelineVersion)]);
+
+export type AmbassadorOsMarketingMaterialStatus = "SUBMITTED" | "APPROVED" | "REJECTED" | "RETIRED";
+export const ambassadorOsMarketingMaterials = pgTable("ambassador_os_marketing_materials", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  title: text("title").notNull(),
+  channel: text("channel").$type<"WHATSAPP" | "INSTAGRAM" | "FACEBOOK" | "POSTER" | "EMAIL" | "BROCHURE" | "OTHER">().notNull(),
+  content: text("content").notNull(),
+  assetUrl: text("asset_url"),
+  version: integer("version").notNull().default(1),
+  status: text("status").$type<AmbassadorOsMarketingMaterialStatus>().notNull().default("SUBMITTED"),
+  validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }),
+  validTo: timestamp("valid_to", { withTimezone: true, mode: "date" }),
+  reviewerId: uuid("reviewer_id").references(() => users._id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+  reviewReason: text("review_reason"),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("ambassador_os_marketing_material_status_idx").on(t.status, t.campaignId), index("ambassador_os_marketing_material_dates_idx").on(t.validFrom, t.validTo)]);
