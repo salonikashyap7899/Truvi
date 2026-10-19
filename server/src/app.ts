@@ -1,7 +1,38 @@
 import express from "express";
-import { like } from "drizzle-orm";
 import { getDb } from "./config/db";
 import { buyerDocuments } from "./db/schema";
+
+// Cache the exact filenames that legacy buyer-document rows still reference.
+// New uploads use private storage; this avoids a database scan on every public
+// image request while ensuring old identity documents are not served publicly.
+let legacyBuyerUploadNamesPromise: Promise<Set<string>> | undefined;
+
+function legacyBuyerUploadName(storedUrl: string): string | null {
+  try {
+    const pathname = storedUrl.startsWith("http") ? new URL(storedUrl).pathname : storedUrl;
+    const marker = "/uploads/";
+    const at = pathname.indexOf(marker);
+    if (at < 0) return null;
+    const name = path.basename(decodeURIComponent(pathname.slice(at + marker.length)));
+    return name && name !== "." && name !== ".." ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLegacyBuyerUploadNames(): Promise<Set<string>> {
+  if (!legacyBuyerUploadNamesPromise) {
+    legacyBuyerUploadNamesPromise = getDb()
+      .select({ fileUrl: buyerDocuments.fileUrl })
+      .from(buyerDocuments)
+      .then((rows) => new Set(rows.map((row) => legacyBuyerUploadName(row.fileUrl)).filter((name): name is string => Boolean(name))))
+      .catch((error) => {
+        legacyBuyerUploadNamesPromise = undefined;
+        throw error;
+      });
+  }
+  return legacyBuyerUploadNamesPromise;
+}
 import cors from "cors";
 import compression from "compression";
 import morgan from "morgan";
@@ -147,12 +178,8 @@ export function createApp() {
     const filename = path.basename(req.path);
     if (!filename || filename === "." || filename === "..") return next();
     try {
-      const [legacyDoc] = await getDb()
-        .select({ id: buyerDocuments._id })
-        .from(buyerDocuments)
-        .where(like(buyerDocuments.fileUrl, `%/uploads/${filename}`))
-        .limit(1);
-      if (legacyDoc) return res.status(404).end();
+      const legacyNames = await getLegacyBuyerUploadNames();
+      if (legacyNames.has(filename)) return res.status(404).end();
       return next();
     } catch (error) {
       // Fail closed if the server cannot confirm that the file is public.
