@@ -929,6 +929,10 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
   if (!lead) return res.status(409).json({ error: "Booking's source lead no longer exists" });
   const now = new Date();
   const nextReceived = parsed.data.amountReceived ?? current.amountReceived;
+  if (nextReceived > current.bookingValue) return res.status(400).json({ error: "Recorded amount received cannot exceed the approved booking value" });
+  if (parsed.data.refundAmount !== undefined && parsed.data.refundAmount > nextReceived) {
+    return res.status(400).json({ error: "Refund amount cannot exceed the recorded amount received" });
+  }
   const milestone = parsed.data.paymentMilestone ?? current.paymentMilestone;
   const agreementReference = parsed.data.agreementReference ?? current.agreementReference;
   if (parsed.data.status === "VERIFIED") {
@@ -1021,6 +1025,74 @@ router.patch("/admin/bookings/:id/status", requireRole("ADMIN"), async (req: Aut
     return updated;
   });
   if (!result) return res.status(409).json({ error: "The booking was changed by another administrator. Refresh before updating it." });
+
+  // Keep the payout ledger consistent with the approved cancellation policy.
+  // Unpaid incentives cannot remain payable after the sale is cancelled or a refund is open.
+  const cancellationEvent = ["CANCELLED", "REFUND_PENDING", "REFUNDED"].includes(result.status);
+  if (cancellationEvent) {
+    const linkedIncentives = await db.select().from(ambassadorOsIncentives)
+      .where(eq(ambassadorOsIncentives.propertyBookingId, result._id));
+    const adminRows = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
+    for (const incentive of linkedIncentives) {
+      const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, incentive.policyId));
+      const treatment = policy?.cancellationTreatment ?? "MANUAL_REVIEW";
+      if (incentive.status !== "PAID" && incentive.status !== "CANCELLED") {
+        if (treatment === "MANUAL_REVIEW") {
+          await db.update(ambassadorOsIncentives).set({
+            status: "CANCELLED",
+            recoveryStatus: "PENDING_REVIEW",
+            recoveryAmount: incentive.amount,
+          }).where(and(eq(ambassadorOsIncentives._id, incentive._id), eq(ambassadorOsIncentives.status, incentive.status)));
+        } else {
+          await db.update(ambassadorOsIncentives).set({
+            status: "CANCELLED",
+            recoveryStatus: "NOT_REQUIRED",
+            recoveryAmount: 0,
+          }).where(and(eq(ambassadorOsIncentives._id, incentive._id), eq(ambassadorOsIncentives.status, incentive.status)));
+        }
+        await logAudit({
+          userId: req.user!.userId,
+          action: "ambassador_os.incentive.cancel_on_booking_cancellation",
+          resourceType: "ambassador_os_incentive",
+          resourceId: incentive._id,
+          metadata: { bookingId: result._id, previousStatus: incentive.status, treatment, recoveryStatus: treatment === "MANUAL_REVIEW" ? "PENDING_REVIEW" : "NOT_REQUIRED" },
+        });
+        await notifySafely([incentive.userId], {
+          type: "ambassador_incentive_status",
+          title: "Incentive paused after booking cancellation/refund",
+          message: treatment === "MANUAL_REVIEW"
+            ? "The linked property booking was cancelled or refunded. Finance review is required before any recovery is resolved."
+            : "The linked property booking was cancelled or moved to refund review, so this unpaid incentive was cancelled under its approved policy.",
+          data: { screen: "AmbassadorOperatingSystem", incentiveId: incentive._id, status: "CANCELLED" },
+          actorUserId: req.user!.userId,
+          priority: "high",
+          dedupeKey: `${incentive._id}:booking-cancelled:${result.status}`,
+        });
+      } else if (incentive.status === "PAID" && treatment !== "CANCEL_INCENTIVE") {
+        const recoveryStatus = treatment === "RECOVER_PAID" ? "RECOVERY_REQUIRED" : "PENDING_REVIEW";
+        await db.update(ambassadorOsIncentives).set({
+          recoveryStatus,
+          recoveryAmount: incentive.amount,
+        }).where(eq(ambassadorOsIncentives._id, incentive._id));
+        await logAudit({
+          userId: req.user!.userId,
+          action: "ambassador_os.incentive.recovery_required",
+          resourceType: "ambassador_os_incentive",
+          resourceId: incentive._id,
+          metadata: { bookingId: result._id, treatment, recoveryAmount: incentive.amount, recoveryStatus },
+        });
+        await notifySafely(adminRows.map((row) => row.userId), {
+          type: "ambassador_incentive_recovery_review",
+          title: "Finance review required for cancelled sale",
+          message: `${result.bookingReference} was cancelled/refunded after the related incentive was paid. Review the policy's ${treatment.replace(/_/g, " ").toLowerCase()} rule.`,
+          data: { screen: "AdminAmbassadorOperatingSystem", bookingId: result._id, incentiveId: incentive._id },
+          actorUserId: req.user!.userId,
+          priority: "high",
+          dedupeKey: `${incentive._id}:recovery:${result.status}`,
+        });
+      }
+    }
+  }
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.booking.status", resourceType: "ambassador_os_property_booking", resourceId: current._id, metadata: { bookingReference: current.bookingReference, from: current.status, to: result.status, reason: parsed.data.reason ?? null } });
   const recipients = [lead.submittedById, ...((lead.referralChain ?? []).map((r) => r.userId))].filter((id, index, all) => Boolean(id) && all.indexOf(id) === index);
   await notifySafely(recipients, {
@@ -1641,6 +1713,15 @@ router.patch("/admin/incentives/:id/status", requireRole("ADMIN"), async (req: A
   const [current] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives._id, String(req.params.id)));
   if (!current) return res.status(404).json({ error: "Incentive record not found" });
   if (!canTransitionIncentiveStatus(current.status, parsed.data.status)) return res.status(409).json({ error: `Invalid payout transition: ${current.status} → ${parsed.data.status}` });
+  if (["PAYABLE", "PAID"].includes(parsed.data.status) && current.recoveryStatus && current.recoveryStatus !== "NOT_REQUIRED") {
+    return res.status(409).json({ error: "This incentive has an unresolved cancellation/recovery review and cannot move to payable or paid." });
+  }
+  if (["PAYABLE", "PAID"].includes(parsed.data.status) && current.propertyBookingId) {
+    const [linkedBooking] = await db.select().from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings._id, current.propertyBookingId));
+    if (!linkedBooking || ["CANCELLED", "REFUND_PENDING", "REFUNDED", "REJECTED"].includes(linkedBooking.status)) {
+      return res.status(409).json({ error: "A cancelled, refunded, or rejected property booking cannot have a new payable/paid incentive transition." });
+    }
+  }
   if (parsed.data.status === "PAID" && !parsed.data.paymentReference?.trim()) return res.status(400).json({ error: "Payment reference/receipt is required before marking an incentive paid" });
   const now = new Date();
   const [updated] = await db.update(ambassadorOsIncentives).set({
