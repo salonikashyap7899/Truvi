@@ -30,7 +30,7 @@ type Task = {
   _id: string; title: string; category: string; description: string; status: string;
   dueAt?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; reviewReason?: string | null;
 };
-type Campaign = { id: string; name: string; projectName: string; location: string; targetInventory: number; unitAreaSqFt: number; targetDays: number; status: string };
+type Campaign = { id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales: number; unitAreaSqFt: number; targetDays: number; status: string };
 type Incentive = { _id: string; bookingReference: string; policyNameSnapshot: string; policyVersion: number; amount: number; status: string; paymentReference?: string | null; createdAt: string };
 type Snapshot = {
   profile: Profile;
@@ -260,7 +260,7 @@ export default function AmbassadorOperatingSystemPage() {
         </Card>
         <Card className="border-white/10 bg-white/[0.035] p-5">
           <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="text-sky-300" /> Active Campaigns</h2><Badge variant="info">{campaigns.length}</Badge></div>
-          {campaigns.length === 0 ? <Empty text="No verified active campaign has been published yet." /> : <div className="space-y-3">{campaigns.map((campaign) => <div key={campaign.id} className="rounded-xl border border-white/10 p-4"><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-sm text-muted-foreground">{campaign.projectName} · {campaign.location}</p><div className="mt-3 grid grid-cols-3 gap-2"><MiniMetric label="Target units" value={String(campaign.targetInventory)} /><MiniMetric label="Area per unit" value={`${campaign.unitAreaSqFt.toLocaleString("en-IN")} sq ft`} /><MiniMetric label="Target days" value={String(campaign.targetDays)} /></div><p className="mt-3 text-xs text-muted-foreground">Campaign targets are planning settings, not a promise of availability or a guaranteed sale.</p></div>)}</div>}
+          {campaigns.length === 0 ? <Empty text="No verified active campaign has been published yet." /> : <div className="space-y-3">{campaigns.map((campaign) => <div key={campaign.id} className="rounded-xl border border-white/10 p-4"><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-sm text-muted-foreground">{campaign.projectName} · {campaign.location}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><MiniMetric label="Available-unit target" value={String(campaign.targetInventory)} /><MiniMetric label="Verified sales / goal" value={`${campaign.verifiedSales} / ${campaign.salesTarget}`} /><MiniMetric label="Area per unit" value={`${campaign.unitAreaSqFt.toLocaleString("en-IN")} sq ft`} /><MiniMetric label="Target days" value={String(campaign.targetDays)} /></div><p className="mt-3 text-xs text-muted-foreground">Campaign targets are planning settings, not a promise of availability or a guaranteed sale.</p></div>)}</div>}
         </Card>
       </section>
 
