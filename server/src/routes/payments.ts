@@ -189,9 +189,9 @@ router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, re
 
 // ── Verify payment (called by the browser after the modal succeeds) ────────
 const verifySchema = z.object({
-  razorpay_order_id: z.string().min(1),
-  razorpay_payment_id: z.string().min(1),
-  razorpay_signature: z.string().min(1),
+  razorpay_order_id: z.string().min(1).max(200),
+  razorpay_payment_id: z.string().min(1).max(200),
+  razorpay_signature: z.string().regex(/^[0-9a-f]{64}$/i, "Invalid signature format"),
 });
 
 router.post("/verify", async (req, res) => {
@@ -211,7 +211,7 @@ router.post("/verify", async (req, res) => {
     .digest("hex");
   const valid =
     expected.length === razorpay_signature.length &&
-    crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(razorpay_signature));
+    crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(razorpay_signature, "hex"));
   if (!valid) return res.status(400).json({ error: "Payment signature verification failed" });
 
   const db = getDb();
@@ -385,9 +385,9 @@ router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequ
 
 // ── Verify subscription (browser calls after the modal succeeds) ───────────
 const verifySubSchema = z.object({
-  razorpay_payment_id: z.string().min(1),
-  razorpay_subscription_id: z.string().min(1),
-  razorpay_signature: z.string().min(1),
+  razorpay_payment_id: z.string().min(1).max(200),
+  razorpay_subscription_id: z.string().min(1).max(200),
+  razorpay_signature: z.string().regex(/^[0-9a-f]{64}$/i, "Invalid signature format"),
 });
 
 router.post("/verify-subscription", async (req, res) => {
@@ -490,13 +490,18 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
   const signature = req.headers["x-razorpay-signature"];
   const raw = req.body as Buffer; // express.raw → Buffer
 
-  if (!env.razorpayWebhookSecret || typeof signature !== "string" || !Buffer.isBuffer(raw)) {
+  if (
+    !env.razorpayWebhookSecret ||
+    typeof signature !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(signature) ||
+    !Buffer.isBuffer(raw)
+  ) {
     return res.status(400).json({ error: "Invalid webhook" });
   }
 
   const expected = crypto.createHmac("sha256", env.razorpayWebhookSecret).update(raw).digest("hex");
   const valid =
-    expected.length === signature.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+    expected.length === signature.length && crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(signature, "hex"));
   if (!valid) return res.status(400).json({ error: "Invalid signature" });
 
   let event: any;
@@ -521,7 +526,7 @@ export async function razorpayWebhookHandler(req: Request, res: Response) {
           entity.order_id === row.razorpayOrderId &&
           Number(entity.amount) === expectedAmount &&
           entity.currency === row.currency;
-        if (matchesOrder && row.status !== "PAID") {
+        if (row && paymentId && matchesOrder && row.status !== "PAID") {
           const [updated] = await db
             .update(payments)
             .set({ status: "PAID", razorpayPaymentId: paymentId, updatedAt: new Date() })
