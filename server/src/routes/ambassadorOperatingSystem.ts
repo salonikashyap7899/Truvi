@@ -2986,7 +2986,7 @@ router.post("/admin/retention-run", requireRole("ADMIN"), async (req: AuthedRequ
     const cutoff = new Date(now.getTime() - policy.retentionDays * 24 * 60 * 60 * 1000);
     let affectedRows = 0;
     if (policy.dataCategory === "TASK_EVIDENCE") {
-      const changed = await db.update(ambassadorOsTasks).set({ evidenceText: null, evidenceUrl: null, updatedAt: now })
+      const changed = await db.update(ambassadorOsTasks).set({ evidenceText: null, evidenceUrl: null })
         .where(and(lte(ambassadorOsTasks.createdAt, cutoff), inArray(ambassadorOsTasks.status, ["APPROVED", "CLOSED"]))).returning({ _id: ambassadorOsTasks._id });
       affectedRows = changed.length;
     } else if (policy.dataCategory === "TRAINING_ASSIGNMENT_TEXT") {
@@ -3000,7 +3000,7 @@ router.post("/admin/retention-run", requireRole("ADMIN"), async (req: AuthedRequ
     }
     results.push({ category: policy.dataCategory, policyVersion: policy.policyVersion, retentionDays: policy.retentionDays, affectedRows });
   }
-  await logAudit({ userId: req.user!.userId, action: "ambassador_os.retention.run", resourceType: "ambassador_os_retention_run", resourceId: null, metadata: { approvalReference: parsed.data.approvalReference, results, runAt: now.toISOString() } });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.retention.run", resourceType: "ambassador_os_retention_run", resourceId: now.toISOString(), metadata: { approvalReference: parsed.data.approvalReference, results, runAt: now.toISOString() } });
   res.json({ runAt: now, approvalReference: parsed.data.approvalReference, results, totalAffectedRows: results.reduce((sum, row) => sum + row.affectedRows, 0), message: "Only evidence/content covered by formally approved active policies was redacted; financial and booking ledgers were not removed." });
 });
 
