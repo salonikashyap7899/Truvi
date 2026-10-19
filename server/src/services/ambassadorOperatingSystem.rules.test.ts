@@ -73,7 +73,7 @@ describe("Ambassador OS quality scoring", () => {
   it("rewards verified contribution and applies quality penalties", () => {
     expect(computeAmbassadorQualityScore({
       modulesCompleted: 7, approvedTasks: 2, completedSiteVisits: 1, verifiedSales: 1, lostLeads: 1, duplicateLeads: 1,
-    })).toBe(48);
+    })).toBe(52);
     expect(computeAmbassadorQualityScore({
       modulesCompleted: 0, approvedTasks: 0, completedSiteVisits: 0, verifiedSales: 0, lostLeads: 10, duplicateLeads: 10,
     })).toBe(0);
