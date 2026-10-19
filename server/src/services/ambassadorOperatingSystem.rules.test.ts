@@ -6,6 +6,7 @@ import {
   computeAmbassadorQualityScore,
   isEligibleAmbassadorSale,
   isTrainingDayComplete,
+  statusAfterTrainingReview,
 } from "./ambassadorOperatingSystem.rules";
 
 describe("Ambassador OS training certification", () => {
@@ -77,5 +78,21 @@ describe("Ambassador OS quality scoring", () => {
     expect(computeAmbassadorQualityScore({
       modulesCompleted: 0, approvedTasks: 0, completedSiteVisits: 0, verifiedSales: 0, lostLeads: 10, duplicateLeads: 10,
     })).toBe(0);
+  });
+});
+
+
+describe("Ambassador OS operational status safety", () => {
+  it("does not reactivate a suspended or exited account through a training review", () => {
+    expect(statusAfterTrainingReview({ currentStatus: "SUSPENDED", allTrainingComplete: true, reviewedDayComplete: true })).toBe("SUSPENDED");
+    expect(statusAfterTrainingReview({ currentStatus: "EXITED", allTrainingComplete: true, reviewedDayComplete: true })).toBe("EXITED");
+    expect(statusAfterTrainingReview({ currentStatus: "ACTIVE", allTrainingComplete: true, reviewedDayComplete: true })).toBe("ACTIVE");
+    expect(statusAfterTrainingReview({ currentStatus: "TEMPORARILY_INACTIVE", allTrainingComplete: true, reviewedDayComplete: true })).toBe("TEMPORARILY_INACTIVE");
+  });
+
+  it("certifies a normally progressing profile only after the final day is complete", () => {
+    expect(statusAfterTrainingReview({ currentStatus: "TRAINING_IN_PROGRESS", allTrainingComplete: true, reviewedDayComplete: true })).toBe("CERTIFIED");
+    expect(statusAfterTrainingReview({ currentStatus: "ASSESSMENT_PENDING", allTrainingComplete: false, reviewedDayComplete: true })).toBe("TRAINING_IN_PROGRESS");
+    expect(statusAfterTrainingReview({ currentStatus: "TRAINING_IN_PROGRESS", allTrainingComplete: false, reviewedDayComplete: false })).toBe("ASSESSMENT_PENDING");
   });
 });
