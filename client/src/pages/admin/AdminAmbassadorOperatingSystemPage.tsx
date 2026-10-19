@@ -30,13 +30,18 @@ type Policy = {
   commissionAgreementReference?: string | null;
 };
 type Incentive = { _id: string; userId: string; ambassadorName: string; ambassadorEmail: string; bookingReference: string; amount: number; policyNameSnapshot: string; policyVersion: number; status: string; paymentReference?: string | null; expectedPayoutAt?: string | null; };
-type EligibleSale = { leadId: string; leadReference: string; projectId: string; projectName: string; unitId?: string | null; unitNumber?: string | null; areaSqFt?: number | null; stage: string };
+type EligibleBooking = { bookingId: string; bookingReference: string; leadReference: string; projectId: string; projectName: string; unitNumber?: string | null; areaSqFt?: number | null; bookingValue: number; amountReceived: number; bookingStatus: string; paymentMilestone: string; stage: string };
+type PipelineLead = { _id: string; leadReference: string; stage: string; clientName: string; clientPhone: string; projectId: string; projectName: string; unitId?: string | null; unitNumber?: string | null; requirement?: string | null; sourceChannel?: string | null; budgetRange?: string | null; purchasePurpose?: string | null; preferredPlotSize?: string | null; purchaseTimeline?: string | null; isDuplicate: boolean; ownershipReviewStatus: string; assignedToId?: string | null; createdAt: string };
+type BookingRecord = { _id: string; bookingReference: string; leadId: string; leadReference: string; projectId: string; projectName: string; unitId?: string | null; unitNumber?: string | null; status: string; bookingValue: number; amountReceived: number; paymentMilestone: string; expectedIncentivePayoutAt?: string | null; cancellationReason?: string | null; sourceChannel?: string | null; customerName: string; submitterName?: string | null };
+type SalesPipeline = { leads: PipelineLead[]; bookings: BookingRecord[]; campaigns: Campaign[]; channelCosts: Array<{ _id: string; campaignId: string; sourceChannel: string; amount: number; periodStart: string; periodEnd: string; notes?: string | null }> };
+type SalesSummary = { campaigns: Array<{ campaignId: string; campaignName: string; projectName: string; location: string; targetUnits: number; verifiedUnitsSold: number; unitsRemaining: number; totalEnquiries: number; qualifiedLeads: number; siteVisitsScheduled: number; siteVisitsCompleted: number; bookingsPendingVerification: number; cancelledBookings: number; campaignDaysRemaining: number | null; commissionEarned: number; totalBookingRecords: number; conversion: { leadToContacted: number; contactedToQualified: number; qualifiedToVisitScheduled: number; scheduledToCompleted: number; completedToBooking: number; bookingToVerifiedSale: number }; channels: Array<{ sourceChannel: string; cost: number; leads: number; qualifiedLeads: number; siteVisits: number; verifiedSales: number; costPerQualifiedLead: number | null }> }> };
 type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
-type Tab = "overview" | "ambassadors" | "training" | "tasks" | "campaigns" | "policies" | "incentives";
+type Tab = "overview" | "ambassadors" | "training" | "training-content" | "tasks" | "sales" | "followups" | "campaigns" | "policies" | "incentives";
 const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
   { id: "overview", label: "Overview", Icon: ChartNoAxesCombined }, { id: "ambassadors", label: "Ambassadors", Icon: Users },
-  { id: "training", label: "Training Reviews", Icon: GraduationCap }, { id: "tasks", label: "Tasks", Icon: ClipboardList },
+  { id: "training", label: "Training Reviews", Icon: GraduationCap }, { id: "training-content", label: "Learning Content", Icon: BookOpen }, { id: "tasks", label: "Tasks", Icon: ClipboardList },
+  { id: "sales", label: "Sales & Bookings", Icon: ChartNoAxesCombined }, { id: "followups", label: "Follow-ups", Icon: Clock },
   { id: "campaigns", label: "Campaigns", Icon: Building2 }, { id: "policies", label: "Incentive Policies", Icon: ShieldCheck },
   { id: "incentives", label: "Payouts", Icon: Wallet },
 ];
@@ -46,7 +51,11 @@ const pretty = (value: string) => value.replace(/_/g, " ").toLowerCase().replace
 export default function AdminAmbassadorOperatingSystemPage() {
   const [data, setData] = useState<Overview | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [salesPipeline, setSalesPipeline] = useState<SalesPipeline | null>(null);
+  const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null);
+  const [followUps, setFollowUps] = useState<Array<any>>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingSales, setLoadingSales] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
   const [creatingTask, setCreatingTask] = useState(false);
   const [creatingCampaign, setCreatingCampaign] = useState(false);
@@ -63,6 +72,15 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [incentiveForm, setIncentiveForm] = useState({ userId: "", bookingId: "", policyId: "", verifiedAreaSqFt: 1250 });
   const [eligibleBookings, setEligibleBookings] = useState<EligibleBooking[]>([]);
   const [loadingEligibleBookings, setLoadingEligibleBookings] = useState(false);
+  const [bookingForm, setBookingForm] = useState({ leadId: "", campaignId: "", bookingValue: "", amountReceived: "0", paymentMilestone: "BOOKING_CONFIRMED", agreementReference: "", notes: "" });
+  const [reviewBookingReason, setReviewBookingReason] = useState<Record<string,string>>({});
+  const [refundForm, setRefundForm] = useState<Record<string,{refundAmount:string;refundReference:string;reason:string}>>({});
+  const [channelCostForm, setChannelCostForm] = useState({ campaignId: "", sourceChannel: "AMBASSADOR_REFERRAL", amount: "", periodStart: "", periodEnd: "", evidenceReference: "", notes: "" });
+  const [savingBooking, setSavingBooking] = useState(false);
+  const [savingChannelCost, setSavingChannelCost] = useState(false);
+  const [trainingContent, setTrainingContent] = useState<Array<any>>([]);
+  const [trainingContentForm, setTrainingContentForm] = useState({ day: 1, title: "", summary: "", lesson: "", keyPoints: "", assignment: "", videoUrl: "", isPublished: false });
+  const [savingTrainingContent, setSavingTrainingContent] = useState(false);
   const [reviewState, setReviewState] = useState<Record<string, { practicalStatus: string; ethicsStatus: string; trainerFeedback: string }>>({});
   const [taskReviews, setTaskReviews] = useState<Record<string, { reviewReason: string; paymentReference: string }>>({});
   const [policyApproval, setPolicyApproval] = useState<Record<string, string>>({});
@@ -79,21 +97,46 @@ export default function AdminAmbassadorOperatingSystemPage() {
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load Ambassador OS admin data"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void loadTrainingContent(); }, []);
 
-  async function loadEligibleSales(userId: string) {
-    setEligibleSales([]);
-    setIncentiveForm((form) => ({ ...form, userId, leadId: "", verifiedAreaSqFt: 1250, bookingValue: "" }));
+  async function loadEligibleBookings(userId: string) {
+    setEligibleBookings([]);
+    setIncentiveForm((form) => ({ ...form, userId, bookingId: "", verifiedAreaSqFt: 1250 }));
     if (!userId) return;
-    setLoadingEligibleSales(true);
+    setLoadingEligibleBookings(true);
     try {
-      const res = await api.get(`/ambassador-os/admin/eligible-sales/${userId}`);
-      setEligibleSales(res.data.eligibleSales as EligibleSale[]);
+      const res = await api.get(`/ambassador-os/admin/eligible-bookings/${userId}`);
+      setEligibleBookings(res.data.eligibleBookings as EligibleBooking[]);
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Could not load eligible registered sales");
+      toast.error(error?.response?.data?.error || "Could not load eligible verified bookings");
     } finally {
-      setLoadingEligibleSales(false);
+      setLoadingEligibleBookings(false);
     }
+  }
+
+  async function loadSalesWorkspace() {
+    setLoadingSales(true);
+    try {
+      const [pipelineRes, summaryRes, followRes] = await Promise.all([
+        api.get("/ambassador-os/admin/sales-pipeline"),
+        api.get("/ambassador-os/admin/sales-dashboard"),
+        api.get("/ambassador-os/admin/follow-ups"),
+      ]);
+      setSalesPipeline(pipelineRes.data as SalesPipeline);
+      setSalesSummary(summaryRes.data as SalesSummary);
+      setFollowUps(followRes.data.followUps ?? []);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not load sales workspace");
+    } finally {
+      setLoadingSales(false);
+    }
+  }
+
+  async function loadTrainingContent() {
+    try {
+      const res = await api.get("/ambassador-os/admin/training-modules");
+      setTrainingContent(res.data.modules ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load learning content"); }
   }
 
   async function updateProfile(userId: string, values: Record<string, string>) {
@@ -172,9 +215,10 @@ export default function AdminAmbassadorOperatingSystemPage() {
   async function createIncentive(e: React.FormEvent) {
     e.preventDefault(); setCreatingIncentive(true);
     try {
+      const selectedBooking = eligibleBookings.find((booking) => booking.bookingId === incentiveForm.bookingId);
       await api.post("/ambassador-os/admin/incentives", {
-        ...incentiveForm, verifiedAreaSqFt: Number(incentiveForm.verifiedAreaSqFt),
-        bookingValue: incentiveForm.bookingValue === "" ? undefined : Number(incentiveForm.bookingValue),
+        userId: incentiveForm.userId, bookingId: incentiveForm.bookingId, policyId: incentiveForm.policyId,
+        verifiedAreaSqFt: selectedBooking?.areaSqFt ? undefined : Number(incentiveForm.verifiedAreaSqFt),
       });
       toast.success("Incentive recorded as pending approval"); await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not record incentive"); }
