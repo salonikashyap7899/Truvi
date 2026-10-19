@@ -178,7 +178,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
   const modules = MODULES.map((module) => {
     const row = progressByDay.get(module.day);
     const previousComplete = module.day === 1 || progressByDay.get(module.day - 1)?.status === "COMPLETED";
-    const unlocked = previousComplete && Boolean(profile.termsAcceptedAt) && req.user!.onboardingVerified === true;
+    const unlocked = previousComplete && Boolean(profile.termsAcceptedAt) && account?.onboardingVerified === true;
     return { ...safeModule(module), unlocked, progress: row ?? null };
   });
   const leadSummary = {
