@@ -90,7 +90,7 @@ export type LeadSourceChannel =
 export type LeadPurchasePurpose = "SELF_USE" | "INVESTMENT" | "UNDECIDED";
 export type LeadOwnershipReviewStatus = "NOT_REQUIRED" | "OPEN" | "UNDER_REVIEW" | "RESOLVED";
 export type AmbassadorPropertyBookingStatus =
-  | "SUBMITTED" | "UNDER_REVIEW" | "VERIFIED" | "REJECTED"
+  | "SUBMITTED" | "UNDER_REVIEW" | "VERIFIED" | "SALE_VERIFIED" | "REJECTED"
   | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
 export type AmbassadorBookingPaymentMilestone =
   | "BOOKING_CONFIRMED" | "TOKEN_RECEIVED" | "AGREEMENT_SIGNED"
@@ -2442,6 +2442,28 @@ export const ambassadorOsProfiles = pgTable(
   ]
 );
 
+export const ambassadorOsTrainingModules = pgTable(
+  "ambassador_os_training_modules",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    day: integer("day").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    lesson: text("lesson").notNull(),
+    keyPoints: jsonb("key_points").$type<string[]>().notNull().default([]),
+    assignment: text("assignment").notNull(),
+    videoUrl: text("video_url"),
+    version: integer("version").notNull().default(1),
+    isPublished: boolean("is_published").notNull().default(false),
+    publishedById: uuid("published_by_id").references(() => users._id),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_os_training_modules_day_pub_idx").on(t.day, t.isPublished, t.version)]
+);
+
 export const ambassadorOsTrainingProgress = pgTable(
   "ambassador_os_training_progress",
   {
@@ -2580,6 +2602,25 @@ export const ambassadorOsPropertyBookings = pgTable(
 );
 export type IAmbassadorOsPropertyBooking = typeof ambassadorOsPropertyBookings.$inferSelect;
 
+export const ambassadorOsChannelCosts = pgTable(
+  "ambassador_os_channel_costs",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+    sourceChannel: text("source_channel").$type<LeadSourceChannel>().notNull(),
+    amount: doublePrecision("amount").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }).notNull(),
+    evidenceReference: text("evidence_reference"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_channel_cost_campaign_idx").on(t.campaignId, t.sourceChannel, t.periodStart),
+  ]
+);
+
 export const ambassadorOsPropertyBookingHistory = pgTable(
   "ambassador_os_property_booking_history",
   {
@@ -2606,7 +2647,7 @@ export const ambassadorOsIncentivePolicies = pgTable(
     amount: doublePrecision("amount").notNull(),
     blockSizeSqFt: integer("block_size_sq_ft").notNull().default(1000),
     eligibleSources: jsonb("eligible_sources").$type<string[]>().notNull().default([]),
-    requiredBookingStatus: text("required_booking_status").$type<AmbassadorPropertyBookingStatus>().notNull().default("VERIFIED"),
+    requiredBookingStatus: text("required_booking_status").$type<AmbassadorPropertyBookingStatus>().notNull().default("SALE_VERIFIED"),
     paymentMilestone: text("payment_milestone").$type<AmbassadorBookingPaymentMilestone>().notNull().default("BOOKING_CONFIRMED"),
     cancellationTreatment: text("cancellation_treatment").$type<"CANCEL_INCENTIVE" | "RECOVER_PAID" | "MANUAL_REVIEW">().notNull().default("CANCEL_INCENTIVE"),
     payoutDelayDays: integer("payout_delay_days").notNull().default(30),
