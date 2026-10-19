@@ -171,7 +171,7 @@ export default function AmbassadorOperatingSystemPage() {
             <div><h1 className="text-2xl font-semibold sm:text-3xl">Ambassador Operating System</h1><p className="mt-1 text-sm text-muted-foreground">Learn, complete tasks, contribute to sales and track your journey.</p></div>
           </div>
         </div>
-        <div className="flex items-center gap-2"><Badge variant={profile.status === "ACTIVE" ? "success" : "warning"}>{statusText[profile.status] ?? profile.status}</Badge><Badge variant="outline">{profile.currentLevel}</Badge></div>
+        <div className="flex items-center gap-2"><Badge variant={profile.status === "ACTIVE" ? "success" : "warning"}>{statusText[profile.status] ?? profile.status}</Badge><Badge variant="info">{profile.currentLevel}</Badge></div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -186,7 +186,7 @@ export default function AmbassadorOperatingSystemPage() {
       <section className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
         <Card className="border-white/10 bg-white/[0.035] p-5">
           <div className="mb-4 flex items-center gap-2"><Users size={19} className="text-sky-300" /><h2 className="text-lg font-semibold">My Ambassador Profile</h2></div>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/10 p-3"><div><p className="text-xs text-muted-foreground">Permanent Ambassador ID</p><p className="font-semibold tracking-wide">{profile.ambassadorId}</p></div><Badge variant="outline">{profile.termsAccepted ? "Terms accepted" : "Terms pending"}</Badge></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/10 p-3"><div><p className="text-xs text-muted-foreground">Permanent Ambassador ID</p><p className="font-semibold tracking-wide">{profile.ambassadorId}</p></div><Badge variant="info">{profile.termsAccepted ? "Terms accepted" : "Terms pending"}</Badge></div>
           <div className="mb-4 grid gap-2 sm:grid-cols-3">
             <StatusPill label="Email" value={verification.emailVerified ? "Verified" : "Pending"} good={verification.emailVerified} />
             <StatusPill label="Phone" value={verification.phoneVerified ? "Verified" : "Pending"} good={verification.phoneVerified} />
@@ -210,7 +210,7 @@ export default function AmbassadorOperatingSystemPage() {
           <div className="space-y-3">
             {careerLevels.map((level) => {
               const reached = careerLevels.findIndex((x) => x.level === profile.currentLevel) >= careerLevels.findIndex((x) => x.level === level.level);
-              return <div key={level.level} className="flex items-start gap-3"><div className={`mt-0.5 rounded-full p-1.5 ${reached ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-muted-foreground"}`}>{reached ? <CheckCircle2 size={16} /> : <LockKeyhole size={16} />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{level.level} · {level.title}</span>{level.level === profile.currentLevel && <Badge variant="outline">Current</Badge>}</div><p className="text-xs text-muted-foreground">{level.requirement}</p></div></div>;
+              return <div key={level.level} className="flex items-start gap-3"><div className={`mt-0.5 rounded-full p-1.5 ${reached ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-muted-foreground"}`}>{reached ? <CheckCircle2 size={16} /> : <LockKeyhole size={16} />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{level.level} · {level.title}</span>{level.level === profile.currentLevel && <Badge variant="info">Current</Badge>}</div><p className="text-xs text-muted-foreground">{level.requirement}</p></div></div>;
             })}
           </div>
           <p className="mt-4 text-xs text-muted-foreground">Levels and opportunities are subject to assessment, vacancies and eligibility; advancement is not automatic or guaranteed.</p>
@@ -218,7 +218,7 @@ export default function AmbassadorOperatingSystemPage() {
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 text-xl font-semibold"><BookOpen className="text-sky-300" /> Seven-day Learning Academy</h2><p className="mt-1 text-sm text-muted-foreground">Each day unlocks after the previous day's quiz, practical and ethics review have been approved.</p></div><Badge variant="outline">{performance.modulesCompleted}/7 completed</Badge></div>
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="flex items-center gap-2 text-xl font-semibold"><BookOpen className="text-sky-300" /> Seven-day Learning Academy</h2><p className="mt-1 text-sm text-muted-foreground">Each day unlocks after the previous day's quiz, practical and ethics review have been approved.</p></div><Badge variant="info">{performance.modulesCompleted}/7 completed</Badge></div>
         {!profile.termsAccepted && <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-100">Save your profile and accept the program terms to unlock training. Identity verification is also required.</p>}
         {!verification.onboardingVerified && <p className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-100">Complete the existing Truvi identity verification process before submitting training assessments.</p>}
         <div className="grid gap-4 lg:grid-cols-[290px_1fr]">
@@ -245,11 +245,11 @@ export default function AmbassadorOperatingSystemPage() {
 
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
         <Card className="border-white/10 bg-white/[0.035] p-5">
-          <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><ClipboardList className="text-sky-300" /> My Tasks</h2><Badge variant="outline">{tasks.length}</Badge></div>
+          <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><ClipboardList className="text-sky-300" /> My Tasks</h2><Badge variant="info">{tasks.length}</Badge></div>
           {tasks.length === 0 ? <Empty text="No operating-system tasks assigned yet." /> : <div className="space-y-3">{tasks.map((task) => <div key={task._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{task.title}</p><Badge variant={task.status === "APPROVED" ? "success" : task.status === "REJECTED" ? "danger" : "outline"}>{statusText[task.status] ?? task.status}</Badge></div><p className="mt-1 text-xs uppercase tracking-wide text-sky-300">{task.category.replace(/_/g, " ")}</p><p className="mt-2 text-sm text-muted-foreground">{task.description}</p>{task.dueAt && <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><Clock3 size={13} />Due {new Date(task.dueAt).toLocaleString()}</p>}{task.reviewReason && <p className="mt-2 text-sm text-amber-200">Reviewer: {task.reviewReason}</p>}{["ASSIGNED", "IN_PROGRESS", "REJECTED"].includes(task.status) && <div className="mt-3 space-y-2"><textarea rows={2} className="w-full rounded-lg border border-white/10 bg-slate-950 p-3 text-sm" placeholder="Describe the work completed / evidence…" value={evidenceByTask[task._id]?.text ?? task.evidenceText ?? ""} onChange={(e) => setEvidenceByTask((prev) => ({ ...prev, [task._id]: { text: e.target.value, url: prev[task._id]?.url ?? task.evidenceUrl ?? "" } }))} /><input className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3 text-sm" placeholder="Evidence URL (optional)" value={evidenceByTask[task._id]?.url ?? task.evidenceUrl ?? ""} onChange={(e) => setEvidenceByTask((prev) => ({ ...prev, [task._id]: { text: prev[task._id]?.text ?? task.evidenceText ?? "", url: e.target.value } }))} /><Button size="sm" onClick={() => void submitTask(task)} disabled={submittingTask === task._id}>{submittingTask === task._id ? "Submitting…" : "Submit for review"}</Button></div>}</div>)}</div>}
         </Card>
         <Card className="border-white/10 bg-white/[0.035] p-5">
-          <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="text-sky-300" /> Active Campaigns</h2><Badge variant="outline">{campaigns.length}</Badge></div>
+          <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="text-sky-300" /> Active Campaigns</h2><Badge variant="info">{campaigns.length}</Badge></div>
           {campaigns.length === 0 ? <Empty text="No verified active campaign has been published yet." /> : <div className="space-y-3">{campaigns.map((campaign) => <div key={campaign.id} className="rounded-xl border border-white/10 p-4"><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-sm text-muted-foreground">{campaign.projectName} · {campaign.location}</p><div className="mt-3 grid grid-cols-3 gap-2"><MiniMetric label="Target units" value={String(campaign.targetInventory)} /><MiniMetric label="Area per unit" value={`${campaign.unitAreaSqFt.toLocaleString("en-IN")} sq ft`} /><MiniMetric label="Target days" value={String(campaign.targetDays)} /></div><p className="mt-3 text-xs text-muted-foreground">Campaign targets are planning settings, not a promise of availability or a guaranteed sale.</p></div>)}</div>}
         </Card>
       </section>
