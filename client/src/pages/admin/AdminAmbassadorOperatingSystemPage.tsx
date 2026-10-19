@@ -4,8 +4,8 @@ import { Card, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw,
-  CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined,
+  Users, GraduationCap, ClipboardList, Building2, Wallet, RefreshCw, BookOpen, Clock,
+  CheckCircle2, ShieldCheck, Plus, ArrowRightLeft, ChartNoAxesCombined, Check, XCircle,
 } from "lucide-react";
 
 type Profile = {
@@ -76,7 +76,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [loadingEligibleBookings, setLoadingEligibleBookings] = useState(false);
   const [bookingForm, setBookingForm] = useState({ leadId: "", campaignId: "", bookingValue: "", amountReceived: "0", paymentMilestone: "BOOKING_CONFIRMED", agreementReference: "", notes: "" });
   const [reviewBookingReason, setReviewBookingReason] = useState<Record<string,string>>({});
-  const [refundForm, setRefundForm] = useState<Record<string,{refundAmount:string;refundReference:string;reason:string}>>({});
+  const [refundForm, setRefundForm] = useState<Record<string,{refundAmount:string;refundReference:string;reason:string;agreementReference:string;paymentMilestone:string}>>({});
   const [channelCostForm, setChannelCostForm] = useState({ campaignId: "", sourceChannel: "AMBASSADOR_REFERRAL", amount: "", periodStart: "", periodEnd: "", evidenceReference: "", notes: "" });
   const [savingBooking, setSavingBooking] = useState(false);
   const [savingChannelCost, setSavingChannelCost] = useState(false);
@@ -169,13 +169,15 @@ export default function AdminAmbassadorOperatingSystemPage() {
   }
 
   async function updatePropertyBooking(booking: BookingRecord, status: string) {
-    const extra = refundForm[booking._id] ?? { refundAmount: String(booking.amountReceived), refundReference: "", reason: "" };
-    const reason = reviewBookingReason[booking._id] ?? booking.cancellationReason ?? "";
+    const extra = refundForm[booking._id] ?? { refundAmount: String(booking.amountReceived), refundReference: "", reason: "", agreementReference: "", paymentMilestone: booking.paymentMilestone };
+    const reason = reviewBookingReason[booking._id] ?? extra.reason ?? booking.cancellationReason ?? "";
     try {
       await api.patch(`/ambassador-os/admin/bookings/${booking._id}/status`, {
         status, reason: reason || undefined,
         refundAmount: extra.refundAmount === "" ? undefined : Number(extra.refundAmount),
         refundReference: extra.refundReference || undefined,
+        paymentMilestone: status === "SALE_VERIFIED" ? "REGISTRATION_COMPLETED" : (extra.paymentMilestone || undefined),
+        agreementReference: extra.agreementReference || undefined,
       });
       toast.success(`Booking moved to ${pretty(status)}`);
       await loadSalesWorkspace(); await load();
@@ -299,7 +301,11 @@ export default function AdminAmbassadorOperatingSystemPage() {
     try {
       await api.post("/ambassador-os/admin/policies", {
         ...policyForm, amount: Number(policyForm.amount), blockSizeSqFt: Number(policyForm.blockSizeSqFt),
+        payoutDelayDays: Number(policyForm.payoutDelayDays),
+        eligibleSources: policyForm.eligibleSources,
         campaignId: policyForm.campaignId || undefined,
+        approvalAuthority: policyForm.approvalAuthority || undefined,
+        commissionAgreementReference: policyForm.commissionAgreementReference || undefined,
         effectiveFrom: policyForm.effectiveFrom ? new Date(policyForm.effectiveFrom).toISOString() : undefined,
       });
       toast.success("Policy created as inactive. Attach written approval before activation."); await load();
@@ -338,7 +344,7 @@ export default function AdminAmbassadorOperatingSystemPage() {
   return (
     <main className="min-h-screen space-y-6 p-4 text-white md:p-7">
       <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[.18em] text-sky-300">Truvi · Program Management</p><h1 className="mt-1 text-2xl font-semibold md:text-3xl">Ambassador Operating System</h1><p className="mt-2 max-w-3xl text-sm text-muted-foreground">Manage registration, certification, tasks, campaigns, approved incentive policies and payouts from one workspace.</p></div><Button variant="outline" onClick={() => { setLoading(true); void load(); }}><RefreshCw size={15} className="mr-2" />Refresh</Button></header>
-      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => setTab(id)} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
+      <nav className="flex gap-2 overflow-x-auto pb-1">{TABS.map(({ id, label, Icon }) => <button key={id} onClick={() => { setTab(id); if (id === "sales" || id === "followups") void loadSalesWorkspace(); if (id === "training-content") void loadTrainingContent(); }} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm ${tab === id ? "border-sky-400/40 bg-sky-400/10 text-sky-200" : "border-white/10 bg-white/[0.025] text-muted-foreground hover:text-white"}`}><Icon size={15} />{label}</button>)}</nav>
 
       {tab === "overview" && <>
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[
