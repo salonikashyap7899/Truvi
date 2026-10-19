@@ -2382,7 +2382,7 @@ export const ambassadorOsProfiles = pgTable(
     _id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").notNull().references(() => users._id),
     // Stable internal sequence. Display IDs are rendered as TRUVI-{cityCode}-{number}.
-    ambassadorNo: bigserial("ambassador_no", { mode: "number" }).notNull().unique(),
+    ambassadorNo: bigserial("ambassador_no", { mode: "number" }).notNull(),
     cityCode: text("city_code").notNull().default("LKO"),
     college: text("college"),
     course: text("course"),
