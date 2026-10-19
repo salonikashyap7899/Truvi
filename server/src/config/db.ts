@@ -1197,6 +1197,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "completed_at" timestamptz
      )`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_tasks_assignee_status_idx" ON "ambassador_os_tasks" ("assigned_to_id", "status")`,
+    `ALTER TABLE "ambassador_os_tasks" ADD COLUMN IF NOT EXISTS "status" text NOT NULL DEFAULT 'ASSIGNED'`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_tasks_due_idx" ON "ambassador_os_tasks" ("due_at")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_follow_ups" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
