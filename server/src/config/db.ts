@@ -991,6 +991,7 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "ambassador_os_training_status_idx" ON "ambassador_os_training_progress" ("status", "day")`,
     `CREATE TABLE IF NOT EXISTS "ambassador_os_campaigns" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "project_id" uuid REFERENCES "projects"("id"),
        "name" text NOT NULL,
        "project_name" text NOT NULL,
        "location" text NOT NULL,
