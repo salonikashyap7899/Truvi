@@ -309,7 +309,7 @@ router.put("/profile", async (req: AuthedRequest, res) => {
     termsAcceptedAt: data.acceptTerms === true ? (current.termsAcceptedAt ?? now) : current.termsAcceptedAt,
     termsVersion: data.acceptTerms === true ? (current.termsVersion ?? "TRUVI_AMBASSADOR_TERMS_V1") : current.termsVersion,
     cityCode: !current.termsAcceptedAt && data.acceptTerms === true
-      ? (cityCodes[normalizedCity] ?? normalizedCity.replace(/[^A-Z0-9]/g, "").slice(0, 3) || "TRU")
+      ? (cityCodes[normalizedCity] ?? (normalizedCity.replace(/[^A-Z0-9]/g, "").slice(0, 3) || "TRU"))
       : current.cityCode,
     status: data.acceptTerms === true && !current.termsAcceptedAt && !req.user!.onboardingVerified
       ? "VERIFICATION_PENDING"
@@ -511,7 +511,9 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
 const statusSchema = z.object({
   status: z.enum(["REGISTERED", "VERIFICATION_PENDING", "TRAINING_IN_PROGRESS", "ASSESSMENT_PENDING", "CERTIFIED", "ACTIVE", "TEMPORARILY_INACTIVE", "SUSPENDED", "EXITED"]).optional(),
   currentLevel: z.enum(["L0", "L1", "L2", "L3", "L4", "L5", "L6"]).optional(),
-}).refine((body) => body.status !== undefined || body.currentLevel !== undefined, { message: "Provide a status or career level" });
+  promotionReason: z.string().trim().min(5).max(2000).optional(),
+}).refine((body) => body.status !== undefined || body.currentLevel !== undefined, { message: "Provide a status or career level" })
+  .refine((body) => body.currentLevel === undefined || Boolean(body.promotionReason?.trim()), { message: "A promotion reason is required for every career-level change" });
 
 router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = statusSchema.safeParse(req.body);
@@ -521,6 +523,22 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
   if (!profile) return res.status(404).json({ error: "Ambassador profile not found" });
   const [account] = await db.select().from(users).where(eq(users._id, profile.userId));
   const training = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, profile.userId));
+  const { promotionReason, ...updates } = parsed.data;
+  if (parsed.data.currentLevel && parsed.data.currentLevel !== profile.currentLevel) {
+    const levelNumber = Number(parsed.data.currentLevel.slice(1));
+    if (levelNumber >= 1 && !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
+      return res.status(409).json({ error: "Complete all seven modules and receive written, practical and ethics approval before promotion to L1 or above" });
+    }
+    if (levelNumber >= 2 && profile.status !== "ACTIVE" && parsed.data.status !== "ACTIVE") {
+      return res.status(409).json({ error: "Formal activation is required before promotion to L2 or above" });
+    }
+    if (levelNumber >= 3) {
+      const registered = await db.select({ _id: leads._id, submittedById: leads.submittedById, referralChain: leads.referralChain, stage: leads.stage, isDuplicate: leads.isDuplicate })
+        .from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")));
+      const hasVerifiedSale = registered.some((lead) => !lead.isDuplicate && (lead.submittedById === profile.userId || (lead.referralChain ?? []).some((referral) => referral.userId === profile.userId)));
+      if (!hasVerifiedSale) return res.status(409).json({ error: "Promotion to L3 or above requires at least one non-duplicate registered/completed sale attributed to this Ambassador" });
+    }
+  }
   if (parsed.data.status === "ACTIVE") {
     if (!profile.termsAcceptedAt || !account?.onboardingVerified || !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
       return res.status(409).json({ error: "Activation requires accepted terms, verified onboarding, and completed seven-day certification" });
@@ -529,8 +547,8 @@ router.patch("/admin/profiles/:userId", requireRole("ADMIN"), async (req: Authed
   if (parsed.data.status === "CERTIFIED" && !training.some((p) => p.day === 7 && p.status === "COMPLETED")) {
     return res.status(409).json({ error: "Certification requires all seven modules, quiz, practical and ethics approvals" });
   }
-  const [updated] = await db.update(ambassadorOsProfiles).set({ ...parsed.data, updatedAt: new Date() }).where(eq(ambassadorOsProfiles.userId, profile.userId)).returning();
-  await logAudit({ userId: req.user!.userId, action: "ambassador_os.profile.admin_update", resourceType: "ambassador_os_profile", resourceId: updated._id, metadata: parsed.data });
+  const [updated] = await db.update(ambassadorOsProfiles).set({ ...updates, updatedAt: new Date() }).where(eq(ambassadorOsProfiles.userId, profile.userId)).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.profile.admin_update", resourceType: "ambassador_os_profile", resourceId: updated._id, metadata: { ...updates, promotionReason: promotionReason ?? null } });
   res.json({ profile: displayProfile(updated) });
 });
 
