@@ -7,6 +7,8 @@ import {
   ambassadorOsCampaignGuidelines,
   ambassadorOsCampaignAcknowledgements,
   ambassadorOsStaffAssignments,
+  ambassadorOsPrivacyRequests,
+  ambassadorOsRetentionPolicies,
   ambassadorOsMarketingMaterials,
   ambassadorOsCareerApplications,
   ambassadorOsCareerAssessments,
@@ -2872,6 +2874,134 @@ router.patch("/admin/staff-assignments/:id", requireRole("ADMIN"), async (req: A
   const [updated] = await getDb().update(ambassadorOsStaffAssignments).set({ active: parsed.data.active, updatedAt: new Date() }).where(eq(ambassadorOsStaffAssignments._id, current._id)).returning();
   await logAudit({ userId: req.user!.userId, action: parsed.data.active ? "ambassador_os.staff_role.reactivate" : "ambassador_os.staff_role.revoke", resourceType: "ambassador_os_staff_assignment", resourceId: updated._id, metadata: { userId: updated.userId, osRole: updated.osRole, reason: parsed.data.reason } });
   res.json({ assignment: updated });
+});
+
+
+const privacyRequestSchema = z.object({
+  requestType: z.enum(["ACCESS", "RECTIFICATION", "DELETION"]),
+  reason: z.string().trim().min(10).max(3000),
+});
+
+router.post("/privacy/requests", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Only an Ambassador can submit an Ambassador-profile privacy request." });
+  const parsed = privacyRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid privacy request" });
+  const db = getDb();
+  const open = await db.select({ _id: ambassadorOsPrivacyRequests._id }).from(ambassadorOsPrivacyRequests)
+    .where(and(eq(ambassadorOsPrivacyRequests.requesterUserId, req.user!.userId), eq(ambassadorOsPrivacyRequests.requestType, parsed.data.requestType), inArray(ambassadorOsPrivacyRequests.status, ["SUBMITTED", "UNDER_REVIEW", "APPROVED"])));
+  if (open.length) return res.status(409).json({ error: "An open request of this type already exists. Check your privacy request history." });
+  const [request] = await db.insert(ambassadorOsPrivacyRequests).values({ requesterUserId: req.user!.userId, requestType: parsed.data.requestType, reason: parsed.data.reason, status: "SUBMITTED" }).returning();
+  const admins = await db.select({ userId: users._id }).from(users).where(eq(users.role, "ADMIN"));
+  await notifySafely(admins.map((item) => item.userId), { type: "ambassador_os_privacy_request", title: "Ambassador privacy request submitted", message: "A new " + request.requestType.toLowerCase() + " request requires review.", data: { screen: "AdminAmbassadorOperatingSystem", requestId: request._id }, actorUserId: req.user!.userId, priority: "high", dedupeKey: request._id });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.privacy_request.submit", resourceType: "ambassador_os_privacy_request", resourceId: request._id, metadata: { requestType: request.requestType } });
+  res.status(201).json({ request });
+});
+
+router.get("/privacy/requests/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const requests = await getDb().select().from(ambassadorOsPrivacyRequests).where(eq(ambassadorOsPrivacyRequests.requesterUserId, req.user!.userId)).orderBy(desc(ambassadorOsPrivacyRequests.requestedAt));
+  res.json({ requests });
+});
+
+router.get("/admin/privacy-requests", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({ request: ambassadorOsPrivacyRequests, name: users.name, email: users.email })
+    .from(ambassadorOsPrivacyRequests).innerJoin(users, eq(ambassadorOsPrivacyRequests.requesterUserId, users._id))
+    .orderBy(desc(ambassadorOsPrivacyRequests.requestedAt));
+  res.json({ requests: rows.map((row) => ({ ...row.request, ambassadorName: row.name, ambassadorEmail: row.email })) });
+});
+
+const privacyReviewSchema = z.object({
+  status: z.enum(["UNDER_REVIEW", "APPROVED", "REJECTED", "COMPLETED"]),
+  reviewNotes: z.string().trim().max(3000).optional(),
+  completionReference: z.string().trim().min(5).max(1000).optional(),
+});
+router.patch("/admin/privacy-requests/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = privacyReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid privacy request review" });
+  if (parsed.data.status === "REJECTED" && !parsed.data.reviewNotes?.trim()) return res.status(400).json({ error: "A clear reason is required to reject the privacy request." });
+  if (parsed.data.status === "COMPLETED" && !parsed.data.completionReference?.trim()) return res.status(400).json({ error: "Provide evidence or a case reference for completion." });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsPrivacyRequests).where(eq(ambassadorOsPrivacyRequests._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Privacy request not found" });
+  const transitions: Record<string, string[]> = { SUBMITTED: ["UNDER_REVIEW", "APPROVED", "REJECTED"], UNDER_REVIEW: ["APPROVED", "REJECTED"], APPROVED: ["COMPLETED"], REJECTED: [], COMPLETED: [] };
+  if (!transitions[current.status]?.includes(parsed.data.status)) return res.status(409).json({ error: "Invalid privacy-request transition from " + current.status + " to " + parsed.data.status });
+  const now = new Date();
+  const [updated] = await db.update(ambassadorOsPrivacyRequests).set({
+    status: parsed.data.status, reviewNotes: parsed.data.reviewNotes ?? current.reviewNotes, reviewerUserId: req.user!.userId,
+    completionReference: parsed.data.completionReference ?? current.completionReference, updatedAt: now, completedAt: parsed.data.status === "COMPLETED" ? now : null,
+  }).where(and(eq(ambassadorOsPrivacyRequests._id, current._id), eq(ambassadorOsPrivacyRequests.status, current.status))).returning();
+  if (!updated) return res.status(409).json({ error: "Request changed during review; refresh and retry." });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.privacy_request.review", resourceType: "ambassador_os_privacy_request", resourceId: updated._id, metadata: { previousStatus: current.status, status: updated.status, requestType: updated.requestType, completionReference: updated.completionReference } });
+  await notifySafely([updated.requesterUserId], { type: "ambassador_os_privacy_request_update", title: "Privacy request status updated", message: "Your privacy request is now " + updated.status.toLowerCase().replace(/_/g, " ") + (updated.reviewNotes ? ": " + updated.reviewNotes : ""), data: { screen: "AmbassadorOperatingSystem", privacyRequestId: updated._id, status: updated.status }, actorUserId: req.user!.userId, priority: updated.status === "REJECTED" ? "high" : "normal", dedupeKey: updated._id + ":" + updated.status });
+  res.json({ request: updated });
+});
+
+const retentionPolicySchema = z.object({
+  dataCategory: z.enum(["TASK_EVIDENCE", "TRAINING_ASSIGNMENT_TEXT", "REJECTED_MARKETING_CONTENT"]),
+  retentionDays: z.number().int().min(30).max(3650),
+});
+router.get("/admin/retention-policies", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const policies = await getDb().select().from(ambassadorOsRetentionPolicies).orderBy(desc(ambassadorOsRetentionPolicies.createdAt));
+  res.json({ policies });
+});
+router.post("/admin/retention-policies", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = retentionPolicySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid retention policy" });
+  const db = getDb();
+  const existing = await db.select().from(ambassadorOsRetentionPolicies).where(eq(ambassadorOsRetentionPolicies.dataCategory, parsed.data.dataCategory));
+  const policyVersion = existing.reduce((max, row) => Math.max(max, row.policyVersion), 0) + 1;
+  const [policy] = await db.insert(ambassadorOsRetentionPolicies).values({ ...parsed.data, policyVersion, active: false, createdById: req.user!.userId }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.retention_policy.create", resourceType: "ambassador_os_retention_policy", resourceId: policy._id, metadata: { dataCategory: policy.dataCategory, policyVersion, retentionDays: policy.retentionDays, active: false } });
+  res.status(201).json({ policy, message: "Retention policy saved inactive. Obtain formal legal/privacy approval before activation." });
+});
+
+const retentionPolicyUpdateSchema = z.object({ active: z.boolean(), legalApprovalReference: z.string().trim().max(500).optional() });
+router.patch("/admin/retention-policies/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = retentionPolicyUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid retention policy update" });
+  const db = getDb();
+  const [current] = await db.select().from(ambassadorOsRetentionPolicies).where(eq(ambassadorOsRetentionPolicies._id, String(req.params.id)));
+  if (!current) return res.status(404).json({ error: "Retention policy not found" });
+  if (parsed.data.active && !(parsed.data.legalApprovalReference ?? current.legalApprovalReference)?.trim()) return res.status(409).json({ error: "Formal legal/privacy approval reference is required before a retention policy can be activated." });
+  if (parsed.data.active) {
+    const siblings = await db.select().from(ambassadorOsRetentionPolicies).where(eq(ambassadorOsRetentionPolicies.dataCategory, current.dataCategory));
+    for (const row of siblings) if (row._id !== current._id && row.active) await db.update(ambassadorOsRetentionPolicies).set({ active: false, updatedAt: new Date() }).where(eq(ambassadorOsRetentionPolicies._id, row._id));
+  }
+  const [updated] = await db.update(ambassadorOsRetentionPolicies).set({ active: parsed.data.active, legalApprovalReference: parsed.data.legalApprovalReference ?? current.legalApprovalReference, updatedAt: new Date() }).where(eq(ambassadorOsRetentionPolicies._id, current._id)).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.retention_policy.update", resourceType: "ambassador_os_retention_policy", resourceId: updated._id, metadata: { dataCategory: updated.dataCategory, policyVersion: updated.policyVersion, active: updated.active, legalApprovalReference: updated.legalApprovalReference } });
+  res.json({ policy: updated });
+});
+
+const retentionRunSchema = z.object({ confirmation: z.literal("RUN_APPROVED_RETENTION"), approvalReference: z.string().trim().min(5).max(500) });
+router.post("/admin/retention-run", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = retentionRunSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Explicit confirmation and run approval reference are required." });
+  const db = getDb();
+  const policies = await db.select().from(ambassadorOsRetentionPolicies).where(eq(ambassadorOsRetentionPolicies.active, true));
+  if (policies.length === 0) return res.status(409).json({ error: "No retention policies are active. Create and formally approve the relevant policy first." });
+  const now = new Date();
+  const results: Array<{ category: string; policyVersion: number; retentionDays: number; affectedRows: number }> = [];
+  for (const policy of policies) {
+    if (!policy.legalApprovalReference?.trim()) return res.status(409).json({ error: "Active retention policy " + policy.dataCategory + " is missing its legal approval reference." });
+    const cutoff = new Date(now.getTime() - policy.retentionDays * 24 * 60 * 60 * 1000);
+    let affectedRows = 0;
+    if (policy.dataCategory === "TASK_EVIDENCE") {
+      const changed = await db.update(ambassadorOsTasks).set({ evidenceText: null, evidenceUrl: null, updatedAt: now })
+        .where(and(lte(ambassadorOsTasks.createdAt, cutoff), inArray(ambassadorOsTasks.status, ["APPROVED", "CLOSED"]))).returning({ _id: ambassadorOsTasks._id });
+      affectedRows = changed.length;
+    } else if (policy.dataCategory === "TRAINING_ASSIGNMENT_TEXT") {
+      const changed = await db.update(ambassadorOsTrainingProgress).set({ assignmentText: null, updatedAt: now })
+        .where(and(lte(ambassadorOsTrainingProgress.updatedAt, cutoff), eq(ambassadorOsTrainingProgress.status, "COMPLETED"))).returning({ _id: ambassadorOsTrainingProgress._id });
+      affectedRows = changed.length;
+    } else if (policy.dataCategory === "REJECTED_MARKETING_CONTENT") {
+      const changed = await db.update(ambassadorOsMarketingMaterials).set({ content: "[redacted under approved retention policy]", assetUrl: null, updatedAt: now })
+        .where(and(lte(ambassadorOsMarketingMaterials.createdAt, cutoff), inArray(ambassadorOsMarketingMaterials.status, ["REJECTED", "RETIRED"]))).returning({ _id: ambassadorOsMarketingMaterials._id });
+      affectedRows = changed.length;
+    }
+    results.push({ category: policy.dataCategory, policyVersion: policy.policyVersion, retentionDays: policy.retentionDays, affectedRows });
+  }
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.retention.run", resourceType: "ambassador_os_retention_run", resourceId: null, metadata: { approvalReference: parsed.data.approvalReference, results, runAt: now.toISOString() } });
+  res.json({ runAt: now, approvalReference: parsed.data.approvalReference, results, totalAffectedRows: results.reduce((sum, row) => sum + row.affectedRows, 0), message: "Only evidence/content covered by formally approved active policies was redacted; financial and booking ledgers were not removed." });
 });
 
 export default router;
