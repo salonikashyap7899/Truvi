@@ -16,8 +16,10 @@ type Profile = {
 type ProfileRow = { profile: Profile; name: string; email: string; onboardingVerified: boolean };
 type TrainingReview = {
   _id: string; userId: string; day: number; quizScore: number; assignmentText?: string | null;
-  practicalStatus: string; ethicsStatus: string; trainerFeedback?: string | null; status: string;
-  ambassadorName: string; ambassadorEmail: string;
+  practicalStatus: string; ethicsStatus: string; attendanceStatus?: string;
+  realEstateKnowledgeScore?: number | null; projectKnowledgeScore?: number | null;
+  customerCommunicationScore?: number | null; marketingKnowledgeScore?: number | null; ethicsComplianceScore?: number | null;
+  trainerFeedback?: string | null; status: string; ambassadorName: string; ambassadorEmail: string;
 };
 type Task = { _id: string; title: string; category: string; description: string; status: string; dueAt?: string | null; campaignId?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; reviewReason?: string | null; assignedToId: string; ambassadorName: string; };
 type Campaign = { _id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales?: number; unitAreaSqFt: number; targetDays: number; status: string; officialDataVerified: boolean; officialDataNotes?: string | null; };
@@ -79,9 +81,19 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [savingBooking, setSavingBooking] = useState(false);
   const [savingChannelCost, setSavingChannelCost] = useState(false);
   const [trainingContent, setTrainingContent] = useState<Array<any>>([]);
-  const [trainingContentForm, setTrainingContentForm] = useState({ day: 1, title: "", summary: "", lesson: "", keyPoints: "", assignment: "", videoUrl: "", isPublished: false });
+  const [trainingContentForm, setTrainingContentForm] = useState({ day: 1, title: "", summary: "", lesson: "", keyPoints: "", assignment: "", videoUrl: "", questionsJson: JSON.stringify([
+    { prompt: "What is the safest practice?", options: ["Guess", "Use verified approved information", "Promise a result", "Ignore policy"], answer: 1 },
+    { prompt: "Who approves property legal claims?", options: ["Any student", "Authorized reviewer", "A social post", "Nobody"], answer: 1 },
+    { prompt: "What must be recorded for a third-party enquiry?", options: ["No consent", "Customer contact consent", "Only a nickname", "No source"], answer: 1 },
+    { prompt: "When is a sale counted in targets?", options: ["On first enquiry", "On a submitted lead", "After authorized sale verification", "On task assignment"], answer: 2 },
+    { prompt: "How do you handle unknown information?", options: ["Make it up", "Refer to approved material or authorized team", "Guarantee it", "Hide it"], answer: 1 },
+  ], null, 2), isPublished: false });
   const [savingTrainingContent, setSavingTrainingContent] = useState(false);
-  const [reviewState, setReviewState] = useState<Record<string, { practicalStatus: string; ethicsStatus: string; trainerFeedback: string }>>({});
+  const [reviewState, setReviewState] = useState<Record<string, {
+    practicalStatus: string; ethicsStatus: string; attendanceStatus: string; trainerFeedback: string;
+    realEstateKnowledgeScore?: number; projectKnowledgeScore?: number; customerCommunicationScore?: number;
+    marketingKnowledgeScore?: number; ethicsComplianceScore?: number;
+  }>>({});
   const [taskReviews, setTaskReviews] = useState<Record<string, { reviewReason: string; paymentReference: string }>>({});
   const [policyApproval, setPolicyApproval] = useState<Record<string, string>>({});
   const [campaignNotes, setCampaignNotes] = useState<Record<string, string>>({});
@@ -139,12 +151,100 @@ export default function AdminAmbassadorOperatingSystemPage() {
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load learning content"); }
   }
 
+  async function createPropertyBooking(e: React.FormEvent) {
+    e.preventDefault(); setSavingBooking(true);
+    try {
+      await api.post("/ambassador-os/admin/bookings", {
+        leadId: bookingForm.leadId, campaignId: bookingForm.campaignId || undefined,
+        bookingValue: Number(bookingForm.bookingValue), amountReceived: Number(bookingForm.amountReceived),
+        paymentMilestone: bookingForm.paymentMilestone,
+        agreementReference: bookingForm.agreementReference || undefined,
+        notes: bookingForm.notes || undefined,
+      });
+      toast.success("Property booking recorded and queued for review");
+      setBookingForm({ leadId: "", campaignId: "", bookingValue: "", amountReceived: "0", paymentMilestone: "BOOKING_CONFIRMED", agreementReference: "", notes: "" });
+      await loadSalesWorkspace(); await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not record property booking"); }
+    finally { setSavingBooking(false); }
+  }
+
+  async function updatePropertyBooking(booking: BookingRecord, status: string) {
+    const extra = refundForm[booking._id] ?? { refundAmount: String(booking.amountReceived), refundReference: "", reason: "" };
+    const reason = reviewBookingReason[booking._id] ?? booking.cancellationReason ?? "";
+    try {
+      await api.patch(`/ambassador-os/admin/bookings/${booking._id}/status`, {
+        status, reason: reason || undefined,
+        refundAmount: extra.refundAmount === "" ? undefined : Number(extra.refundAmount),
+        refundReference: extra.refundReference || undefined,
+      });
+      toast.success(`Booking moved to ${pretty(status)}`);
+      await loadSalesWorkspace(); await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not update booking"); }
+  }
+
+  async function reviewLead(lead: PipelineLead, values: Record<string, unknown>) {
+    try {
+      await api.patch(`/ambassador-os/admin/leads/${lead._id}/review`, values);
+      toast.success("Lead review saved");
+      await loadSalesWorkspace();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not review lead"); }
+  }
+
+  async function saveChannelCost(e: React.FormEvent) {
+    e.preventDefault(); setSavingChannelCost(true);
+    try {
+      await api.post("/ambassador-os/admin/channel-costs", {
+        ...channelCostForm, amount: Number(channelCostForm.amount),
+        periodStart: new Date(channelCostForm.periodStart).toISOString(),
+        periodEnd: new Date(channelCostForm.periodEnd).toISOString(),
+        campaignId: channelCostForm.campaignId,
+      });
+      toast.success("Marketing channel cost recorded");
+      setChannelCostForm({ campaignId: "", sourceChannel: "AMBASSADOR_REFERRAL", amount: "", periodStart: "", periodEnd: "", evidenceReference: "", notes: "" });
+      await loadSalesWorkspace();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not record channel cost"); }
+    finally { setSavingChannelCost(false); }
+  }
+
+  async function saveTrainingContent(e: React.FormEvent) {
+    e.preventDefault(); setSavingTrainingContent(true);
+    try {
+      const questions = JSON.parse(trainingContentForm.questionsJson);
+      await api.post("/ambassador-os/admin/training-modules", {
+        ...trainingContentForm, day: Number(trainingContentForm.day),
+        keyPoints: trainingContentForm.keyPoints.split("\n").map((item) => item.trim()).filter(Boolean),
+        videoUrl: trainingContentForm.videoUrl || undefined, questions,
+      });
+      toast.success(trainingContentForm.isPublished ? "Training module version published" : "Training module draft saved");
+      await loadTrainingContent();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || (error instanceof SyntaxError ? "Quiz questions must be valid JSON" : "Could not save training content"));
+    } finally { setSavingTrainingContent(false); }
+  }
+
+  async function loadTrainingModule(module: any) {
+    setTrainingContentForm({
+      day: module.day, title: module.title, summary: module.summary, lesson: module.lesson,
+      keyPoints: (module.keyPoints ?? []).join("\n"), assignment: module.assignment,
+      videoUrl: module.videoUrl ?? "", questionsJson: JSON.stringify(module.questions ?? [], null, 2), isPublished: false,
+    });
+  }
+
   async function updateProfile(userId: string, values: Record<string, string>) {
     try { await api.patch(`/ambassador-os/admin/profiles/${userId}`, values); toast.success("Ambassador profile updated"); await load(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not update Ambassador"); }
   }
   async function reviewTraining(row: TrainingReview) {
-    const values = reviewState[row._id] ?? { practicalStatus: row.practicalStatus, ethicsStatus: row.ethicsStatus, trainerFeedback: row.trainerFeedback ?? "" };
+    const values = reviewState[row._id] ?? {
+      practicalStatus: row.practicalStatus, ethicsStatus: row.ethicsStatus,
+      attendanceStatus: row.attendanceStatus ?? "NOT_RECORDED",
+      trainerFeedback: row.trainerFeedback ?? "",
+      realEstateKnowledgeScore: row.realEstateKnowledgeScore ?? undefined,
+      projectKnowledgeScore: row.projectKnowledgeScore ?? undefined,
+      customerCommunicationScore: row.customerCommunicationScore ?? undefined,
+      marketingKnowledgeScore: row.marketingKnowledgeScore ?? undefined,
+      ethicsComplianceScore: row.ethicsComplianceScore ?? undefined,
+    };
     try {
       await api.patch(`/ambassador-os/admin/training/${row.userId}/${row.day}/review`, values);
       toast.success("Training review saved");
