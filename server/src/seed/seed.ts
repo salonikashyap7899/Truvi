@@ -44,6 +44,17 @@ const randomPhone = () => `${["6", "7", "8", "9"][Math.floor(Math.random() * 4)]
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 async function seed() {
+  // This script clears application tables and is strictly local/test only.
+  // Require explicit environment selection and a second opt-in to avoid
+  // accidental data loss when operators run commands against the wrong DB.
+  const nodeEnv = (process.env.NODE_ENV || "").trim().toLowerCase();
+  if (nodeEnv !== "development" && nodeEnv !== "test") {
+    throw new Error("Refusing to run destructive seed unless NODE_ENV is explicitly development or test.");
+  }
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "true") {
+    throw new Error("Refusing to run destructive seed without ALLOW_DESTRUCTIVE_SEED=true. This script deletes existing application data.");
+  }
+
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
     throw new Error(
@@ -358,12 +369,12 @@ async function seed() {
   }
 
   console.log("Seed complete.\n");
-  console.log("--- Login credentials ---");
-  console.log("Admin:      admin@truvi.app          (password: Password123!)");
+  console.log("--- Demo accounts provisioned (passwords intentionally not printed) ---");
+  console.log("Admin:      admin@truvi.app");
   for (const founder of founderCfg) {
-    console.log(`Founder:    ${founder.email}  (password: ${founder.password})  → CEO OS at /founder/dashboard`);
+    console.log(`Founder:    ${founder.email}  → CEO OS at /founder/dashboard`);
   }
-  console.log("--- All other demo accounts use password: Password123! ---");
+  console.log("Other demo accounts use the documented local-only demo password.");
   console.log("Buyer:      buyer1@truvi.app");
   console.log("Developer:  dev1@truvi.app");
   console.log("Developer:  dev4@truvi.app");
