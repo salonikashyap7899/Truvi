@@ -22,8 +22,14 @@ type TrainingReview = {
 type Task = { _id: string; title: string; category: string; description: string; status: string; dueAt?: string | null; campaignId?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; reviewReason?: string | null; assignedToId: string; ambassadorName: string; };
 type Campaign = { _id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales?: number; unitAreaSqFt: number; targetDays: number; status: string; officialDataVerified: boolean; officialDataNotes?: string | null; };
 type ProjectOption = { _id: string; name: string; city?: string; location?: string; approvalStatus?: string; isVerified?: boolean; priceListUrl?: string | null; totalUnits?: number | null };
-type Policy = { _id: string; name: string; calculationType: string; amount: number; blockSizeSqFt: number; version: number; active: boolean; approvalReference?: string | null; campaignId?: string | null; };
-type Incentive = { _id: string; userId: string; ambassadorName: string; ambassadorEmail: string; bookingReference: string; amount: number; policyNameSnapshot: string; policyVersion: number; status: string; paymentReference?: string | null; };
+type Policy = {
+  _id: string; name: string; calculationType: string; amount: number; blockSizeSqFt: number; version: number;
+  active: boolean; approvalReference?: string | null; campaignId?: string | null;
+  eligibleSources?: string[]; requiredBookingStatus?: string; paymentMilestone?: string;
+  cancellationTreatment?: string; payoutDelayDays?: number; approvalAuthority?: string | null;
+  commissionAgreementReference?: string | null;
+};
+type Incentive = { _id: string; userId: string; ambassadorName: string; ambassadorEmail: string; bookingReference: string; amount: number; policyNameSnapshot: string; policyVersion: number; status: string; paymentReference?: string | null; expectedPayoutAt?: string | null; };
 type EligibleSale = { leadId: string; leadReference: string; projectId: string; projectName: string; unitId?: string | null; unitNumber?: string | null; areaSqFt?: number | null; stage: string };
 type Overview = { profiles: ProfileRow[]; trainingReviews: TrainingReview[]; tasks: Task[]; campaigns: Campaign[]; policies: Policy[]; incentives: Incentive[]; stats: { ambassadors: number; awaitingAssessment: number; assignedTasks: number; submittedTasks: number; activeCampaigns: number; pendingIncentives: number; registeredSales: number } };
 
@@ -48,10 +54,15 @@ export default function AdminAmbassadorOperatingSystemPage() {
   const [creatingIncentive, setCreatingIncentive] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: "", category: "SALES", description: "", assignedToId: "", dueAt: "", campaignId: "" });
   const [campaignForm, setCampaignForm] = useState({ name: "Paradise Town — 114 Units Sales Mission", projectId: "", projectName: "Paradise Town", location: "Sultanpur Road, Lucknow", targetInventory: 114, salesTarget: 114, unitAreaSqFt: 1250, targetDays: 60, startsAt: "", officialDataNotes: "" });
-  const [policyForm, setPolicyForm] = useState({ name: "Paradise Town Ambassador Incentive", campaignId: "", calculationType: "PER_SQ_FT_BLOCK", amount: 100000, blockSizeSqFt: 1000, effectiveFrom: "" });
-  const [incentiveForm, setIncentiveForm] = useState({ userId: "", leadId: "", policyId: "", verifiedAreaSqFt: 1250, bookingValue: "" });
-  const [eligibleSales, setEligibleSales] = useState<EligibleSale[]>([]);
-  const [loadingEligibleSales, setLoadingEligibleSales] = useState(false);
+  const [policyForm, setPolicyForm] = useState({
+    name: "Paradise Town Ambassador Incentive", campaignId: "", calculationType: "PER_SQ_FT_BLOCK",
+    amount: 100000, blockSizeSqFt: 1000, effectiveFrom: "", eligibleSources: [] as string[],
+    requiredBookingStatus: "SALE_VERIFIED", paymentMilestone: "BOOKING_CONFIRMED",
+    cancellationTreatment: "CANCEL_INCENTIVE", payoutDelayDays: 30, approvalAuthority: "", commissionAgreementReference: "",
+  });
+  const [incentiveForm, setIncentiveForm] = useState({ userId: "", bookingId: "", policyId: "", verifiedAreaSqFt: 1250 });
+  const [eligibleBookings, setEligibleBookings] = useState<EligibleBooking[]>([]);
+  const [loadingEligibleBookings, setLoadingEligibleBookings] = useState(false);
   const [reviewState, setReviewState] = useState<Record<string, { practicalStatus: string; ethicsStatus: string; trainerFeedback: string }>>({});
   const [taskReviews, setTaskReviews] = useState<Record<string, { reviewReason: string; paymentReference: string }>>({});
   const [policyApproval, setPolicyApproval] = useState<Record<string, string>>({});
