@@ -8,6 +8,9 @@ import {
   isTrainingDayComplete,
   hasCompleteSevenDayCurriculum,
   statusAfterTrainingReview,
+  areValidScorecardWeights,
+  calculateWeightedPerformanceScore,
+  DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS,
 } from "./ambassadorOperatingSystem.rules";
 
 describe("Ambassador OS training certification", () => {
@@ -106,5 +109,33 @@ describe("Ambassador OS full curriculum gate", () => {
     expect(hasCompleteSevenDayCurriculum(completed.filter((item) => item.day !== 4))).toBe(false);
     expect(hasCompleteSevenDayCurriculum(completed.map((item) => item.day === 3 ? { ...item, status: "RETAKE_REQUIRED" } : item))).toBe(false);
     expect(hasCompleteSevenDayCurriculum([{ day: 7, status: "COMPLETED" }])).toBe(false);
+  });
+});
+
+
+describe("Ambassador OS PDF-weighted scorecard", () => {
+  it("uses the seven PDF weights totalling 100 percent", () => {
+    expect(DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS).toEqual({
+      genuineLeadQuality: 25, customerCommunication: 20, siteVisitContribution: 15,
+      verifiedSalesContribution: 15, crmDiscipline: 10, trainingSkillDevelopment: 10, ethicsCompliance: 5,
+    });
+    expect(areValidScorecardWeights(DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS)).toBe(true);
+  });
+
+  it("rejects weights that do not total exactly 100 percent", () => {
+    expect(areValidScorecardWeights({ ...DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS, ethicsCompliance: 7 })).toBe(false);
+    expect(areValidScorecardWeights({ ...DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS, genuineLeadQuality: -1 })).toBe(false);
+  });
+
+  it("calculates a transparent weighted score and disqualifies serious misconduct", () => {
+    const weights = DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS;
+    const perfect = {
+      genuineLeadQuality: 100, customerCommunication: 100, siteVisitContribution: 100,
+      verifiedSalesContribution: 100, crmDiscipline: 100, trainingSkillDevelopment: 100, ethicsCompliance: 100,
+    };
+    expect(calculateWeightedPerformanceScore({ scores: perfect, weights, seriousMisconduct: false }))
+      .toEqual({ score: 100, eligibleForLeaderboard: true });
+    expect(calculateWeightedPerformanceScore({ scores: perfect, weights, seriousMisconduct: true }))
+      .toEqual({ score: 0, eligibleForLeaderboard: false });
   });
 });
