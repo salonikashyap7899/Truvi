@@ -6,6 +6,7 @@ import {
   computeAmbassadorQualityScore,
   isEligibleAmbassadorSale,
   isTrainingDayComplete,
+  hasCompleteSevenDayCurriculum,
   statusAfterTrainingReview,
 } from "./ambassadorOperatingSystem.rules";
 
@@ -94,5 +95,16 @@ describe("Ambassador OS operational status safety", () => {
     expect(statusAfterTrainingReview({ currentStatus: "TRAINING_IN_PROGRESS", allTrainingComplete: true, reviewedDayComplete: true })).toBe("CERTIFIED");
     expect(statusAfterTrainingReview({ currentStatus: "ASSESSMENT_PENDING", allTrainingComplete: false, reviewedDayComplete: true })).toBe("TRAINING_IN_PROGRESS");
     expect(statusAfterTrainingReview({ currentStatus: "TRAINING_IN_PROGRESS", allTrainingComplete: false, reviewedDayComplete: false })).toBe("ASSESSMENT_PENDING");
+  });
+});
+
+
+describe("Ambassador OS full curriculum gate", () => {
+  it("requires all seven individually approved days, not only Day 7", () => {
+    const completed = [1,2,3,4,5,6,7].map((day) => ({ day, status: "COMPLETED" }));
+    expect(hasCompleteSevenDayCurriculum(completed)).toBe(true);
+    expect(hasCompleteSevenDayCurriculum(completed.filter((item) => item.day !== 4))).toBe(false);
+    expect(hasCompleteSevenDayCurriculum(completed.map((item) => item.day === 3 ? { ...item, status: "RETAKE_REQUIRED" } : item))).toBe(false);
+    expect(hasCompleteSevenDayCurriculum([{ day: 7, status: "COMPLETED" }])).toBe(false);
   });
 });
