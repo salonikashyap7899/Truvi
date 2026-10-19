@@ -701,12 +701,26 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
   res.json({ tasks });
 });
 
+router.post("/tasks/:id/accept", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const db = getDb();
+  const [task] = await db.select().from(ambassadorOsTasks)
+    .where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
+  if (!task) return res.status(404).json({ error: "Task not found" });
+  if (task.status !== "ASSIGNED") return res.status(409).json({ error: "Only a newly assigned task can be accepted" });
+  const [updated] = await db.update(ambassadorOsTasks).set({ status: "ACCEPTED" })
+    .where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, "ASSIGNED"))).returning();
+  if (!updated) return res.status(409).json({ error: "This task changed; refresh and try again" });
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.accept", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { title: updated.title, category: updated.category } });
+  res.json({ task: updated });
+});
+
 router.post("/tasks/:id/start", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
   const db = getDb();
   const [task] = await db.select().from(ambassadorOsTasks).where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
   if (!task) return res.status(404).json({ error: "Task not found" });
-  if (task.status !== "ASSIGNED") return res.status(409).json({ error: "Only assigned tasks can be started" });
+  if (task.status !== "ACCEPTED") return res.status(409).json({ error: "Accept the assigned task before starting it" });
   if (task.category !== "TRAINING") {
     const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
     const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
@@ -714,7 +728,7 @@ router.post("/tasks/:id/start", async (req: AuthedRequest, res) => {
       return res.status(403).json({ error: "Complete verification, certification and activation before starting sales or field tasks", code: "AMBASSADOR_ACTIVATION_REQUIRED" });
     }
   }
-  const [updated] = await db.update(ambassadorOsTasks).set({ status: "IN_PROGRESS" }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, "ASSIGNED"))).returning();
+  const [updated] = await db.update(ambassadorOsTasks).set({ status: "IN_PROGRESS" }).where(and(eq(ambassadorOsTasks._id, task._id), eq(ambassadorOsTasks.status, "ACCEPTED"))).returning();
   if (!updated) return res.status(409).json({ error: "The task changed. Refresh and try again." });
   await logAudit({ userId: req.user!.userId, action: "ambassador_os.task.start", resourceType: "ambassador_os_task", resourceId: updated._id, metadata: { title: updated.title, category: updated.category } });
   res.json({ task: updated });
@@ -729,7 +743,7 @@ router.post("/tasks/:id/submit", async (req: AuthedRequest, res) => {
   const db = getDb();
   const [task] = await db.select().from(ambassadorOsTasks).where(and(eq(ambassadorOsTasks._id, String(req.params.id)), eq(ambassadorOsTasks.assignedToId, req.user!.userId)));
   if (!task) return res.status(404).json({ error: "Task not found" });
-  if (!["ASSIGNED", "IN_PROGRESS", "REJECTED"].includes(task.status)) return res.status(409).json({ error: "This task cannot accept a submission in its current state" });
+  if (!["ACCEPTED", "IN_PROGRESS", "REJECTED"].includes(task.status)) return res.status(409).json({ error: "Accept and start the task before submitting it, or resubmit a rejected task" });
   if (task.category !== "TRAINING") {
     const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, req.user!.userId));
     const [account] = await db.select({ onboardingVerified: users.onboardingVerified }).from(users).where(eq(users._id, req.user!.userId));
