@@ -30,7 +30,8 @@ type Task = {
   _id: string; title: string; category: string; description: string; status: string;
   dueAt?: string | null; evidenceText?: string | null; evidenceUrl?: string | null; reviewReason?: string | null;
 };
-type Campaign = { id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales: number; unitAreaSqFt: number; targetDays: number; status: string };
+type Campaign = { id: string; projectId?: string | null; name: string; projectName: string; location: string; targetInventory: number; salesTarget: number; verifiedSales: number; unitAreaSqFt: number; targetDays: number; status: string; marketingGuidelines?: { version: number; content: string; approvalReference: string; publishedAt: string } | null; guidelinesAcknowledged?: boolean };
+type MarketingMaterial = { _id: string; campaignId: string; title: string; channel: string; content: string; assetUrl?: string | null; status?: string; validTo?: string | null; createdAt: string };
 type Incentive = { _id: string; bookingReference: string; policyNameSnapshot: string; policyVersion: number; amount: number; status: string; paymentReference?: string | null; expectedPayoutAt?: string | null; recoveryStatus?: string | null; recoveryAmount?: number; createdAt: string };
 type AmbassadorLead = {
   _id: string; leadReference: string; projectName: string; unitNumber?: string | null; stage: string;
@@ -78,6 +79,9 @@ export default function AmbassadorOperatingSystemPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myLeaderboardRank, setMyLeaderboardRank] = useState<LeaderboardEntry | null>(null);
   const [myLeads, setMyLeads] = useState<AmbassadorLead[]>([]);
+  const [approvedMaterials, setApprovedMaterials] = useState<MarketingMaterial[]>([]);
+  const [materialForm, setMaterialForm] = useState({ campaignId: "", title: "", channel: "WHATSAPP", content: "", assetUrl: "" });
+  const [submittingMaterial, setSubmittingMaterial] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [followUpForm, setFollowUpForm] = useState<Record<string,{dueAt:string;channel:string;note:string}>>({});
   const [loading, setLoading] = useState(true);
@@ -99,11 +103,12 @@ export default function AmbassadorOperatingSystemPage() {
 
   async function load() {
     try {
-      const [res, rankRes, leadsRes, followUpsRes] = await Promise.all([
+      const [res, rankRes, leadsRes, followUpsRes, marketingRes] = await Promise.all([
         api.get("/ambassador-os/me"),
         api.get("/ambassador-os/leaderboard").catch(() => ({ data: { leaderboard: [], mine: null } })),
         api.get("/ambassador-os/leads/me").catch(() => ({ data: { leads: [] as AmbassadorLead[] } })),
         api.get("/ambassador-os/follow-ups/me").catch(() => ({ data: { followUps: [] as FollowUp[] } })),
+        api.get("/ambassador-os/marketing-materials").catch(() => ({ data: { materials: [] as MarketingMaterial[] } })),
       ]);
       const data = res.data as Snapshot;
       setSnapshot(data);
@@ -111,6 +116,8 @@ export default function AmbassadorOperatingSystemPage() {
       setMyLeaderboardRank(rankRes.data.mine ?? null);
       setMyLeads(leadsRes.data.leads ?? []);
       setFollowUps(followUpsRes.data.followUps ?? []);
+      setApprovedMaterials(marketingRes.data.materials ?? []);
+      setMaterialForm((form) => ({ ...form, campaignId: form.campaignId || data.campaigns[0]?.id || "" }));
       setCollege(data.profile.college ?? "");
       setCourse(data.profile.course ?? "");
       setAcademicYear(data.profile.academicYear ?? "");
@@ -183,6 +190,35 @@ export default function AmbassadorOperatingSystemPage() {
       toast.success("Task marked in progress");
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not start task"); }
+  }
+
+  async function acknowledgeCampaign(campaign: Campaign) {
+    if (!campaign.marketingGuidelines) { toast.error("The Truvi program team must publish approved guidelines for this campaign first."); return; }
+    try {
+      await api.post(`/ambassador-os/campaigns/${campaign.id}/acknowledge`, { version: campaign.marketingGuidelines.version, confirmed: true });
+      toast.success(`Campaign guidelines v${campaign.marketingGuidelines.version} acknowledged`);
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not acknowledge campaign guidelines"); }
+  }
+
+  async function submitMarketingMaterial(e: React.FormEvent) {
+    e.preventDefault();
+    if (!materialForm.campaignId || materialForm.title.trim().length < 3 || materialForm.content.trim().length < 10) {
+      toast.error("Choose an active campaign and provide a title and complete draft"); return;
+    }
+    const campaign = snapshot?.campaigns.find((item) => item.id === materialForm.campaignId);
+    if (!campaign?.guidelinesAcknowledged) { toast.error("Acknowledge the current campaign guidelines before submitting material"); return; }
+    setSubmittingMaterial(true);
+    try {
+      await api.post("/ambassador-os/marketing-materials", {
+        campaignId: materialForm.campaignId, title: materialForm.title.trim(), channel: materialForm.channel,
+        content: materialForm.content.trim(), assetUrl: materialForm.assetUrl.trim() || undefined,
+      });
+      toast.success("Marketing material submitted for approval; it is not approved for sharing yet.");
+      setMaterialForm((form) => ({ ...form, title: "", content: "", assetUrl: "" }));
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit marketing material"); }
+    finally { setSubmittingMaterial(false); }
   }
 
   async function scheduleFollowUp(lead: AmbassadorLead) {
@@ -344,7 +380,27 @@ export default function AmbassadorOperatingSystemPage() {
         </Card>
         <Card className="border-white/10 bg-white/[0.035] p-5">
           <div className="mb-4 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-semibold"><Building2 className="text-sky-300" /> Active Campaigns</h2><Badge variant="info">{campaigns.length}</Badge></div>
-          {campaigns.length === 0 ? <Empty text="No verified active campaign has been published yet." /> : <div className="space-y-3">{campaigns.map((campaign) => <div key={campaign.id} className="rounded-xl border border-white/10 p-4"><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-sm text-muted-foreground">{campaign.projectName} · {campaign.location}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><MiniMetric label="Available-unit target" value={String(campaign.targetInventory)} /><MiniMetric label="Verified sales / goal" value={`${campaign.verifiedSales} / ${campaign.salesTarget}`} /><MiniMetric label="Area per unit" value={`${campaign.unitAreaSqFt.toLocaleString("en-IN")} sq ft`} /><MiniMetric label="Target days" value={String(campaign.targetDays)} /></div><p className="mt-3 text-xs text-muted-foreground">Campaign targets are planning settings, not a promise of availability or a guaranteed sale.</p></div>)}</div>}
+          {campaigns.length === 0 ? <Empty text="No verified active campaign has been published yet." /> : <div className="space-y-3">{campaigns.map((campaign) => <div key={campaign.id} className="rounded-xl border border-white/10 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold">{campaign.name}</p><p className="mt-1 text-sm text-muted-foreground">{campaign.projectName} · {campaign.location}</p></div><Badge variant={campaign.guidelinesAcknowledged ? "success" : "warning"}>{campaign.guidelinesAcknowledged ? "Guidelines acknowledged" : "Acknowledgement required"}</Badge></div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><MiniMetric label="Available-unit target" value={String(campaign.targetInventory)} /><MiniMetric label="Verified units sold / goal" value={`${campaign.verifiedSales} / ${campaign.salesTarget}`} /><MiniMetric label="Area per unit" value={`${campaign.unitAreaSqFt.toLocaleString("en-IN")} sq ft`} /><MiniMetric label="Target days" value={String(campaign.targetDays)} /></div>
+            <p className="mt-3 text-xs text-muted-foreground">Campaign targets are planning settings, not a promise of availability or a guaranteed sale.</p>
+            {campaign.marketingGuidelines ? <div className="mt-3 rounded-lg border border-sky-400/20 bg-sky-400/5 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">Marketing guidelines · Version {campaign.marketingGuidelines.version}</p><span className="text-xs text-muted-foreground">Approval ref: {campaign.marketingGuidelines.approvalReference}</span></div><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{campaign.marketingGuidelines.content}</p>{!campaign.guidelinesAcknowledged && <Button size="sm" className="mt-3" onClick={() => void acknowledgeCampaign(campaign)}>I have read these guidelines — acknowledge v{campaign.marketingGuidelines.version}</Button>}{campaign.guidelinesAcknowledged && <p className="mt-2 text-xs text-emerald-300">Acknowledged. Sales lead submission is enabled for this campaign, subject to customer consent and all other rules.</p>}</div> : <p className="mt-3 rounded-lg border border-amber-400/20 p-3 text-sm text-amber-200">Approved campaign marketing guidelines have not been published. Lead submission for this campaign will remain blocked until the program team publishes them.</p>}
+          </div>)}</div>}
+        </Card>
+      </section>
+
+      <section className="space-y-4">
+        <div><h2 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="text-sky-300" /> Approved Marketing Material</h2><p className="mt-1 text-sm text-muted-foreground">Only material approved by Truvi and valid for an acknowledged campaign is available for sharing.</p></div>
+        {approvedMaterials.length === 0 ? <Card className="border-white/10 bg-white/[0.035] p-4"><Empty text="No approved material is available for your acknowledged campaigns yet." /></Card> : <div className="grid gap-3 md:grid-cols-2">{approvedMaterials.map((material) => <Card key={material._id} className="border-white/10 bg-white/[0.035] p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="font-semibold">{material.title}</h3><p className="mt-1 text-xs text-sky-300">{material.channel.replace(/_/g," ")}</p></div><Badge variant="success">Approved</Badge></div><p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{material.content}</p>{material.assetUrl && <a href={material.assetUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex text-sm text-sky-300 underline">Open approved asset ↗</a>}{material.validTo && <p className="mt-2 text-xs text-muted-foreground">Valid until {new Date(material.validTo).toLocaleDateString("en-IN")}</p>}</Card>)}</div>}
+        <Card className="border-white/10 bg-white/[0.035] p-5"><h3 className="mb-1 text-lg font-semibold">Submit material for approval</h3><p className="mb-4 text-sm text-muted-foreground">Drafts are not approved for publishing. Submit only content that follows the latest acknowledged campaign guidelines.</p>
+          <form className="grid gap-3 md:grid-cols-2" onSubmit={(e) => void submitMarketingMaterial(e)}>
+            <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Campaign</span><select required className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={materialForm.campaignId} onChange={(e) => setMaterialForm((f) => ({...f,campaignId:e.target.value}))}><option value="">Choose an acknowledged campaign</option>{campaigns.filter((c) => c.guidelinesAcknowledged).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+            <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Channel</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={materialForm.channel} onChange={(e) => setMaterialForm((f) => ({...f,channel:e.target.value}))}>{["WHATSAPP","INSTAGRAM","FACEBOOK","POSTER","EMAIL","BROCHURE","OTHER"].map((v) => <option key={v}>{v}</option>)}</select></label>
+            <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Title</span><input required minLength={3} maxLength={180} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={materialForm.title} onChange={(e) => setMaterialForm((f) => ({...f,title:e.target.value}))} placeholder="Draft title" /></label>
+            <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Draft content / caption / copy</span><textarea required minLength={10} maxLength={12000} rows={4} className="w-full rounded-lg border border-white/10 bg-slate-950 p-3" value={materialForm.content} onChange={(e) => setMaterialForm((f) => ({...f,content:e.target.value}))} placeholder="Draft text to be reviewed by the Truvi program team" /></label>
+            <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Optional hosted asset URL</span><input type="url" className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={materialForm.assetUrl} onChange={(e) => setMaterialForm((f) => ({...f,assetUrl:e.target.value}))} placeholder="https://…" /></label>
+            <div className="md:col-span-2"><Button type="submit" disabled={submittingMaterial || !campaigns.some((c) => c.id === materialForm.campaignId && c.guidelinesAcknowledged)}>{submittingMaterial ? "Submitting…" : "Submit for approval"}</Button></div>
+          </form>
         </Card>
       </section>
 
