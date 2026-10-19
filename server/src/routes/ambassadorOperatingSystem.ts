@@ -169,12 +169,13 @@ router.get("/me", async (req: AuthedRequest, res) => {
   const db = getDb();
   const profile = await ensureProfile(req.user!.userId);
   const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
-  const [progress, tasks, campaigns, incentives, ownLeads] = await Promise.all([
+  const [progress, tasks, campaigns, incentives, ownLeads, registeredLeadRows] = await Promise.all([
     db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId)),
     db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, req.user!.userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
     db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true))).orderBy(desc(ambassadorOsCampaigns.createdAt)),
     db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.userId, req.user!.userId)).orderBy(desc(ambassadorOsIncentives.createdAt)),
     db.select({ _id: leads._id, stage: leads.stage }).from(leads).where(eq(leads.submittedById, req.user!.userId)),
+    db.select({ projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
   ]);
   const progressByDay = new Map(progress.map((row) => [row.day, row]));
   const modules = MODULES.map((module) => {
@@ -197,7 +198,12 @@ router.get("/me", async (req: AuthedRequest, res) => {
     verification: { emailVerified: account?.emailVerified ?? false, phoneVerified: account?.phoneVerified ?? false, onboardingVerified: account?.onboardingVerified ?? false },
     modules,
     tasks,
-    campaigns: campaigns.map((c) => ({ id: c._id, name: c.name, projectName: c.projectName, location: c.location, targetInventory: c.targetInventory, unitAreaSqFt: c.unitAreaSqFt, targetDays: c.targetDays, status: c.status })),
+    campaigns: campaigns.map((c) => ({
+      id: c._id, projectId: c.projectId, name: c.name, projectName: c.projectName, location: c.location,
+      targetInventory: c.targetInventory, salesTarget: c.salesTarget,
+      verifiedSales: registeredLeadRows.filter((lead) => lead.projectId === c.projectId && !lead.isDuplicate).length,
+      unitAreaSqFt: c.unitAreaSqFt, targetDays: c.targetDays, status: c.status,
+    })),
     leadSummary,
     incentives,
     performance: {
@@ -373,7 +379,7 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
     db.select({ submittedById: leads.submittedById, referralChain: leads.referralChain, projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
   ]);
   const ambassadorIds = new Set(profiles.map((row) => row.profile.userId));
-  const registeredSales = registeredLeadRows.filter((lead) => ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId))).length;
+  const registeredSales = registeredLeadRows.filter((lead) => !lead.isDuplicate && (ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId)))).length;
   res.json({
     profiles: profiles.map((row) => ({ ...row, profile: displayProfile(row.profile) })),
     trainingReviews: progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING" || row.progress.status === "RETAKE_REQUIRED").map((row) => ({ ...row.progress, ambassadorName: row.name, ambassadorEmail: row.email })),
@@ -523,6 +529,7 @@ const campaignSchema = z.object({
   projectName: z.string().trim().min(2).max(180),
   location: z.string().trim().min(2).max(180),
   targetInventory: z.number().int().positive().max(1_000_000),
+  salesTarget: z.number().int().positive().max(1_000_000).optional(),
   unitAreaSqFt: z.number().int().positive().max(1_000_000),
   targetDays: z.number().int().positive().max(3650),
   startsAt: z.string().datetime().optional(),
@@ -686,6 +693,12 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   const [policy] = await db.select().from(ambassadorOsIncentivePolicies).where(eq(ambassadorOsIncentivePolicies._id, parsed.data.policyId));
   if (!policy || !policy.active || !policy.approvalReference?.trim()) return res.status(409).json({ error: "The selected incentive policy is not active and approved" });
   if (policy.effectiveFrom && policy.effectiveFrom.getTime() > Date.now()) return res.status(409).json({ error: "The selected incentive policy is not effective yet" });
+  if (policy.campaignId) {
+    const [campaign] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, policy.campaignId));
+    if (!campaign || campaign.status !== "ACTIVE" || !campaign.officialDataVerified || campaign.projectId !== lead.projectId) {
+      return res.status(409).json({ error: "This incentive policy only applies to eligible registered sales within its verified active campaign project" });
+    }
+  }
   const [existingIncentive] = await db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.bookingReference, lead._id));
   if (existingIncentive) return res.status(409).json({ error: "An incentive record already exists for this sale reference" });
   const amount = policy.calculationType === "FIXED"
