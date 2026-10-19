@@ -536,8 +536,14 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   const certificateNo = completedDaySeven
     ? (profile.certificateNo ?? `TRUVI-CERT-${String(profile.ambassadorNo).padStart(6, "0")}`)
     : null;
+  const preserveOperationalStatus = ["ACTIVE", "SUSPENDED", "EXITED", "TEMPORARILY_INACTIVE"].includes(profile.status);
+  const nextProfileStatus = preserveOperationalStatus
+    ? profile.status
+    : allComplete ? "CERTIFIED" as const
+      : canComplete ? "TRAINING_IN_PROGRESS" as const
+        : "ASSESSMENT_PENDING" as const;
   await db.update(ambassadorOsProfiles).set({
-    status: allComplete ? "CERTIFIED" : canComplete ? "TRAINING_IN_PROGRESS" : "ASSESSMENT_PENDING",
+    status: nextProfileStatus,
     certificateNo,
     certifiedAt: completedDaySeven ? (profile.certifiedAt ?? now) : null,
     certifiedById: completedDaySeven ? (profile.certifiedById ?? req.user!.userId) : null,
