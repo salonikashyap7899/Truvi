@@ -492,6 +492,169 @@ const adminLeadReviewSchema = z.object({
   lostReason: z.string().trim().max(1000).optional(),
 });
 
+
+router.get("/admin/sales-dashboard", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const db = getDb();
+  const sourceKey = sql<string>`coalesce(${leads.sourceChannel}, ${leads.source})`;
+  const [
+    campaigns,
+    leadsByProject,
+    visitsByProject,
+    bookingsByProject,
+    commissionsByProject,
+    leadsByChannel,
+    visitsByChannel,
+    bookingsByChannel,
+    costsByCampaignChannel,
+  ] = await Promise.all([
+    db.select().from(ambassadorOsCampaigns).orderBy(desc(ambassadorOsCampaigns.createdAt)),
+    db.select({
+      projectId: leads.projectId,
+      total: sql<number>`count(*)`.mapWith(Number),
+      newLeads: sql<number>`count(*) filter (where ${leads.stage} in ('GENERATED','ASSIGNED'))`.mapWith(Number),
+      contacted: sql<number>`count(*) filter (where ${leads.contactAttemptedAt} is not null or ${leads.stage} in ('CONTACTED','INTERESTED','SITE_VISIT','NEGOTIATION','BOOKING','REGISTRATION','COMPLETED'))`.mapWith(Number),
+      qualified: sql<number>`count(*) filter (where ${leads.qualifiedAt} is not null or ${leads.stage} in ('INTERESTED','SITE_VISIT','NEGOTIATION','BOOKING','REGISTRATION','COMPLETED'))`.mapWith(Number),
+      lost: sql<number>`count(*) filter (where ${leads.stage} = 'LOST')`.mapWith(Number),
+      duplicates: sql<number>`count(*) filter (where ${leads.isDuplicate} = true)`.mapWith(Number),
+      ownershipDisputes: sql<number>`count(*) filter (where ${leads.ownershipReviewStatus} in ('OPEN','UNDER_REVIEW'))`.mapWith(Number),
+    }).from(leads).groupBy(leads.projectId),
+    db.select({
+      projectId: siteVisits.projectId,
+      scheduled: sql<number>`count(*) filter (where ${siteVisits.status} in ('SCHEDULED','CONFIRMED'))`.mapWith(Number),
+      completed: sql<number>`count(*) filter (where ${siteVisits.status} = 'COMPLETED')`.mapWith(Number),
+      cancelled: sql<number>`count(*) filter (where ${siteVisits.status} in ('CANCELLED','NO_SHOW'))`.mapWith(Number),
+      total: sql<number>`count(*)`.mapWith(Number),
+    }).from(siteVisits).groupBy(siteVisits.projectId),
+    db.select({
+      projectId: ambassadorOsPropertyBookings.projectId,
+      total: sql<number>`count(*)`.mapWith(Number),
+      pending: sql<number>`count(*) filter (where ${ambassadorOsPropertyBookings.status} in ('SUBMITTED','UNDER_REVIEW'))`.mapWith(Number),
+      verified: sql<number>`count(*) filter (where ${ambassadorOsPropertyBookings.status} = 'VERIFIED')`.mapWith(Number),
+      verifiedSales: sql<number>`count(distinct ${ambassadorOsPropertyBookings.unitId}) filter (where ${ambassadorOsPropertyBookings.status} = 'SALE_VERIFIED')`.mapWith(Number),
+      cancelled: sql<number>`count(*) filter (where ${ambassadorOsPropertyBookings.cancelledAt} is not null)`.mapWith(Number),
+    }).from(ambassadorOsPropertyBookings).groupBy(ambassadorOsPropertyBookings.projectId),
+    db.select({
+      projectId: ambassadorOsPropertyBookings.projectId,
+      total: sql<number>`coalesce(sum(${ambassadorOsIncentives.amount}) filter (where ${ambassadorOsIncentives.status} in ('APPROVED','PAYABLE','PAID')), 0)`.mapWith(Number),
+      paid: sql<number>`coalesce(sum(${ambassadorOsIncentives.amount}) filter (where ${ambassadorOsIncentives.status} = 'PAID'), 0)`.mapWith(Number),
+    }).from(ambassadorOsIncentives)
+      .innerJoin(ambassadorOsPropertyBookings, eq(ambassadorOsIncentives.propertyBookingId, ambassadorOsPropertyBookings._id))
+      .groupBy(ambassadorOsPropertyBookings.projectId),
+    db.select({
+      projectId: leads.projectId,
+      sourceChannel: sourceKey,
+      total: sql<number>`count(*)`.mapWith(Number),
+      qualified: sql<number>`count(*) filter (where ${leads.qualifiedAt} is not null or ${leads.stage} in ('INTERESTED','SITE_VISIT','NEGOTIATION','BOOKING','REGISTRATION','COMPLETED'))`.mapWith(Number),
+      lost: sql<number>`count(*) filter (where ${leads.stage} = 'LOST')`.mapWith(Number),
+    }).from(leads).groupBy(leads.projectId, sourceKey),
+    db.select({
+      projectId: leads.projectId,
+      sourceChannel: sourceKey,
+      scheduled: sql<number>`count(*) filter (where ${siteVisits.status} in ('SCHEDULED','CONFIRMED'))`.mapWith(Number),
+      completed: sql<number>`count(*) filter (where ${siteVisits.status} = 'COMPLETED')`.mapWith(Number),
+    }).from(siteVisits).innerJoin(leads, eq(siteVisits.leadId, leads._id)).groupBy(leads.projectId, sourceKey),
+    db.select({
+      projectId: ambassadorOsPropertyBookings.projectId,
+      sourceChannel: sourceKey,
+      verifiedSales: sql<number>`count(distinct ${ambassadorOsPropertyBookings.unitId}) filter (where ${ambassadorOsPropertyBookings.status} = 'SALE_VERIFIED')`.mapWith(Number),
+    }).from(ambassadorOsPropertyBookings)
+      .innerJoin(leads, eq(ambassadorOsPropertyBookings.leadId, leads._id))
+      .groupBy(ambassadorOsPropertyBookings.projectId, sourceKey),
+    db.select({
+      campaignId: ambassadorOsChannelCosts.campaignId,
+      sourceChannel: ambassadorOsChannelCosts.sourceChannel,
+      cost: sql<number>`coalesce(sum(${ambassadorOsChannelCosts.amount}), 0)`.mapWith(Number),
+    }).from(ambassadorOsChannelCosts).groupBy(ambassadorOsChannelCosts.campaignId, ambassadorOsChannelCosts.sourceChannel),
+  ]);
+  const leadMap = new Map(leadsByProject.map((row) => [row.projectId, row]));
+  const visitMap = new Map(visitsByProject.map((row) => [row.projectId, row]));
+  const bookingMap = new Map(bookingsByProject.map((row) => [row.projectId, row]));
+  const commissionMap = new Map(commissionsByProject.map((row) => [row.projectId, row]));
+  const ratio = (numerator: number, denominator: number) => denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null;
+  const now = Date.now();
+  const results = campaigns.map((campaign) => {
+    const l = campaign.projectId ? leadMap.get(campaign.projectId) : undefined;
+    const v = campaign.projectId ? visitMap.get(campaign.projectId) : undefined;
+    const b = campaign.projectId ? bookingMap.get(campaign.projectId) : undefined;
+    const commission = campaign.projectId ? commissionMap.get(campaign.projectId) : undefined;
+    const start = campaign.startsAt ?? campaign.createdAt;
+    const end = start.getTime() + campaign.targetDays * 86400000;
+    const campaignDaysRemaining = campaign.status === "COMPLETED" ? 0 : Math.max(0, Math.ceil((end - now) / 86400000));
+    const total = l?.total ?? 0;
+    const contacted = l?.contacted ?? 0;
+    const qualified = l?.qualified ?? 0;
+    const visitsScheduled = v?.scheduled ?? 0;
+    const visitsCompleted = v?.completed ?? 0;
+    const bookingRecords = b?.total ?? 0;
+    const verifiedSales = b?.verifiedSales ?? 0;
+    const channels = leadsByChannel.filter((row) => row.projectId === campaign.projectId).map((row) => {
+      const visit = visitsByChannel.find((item) => item.projectId === row.projectId && item.sourceChannel === row.sourceChannel);
+      const sale = bookingsByChannel.find((item) => item.projectId === row.projectId && item.sourceChannel === row.sourceChannel);
+      const campaignCost = costsByCampaignChannel.filter((cost) => cost.campaignId === campaign._id && cost.sourceChannel === row.sourceChannel).reduce((sum, cost) => sum + cost.cost, 0);
+      return {
+        sourceChannel: row.sourceChannel,
+        cost: campaignCost,
+        leads: row.total,
+        qualifiedLeads: row.qualified,
+        siteVisits: visit?.scheduled ?? 0,
+        completedSiteVisits: visit?.completed ?? 0,
+        verifiedSales: sale?.verifiedSales ?? 0,
+        costPerQualifiedLead: row.qualified > 0 ? Math.round((campaignCost / row.qualified) * 100) / 100 : null,
+      };
+    });
+    return {
+      campaignId: campaign._id,
+      campaignName: campaign.name,
+      projectName: campaign.projectName,
+      location: campaign.location,
+      status: campaign.status,
+      targetUnits: campaign.salesTarget,
+      verifiedUnitsSold: verifiedSales,
+      unitsRemaining: Math.max(0, campaign.salesTarget - verifiedSales),
+      totalEnquiries: total,
+      newEnquiries: l?.newLeads ?? 0,
+      contacted,
+      qualifiedLeads: qualified,
+      lostLeads: l?.lost ?? 0,
+      duplicateLeads: l?.duplicates ?? 0,
+      ownershipDisputes: l?.ownershipDisputes ?? 0,
+      siteVisitsScheduled: visitsScheduled,
+      siteVisitsCompleted: visitsCompleted,
+      cancelledSiteVisits: v?.cancelled ?? 0,
+      bookingsPendingVerification: b?.pending ?? 0,
+      verifiedBookings: b?.verified ?? 0,
+      cancelledBookings: b?.cancelled ?? 0,
+      totalBookingRecords: bookingRecords,
+      campaignDaysRemaining,
+      commissionEarned: commission?.total ?? 0,
+      commissionPaid: commission?.paid ?? 0,
+      conversion: {
+        leadToContacted: ratio(contacted, total),
+        contactedToQualified: ratio(qualified, contacted),
+        qualifiedToVisitScheduled: ratio(visitsScheduled, qualified),
+        scheduledToCompleted: ratio(visitsCompleted, visitsScheduled),
+        completedToBooking: ratio(bookingRecords, visitsCompleted),
+        bookingToVerifiedSale: ratio(verifiedSales, bookingRecords),
+      },
+      channels,
+    };
+  });
+  const totals = results.reduce((a, r) => ({
+    campaigns: a.campaigns + 1,
+    targetUnits: a.targetUnits + r.targetUnits,
+    verifiedUnitsSold: a.verifiedUnitsSold + r.verifiedUnitsSold,
+    unitsRemaining: a.unitsRemaining + r.unitsRemaining,
+    totalEnquiries: a.totalEnquiries + r.totalEnquiries,
+    qualifiedLeads: a.qualifiedLeads + r.qualifiedLeads,
+    siteVisitsScheduled: a.siteVisitsScheduled + r.siteVisitsScheduled,
+    siteVisitsCompleted: a.siteVisitsCompleted + r.siteVisitsCompleted,
+    bookingsPendingVerification: a.bookingsPendingVerification + r.bookingsPendingVerification,
+    cancelledBookings: a.cancelledBookings + r.cancelledBookings,
+    commissionEarned: a.commissionEarned + r.commissionEarned,
+  }), { campaigns: 0, targetUnits: 0, verifiedUnitsSold: 0, unitsRemaining: 0, totalEnquiries: 0, qualifiedLeads: 0, siteVisitsScheduled: 0, siteVisitsCompleted: 0, bookingsPendingVerification: 0, cancelledBookings: 0, commissionEarned: 0 });
+  res.json({ campaigns: results, totals, metricBasis: "Verified bookings marked SALE_VERIFIED; enquiry and funnel metrics derive from existing Truvi leads and site visits." });
+});
+
 router.get("/admin/sales-pipeline", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
   const db = getDb();
   const [leadRows, bookingRows, campaigns, costs] = await Promise.all([
