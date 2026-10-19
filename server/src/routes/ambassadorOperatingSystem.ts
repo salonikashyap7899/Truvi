@@ -1441,7 +1441,7 @@ router.get("/admin/booking-history/:id", requireOsStaffRole("SALES_COORDINATOR",
   res.json({ history: rows });
 });
 
-router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/overview", requireOsStaffRole("PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"), async (req: AuthedRequest, res) => {
   const db = getDb();
   // Make sure existing Ambassador accounts appear in the directory even if they
   // have not visited the new workspace yet. Bulk insert is additive and race-safe.
@@ -1452,7 +1452,14 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
   if (missingProfiles.length) {
     await db.insert(ambassadorOsProfiles).values(missingProfiles.map((row) => ({ userId: row.userId }))).onConflictDoNothing();
   }
-  const [profiles, progress, tasks, campaigns, policies, incentives, registeredLeadRows] = await Promise.all([
+  const staffRoles: OsStaffRole[] = req.user!.role === "ADMIN" ? ["PROGRAM_MANAGER", "SALES_COORDINATOR", "TRAINING_COORDINATOR"] : await getOsStaffRoles(req.user!.userId);
+  const isAdmin = req.user!.role === "ADMIN";
+  const canManagePeople = isAdmin || staffRoles.some((role) => ["PROGRAM_MANAGER", "TRAINING_COORDINATOR"].includes(role));
+  const canReviewTraining = isAdmin || staffRoles.includes("TRAINING_COORDINATOR");
+  const canManageCampaigns = isAdmin || staffRoles.includes("PROGRAM_MANAGER");
+  const canViewSales = isAdmin || staffRoles.includes("SALES_COORDINATOR") || staffRoles.includes("PROGRAM_MANAGER");
+  const canManagePolicies = isAdmin || staffRoles.includes("PROGRAM_MANAGER");
+  const [profiles, progress, tasks, campaigns, policies, incentives, registeredLeadRows, verifiedBookings] = await Promise.all([
     db.select({ profile: ambassadorOsProfiles, name: users.name, email: users.email, onboardingVerified: users.onboardingVerified }).from(ambassadorOsProfiles).innerJoin(users, eq(ambassadorOsProfiles.userId, users._id)).orderBy(desc(ambassadorOsProfiles.createdAt)),
     db.select({ progress: ambassadorOsTrainingProgress, name: users.name, email: users.email }).from(ambassadorOsTrainingProgress).innerJoin(users, eq(ambassadorOsTrainingProgress.userId, users._id)).orderBy(desc(ambassadorOsTrainingProgress.updatedAt)),
     db.select({ task: ambassadorOsTasks, ambassadorName: users.name }).from(ambassadorOsTasks).innerJoin(users, eq(ambassadorOsTasks.assignedToId, users._id)).orderBy(desc(ambassadorOsTasks.createdAt)),
@@ -1460,27 +1467,34 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
     db.select().from(ambassadorOsIncentivePolicies).orderBy(desc(ambassadorOsIncentivePolicies.createdAt)),
     db.select({ incentive: ambassadorOsIncentives, ambassadorName: users.name, ambassadorEmail: users.email }).from(ambassadorOsIncentives).innerJoin(users, eq(ambassadorOsIncentives.userId, users._id)).orderBy(desc(ambassadorOsIncentives.createdAt)),
     db.select({ submittedById: leads.submittedById, referralChain: leads.referralChain, projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
+    db.select({ projectId: ambassadorOsPropertyBookings.projectId, unitId: ambassadorOsPropertyBookings.unitId }).from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.status, "SALE_VERIFIED")),
   ]);
   const ambassadorIds = new Set(profiles.map((row) => row.profile.userId));
-  const registeredSales = registeredLeadRows.filter((lead) => !lead.isDuplicate && (ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId)))).length;
+  const attributedRegisteredLeads = registeredLeadRows.filter((lead) => !lead.isDuplicate && (ambassadorIds.has(lead.submittedById) || (lead.referralChain ?? []).some((referral) => ambassadorIds.has(referral.userId))));
+  const allowedTasks = tasks.filter((row) => isAdmin || taskCategoryRoles(row.task.category).some((role) => staffRoles.includes(role)));
+  const visibleCampaigns = canManageCampaigns || canViewSales ? campaigns : [];
+  const visibleProfiles = canManagePeople ? profiles.map((row) => ({ ...row, profile: displayProfile(row.profile) })) : [];
+  const visibleTrainingReviews = canReviewTraining ? progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING" || row.progress.status === "RETAKE_REQUIRED").map((row) => ({ ...row.progress, ambassadorName: row.name, ambassadorEmail: row.email })) : [];
+  const visibleIncentives = isAdmin ? incentives.map((row) => ({ ...row.incentive, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })) : [];
   res.json({
-    profiles: profiles.map((row) => ({ ...row, profile: displayProfile(row.profile) })),
-    trainingReviews: progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING" || row.progress.status === "RETAKE_REQUIRED").map((row) => ({ ...row.progress, ambassadorName: row.name, ambassadorEmail: row.email })),
-    tasks: tasks.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName })),
-    campaigns: campaigns.map((campaign) => ({
+    osRoles: isAdmin ? ["ADMIN"] : staffRoles,
+    profiles: visibleProfiles,
+    trainingReviews: visibleTrainingReviews,
+    tasks: allowedTasks.map((row) => ({ ...row.task, ambassadorName: row.ambassadorName })),
+    campaigns: visibleCampaigns.map((campaign) => ({
       ...campaign,
-      verifiedSales: registeredLeadRows.filter((lead) => lead.projectId === campaign.projectId && !lead.isDuplicate).length,
+      verifiedSales: new Set(verifiedBookings.filter((booking) => booking.projectId === campaign.projectId && booking.unitId).map((booking) => booking.unitId)).size,
     })),
-    policies,
-    incentives: incentives.map((row) => ({ ...row.incentive, ambassadorName: row.ambassadorName, ambassadorEmail: row.ambassadorEmail })),
+    policies: canManagePolicies ? policies : [],
+    incentives: visibleIncentives,
     stats: {
-      ambassadors: profiles.length,
-      awaitingAssessment: progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING").length,
-      assignedTasks: tasks.length,
-      submittedTasks: tasks.filter((row) => row.task.status === "SUBMITTED").length,
-      activeCampaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
-      pendingIncentives: incentives.filter((row) => ["PENDING", "APPROVED", "PAYABLE"].includes(row.incentive.status)).length,
-      registeredSales,
+      ambassadors: canManagePeople ? profiles.length : 0,
+      awaitingAssessment: canReviewTraining ? progress.filter((row) => row.progress.status === "ASSESSMENT_PENDING").length : 0,
+      assignedTasks: allowedTasks.length,
+      submittedTasks: allowedTasks.filter((row) => row.task.status === "SUBMITTED").length,
+      activeCampaigns: visibleCampaigns.filter((c) => c.status === "ACTIVE").length,
+      pendingIncentives: isAdmin ? incentives.filter((row) => ["PENDING", "APPROVED", "PAYABLE"].includes(row.incentive.status)).length : 0,
+      registeredSales: canViewSales ? new Set(verifiedBookings.filter((booking) => booking.unitId).map((booking) => booking.unitId)).size : 0,
     },
   });
 });
