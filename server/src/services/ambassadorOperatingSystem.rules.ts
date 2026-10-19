@@ -119,3 +119,53 @@ export function hasCompleteSevenDayCurriculum(
     progress.some((item) => item.day === day && item.status === "COMPLETED")
   );
 }
+
+
+export const DEFAULT_AMBASSADOR_SCORECARD_WEIGHTS = {
+  genuineLeadQuality: 25,
+  customerCommunication: 20,
+  siteVisitContribution: 15,
+  verifiedSalesContribution: 15,
+  crmDiscipline: 10,
+  trainingSkillDevelopment: 10,
+  ethicsCompliance: 5,
+} as const;
+
+export type AmbassadorScorecardWeights = {
+  genuineLeadQuality: number;
+  customerCommunication: number;
+  siteVisitContribution: number;
+  verifiedSalesContribution: number;
+  crmDiscipline: number;
+  trainingSkillDevelopment: number;
+  ethicsCompliance: number;
+};
+
+export type AmbassadorScorecardScores = AmbassadorScorecardWeights;
+
+export function areValidScorecardWeights(weights: AmbassadorScorecardWeights): boolean {
+  const values = Object.values(weights);
+  return values.every((value) => Number.isInteger(value) && value >= 0 && value <= 100) &&
+    values.reduce((sum, value) => sum + value, 0) === 100;
+}
+
+export function calculateWeightedPerformanceScore(input: {
+  scores: AmbassadorScorecardScores;
+  weights: AmbassadorScorecardWeights;
+  seriousMisconduct: boolean;
+}): { score: number; eligibleForLeaderboard: boolean } | null {
+  if (!areValidScorecardWeights(input.weights)) return null;
+  if (!Object.values(input.scores).every((score) => Number.isFinite(score) && score >= 0 && score <= 100)) return null;
+  const weighted =
+    input.scores.genuineLeadQuality * input.weights.genuineLeadQuality +
+    input.scores.customerCommunication * input.weights.customerCommunication +
+    input.scores.siteVisitContribution * input.weights.siteVisitContribution +
+    input.scores.verifiedSalesContribution * input.weights.verifiedSalesContribution +
+    input.scores.crmDiscipline * input.weights.crmDiscipline +
+    input.scores.trainingSkillDevelopment * input.weights.trainingSkillDevelopment +
+    input.scores.ethicsCompliance * input.weights.ethicsCompliance;
+  return {
+    score: input.seriousMisconduct ? 0 : Math.round(weighted / 100 * 100) / 100,
+    eligibleForLeaderboard: !input.seriousMisconduct,
+  };
+}
