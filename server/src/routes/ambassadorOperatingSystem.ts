@@ -857,6 +857,54 @@ router.patch("/admin/policies/:id", requireRole("ADMIN"), async (req: AuthedRequ
   res.json({ policy: updated });
 });
 
+router.get("/admin/eligible-sales/:userId", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const [ambassador] = await db.select({ _id: users._id, role: users.role })
+    .from(users).where(eq(users._id, String(req.params.userId)));
+  if (!ambassador || ambassador.role !== "AMBASSADOR") {
+    return res.status(404).json({ error: "Ambassador account not found" });
+  }
+  const rows = await db.select({
+    leadId: leads._id,
+    leadNo: leads.leadNo,
+    stage: leads.stage,
+    isDuplicate: leads.isDuplicate,
+    creatorRole: leads.creatorRole,
+    contactConsent: leads.contactConsent,
+    contactConsentAt: leads.contactConsentAt,
+    consentTextVersion: leads.consentTextVersion,
+    submittedById: leads.submittedById,
+    referralChain: leads.referralChain,
+    projectId: leads.projectId,
+    projectName: projects.name,
+    unitId: leads.unitId,
+    unitNumber: units.unitNumber,
+    areaSqft: units.areaSqft,
+  }).from(leads)
+    .innerJoin(projects, eq(leads.projectId, projects._id))
+    .leftJoin(units, eq(leads.unitId, units._id))
+    .where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED")))
+    .orderBy(desc(leads.createdAt))
+    .limit(250);
+  const eligibleSales = rows.filter((lead) => {
+    const attributed = lead.submittedById === ambassador._id ||
+      (lead.referralChain ?? []).some((referral) => referral.userId === ambassador._id);
+    const consentOK = lead.creatorRole === "BUYER" ||
+      (lead.contactConsent === true && Boolean(lead.contactConsentAt) && Boolean(lead.consentTextVersion));
+    return attributed && !lead.isDuplicate && consentOK && ["REGISTRATION", "COMPLETED"].includes(lead.stage);
+  }).map((lead) => ({
+    leadId: lead.leadId,
+    leadReference: lead.leadNo ? `TRV-L-${String(lead.leadNo).padStart(6, "0")}` : `LEAD-${lead.leadId.slice(0, 8).toUpperCase()}`,
+    projectId: lead.projectId,
+    projectName: lead.projectName,
+    unitId: lead.unitId,
+    unitNumber: lead.unitNumber,
+    areaSqFt: lead.areaSqft ? Math.round(lead.areaSqft) : null,
+    stage: lead.stage,
+  }));
+  res.json({ eligibleSales });
+});
+
 const createIncentiveSchema = z.object({
   userId: z.string().uuid(),
   leadId: z.string().uuid(),
@@ -888,7 +936,7 @@ router.post("/admin/incentives", requireRole("ADMIN"), async (req: AuthedRequest
   if (!isEligibleAmbassadorSale({ stage: lead.stage, isDuplicate: lead.isDuplicate, referralAttributed: attributionPresent })) {
     return res.status(409).json({ error: "A non-duplicate registration/completed sale with verified referral attribution is required" });
   }
-  if (lead.creatorRole && lead.creatorRole !== "BUYER" &&
+  if (lead.creatorRole !== "BUYER" &&
       (!lead.contactConsent || !lead.contactConsentAt || !lead.consentTextVersion)) {
     return res.status(409).json({ error: "This third-party lead has no recorded customer contact consent and is not eligible for an Ambassador incentive." });
   }
