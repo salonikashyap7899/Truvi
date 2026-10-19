@@ -118,7 +118,17 @@ router.post(
 
     const db = getDb();
     const [project] = await db.select().from(projects).where(eq(projects._id, parsed.data.projectId));
-    if (!project) return res.status(404).json({ error: "Project not found" });
+    if (!project) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    // Developers may attach documents only to projects they own. Remove the
+    // temporary upload on denial so rejected uploads do not remain public.
+    if (req.user!.role === "DEVELOPER" && String(project.developerId) !== req.user!.userId) {
+      fs.promises.unlink(req.file.path).catch(() => {});
+      return res.status(404).json({ error: "Project not found" });
+    }
 
     const [doc] = await db
       .insert(sharedDocuments)
