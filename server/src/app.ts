@@ -1,4 +1,7 @@
 import express from "express";
+import { like } from "drizzle-orm";
+import { getDb } from "./config/db";
+import { buyerDocuments } from "./db/schema";
 import cors from "cors";
 import compression from "compression";
 import morgan from "morgan";
@@ -135,6 +138,26 @@ export function createApp() {
   // stops any files it left behind from being served (or cached by a CDN).
   app.use("/uploads/aadhaar", (_req, res) => {
     res.status(404).end();
+  });
+
+  // Defense in depth during migration: if a public upload URL is still
+  // referenced by a buyerDocuments record, do not serve it from /uploads.
+  // The migration script can still read the file directly from disk.
+  app.use("/uploads", async (req, res, next) => {
+    const filename = path.basename(req.path);
+    if (!filename || filename === "." || filename === "..") return next();
+    try {
+      const [legacyDoc] = await getDb()
+        .select({ id: buyerDocuments._id })
+        .from(buyerDocuments)
+        .where(like(buyerDocuments.fileUrl, `%/uploads/${filename}`))
+        .limit(1);
+      if (legacyDoc) return res.status(404).end();
+      return next();
+    } catch (error) {
+      // Fail closed if the server cannot confirm that the file is public.
+      return next(error);
+    }
   });
 
   app.use(
