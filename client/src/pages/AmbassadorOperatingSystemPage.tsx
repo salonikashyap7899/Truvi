@@ -222,7 +222,20 @@ export default function AmbassadorOperatingSystemPage() {
             <Field label="City" value={city} onChange={setCity} placeholder="Your city" />
             <label className="block text-sm"><span className="mb-1.5 block text-muted-foreground">Preferred role</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={preferredRole} onChange={(e) => setPreferredRole(e.target.value)}><option value="SALES">Sales</option><option value="MARKETING">Marketing</option><option value="RESEARCH">Research</option><option value="OPERATIONS">Operations</option></select></label>
             <label className="block text-sm"><span className="mb-1.5 block text-muted-foreground">Weekly availability (hours)</span><input type="number" min={1} max={60} className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={availability} onChange={(e) => setAvailability(Number(e.target.value))} /></label>
-            {!profile.termsAccepted && <label className="sm:col-span-2 flex items-start gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-1" /><span>I accept the Truvi Ambassador Program terms and code of conduct. This does not itself authorize property/legal claims or activate my account.</span></label>}
+            {!profile.termsAccepted && <>
+              <div className="sm:col-span-2 rounded-xl border border-white/10 bg-black/10 p-4">
+                <h3 className="text-sm font-semibold">Ambassador program rules · Version 1</h3>
+                <ul className="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+                  <li>• Share only current, Truvi-approved property, price and legal information. Never promise returns, approvals or discounts that have not been verified.</li>
+                  <li>• Collect and share a customer’s contact details only after that customer has agreed to the specific enquiry handoff.</li>
+                  <li>• Do not fabricate leads, create duplicates to inflate performance, manipulate referral attribution, or change booking/sale verification.</li>
+                  <li>• Incentives depend on an approved written policy and an eligible verified transaction; registration alone does not guarantee a payout, job or promotion.</li>
+                  <li>• Treat customer and internal business information confidentially. Misleading conduct or privacy violations can lead to suspension or removal from the program.</li>
+                </ul>
+                <p className="mt-3 text-[11px] text-muted-foreground">Your acceptance timestamp and terms version are stored for audit. This screen is an operational summary and should be replaced or supplemented by the formally approved full program terms before production launch.</p>
+              </div>
+              <label className="sm:col-span-2 flex items-start gap-2 text-sm text-muted-foreground"><input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-1" /><span>I have read and accept the Truvi Ambassador Program rules and code of conduct shown above.</span></label>
+            </>}
             <div className="sm:col-span-2"><Button type="submit" disabled={savingProfile} className="w-full sm:w-auto">{savingProfile ? "Saving…" : "Save profile"}</Button></div>
           </form>
         </Card>
