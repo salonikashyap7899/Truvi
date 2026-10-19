@@ -278,13 +278,17 @@ router.get("/me", async (req: AuthedRequest, res) => {
   const profile = await ensureProfile(req.user!.userId);
   const effectiveModules = await getEffectiveModules();
   const [account] = await db.select().from(users).where(eq(users._id, req.user!.userId));
-  const [progress, tasks, campaigns, incentives, ownLeads, registeredLeadRows] = await Promise.all([
+  const [progress, tasks, campaigns, incentives, ownLeads, registeredLeadRows, verifiedBookingRows, campaignGuidelines, campaignAcknowledgements] = await Promise.all([
     db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId)),
     db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, req.user!.userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
     db.select().from(ambassadorOsCampaigns).where(and(eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true))).orderBy(desc(ambassadorOsCampaigns.createdAt)),
     db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.userId, req.user!.userId)).orderBy(desc(ambassadorOsIncentives.createdAt)),
     db.select({ _id: leads._id, stage: leads.stage, isDuplicate: leads.isDuplicate }).from(leads).where(eq(leads.submittedById, req.user!.userId)),
     db.select({ projectId: leads.projectId, isDuplicate: leads.isDuplicate }).from(leads).where(or(eq(leads.stage, "REGISTRATION"), eq(leads.stage, "COMPLETED"))),
+    db.select({ projectId: ambassadorOsPropertyBookings.projectId, unitId: ambassadorOsPropertyBookings.unitId })
+      .from(ambassadorOsPropertyBookings).where(eq(ambassadorOsPropertyBookings.status, "SALE_VERIFIED")),
+    db.select().from(ambassadorOsCampaignGuidelines),
+    db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, req.user!.userId)),
   ]);
   const progressByDay = new Map(progress.map((row) => [row.day, row]));
   const modules = MODULES.map((module) => {
@@ -307,12 +311,19 @@ router.get("/me", async (req: AuthedRequest, res) => {
     verification: { emailVerified: account?.emailVerified ?? false, phoneVerified: account?.phoneVerified ?? false, onboardingVerified: account?.onboardingVerified ?? false },
     modules,
     tasks,
-    campaigns: campaigns.map((c) => ({
-      id: c._id, projectId: c.projectId, name: c.name, projectName: c.projectName, location: c.location,
-      targetInventory: c.targetInventory, salesTarget: c.salesTarget,
-      verifiedSales: registeredLeadRows.filter((lead) => lead.projectId === c.projectId && !lead.isDuplicate).length,
-      unitAreaSqFt: c.unitAreaSqFt, targetDays: c.targetDays, status: c.status,
-    })),
+    campaigns: campaigns.map((c) => {
+      const latestGuideline = campaignGuidelines.filter((item) => item.campaignId === c._id).sort((a, b) => b.version - a.version)[0];
+      const guidelinesAcknowledged = Boolean(latestGuideline && campaignAcknowledgements.some((ack) => ack.campaignId === c._id && ack.guidelineVersion === latestGuideline.version));
+      const verifiedUnitIds = new Set(verifiedBookingRows.filter((booking) => booking.projectId === c.projectId && booking.unitId).map((booking) => booking.unitId));
+      return {
+        id: c._id, projectId: c.projectId, name: c.name, projectName: c.projectName, location: c.location,
+        targetInventory: c.targetInventory, salesTarget: c.salesTarget,
+        verifiedSales: verifiedUnitIds.size,
+        unitAreaSqFt: c.unitAreaSqFt, targetDays: c.targetDays, status: c.status,
+        marketingGuidelines: latestGuideline ? { version: latestGuideline.version, content: latestGuideline.content, approvalReference: latestGuideline.approvalReference, publishedAt: latestGuideline.publishedAt } : null,
+        guidelinesAcknowledged,
+      };
+    }),
     leadSummary,
     incentives,
     performance: {
