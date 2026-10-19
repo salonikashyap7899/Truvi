@@ -58,6 +58,11 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
   const [visitDate, setVisitDate] = useState(initialDraft?.visitDate ?? istToday(1));
   const [visitTime, setVisitTime] = useState(initialDraft?.visitTime ?? "11:00");
   const [requirement, setRequirement] = useState(initialDraft?.requirement ?? "");
+  const [budgetRange, setBudgetRange] = useState("NOT_DECIDED");
+  const [purchasePurpose, setPurchasePurpose] = useState("UNDECIDED");
+  const [preferredPlotSize, setPreferredPlotSize] = useState("");
+  const [purchaseTimeline, setPurchaseTimeline] = useState("NOT_DECIDED");
+  const [sourceChannel, setSourceChannel] = useState("DIRECT_ENQUIRY");
   const [notes, setNotes] = useState(initialDraft?.notes ?? "");
   const [contactConsent, setContactConsent] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -139,6 +144,11 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
         visitDate,
         visitTime,
         requirement: requirement.trim(),
+        budgetRange,
+        purchasePurpose,
+        preferredPlotSize: preferredPlotSize.trim() || undefined,
+        purchaseTimeline,
+        sourceChannel,
         notes: notes.trim() || undefined,
         contactConsent: role === "CP" || role === "AMBASSADOR" ? contactConsent : undefined,
         confirmDuplicate,
@@ -294,6 +304,32 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
                   ))}
                 </div>
                 <input className={field} placeholder="e.g. 2,000 sq ft plot, budget ₹40 L" value={requirement} onChange={(e) => setRequirement(e.target.value)} maxLength={300} />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-white/70">Purchase purpose
+                  <select className={`${field} mt-1.5 [&>option]:bg-[#0a0d14]`} value={purchasePurpose} onChange={(e) => setPurchasePurpose(e.target.value)}>
+                    <option value="SELF_USE">Self-use</option><option value="INVESTMENT">Investment</option><option value="UNDECIDED">Undecided</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-white/70">Budget range
+                  <select className={`${field} mt-1.5 [&>option]:bg-[#0a0d14]`} value={budgetRange} onChange={(e) => setBudgetRange(e.target.value)}>
+                    <option value="NOT_DECIDED">Not decided</option><option value="UNDER_25_LAKH">Under ₹25 lakh</option><option value="25_TO_50_LAKH">₹25–50 lakh</option><option value="50_LAKH_TO_1_CR">₹50 lakh–₹1 crore</option><option value="1_TO_2_CR">₹1–2 crore</option><option value="ABOVE_2_CR">Above ₹2 crore</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-white/70">Preferred plot / unit size
+                  <input className={`${field} mt-1.5`} placeholder="e.g. 1,250 sq ft / 100 sq yd" value={preferredPlotSize} onChange={(e) => setPreferredPlotSize(e.target.value)} maxLength={100} />
+                </label>
+                <label className="block text-xs font-medium text-white/70">Purchase timeline
+                  <select className={`${field} mt-1.5 [&>option]:bg-[#0a0d14]`} value={purchaseTimeline} onChange={(e) => setPurchaseTimeline(e.target.value)}>
+                    <option value="IMMEDIATE">Immediately</option><option value="WITHIN_3_MONTHS">Within 3 months</option><option value="3_TO_6_MONTHS">3–6 months</option><option value="6_TO_12_MONTHS">6–12 months</option><option value="MORE_THAN_12_MONTHS">More than 12 months</option><option value="NOT_DECIDED">Not decided</option>
+                  </select>
+                </label>
+                <label className="block text-xs font-medium text-white/70 sm:col-span-2">How did this enquiry originate?
+                  <select className={`${field} mt-1.5 [&>option]:bg-[#0a0d14]`} value={sourceChannel} onChange={(e) => setSourceChannel(e.target.value)}>
+                    <option value="AMBASSADOR_REFERRAL">Ambassador referral</option><option value="WHATSAPP">WhatsApp</option><option value="INSTAGRAM">Instagram</option><option value="FACEBOOK">Facebook</option><option value="ORGANIC_WEBSITE">Organic website</option><option value="PAID_ADVERTISEMENT">Paid advertisement</option><option value="CUSTOMER_REFERRAL">Existing customer referral</option><option value="TELECALLER">Telecaller</option><option value="CHANNEL_PARTNER">Channel partner</option><option value="DIRECT_ENQUIRY">Direct enquiry</option><option value="OTHER">Other</option>
+                  </select>
+                </label>
               </div>
 
               <div>
