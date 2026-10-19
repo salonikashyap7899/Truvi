@@ -2445,7 +2445,7 @@ router.post("/career/opportunities/:id/apply", async (req: AuthedRequest, res) =
   await notifySafely(admins.map((a) => a.userId), {
     type: "ambassador_career_application",
     title: "Ambassador opportunity application received",
-    message: \`An Ambassador applied for \${opportunity.title}; review eligibility and evidence before selecting.\`,
+    message: `An Ambassador applied for ${opportunity.title}; review eligibility and evidence before selecting.`,
     data: { screen: "AdminAmbassadorOperatingSystem", applicationId: application._id, opportunityId: opportunity._id },
     actorUserId: req.user!.userId,
     priority: "normal",
@@ -2458,7 +2458,7 @@ router.post("/career/opportunities/:id/apply", async (req: AuthedRequest, res) =
 router.get("/admin/career/opportunities", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
   const [opportunities, applicationCounts] = await Promise.all([
     getDb().select().from(ambassadorOsCareerOpportunities).orderBy(desc(ambassadorOsCareerOpportunities.createdAt)),
-    getDb().select({ opportunityId: ambassadorOsCareerApplications.opportunityId, count: sql<number>\`count(*)\`.mapWith(Number) })
+    getDb().select({ opportunityId: ambassadorOsCareerApplications.opportunityId, count: sql<number>`count(*)`.mapWith(Number) })
       .from(ambassadorOsCareerApplications).groupBy(ambassadorOsCareerApplications.opportunityId),
   ]);
   const counts = new Map(applicationCounts.map((row) => [row.opportunityId, row.count]));
@@ -2550,11 +2550,11 @@ router.patch("/admin/career/applications/:id/review", requireRole("ADMIN"), asyn
   await notifySafely([current.ambassadorId], {
     type: "ambassador_career_application_review",
     title: "Career opportunity application updated",
-    message: \`Your career opportunity application was marked \${updated.status.toLowerCase().replace(/_/g, " ")}. \${parsed.data.reviewNotes}\`,
+    message: `Your career opportunity application was marked ${updated.status.toLowerCase().replace(/_/g, " ")}. ${parsed.data.reviewNotes}`,
     data: { screen: "AmbassadorOperatingSystem", applicationId: updated._id, status: updated.status },
     actorUserId: req.user!.userId,
     priority: updated.status === "REJECTED" ? "normal" : "high",
-    dedupeKey: \`\${updated._id}:\${updated.status}\`,
+    dedupeKey: `${updated._id}:${updated.status}`,
   });
   res.json({ application: updated });
 });
@@ -2598,7 +2598,7 @@ router.post("/admin/career/assessments", requireRole("ADMIN"), async (req: Authe
   await notifySafely([profile.userId], {
     type: "ambassador_career_assessment",
     title: "Career progression assessment recorded",
-    message: \`Your \${assessment.targetLevel} \${assessment.assessmentType.toLowerCase().replace(/_/g, " ")} assessment scored \${assessment.score}/100 and \${assessment.passed ? "passed" : "needs further development"}.\`,
+    message: `Your ${assessment.targetLevel} ${assessment.assessmentType.toLowerCase().replace(/_/g, " ")} assessment scored ${assessment.score}/100 and ${assessment.passed ? "passed" : "needs further development"}.`,
     data: { screen: "AmbassadorOperatingSystem", targetLevel: assessment.targetLevel, passed: assessment.passed },
     actorUserId: req.user!.userId,
     priority: "normal",
