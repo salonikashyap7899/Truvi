@@ -361,6 +361,13 @@ router.post("/training/:day/submit", async (req: AuthedRequest, res) => {
   if (!account?.onboardingVerified) return res.status(403).json({ error: "Complete identity verification before training assessments" });
   if (!profile.termsAcceptedAt) return res.status(403).json({ error: "Complete your profile and accept the program terms first" });
   const existing = await db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, req.user!.userId));
+  const existingDay = existing.find((row) => row.day === day);
+  if (existingDay?.status === "COMPLETED") {
+    return res.status(409).json({ error: "This module is already completed and certified; completed scores cannot be overwritten." });
+  }
+  if (existingDay?.status === "ASSESSMENT_PENDING") {
+    return res.status(409).json({ error: "This assessment is waiting for trainer review. Wait for review feedback before submitting again." });
+  }
   if (day > 1 && existing.find((row) => row.day === day - 1)?.status !== "COMPLETED") {
     return res.status(409).json({ error: "Complete the previous training day and receive trainer approval before proceeding" });
   }
