@@ -1079,6 +1079,12 @@ router.get("/admin/overview", requireRole("ADMIN"), async (_req: AuthedRequest, 
 const reviewSchema = z.object({
   practicalStatus: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
   ethicsStatus: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+  attendanceStatus: z.enum(["NOT_RECORDED", "PRESENT", "ABSENT", "EXCUSED"]).optional(),
+  realEstateKnowledgeScore: z.number().int().min(0).max(20).optional(),
+  projectKnowledgeScore: z.number().int().min(0).max(20).optional(),
+  customerCommunicationScore: z.number().int().min(0).max(20).optional(),
+  marketingKnowledgeScore: z.number().int().min(0).max(20).optional(),
+  ethicsComplianceScore: z.number().int().min(0).max(20).optional(),
   trainerFeedback: z.string().trim().max(2000).optional(),
 });
 
@@ -1092,11 +1098,28 @@ router.patch("/admin/training/:userId/:day/review", requireRole("ADMIN"), async 
   if (!current) return res.status(404).json({ error: "Training submission not found" });
   const practicalStatus = parsed.data.practicalStatus ?? current.practicalStatus;
   const ethicsStatus = parsed.data.ethicsStatus ?? current.ethicsStatus;
-  const canComplete = isTrainingDayComplete(current.quizScore, practicalStatus, ethicsStatus);
-  const status = canComplete ? "COMPLETED" as const : (current.quizScore < 80 || practicalStatus === "REJECTED" || ethicsStatus === "REJECTED" ? "RETAKE_REQUIRED" as const : "ASSESSMENT_PENDING" as const);
+  const attendanceStatus = parsed.data.attendanceStatus ?? current.attendanceStatus;
+  const rubric = {
+    realEstateKnowledgeScore: parsed.data.realEstateKnowledgeScore ?? current.realEstateKnowledgeScore,
+    projectKnowledgeScore: parsed.data.projectKnowledgeScore ?? current.projectKnowledgeScore,
+    customerCommunicationScore: parsed.data.customerCommunicationScore ?? current.customerCommunicationScore,
+    marketingKnowledgeScore: parsed.data.marketingKnowledgeScore ?? current.marketingKnowledgeScore,
+    ethicsComplianceScore: parsed.data.ethicsComplianceScore ?? current.ethicsComplianceScore,
+  };
+  const rubricValues = Object.values(rubric);
+  const rubricComplete = rubricValues.every((score) => typeof score === "number" && score >= 0 && score <= 20);
+  const rubricTotal = rubricComplete ? rubricValues.reduce<number>((sum, score) => sum + (score ?? 0), 0) : 0;
+  const rubricPassed = day !== 7 || (rubricComplete && rubricTotal >= 80);
+  const attendancePassed = attendanceStatus === "PRESENT" || attendanceStatus === "EXCUSED";
+  const assessmentPassed = isTrainingDayComplete(current.quizScore, practicalStatus, ethicsStatus);
+  const canComplete = assessmentPassed && attendancePassed && rubricPassed;
+  const needsRetake = current.quizScore < 80 || practicalStatus === "REJECTED" || ethicsStatus === "REJECTED" || attendanceStatus === "ABSENT" || (day === 7 && rubricComplete && rubricTotal < 80);
+  const status = canComplete ? "COMPLETED" as const : (needsRetake ? "RETAKE_REQUIRED" as const : "ASSESSMENT_PENDING" as const);
   const now = new Date();
   const [updated] = await db.update(ambassadorOsTrainingProgress).set({
-    practicalStatus, ethicsStatus, trainerFeedback: parsed.data.trainerFeedback ?? current.trainerFeedback,
+    practicalStatus, ethicsStatus, attendanceStatus,
+    ...rubric,
+    trainerFeedback: parsed.data.trainerFeedback ?? current.trainerFeedback,
     status, reviewedById: req.user!.userId, reviewedAt: now, completedAt: canComplete ? (current.completedAt ?? now) : null, updatedAt: now,
   }).where(eq(ambassadorOsTrainingProgress._id, current._id)).returning();
   const profile = await ensureProfile(String(req.params.userId));
@@ -1632,5 +1655,246 @@ router.patch("/admin/incentives/:id/status", requireRole("ADMIN"), async (req: A
   });
   res.json({ incentive: updated });
 });
+
+
+const trainingContentSchema = z.object({
+  day: z.number().int().min(1).max(7),
+  title: z.string().trim().min(3).max(180),
+  summary: z.string().trim().min(5).max(500),
+  lesson: z.string().trim().min(20).max(12000),
+  keyPoints: z.array(z.string().trim().min(2).max(300)).min(3).max(12),
+  assignment: z.string().trim().min(5).max(2000),
+  videoUrl: z.string().url().optional().or(z.literal("")),
+  questions: z.array(z.object({
+    prompt: z.string().trim().min(5).max(500),
+    options: z.array(z.string().trim().min(1).max(300)).min(2).max(5),
+    answer: z.number().int().min(0).max(4),
+  }).refine((question) => question.answer < question.options.length, { message: "Correct answer must be one of the provided options" })).length(5),
+  isPublished: z.boolean().default(false),
+});
+
+router.get("/admin/training-modules", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const modules = await getDb().select().from(ambassadorOsTrainingModules)
+    .orderBy(ambassadorOsTrainingModules.day, desc(ambassadorOsTrainingModules.version));
+  res.json({ modules });
+});
+
+router.post("/admin/training-modules", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = trainingContentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid training module" });
+  const db = getDb();
+  const existing = await db.select().from(ambassadorOsTrainingModules).where(eq(ambassadorOsTrainingModules.day, parsed.data.day));
+  const version = existing.reduce((max, row) => Math.max(max, row.version), 0) + 1;
+  const now = new Date();
+  if (parsed.data.isPublished) {
+    await db.update(ambassadorOsTrainingModules).set({ isPublished: false, updatedAt: now })
+      .where(and(eq(ambassadorOsTrainingModules.day, parsed.data.day), eq(ambassadorOsTrainingModules.isPublished, true)));
+  }
+  const [module] = await db.insert(ambassadorOsTrainingModules).values({
+    day: parsed.data.day,
+    title: parsed.data.title,
+    summary: parsed.data.summary,
+    lesson: parsed.data.lesson,
+    keyPoints: parsed.data.keyPoints,
+    assignment: parsed.data.assignment,
+    videoUrl: parsed.data.videoUrl || null,
+    questions: parsed.data.questions,
+    version,
+    isPublished: parsed.data.isPublished,
+    publishedById: parsed.data.isPublished ? req.user!.userId : null,
+    publishedAt: parsed.data.isPublished ? now : null,
+    createdById: req.user!.userId,
+    updatedAt: now,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.training_content.publish", resourceType: "ambassador_os_training_module", resourceId: module._id, metadata: { day: module.day, version, isPublished: module.isPublished } });
+  res.status(201).json({ module });
+});
+
+/** A private list of leads attributed to this Ambassador. Customer phone/email are intentionally omitted. */
+router.get("/leads/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const db = getDb();
+  const attributedRows = await db.select({
+    lead: leads,
+    projectName: projects.name,
+    unitNumber: units.unitNumber,
+  }).from(leads)
+    .innerJoin(projects, eq(leads.projectId, projects._id))
+    .leftJoin(units, eq(leads.unitId, units._id))
+    .where(or(
+      eq(leads.submittedById, req.user!.userId),
+      sql`${leads.referralChain} @> ${JSON.stringify([{ userId: req.user!.userId }])}::jsonb`,
+    ))
+    .orderBy(desc(leads.createdAt)).limit(500);
+  const out = attributedRows.map((row) => {
+    const mine = row.lead.submittedById === req.user!.userId;
+    const hasConsent = row.lead.creatorRole === "BUYER" || (row.lead.contactConsent && row.lead.contactConsentAt && row.lead.consentTextVersion);
+    return {
+      _id: row.lead._id,
+      leadReference: row.lead.leadNo ? `TRV-L-${String(row.lead.leadNo).padStart(6, "0")}` : row.lead._id.slice(0, 8).toUpperCase(),
+      projectName: row.projectName,
+      unitNumber: row.unitNumber,
+      stage: row.lead.stage,
+      requirement: row.lead.requirement,
+      budgetRange: row.lead.budgetRange,
+      purchasePurpose: row.lead.purchasePurpose,
+      preferredPlotSize: row.lead.preferredPlotSize,
+      purchaseTimeline: row.lead.purchaseTimeline,
+      sourceChannel: row.lead.sourceChannel ?? row.lead.source,
+      nextFollowUpAt: row.lead.nextFollowUpAt,
+      createdAt: row.lead.createdAt,
+      isDuplicate: row.lead.isDuplicate,
+      ownershipReviewStatus: row.lead.ownershipReviewStatus,
+      contactConsentRecorded: Boolean(hasConsent),
+      customerDisplayName: mine && hasConsent ? row.lead.clientName : "Referral enquiry",
+      canScheduleFollowUp: hasConsent && !row.lead.isDuplicate && !["LOST", "COMPLETED"].includes(row.lead.stage) && row.lead.ownershipReviewStatus !== "OPEN" && row.lead.ownershipReviewStatus !== "UNDER_REVIEW",
+    };
+  });
+  res.json({ leads: out });
+});
+
+router.get("/follow-ups/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const db = getDb();
+  const rows = await db.select({
+    followUp: ambassadorOsFollowUps,
+    leadNo: leads.leadNo,
+    leadStage: leads.stage,
+    projectName: projects.name,
+  }).from(ambassadorOsFollowUps)
+    .innerJoin(leads, eq(ambassadorOsFollowUps.leadId, leads._id))
+    .innerJoin(projects, eq(leads.projectId, projects._id))
+    .where(eq(ambassadorOsFollowUps.ambassadorId, req.user!.userId))
+    .orderBy(ambassadorOsFollowUps.dueAt).limit(500);
+  res.json({ followUps: rows.map((row) => ({
+    ...row.followUp,
+    leadReference: row.leadNo ? `TRV-L-${String(row.leadNo).padStart(6, "0")}` : row.followUp.leadId.slice(0, 8).toUpperCase(),
+    leadStage: row.leadStage,
+    projectName: row.projectName,
+    isOverdue: row.followUp.status === "PENDING" && row.followUp.dueAt.getTime() < Date.now(),
+  })) });
+});
+
+const createFollowUpSchema = z.object({
+  leadId: z.string().uuid(),
+  dueAt: z.string().datetime(),
+  channel: z.enum(["CALL", "WHATSAPP", "EMAIL", "MEETING"]),
+  note: z.string().trim().min(5).max(1500),
+});
+
+router.post("/follow-ups", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+  const parsed = createFollowUpSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid follow-up" });
+  const db = getDb();
+  const [lead] = await db.select().from(leads).where(eq(leads._id, parsed.data.leadId));
+  if (!lead) return res.status(404).json({ error: "Lead not found" });
+  const attributed = lead.submittedById === req.user!.userId || (lead.referralChain ?? []).some((referral) => referral.userId === req.user!.userId);
+  if (!attributed) return res.status(403).json({ error: "You can only schedule follow-ups for leads attributed to you" });
+  const hasConsent = lead.creatorRole === "BUYER" || (lead.contactConsent && lead.contactConsentAt && lead.consentTextVersion);
+  if (!hasConsent || lead.isDuplicate || ["LOST", "COMPLETED"].includes(lead.stage) || ["OPEN", "UNDER_REVIEW"].includes(lead.ownershipReviewStatus)) {
+    return res.status(409).json({ error: "This lead is not currently eligible for follow-up because consent, duplicate, lifecycle or ownership review conditions are unresolved" });
+  }
+  const dueAt = new Date(parsed.data.dueAt);
+  if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() < Date.now() - 60000) return res.status(400).json({ error: "Choose a future follow-up time" });
+  const now = new Date();
+  const [followUp] = await db.insert(ambassadorOsFollowUps).values({
+    leadId: lead._id,
+    ambassadorId: req.user!.userId,
+    dueAt,
+    channel: parsed.data.channel,
+    note: parsed.data.note,
+    status: "PENDING",
+    createdAt: now,
+    updatedAt: now,
+  }).returning();
+  await db.update(leads).set({ nextFollowUpAt: dueAt, updatedAt: now }).where(eq(leads._id, lead._id));
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.followup.create", resourceType: "ambassador_os_follow_up", resourceId: followUp._id, metadata: { leadId: lead._id, dueAt, channel: followUp.channel } });
+  res.status(201).json({ followUp });
+});
+
+const followUpStatusSchema = z.object({
+  status: z.enum(["DONE", "MISSED", "CANCELLED"]),
+  outcome: z.string().trim().max(1500).optional(),
+});
+
+router.patch("/follow-ups/:id/status", async (req: AuthedRequest, res) => {
+  const parsed = followUpStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid follow-up update" });
+  const db = getDb();
+  const conditions = [eq(ambassadorOsFollowUps._id, String(req.params.id))];
+  if (req.user!.role === "AMBASSADOR") conditions.push(eq(ambassadorOsFollowUps.ambassadorId, req.user!.userId));
+  else if (req.user!.role !== "ADMIN") return res.status(403).json({ error: "Not allowed to update follow-ups" });
+  const [current] = await db.select().from(ambassadorOsFollowUps).where(and(...conditions));
+  if (!current) return res.status(404).json({ error: "Follow-up not found" });
+  if (current.status !== "PENDING") return res.status(409).json({ error: "Only pending follow-ups can be completed or closed" });
+  const now = new Date();
+  const [updated] = await db.update(ambassadorOsFollowUps).set({
+    status: parsed.data.status,
+    outcome: parsed.data.outcome ?? current.outcome,
+    completedAt: parsed.data.status === "DONE" ? now : current.completedAt,
+    updatedAt: now,
+  }).where(and(eq(ambassadorOsFollowUps._id, current._id), eq(ambassadorOsFollowUps.status, "PENDING"))).returning();
+  if (!updated) return res.status(409).json({ error: "Follow-up changed; refresh your reminders" });
+  const [next] = await db.select().from(ambassadorOsFollowUps)
+    .where(and(eq(ambassadorOsFollowUps.leadId, current.leadId), eq(ambassadorOsFollowUps.status, "PENDING")))
+    .orderBy(ambassadorOsFollowUps.dueAt).limit(1);
+  await db.update(leads).set({ nextFollowUpAt: next?.dueAt ?? null, updatedAt: now }).where(eq(leads._id, current.leadId));
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.followup.update", resourceType: "ambassador_os_follow_up", resourceId: updated._id, metadata: { status: updated.status, outcome: updated.outcome } });
+  res.json({ followUp: updated });
+});
+
+router.get("/admin/follow-ups", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({
+    followUp: ambassadorOsFollowUps,
+    leadNo: leads.leadNo,
+    leadStage: leads.stage,
+    projectName: projects.name,
+    ambassadorName: users.name,
+    ambassadorEmail: users.email,
+  }).from(ambassadorOsFollowUps)
+    .innerJoin(leads, eq(ambassadorOsFollowUps.leadId, leads._id))
+    .innerJoin(projects, eq(leads.projectId, projects._id))
+    .innerJoin(users, eq(ambassadorOsFollowUps.ambassadorId, users._id))
+    .orderBy(ambassadorOsFollowUps.dueAt).limit(1000);
+  res.json({ followUps: rows.map((row) => ({
+    ...row.followUp,
+    leadReference: row.leadNo ? `TRV-L-${String(row.leadNo).padStart(6, "0")}` : row.followUp.leadId.slice(0, 8).toUpperCase(),
+    leadStage: row.leadStage,
+    projectName: row.projectName,
+    ambassadorName: row.ambassadorName,
+    ambassadorEmail: row.ambassadorEmail,
+    isOverdue: row.followUp.status === "PENDING" && row.followUp.dueAt.getTime() < Date.now(),
+  })) });
+});
+
+const channelCostSchema = z.object({
+  campaignId: z.string().uuid(),
+  sourceChannel: z.enum(["AMBASSADOR_REFERRAL", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "ORGANIC_WEBSITE", "PAID_ADVERTISEMENT", "CUSTOMER_REFERRAL", "TELECALLER", "CHANNEL_PARTNER", "DIRECT_ENQUIRY", "OTHER"]),
+  amount: z.number().nonnegative().max(1_000_000_000),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  evidenceReference: z.string().trim().max(500).optional(),
+  notes: z.string().trim().max(1500).optional(),
+}).refine((input) => new Date(input.periodEnd).getTime() >= new Date(input.periodStart).getTime(), { message: "Cost period end must be on or after its start" });
+
+router.post("/admin/channel-costs", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const parsed = channelCostSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid marketing cost" });
+  const db = getDb();
+  const [campaign] = await db.select().from(ambassadorOsCampaigns).where(eq(ambassadorOsCampaigns._id, parsed.data.campaignId));
+  if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+  const [cost] = await db.insert(ambassadorOsChannelCosts).values({
+    ...parsed.data,
+    periodStart: new Date(parsed.data.periodStart),
+    periodEnd: new Date(parsed.data.periodEnd),
+    evidenceReference: parsed.data.evidenceReference ?? null,
+    notes: parsed.data.notes ?? null,
+    createdById: req.user!.userId,
+  }).returning();
+  await logAudit({ userId: req.user!.userId, action: "ambassador_os.channel_cost.create", resourceType: "ambassador_os_channel_cost", resourceId: cost._id, metadata: { campaignId: cost.campaignId, sourceChannel: cost.sourceChannel, amount: cost.amount } });
+  res.status(201).json({ cost });
+});
+
 
 export default router;
