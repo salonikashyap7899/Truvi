@@ -2473,6 +2473,7 @@ export const ambassadorOsCampaigns = pgTable(
     projectName: text("project_name").notNull(),
     location: text("location").notNull(),
     targetInventory: integer("target_inventory").notNull(),
+    salesTarget: integer("sales_target").notNull().default(114),
     unitAreaSqFt: integer("unit_area_sq_ft").notNull(),
     targetDays: integer("target_days").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }),
