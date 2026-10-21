@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: dependency-remediation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   prepare-dependency-fix:
     name: Prepare a reviewable dependency-fix PR
