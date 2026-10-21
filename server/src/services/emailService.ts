@@ -34,7 +34,9 @@ export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures
  */
 export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
   if (!transporter) {
-    console.warn(`[email] Not delivered (SMTP not configured). To: ${to} | Subject: ${subject}`);
+    // Never log an OTP-bearing email subject, recipient, or message metadata.
+    // Callers receive false and can tell the user delivery is unavailable.
+    console.warn("[email] Not delivered because SMTP is not configured.");
     return false;
   }
   await transporter.sendMail({ from, to, subject, html });
@@ -126,7 +128,8 @@ function toE164(phone: string): string {
  */
 export async function sendPhoneOtpViaSms(phone: string, otp: string): Promise<boolean> {
   if (!twilioClient) {
-    console.log(`[OTP] SMS not configured. Phone OTP for ${phone}: ${otp}`);
+    // OTPs and phone numbers must never be written to process logs.
+    console.warn("[sms] OTP not delivered because Twilio is not configured.");
     return false;
   }
   await twilioClient.messages.create({
