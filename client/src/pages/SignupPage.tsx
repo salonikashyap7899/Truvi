@@ -188,6 +188,7 @@ export default function SignupPage() {
   // the emailed + texted codes inline (no bounce to a separate screen).
   const [step, setStep] = useState<"form" | "otp">("form");
   const [pending, setPending] = useState<{ email: string; phone: string } | null>(null);
+  const [initialDelivery, setInitialDelivery] = useState<{ emailSent?: boolean; smsSent?: boolean } | undefined>(undefined);
 
   // Already signed in? Straight to this role's own workspace.
   useEffect(() => {
@@ -228,7 +229,11 @@ export default function SignupPage() {
     const national = (data.phone || "").replace(/\D/g, "");
     const phoneToSend = data.countryCode === "+91" ? national : `${data.countryCode}${national}`;
     try {
-      await signup({ ...data, phone: phoneToSend });
+      const delivery = await signup({ ...data, phone: phoneToSend });
+      setInitialDelivery({
+        emailSent: typeof delivery?.emailSent === "boolean" ? delivery.emailSent : undefined,
+        smsSent: typeof delivery?.smsSent === "boolean" ? delivery.smsSent : undefined,
+      });
       // Account created — verify the email + phone OTPs inline on this page.
       setPending({ email: data.email, phone: phoneToSend });
       setStep("otp");
@@ -254,6 +259,7 @@ export default function SignupPage() {
               <OtpStep
                 email={pending.email}
                 phone={pending.phone}
+                initialDelivery={initialDelivery}
                 onVerified={navigateAfterAuth}
                 onBack={() => setStep("form")}
               />
