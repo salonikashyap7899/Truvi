@@ -16,7 +16,7 @@ jobs:
   automated-tests-and-dependency-audit:
     name: Typecheck, tests, builds, dependency audit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,19 +34,22 @@ jobs:
       - name: Server TypeScript check
         working-directory: server
         run: npm run typecheck
-      - name: Run all server tests
-        working-directory: server
-        run: npm test
-      - name: Audit server dependencies
-        working-directory: server
-        run: npm audit --audit-level=high
+      # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
         working-directory: client
         run: npm ci
       - name: Build client for production
         working-directory: client
         run: npm run build
+      - name: Run all server tests
+        working-directory: server
+        run: npm test
+      - name: Audit server dependencies
+        if: always()
+        working-directory: server
+        run: npm audit --audit-level=high
       - name: Audit client dependencies
+        if: always()
         working-directory: client
         run: npm audit --audit-level=high
 
