@@ -83,6 +83,19 @@ export type UnitStatus = "AVAILABLE" | "LOCKED" | "RESERVED" | "SOLD";
 export type LeadStage =
   | "GENERATED" | "ASSIGNED" | "CONTACTED" | "INTERESTED" | "SITE_VISIT"
   | "NEGOTIATION" | "BOOKING" | "REGISTRATION" | "COMPLETED" | "LOST";
+export type LeadSourceChannel =
+  | "AMBASSADOR_REFERRAL" | "WHATSAPP" | "INSTAGRAM" | "FACEBOOK"
+  | "ORGANIC_WEBSITE" | "PAID_ADVERTISEMENT" | "CUSTOMER_REFERRAL"
+  | "TELECALLER" | "CHANNEL_PARTNER" | "DIRECT_ENQUIRY" | "OTHER";
+export type LeadPurchasePurpose = "SELF_USE" | "INVESTMENT" | "UNDECIDED";
+export type LeadOwnershipReviewStatus = "NOT_REQUIRED" | "OPEN" | "UNDER_REVIEW" | "RESOLVED";
+export type AmbassadorPropertyBookingStatus =
+  | "SUBMITTED" | "UNDER_REVIEW" | "VERIFIED" | "SALE_VERIFIED" | "REJECTED"
+  | "CANCELLED" | "REFUND_PENDING" | "REFUNDED";
+export type AmbassadorBookingPaymentMilestone =
+  | "BOOKING_CONFIRMED" | "TOKEN_RECEIVED" | "AGREEMENT_SIGNED"
+  | "REGISTRATION_COMPLETED" | "CUSTOM_MILESTONE";
+export type AmbassadorFollowUpStatus = "PENDING" | "DONE" | "MISSED" | "CANCELLED";
 export type LeadActivityType =
   | "CALL" | "WHATSAPP" | "EMAIL" | "NOTE" | "STAGE_CHANGE"
   | "SITE_VISIT" | "FOLLOW_UP" | "DOCUMENT" | "AI_REPORT" | "SYSTEM";
@@ -580,6 +593,11 @@ export const leads = pgTable(
     clientName: text("client_name").notNull(),
     clientPhone: text("client_phone").notNull(),
     clientEmail: text("client_email"),
+    // Consent record for sharing a non-user customer's contact details with Truvi.
+    // Buyer-owned enquiries do not use this field as third-party consent.
+    contactConsent: boolean("contact_consent").notNull().default(false),
+    contactConsentAt: timestamp("contact_consent_at", { withTimezone: true, mode: "date" }),
+    consentTextVersion: text("consent_text_version"),
     stage: text("stage").$type<LeadStage>().notNull().default("GENERATED"),
     source: text("source").notNull(),
     notes: text("notes"),
@@ -601,6 +619,19 @@ export const leads = pgTable(
     creatorRole: text("creator_role").$type<Role>(),
     // What the customer is looking for (buy to live, investment, …).
     requirement: text("requirement"),
+    // Structured buyer-qualification data, captured separately for analytics.
+    budgetRange: text("budget_range"),
+    purchasePurpose: text("purchase_purpose").$type<LeadPurchasePurpose>(),
+    preferredPlotSize: text("preferred_plot_size"),
+    purchaseTimeline: text("purchase_timeline"),
+    sourceChannel: text("source_channel").$type<LeadSourceChannel>(),
+    nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true, mode: "date" }),
+    contactAttemptedAt: timestamp("contact_attempted_at", { withTimezone: true, mode: "date" }),
+    qualifiedAt: timestamp("qualified_at", { withTimezone: true, mode: "date" }),
+    ownershipReviewStatus: text("ownership_review_status").$type<LeadOwnershipReviewStatus>().notNull().default("NOT_REQUIRED"),
+    ownershipReviewNotes: text("ownership_review_notes"),
+    ownershipReviewedById: uuid("ownership_reviewed_by_id").references(() => users._id),
+    ownershipReviewedAt: timestamp("ownership_reviewed_at", { withTimezone: true, mode: "date" }),
     // Requested site visit (IST calendar date "YYYY-MM-DD" + "HH:MM").
     visitDate: text("visit_date"),
     visitTime: text("visit_time"),
@@ -620,6 +651,9 @@ export const leads = pgTable(
   (t) => [
     index("leads_assigned_stage_idx").on(t.assignedToId, t.stage),
     index("leads_dup_check_idx").on(t.projectId, t.clientPhone, t.createdAt),
+    index("leads_source_channel_idx").on(t.sourceChannel, t.createdAt),
+    index("leads_next_follow_up_idx").on(t.nextFollowUpAt),
+    index("leads_ownership_review_idx").on(t.ownershipReviewStatus, t.createdAt),
   ]
 );
 
@@ -2350,3 +2384,540 @@ export const habitatProjectCategories = pgTable(
     index("habitat_project_categories_project_idx").on(t.projectId, t.enabled),
   ]
 );
+
+
+// ---------------------------------------------------------------------------
+// Truvi Ambassador Operating System — additive pilot tables.
+// Kept separate from existing CP/lead tables so the pilot can evolve without
+// changing the established sales and commission workflows.
+// ---------------------------------------------------------------------------
+
+export type AmbassadorOsStatus =
+  | "REGISTERED"
+  | "VERIFICATION_PENDING"
+  | "TRAINING_IN_PROGRESS"
+  | "ASSESSMENT_PENDING"
+  | "CERTIFIED"
+  | "ACTIVE"
+  | "TEMPORARILY_INACTIVE"
+  | "SUSPENDED"
+  | "EXITED";
+
+export type AmbassadorOsTrainingStatus =
+  | "NOT_STARTED"
+  | "IN_PROGRESS"
+  | "ASSESSMENT_PENDING"
+  | "RETAKE_REQUIRED"
+  | "COMPLETED";
+
+export const ambassadorOsProfiles = pgTable(
+  "ambassador_os_profiles",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    // Stable internal sequence. Display IDs are rendered as TRUVI-{cityCode}-{number}.
+    ambassadorNo: bigserial("ambassador_no", { mode: "number" }).notNull(),
+    cityCode: text("city_code").notNull().default("LKO"),
+    college: text("college"),
+    course: text("course"),
+    academicYear: text("academic_year"),
+    city: text("city").notNull().default("Lucknow"),
+    preferredRole: text("preferred_role").notNull().default("SALES"),
+    weeklyAvailabilityHours: integer("weekly_availability_hours").notNull().default(5),
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }),
+    termsVersion: text("terms_version"),
+    certificateNo: text("certificate_no"),
+    certifiedAt: timestamp("certified_at", { withTimezone: true, mode: "date" }),
+    certifiedById: uuid("certified_by_id").references(() => users._id),
+    status: text("status").$type<AmbassadorOsStatus>().notNull().default("REGISTERED"),
+    currentLevel: text("current_level").notNull().default("L0"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_profiles_user_unique").on(t.userId),
+    uniqueIndex("ambassador_os_profiles_number_unique").on(t.ambassadorNo),
+    uniqueIndex("ambassador_os_profiles_certificate_unique").on(t.certificateNo),
+    index("ambassador_os_profiles_status_idx").on(t.status),
+  ]
+);
+
+export const ambassadorOsTrainingModules = pgTable(
+  "ambassador_os_training_modules",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    day: integer("day").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    lesson: text("lesson").notNull(),
+    keyPoints: jsonb("key_points").$type<string[]>().notNull().default([]),
+    assignment: text("assignment").notNull(),
+    questions: jsonb("questions").$type<Array<{ prompt: string; options: string[]; answer: number }>>().notNull().default([]),
+    videoUrl: text("video_url"),
+    version: integer("version").notNull().default(1),
+    isPublished: boolean("is_published").notNull().default(false),
+    publishedById: uuid("published_by_id").references(() => users._id),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_os_training_modules_day_pub_idx").on(t.day, t.isPublished, t.version)]
+);
+
+export const ambassadorOsTrainingProgress = pgTable(
+  "ambassador_os_training_progress",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    day: integer("day").notNull(),
+    quizScore: integer("quiz_score").notNull().default(0),
+    realEstateKnowledgeScore: integer("real_estate_knowledge_score"),
+    projectKnowledgeScore: integer("project_knowledge_score"),
+    customerCommunicationScore: integer("customer_communication_score"),
+    marketingKnowledgeScore: integer("marketing_knowledge_score"),
+    ethicsComplianceScore: integer("ethics_compliance_score"),
+    attendanceStatus: text("attendance_status").$type<"NOT_RECORDED" | "PRESENT" | "ABSENT" | "EXCUSED">().notNull().default("NOT_RECORDED"),
+    lessonVersion: integer("lesson_version").notNull().default(1),
+    answers: jsonb("answers").$type<number[]>().notNull().default([]),
+    assignmentText: text("assignment_text"),
+    practicalStatus: text("practical_status").$type<"PENDING" | "APPROVED" | "REJECTED">().notNull().default("PENDING"),
+    ethicsStatus: text("ethics_status").$type<"PENDING" | "APPROVED" | "REJECTED">().notNull().default("PENDING"),
+    trainerFeedback: text("trainer_feedback"),
+    status: text("status").$type<AmbassadorOsTrainingStatus>().notNull().default("NOT_STARTED"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_training_user_day_unique").on(t.userId, t.day),
+    index("ambassador_os_training_status_idx").on(t.status, t.day),
+  ]
+);
+
+export const ambassadorOsFollowUps = pgTable(
+  "ambassador_os_follow_ups",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    leadId: uuid("lead_id").notNull().references(() => leads._id),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }).notNull(),
+    channel: text("channel").$type<"CALL" | "WHATSAPP" | "EMAIL" | "MEETING">().notNull().default("CALL"),
+    note: text("note").notNull(),
+    status: text("status").$type<AmbassadorFollowUpStatus>().notNull().default("PENDING"),
+    outcome: text("outcome"),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_followups_owner_due_idx").on(t.ambassadorId, t.status, t.dueAt),
+    index("ambassador_os_followups_lead_idx").on(t.leadId, t.dueAt),
+  ]
+);
+
+export const ambassadorOsTasks = pgTable(
+  "ambassador_os_tasks",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    category: text("category").$type<"TRAINING" | "SALES" | "MARKETING" | "LEAD_MANAGEMENT" | "SITE_VISIT" | "RESEARCH" | "VERIFICATION">().notNull(),
+    description: text("description").notNull(),
+    assignedToId: uuid("assigned_to_id").notNull().references(() => users._id),
+    campaignId: uuid("campaign_id"),
+    dueAt: timestamp("due_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CLOSED">().notNull().default("ASSIGNED"),
+    evidenceText: text("evidence_text"),
+    evidenceUrl: text("evidence_url"),
+    checklistItems: jsonb("checklist_items").$type<Array<{ key: string; label: string }>>().notNull().default([]),
+    checklistResponses: jsonb("checklist_responses").$type<string[]>().notNull().default([]),
+    reviewReason: text("review_reason"),
+    reviewedById: uuid("reviewed_by_id").references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("ambassador_os_tasks_assignee_status_idx").on(t.assignedToId, t.status),
+    index("ambassador_os_tasks_due_idx").on(t.dueAt),
+  ]
+);
+
+export const ambassadorOsCampaigns = pgTable(
+  "ambassador_os_campaigns",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").references(() => projects._id),
+    name: text("name").notNull(),
+    projectName: text("project_name").notNull(),
+    location: text("location").notNull(),
+    targetInventory: integer("target_inventory").notNull(),
+    salesTarget: integer("sales_target").notNull().default(114),
+    unitAreaSqFt: integer("unit_area_sq_ft").notNull(),
+    targetDays: integer("target_days").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<"PLANNED" | "ACTIVE" | "PAUSED" | "COMPLETED">().notNull().default("PLANNED"),
+    officialDataVerified: boolean("official_data_verified").notNull().default(false),
+    officialDataNotes: text("official_data_notes"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_os_campaign_status_idx").on(t.status)]
+);
+
+export const ambassadorOsPropertyBookings = pgTable(
+  "ambassador_os_property_bookings",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingNo: bigserial("booking_no", { mode: "number" }).notNull(),
+    bookingReference: text("booking_reference").notNull().unique(),
+    leadId: uuid("lead_id").notNull().references(() => leads._id),
+    campaignId: uuid("campaign_id").references(() => ambassadorOsCampaigns._id),
+    projectId: uuid("project_id").notNull().references(() => projects._id),
+    unitId: uuid("unit_id").references(() => units._id),
+    status: text("status").$type<AmbassadorPropertyBookingStatus>().notNull().default("SUBMITTED"),
+    bookingValue: doublePrecision("booking_value").notNull(),
+    amountReceived: doublePrecision("amount_received").notNull().default(0),
+    paymentMilestone: text("payment_milestone").$type<AmbassadorBookingPaymentMilestone>().notNull().default("BOOKING_CONFIRMED"),
+    paymentMilestoneNotes: text("payment_milestone_notes"),
+    agreementReference: text("agreement_reference"),
+    sourceSnapshot: text("source_snapshot"),
+    verifiedById: uuid("verified_by_id").references(() => users._id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "date" }),
+    rejectedById: uuid("rejected_by_id").references(() => users._id),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true, mode: "date" }),
+    rejectionReason: text("rejection_reason"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }),
+    cancellationReason: text("cancellation_reason"),
+    refundStatus: text("refund_status").$type<"NOT_REQUIRED" | "PENDING" | "PARTIAL" | "REFUNDED">().notNull().default("NOT_REQUIRED"),
+    refundAmount: doublePrecision("refund_amount").notNull().default(0),
+    refundReference: text("refund_reference"),
+    expectedIncentivePayoutAt: timestamp("expected_incentive_payout_at", { withTimezone: true, mode: "date" }),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_property_booking_no_unique").on(t.bookingNo),
+    index("ambassador_os_property_booking_status_idx").on(t.status, t.createdAt),
+    index("ambassador_os_property_booking_project_idx").on(t.projectId, t.status),
+    index("ambassador_os_property_booking_lead_idx").on(t.leadId, t.createdAt),
+    index("ambassador_os_property_booking_campaign_idx").on(t.campaignId, t.status),
+  ]
+);
+export type IAmbassadorOsPropertyBooking = typeof ambassadorOsPropertyBookings.$inferSelect;
+
+export const ambassadorOsScorecardPolicies = pgTable(
+  "ambassador_os_scorecard_policies",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    version: integer("version").notNull().default(1),
+    genuineLeadQualityWeight: integer("genuine_lead_quality_weight").notNull().default(25),
+    customerCommunicationWeight: integer("customer_communication_weight").notNull().default(20),
+    siteVisitContributionWeight: integer("site_visit_contribution_weight").notNull().default(15),
+    verifiedSalesContributionWeight: integer("verified_sales_contribution_weight").notNull().default(15),
+    crmDisciplineWeight: integer("crm_discipline_weight").notNull().default(10),
+    trainingSkillDevelopmentWeight: integer("training_skill_development_weight").notNull().default(10),
+    ethicsComplianceWeight: integer("ethics_compliance_weight").notNull().default(5),
+    active: boolean("active").notNull().default(true),
+    approvalReference: text("approval_reference"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("ambassador_os_scorecard_policy_version_unique").on(t.version), index("ambassador_os_scorecard_policy_active_idx").on(t.active)]
+);
+
+export const ambassadorOsPerformanceReviews = pgTable(
+  "ambassador_os_performance_reviews",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }).notNull(),
+    scorecardPolicyVersion: integer("scorecard_policy_version").notNull(),
+    genuineLeadQualityScore: integer("genuine_lead_quality_score").notNull(),
+    customerCommunicationScore: integer("customer_communication_score").notNull(),
+    siteVisitContributionScore: integer("site_visit_contribution_score").notNull(),
+    verifiedSalesContributionScore: integer("verified_sales_contribution_score").notNull(),
+    crmDisciplineScore: integer("crm_discipline_score").notNull(),
+    trainingSkillDevelopmentScore: integer("training_skill_development_score").notNull(),
+    ethicsComplianceScore: integer("ethics_compliance_score").notNull(),
+    weightedScore: doublePrecision("weighted_score").notNull(),
+    seriousMisconduct: boolean("serious_misconduct").notNull().default(false),
+    complianceNotes: text("compliance_notes"),
+    reviewNotes: text("review_notes"),
+    reviewedById: uuid("reviewed_by_id").notNull().references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_performance_ambassador_period_idx").on(t.ambassadorId, t.periodEnd),
+    index("ambassador_os_performance_misconduct_idx").on(t.seriousMisconduct, t.periodEnd),
+  ]
+);
+export type IAmbassadorOsPerformanceReview = typeof ambassadorOsPerformanceReviews.$inferSelect;
+
+export type AmbassadorCareerAssessmentType = "MENTORING" | "TEAM_MANAGEMENT" | "ADVANCED";
+
+export const ambassadorOsCareerAssessments = pgTable(
+  "ambassador_os_career_assessments",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    targetLevel: text("target_level").$type<"L4" | "L5" | "L6">().notNull(),
+    assessmentType: text("assessment_type").$type<AmbassadorCareerAssessmentType>().notNull(),
+    score: integer("score").notNull(),
+    passed: boolean("passed").notNull().default(false),
+    evidenceReference: text("evidence_reference").notNull(),
+    notes: text("notes").notNull(),
+    reviewerId: uuid("reviewer_id").notNull().references(() => users._id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_career_assessments_ambassador_level_idx").on(t.ambassadorId, t.targetLevel, t.reviewedAt),
+    index("ambassador_os_career_assessments_result_idx").on(t.targetLevel, t.passed, t.reviewedAt),
+  ]
+);
+export type IAmbassadorOsCareerAssessment = typeof ambassadorOsCareerAssessments.$inferSelect;
+
+export type AmbassadorCareerOpportunityStatus = "DRAFT" | "PUBLISHED" | "CLOSED";
+export type AmbassadorCareerOpportunityType = "INTERNSHIP" | "JOB" | "CAMPUS_LEADERSHIP" | "MENTORING";
+
+export const ambassadorOsCareerOpportunities = pgTable(
+  "ambassador_os_career_opportunities",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    opportunityType: text("opportunity_type").$type<AmbassadorCareerOpportunityType>().notNull(),
+    description: text("description").notNull(),
+    location: text("location"),
+    targetLevel: text("target_level").$type<"L1" | "L2" | "L3" | "L4" | "L5" | "L6">().notNull(),
+    requiredSkills: jsonb("required_skills").$type<string[]>().notNull().default([]),
+    eligibility: jsonb("eligibility").$type<Record<string, unknown>>().notNull().default({}),
+    vacancies: integer("vacancies").notNull().default(1),
+    applicationDeadline: timestamp("application_deadline", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<AmbassadorCareerOpportunityStatus>().notNull().default("DRAFT"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }),
+    closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_opportunities_status_deadline_idx").on(t.status, t.applicationDeadline),
+    index("ambassador_os_opportunities_level_idx").on(t.targetLevel, t.status),
+  ]
+);
+export type IAmbassadorOsCareerOpportunity = typeof ambassadorOsCareerOpportunities.$inferSelect;
+
+export type AmbassadorCareerApplicationStatus = "SUBMITTED" | "UNDER_REVIEW" | "SHORTLISTED" | "REJECTED" | "SELECTED" | "WITHDRAWN";
+
+export const ambassadorOsCareerApplications = pgTable(
+  "ambassador_os_career_applications",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    opportunityId: uuid("opportunity_id").notNull().references(() => ambassadorOsCareerOpportunities._id),
+    ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+    statement: text("statement").notNull(),
+    evidenceReference: text("evidence_reference"),
+    status: text("status").$type<AmbassadorCareerApplicationStatus>().notNull().default("SUBMITTED"),
+    reviewerId: uuid("reviewer_id").references(() => users._id),
+    reviewNotes: text("review_notes"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_career_application_unique").on(t.opportunityId, t.ambassadorId),
+    index("ambassador_os_career_applications_status_idx").on(t.status, t.createdAt),
+    index("ambassador_os_career_applications_ambassador_idx").on(t.ambassadorId, t.createdAt),
+  ]
+);
+export type IAmbassadorOsCareerApplication = typeof ambassadorOsCareerApplications.$inferSelect;
+
+export const ambassadorOsChannelCosts = pgTable(
+  "ambassador_os_channel_costs",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+    sourceChannel: text("source_channel").$type<LeadSourceChannel>().notNull(),
+    amount: doublePrecision("amount").notNull(),
+    periodStart: timestamp("period_start", { withTimezone: true, mode: "date" }).notNull(),
+    periodEnd: timestamp("period_end", { withTimezone: true, mode: "date" }).notNull(),
+    evidenceReference: text("evidence_reference"),
+    notes: text("notes"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("ambassador_os_channel_cost_campaign_idx").on(t.campaignId, t.sourceChannel, t.periodStart),
+  ]
+);
+
+export const ambassadorOsPropertyBookingHistory = pgTable(
+  "ambassador_os_property_booking_history",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    bookingId: uuid("booking_id").notNull().references(() => ambassadorOsPropertyBookings._id),
+    fromStatus: text("from_status").$type<AmbassadorPropertyBookingStatus>(),
+    toStatus: text("to_status").$type<AmbassadorPropertyBookingStatus>().notNull(),
+    reason: text("reason"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    actorUserId: uuid("actor_user_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("ambassador_os_booking_history_idx").on(t.bookingId, t.createdAt)]
+);
+export type IAmbassadorOsPropertyBookingHistory = typeof ambassadorOsPropertyBookingHistory.$inferSelect;
+
+export const ambassadorOsIncentivePolicies = pgTable(
+  "ambassador_os_incentive_policies",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    campaignId: uuid("campaign_id").references(() => ambassadorOsCampaigns._id),
+    calculationType: text("calculation_type").$type<"FIXED" | "PER_SQ_FT_BLOCK" | "PERCENT_OF_VALUE">().notNull(),
+    amount: doublePrecision("amount").notNull(),
+    blockSizeSqFt: integer("block_size_sq_ft").notNull().default(1000),
+    eligibleSources: jsonb("eligible_sources").$type<string[]>().notNull().default([]),
+    requiredBookingStatus: text("required_booking_status").$type<AmbassadorPropertyBookingStatus>().notNull().default("SALE_VERIFIED"),
+    paymentMilestone: text("payment_milestone").$type<AmbassadorBookingPaymentMilestone>().notNull().default("BOOKING_CONFIRMED"),
+    cancellationTreatment: text("cancellation_treatment").$type<"CANCEL_INCENTIVE" | "RECOVER_PAID" | "MANUAL_REVIEW">().notNull().default("CANCEL_INCENTIVE"),
+    payoutDelayDays: integer("payout_delay_days").notNull().default(30),
+    approvalAuthority: text("approval_authority"),
+    commissionAgreementReference: text("commission_agreement_reference"),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(false),
+    approvalReference: text("approval_reference"),
+    effectiveFrom: timestamp("effective_from", { withTimezone: true, mode: "date" }),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_policy_name_version_unique").on(t.name, t.version),
+    index("ambassador_os_policy_active_idx").on(t.active),
+  ]
+);
+
+export const ambassadorOsIncentives = pgTable(
+  "ambassador_os_incentives",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    campaignId: uuid("campaign_id").references(() => ambassadorOsCampaigns._id),
+    policyId: uuid("policy_id").notNull().references(() => ambassadorOsIncentivePolicies._id),
+    policyNameSnapshot: text("policy_name_snapshot").notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    bookingReference: text("booking_reference").notNull().unique(),
+    propertyBookingId: uuid("property_booking_id").references(() => ambassadorOsPropertyBookings._id),
+    expectedPayoutAt: timestamp("expected_payout_at", { withTimezone: true, mode: "date" }),
+    recoveryStatus: text("recovery_status").$type<"NOT_REQUIRED" | "PENDING_REVIEW" | "RECOVERY_REQUIRED" | "RECOVERED">().notNull().default("NOT_REQUIRED"),
+    recoveryAmount: doublePrecision("recovery_amount").notNull().default(0),
+    recoveryReference: text("recovery_reference"),
+    recoveryReviewedById: uuid("recovery_reviewed_by_id").references(() => users._id),
+    recoveryReviewedAt: timestamp("recovery_reviewed_at", { withTimezone: true, mode: "date" }),
+    verifiedAreaSqFt: integer("verified_area_sq_ft").notNull(),
+    propertyValue: doublePrecision("property_value"),
+    amount: doublePrecision("amount").notNull(),
+    status: text("status").$type<"PENDING" | "APPROVED" | "PAYABLE" | "PAID" | "CANCELLED">().notNull().default("PENDING"),
+    paymentReference: text("payment_reference"),
+    createdById: uuid("created_by_id").notNull().references(() => users._id),
+    approvedById: uuid("approved_by_id").references(() => users._id),
+    approvedAt: timestamp("approved_at", { withTimezone: true, mode: "date" }),
+    paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("ambassador_os_incentives_booking_unique").on(t.bookingReference),
+    uniqueIndex("ambassador_os_incentives_property_booking_unique").on(t.propertyBookingId),
+    index("ambassador_os_incentives_user_status_idx").on(t.userId, t.status),
+  ]
+);
+
+/** Versioned marketing guidelines require a new acknowledgement when published content changes. */
+export const ambassadorOsCampaignGuidelines = pgTable("ambassador_os_campaign_guidelines", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  version: integer("version").notNull(),
+  content: text("content").notNull(),
+  approvalReference: text("approval_reference").notNull(),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_campaign_guidelines_version_unique").on(t.campaignId, t.version), index("ambassador_os_campaign_guidelines_current_idx").on(t.campaignId, t.publishedAt)]);
+
+export const ambassadorOsCampaignAcknowledgements = pgTable("ambassador_os_campaign_acknowledgements", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  ambassadorId: uuid("ambassador_id").notNull().references(() => users._id),
+  guidelineVersion: integer("guideline_version").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_campaign_ack_version_unique").on(t.campaignId, t.ambassadorId, t.guidelineVersion), index("ambassador_os_campaign_ack_user_idx").on(t.ambassadorId, t.campaignId, t.guidelineVersion)]);
+
+export type AmbassadorOsMarketingMaterialStatus = "SUBMITTED" | "APPROVED" | "REJECTED" | "RETIRED";
+export const ambassadorOsMarketingMaterials = pgTable("ambassador_os_marketing_materials", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => ambassadorOsCampaigns._id),
+  title: text("title").notNull(),
+  channel: text("channel").$type<"WHATSAPP" | "INSTAGRAM" | "FACEBOOK" | "POSTER" | "EMAIL" | "BROCHURE" | "OTHER">().notNull(),
+  content: text("content").notNull(),
+  assetUrl: text("asset_url"),
+  version: integer("version").notNull().default(1),
+  status: text("status").$type<AmbassadorOsMarketingMaterialStatus>().notNull().default("SUBMITTED"),
+  validFrom: timestamp("valid_from", { withTimezone: true, mode: "date" }),
+  validTo: timestamp("valid_to", { withTimezone: true, mode: "date" }),
+  reviewerId: uuid("reviewer_id").references(() => users._id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+  reviewReason: text("review_reason"),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("ambassador_os_marketing_material_status_idx").on(t.status, t.campaignId), index("ambassador_os_marketing_material_dates_idx").on(t.validFrom, t.validTo)]);
+
+/** OS-scoped internal responsibilities; these do not grant global Admin access. */
+export type AmbassadorOsStaffRole = "PROGRAM_MANAGER" | "SALES_COORDINATOR" | "TRAINING_COORDINATOR";
+export const ambassadorOsStaffAssignments = pgTable("ambassador_os_staff_assignments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id),
+  osRole: text("os_role").$type<AmbassadorOsStaffRole>().notNull(),
+  active: boolean("active").notNull().default(true),
+  grantedById: uuid("granted_by_id").notNull().references(() => users._id),
+  grantedAt: timestamp("granted_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_staff_assignment_unique").on(t.userId, t.osRole), index("ambassador_os_staff_active_role_idx").on(t.active, t.osRole)]);
+export type IAmbassadorOsStaffAssignment = typeof ambassadorOsStaffAssignments.$inferSelect;
+
+export type AmbassadorOsPrivacyRequestType = "ACCESS" | "RECTIFICATION" | "DELETION";
+export type AmbassadorOsPrivacyRequestStatus = "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "COMPLETED";
+export const ambassadorOsPrivacyRequests = pgTable("ambassador_os_privacy_requests", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  requestType: text("request_type").$type<AmbassadorOsPrivacyRequestType>().notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").$type<AmbassadorOsPrivacyRequestStatus>().notNull().default("SUBMITTED"),
+  reviewNotes: text("review_notes"),
+  reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  completionReference: text("completion_reference"),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+}, (t) => [index("ambassador_os_privacy_request_user_idx").on(t.requesterUserId, t.requestedAt), index("ambassador_os_privacy_request_status_idx").on(t.status, t.requestedAt)]);
+
+export type AmbassadorOsRetentionCategory = "TASK_EVIDENCE" | "TRAINING_ASSIGNMENT_TEXT" | "REJECTED_MARKETING_CONTENT";
+export const ambassadorOsRetentionPolicies = pgTable("ambassador_os_retention_policies", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  dataCategory: text("data_category").$type<AmbassadorOsRetentionCategory>().notNull(),
+  retentionDays: integer("retention_days").notNull(),
+  active: boolean("active").notNull().default(false),
+  legalApprovalReference: text("legal_approval_reference"),
+  policyVersion: integer("policy_version").notNull().default(1),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ambassador_os_retention_category_version_unique").on(t.dataCategory, t.policyVersion), index("ambassador_os_retention_active_idx").on(t.active, t.dataCategory)]);

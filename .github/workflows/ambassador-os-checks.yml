@@ -1,0 +1,37 @@
+name: Ambassador Operating System checks
+
+on:
+  push:
+    branches:
+      - feat/ambassador-operating-system-pilot
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  typecheck-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - name: Install backend dependencies and type-check
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+      - name: Run Ambassador OS business-rule tests
+        working-directory: server
+        run: npx vitest run src/services/ambassadorOperatingSystem.rules.test.ts
+      - name: Install frontend dependencies and build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build

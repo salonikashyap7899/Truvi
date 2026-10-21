@@ -102,6 +102,13 @@ export default function AmbassadorDashboardPage() {
           <div className="flex items-center justify-end gap-3"><NotificationBell /><UserMenu /></div>
           <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
             <Link
+              to="/ambassador/operating-system"
+              className="inline-flex items-center gap-2 rounded-lg border border-sky-400/30 bg-sky-400/10 px-4 py-2 text-sm font-medium text-sky-200 hover:bg-sky-400/15 transition"
+            >
+              <Handshake size={16} />
+              Operating System
+            </Link>
+            <Link
               to="/inventory"
               className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-white/10 transition"
             >

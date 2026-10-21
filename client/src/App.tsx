@@ -66,6 +66,8 @@ const FounderDashboardPage = lazy(() => import("@/pages/FounderDashboardPage"));
 const AmbassadorSignupPage = lazy(() => import("@/pages/AmbassadorSignupPage"));
 const AmbassadorLoginPage = lazy(() => import("@/AmbassadorLoginPage"));
 const AmbassadorDashboardPage = lazy(() => import("@/pages/AmbassadorDashboardPage"));
+const AmbassadorOperatingSystemPage = lazy(() => import("@/pages/AmbassadorOperatingSystemPage"));
+const AmbassadorCertificatePage = lazy(() => import("@/pages/AmbassadorCertificatePage"));
 
 const DeveloperDashboardPage = lazy(() => import("@/pages/developer/DeveloperDashboardPage"));
 const DeveloperInventoryPage = lazy(() => import("@/pages/developer/DeveloperInventoryPage"));
@@ -111,6 +113,7 @@ const AdminEnquiriesPage = lazy(() => import("@/pages/admin/AdminEnquiriesPage")
 const AdminCallsPage = lazy(() => import("@/pages/admin/AdminCallsPage"));
 const AdminVouchersPage = lazy(() => import("@/pages/admin/AdminVouchersPage"));
 const AdminAmbassadorTasksPage = lazy(() => import("@/pages/admin/AdminAmbassadorTasksPage"));
+const AdminAmbassadorOperatingSystemPage = lazy(() => import("@/pages/admin/AdminAmbassadorOperatingSystemPage"));
 const AdminPaymentsPage = lazy(() => import("@/pages/admin/AdminPaymentsPage"));
 const AdminVerificationPage = lazy(() => import("@/pages/admin/AdminVerificationPage"));
 const AdminKycPage = lazy(() => import("@/pages/admin/AdminKycPage"));
@@ -379,6 +382,7 @@ export default function App() {
           <Route path="revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
           <Route path="settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
           <Route path="ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
+          <Route path="ambassador-operating-system" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorOperatingSystemPage /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
           <Route path="marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
@@ -399,6 +403,9 @@ export default function App() {
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
         <Route path="/ambassador/dashboard" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorDashboardPage /></ProtectedRoute>} />
+        <Route path="/ambassador/operating-system" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorOperatingSystemPage /></ProtectedRoute>} />
+        <Route path="/ambassador/staff-operating-system" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "VERIFIER"]}><AdminAmbassadorOperatingSystemPage /></ProtectedRoute>} />
+        <Route path="/ambassador/certificate" element={<ProtectedRoute roles={["AMBASSADOR"]}><AmbassadorCertificatePage /></ProtectedRoute>} />
 
         {/* Developer (ADMIN may enter to review the full developer workflow) */}
         <Route path="/developer/dashboard" element={<ProtectedRoute roles={["DEVELOPER", "ADMIN"]}><DeveloperDashboardPage /></ProtectedRoute>} />

@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql, SQL } fro
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "../config/db";
 import {
+  ambassadorOsProfiles, ambassadorOsCampaigns, ambassadorOsCampaignGuidelines, ambassadorOsCampaignAcknowledgements,
   leads, leadActivities, projects, units, users, siteVisits, offers,
   LeadStage, Role, LeadReferralLink,
 } from "../db/schema";
@@ -96,6 +97,12 @@ const fromInventorySchema = z.object({
   visitTime: z.string().regex(VISIT_TIME, "Pick a preferred time"),
   requirement: z.string().trim().min(2, "Add the purpose / requirement").max(300),
   notes: z.string().trim().max(1000).optional().or(z.literal("")),
+  contactConsent: z.boolean().optional(),
+  budgetRange: z.string().trim().max(80).optional().or(z.literal("")),
+  purchasePurpose: z.enum(["SELF_USE", "INVESTMENT", "UNDECIDED"]).optional(),
+  preferredPlotSize: z.string().trim().max(100).optional().or(z.literal("")),
+  purchaseTimeline: z.enum(["IMMEDIATE", "WITHIN_3_MONTHS", "3_TO_6_MONTHS", "6_TO_12_MONTHS", "MORE_THAN_12_MONTHS", "NOT_DECIDED"]).optional(),
+  sourceChannel: z.enum(["AMBASSADOR_REFERRAL", "WHATSAPP", "INSTAGRAM", "FACEBOOK", "ORGANIC_WEBSITE", "PAID_ADVERTISEMENT", "CUSTOMER_REFERRAL", "TELECALLER", "CHANNEL_PARTNER", "DIRECT_ENQUIRY", "OTHER"]).optional(),
   confirmDuplicate: z.boolean().optional(),
 });
 
@@ -121,10 +128,25 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
 
   // Creator, from the session — never from the body.
   const [me] = await db
-    .select({ _id: users._id, name: users.name, email: users.email, phone: users.phone, role: users.role, disabled: users.disabled, referralCode: users.referralCode, referredBy: users.referredBy })
+    .select({ _id: users._id, name: users.name, email: users.email, phone: users.phone, role: users.role, disabled: users.disabled, onboardingVerified: users.onboardingVerified, referralCode: users.referralCode, referredBy: users.referredBy })
     .from(users)
     .where(eq(users._id, req.user!.userId));
   if (!me || me.disabled || me.role !== role) return res.status(403).json({ error: "Your account can't add leads" });
+
+  // Ambassadors may not submit sales leads until their OS registration, training,
+  // independent practical/ethics assessment and activation are complete.
+  if (role === "AMBASSADOR") {
+    const [profile] = await db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, me._id));
+    if (!profile?.termsAcceptedAt || !me.onboardingVerified || profile.status !== "ACTIVE") {
+      return res.status(403).json({
+        error: "Complete your Ambassador profile, identity verification, seven-day certification and admin activation before submitting sales leads.",
+        code: "AMBASSADOR_ACTIVATION_REQUIRED",
+      });
+    }
+  }
+  if ((role === "CP" || role === "AMBASSADOR") && d.contactConsent !== true) {
+    return res.status(400).json({ error: "Confirm that the customer gave permission to share their contact details with Truvi for this enquiry." });
+  }
 
   // Project must be live; the unit (if any) must belong to it and be unsold.
   const [project] = await db
@@ -140,6 +162,39 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
   if (!project || project.approvalStatus !== "APPROVED") return res.status(404).json({ error: "This project isn't available" });
   if (project.availabilityStatus === "SOLD_OUT") {
     return res.status(409).json({ error: "This project is currently sold out." });
+  }
+
+  // Campaign marketing compliance: require acknowledgement of every active, verified
+  // Ambassador OS campaign currently running for this project before accepting a
+  // referral. An active campaign without published guidelines is a setup blocker,
+  // not a reason to silently bypass the safeguard.
+  if (role === "AMBASSADOR") {
+    const campaigns = await db.select({ _id: ambassadorOsCampaigns._id, name: ambassadorOsCampaigns.name })
+      .from(ambassadorOsCampaigns)
+      .where(and(eq(ambassadorOsCampaigns.projectId, project._id), eq(ambassadorOsCampaigns.status, "ACTIVE"), eq(ambassadorOsCampaigns.officialDataVerified, true)));
+    if (campaigns.length > 0) {
+      const campaignIds = campaigns.map((campaign) => campaign._id);
+      const [guidelines, acknowledgements] = await Promise.all([
+        db.select().from(ambassadorOsCampaignGuidelines).where(inArray(ambassadorOsCampaignGuidelines.campaignId, campaignIds)),
+        db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, me._id)),
+      ]);
+      const missing = campaigns.filter((campaign) => {
+        const latest = guidelines.filter((item) => item.campaignId === campaign._id).sort((a, b) => b.version - a.version)[0];
+        return !latest || !acknowledgements.some((ack) => ack.campaignId === campaign._id && ack.guidelineVersion === latest.version);
+      }).map((campaign) => {
+        const latest = guidelines.filter((item) => item.campaignId === campaign._id).sort((a, b) => b.version - a.version)[0];
+        return { campaignId: campaign._id, campaignName: campaign.name, requiredVersion: latest?.version ?? null, guidelinesPublished: Boolean(latest) };
+      });
+      if (missing.length > 0) {
+        return res.status(409).json({
+          error: missing.some((item) => !item.guidelinesPublished)
+            ? "A verified active campaign has no published marketing guidelines yet. Contact the Truvi program team before submitting this project lead."
+            : "Acknowledge the latest marketing guidelines for this campaign before submitting the lead.",
+          code: "CAMPAIGN_GUIDELINES_ACK_REQUIRED",
+          campaigns: missing,
+        });
+      }
+    }
   }
   let unit: { _id: string; unitNumber: string; type: string; areaSqft: number; status: string } | null = null;
   if (d.unitId) {
@@ -266,10 +321,18 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         clientName,
         clientPhone,
         clientEmail,
+        contactConsent: role === "BUYER" ? false : d.contactConsent === true,
+        contactConsentAt: role === "BUYER" ? null : d.contactConsent === true ? new Date() : null,
+        consentTextVersion: role === "BUYER" ? null : d.contactConsent === true ? "TRUVI_LEAD_CONSENT_V1" : null,
         stage: (role === "CP" ? "ASSIGNED" : "GENERATED") as LeadStage,
         source: `INVENTORY_${role}`,
         notes: d.notes || null,
         requirement: d.requirement,
+        budgetRange: d.budgetRange || null,
+        purchasePurpose: d.purchasePurpose ?? "UNDECIDED",
+        preferredPlotSize: d.preferredPlotSize || null,
+        purchaseTimeline: d.purchaseTimeline ?? "NOT_DECIDED",
+        sourceChannel: d.sourceChannel ?? (role === "AMBASSADOR" ? "AMBASSADOR_REFERRAL" : role === "CP" ? "CHANNEL_PARTNER" : "DIRECT_ENQUIRY"),
         visitDate: d.visitDate,
         visitTime: d.visitTime,
         creatorRole: role,
