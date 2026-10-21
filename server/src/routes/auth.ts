@@ -456,7 +456,7 @@ router.post("/login", ...loginLimiter, async (req, res) => {
 
 // Public: confirm BOTH the emailed and texted OTPs, mark the account verified
 // and log in.
-router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
+router.post("/verify-account", ...otpVerifyLimiter, async (req, res) => {
   const parsed = verifyAccountSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -635,7 +635,7 @@ router.post("/forgot-password", ...otpSendLimiter, async (req, res) => {
 
 // Public: confirm the emailed reset code and set a new password. On success the
 // code is cleared and all reset state is wiped.
-router.post("/reset-password", otpVerifyLimiter, async (req, res) => {
+router.post("/reset-password", ...otpVerifyLimiter, async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -855,7 +855,7 @@ router.post("/request-phone-otp", authenticate, ...otpSendLimiter, async (req: A
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
 
-router.post("/verify-phone-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
+router.post("/verify-phone-otp", authenticate, ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
@@ -940,7 +940,7 @@ router.post("/request-email-otp", authenticate, ...otpSendLimiter, async (req: A
   return res.json({ message: "OTP sent to email", email: user.email });
 });
 
-router.post("/verify-email-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
+router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
