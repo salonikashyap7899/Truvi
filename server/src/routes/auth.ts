@@ -395,28 +395,18 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
     }
 
-    let emailOtp = pending.emailOtp;
-    let phoneOtp = pending.phoneOtp;
-    let emailOtpExpiry = pending.emailOtpExpiry;
-    let phoneOtpExpiry = pending.phoneOtpExpiry;
-    const now = new Date();
-    const needsFreshCodes =
-      !emailOtp || !phoneOtp || !emailOtpExpiry || !phoneOtpExpiry ||
-      emailOtpExpiry.getTime() <= now.getTime() ||
-      phoneOtpExpiry.getTime() <= now.getTime();
-
-    if (needsFreshCodes) {
-      emailOtp = generateOtp();
-      phoneOtp = generateOtp();
-      emailOtpExpiry = new Date(now.getTime() + 10 * 60 * 1000);
-      phoneOtpExpiry = emailOtpExpiry;
-      await db.update(pendingSignups).set({
-        emailOtp, phoneOtp, emailOtpExpiry, phoneOtpExpiry,
-      }).where(eq(pendingSignups._id, pending._id));
-    }
+    // Reissuing from Login always rotates the pair, so an earlier expired
+    // code or identity-level lockout cannot leave a legitimate user stranded.
+    const emailOtp = generateOtp();
+    const phoneOtp = generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await db.update(pendingSignups).set({
+      emailOtp, phoneOtp, emailOtpExpiry: otpExpiry, phoneOtpExpiry: otpExpiry,
+    }).where(eq(pendingSignups._id, pending._id));
+    clearOtpAttempts(`verify:${normalizedEmail}`);
 
     const { emailSent, smsSent } = await dispatchOtps(
-      normalizedEmail, pending.phone, emailOtp!, phoneOtp!,
+      normalizedEmail, pending.phone, emailOtp, phoneOtp,
     );
     return res.status(403).json({
       error: emailSent && smsSent
