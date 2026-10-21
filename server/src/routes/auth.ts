@@ -33,6 +33,7 @@ import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsapp
 import { notifyUser, notifyRole } from "../services/notificationService";
 import { logAudit } from "../services/audit";
 import { isFounderEmail } from "../config/env";
+import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "../services/otpAttempts";
 
 const router = Router();
 
@@ -82,36 +83,6 @@ function generateOtp(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-// ── Per-identity OTP guessing cap ──────────────────────────────────────────
-// A second line of defence beyond the IP rate limiter: it caps how many times a
-// SINGLE account's code can be guessed, so a distributed brute-force (many IPs)
-// against one victim's reset/verify code is stopped too. In-memory is fine for
-// the single app process; counts auto-expire with the 10-minute OTP window and
-// clear the moment a correct code is accepted.
-const OTP_MAX_ATTEMPTS = 5;
-const OTP_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
-const otpAttempts = new Map<string, { count: number; first: number }>();
-function otpAttemptBlocked(key: string): boolean {
-  const rec = otpAttempts.get(key);
-  if (!rec) return false;
-  if (Date.now() - rec.first > OTP_ATTEMPT_WINDOW_MS) {
-    otpAttempts.delete(key);
-    return false;
-  }
-  return rec.count >= OTP_MAX_ATTEMPTS;
-}
-function recordOtpFailure(key: string): void {
-  const now = Date.now();
-  const rec = otpAttempts.get(key);
-  if (!rec || now - rec.first > OTP_ATTEMPT_WINDOW_MS) {
-    otpAttempts.set(key, { count: 1, first: now });
-  } else {
-    rec.count += 1;
-  }
-}
-function clearOtpAttempts(key: string): void {
-  otpAttempts.delete(key);
-}
 const TOO_MANY_OTP = "Too many incorrect codes. Please wait a few minutes and request a fresh code.";
 
 function maskPhone(phone?: string | null): string {
@@ -139,8 +110,8 @@ async function dispatchOtps(
   }
   if (phone) {
     try {
-      // Returns false when Twilio isn't configured (the OTP is logged instead),
-      // throws when configured but delivery fails.
+      // Returns false when Twilio is not configured; never logs the OTP.
+      // Throws when configured but delivery fails.
       smsSent = await sendPhoneOtpViaSms(phone, phoneOtp);
     } catch (err) {
       console.error("Failed to send verification SMS:", err);
