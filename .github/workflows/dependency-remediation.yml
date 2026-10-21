@@ -1,0 +1,80 @@
+name: Propose dependency security fixes
+
+on:
+  push:
+    branches:
+      - security/ambassador-os-validation
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-dependency-fix:
+    name: Prepare a reviewable dependency-fix PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Start from main so the dependency PR contains only dependency updates,
+      # not the separate security-validation workflow/documentation PR.
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Apply non-breaking server dependency fixes
+        working-directory: server
+        run: npm audit fix
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+      - name: Apply non-breaking client dependency fixes
+        working-directory: client
+        run: npm audit fix
+      - name: Verify server types and tests
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+      - name: Verify client production build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+      - name: Recheck server advisories
+        working-directory: server
+        run: npm audit --audit-level=high
+      - name: Recheck client advisories
+        working-directory: client
+        run: npm audit --audit-level=high
+      - name: Open dependency-fix pull request
+        if: always()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: security/npm-audit-fix
+          delete-branch: false
+          commit-message: "security: update vulnerable npm dependencies"
+          title: "Security: remediate npm dependency advisories"
+          body: |
+            Automated, reviewable dependency remediation proposal.
+
+            - Runs npm audit fix without --force in server and client.
+            - Intended to stay within declared semver ranges; review every lockfile/package change.
+            - Workflow runs server typecheck/tests, client production build, and high/critical dependency audits before this PR is merged.
+            - This PR is not auto-merged. If any check fails, inspect the Actions run and resolve remaining advisories before deployment.
+          labels: security,dependencies
