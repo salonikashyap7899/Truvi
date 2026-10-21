@@ -75,6 +75,5 @@ jobs:
 
             - Runs npm audit fix without --force in server and client.
             - Intended to stay within declared semver ranges; review every lockfile/package change.
-            - Workflow runs server typecheck/tests, client production build, and high/critical dependency audits before this PR is merged.
-            - This PR is not auto-merged. If any check fails, inspect the Actions run and resolve remaining advisories before deployment.
-          labels: security,dependencies
+            - Check the linked Actions run for test/build/audit outcomes before merging.
+            - This PR is not auto-merged. Resolve remaining advisories and all failing checks before deployment.
