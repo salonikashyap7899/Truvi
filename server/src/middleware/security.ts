@@ -105,7 +105,7 @@ export const loginLimiter = rateLimit({
 export const otpSendLimiter = makeLimiter(6, 60 * 60_000); // 6 code sends / hour (SMS + email cost)
 export const otpVerifyLimiter = makeLimiter(20, 15 * 60_000); // 20 verify attempts / 15 min
 
-// ── AI chat (Anthropic bill) ───────────────────────────────────────────────
+// ── AI chat usage guard ───────────────────────────────────────────────────
 // Every Ask Truvi / Sales Copilot message is a paid model call. Keyed by the
 // signed-in user (the route requires login), so one account — or a script
 // using it — can't run up the bill. Far above what a person types.

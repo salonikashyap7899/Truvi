@@ -239,7 +239,7 @@ export default function AdminSettingsPage() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     {s.integrations.ai
                       ? "The AI key is configured — Ask Truvi and AI reports are available."
-                      : "Set ANTHROPIC_API_KEY on the server to enable Ask Truvi and AI reports."}
+                      : "Set GEMINI_API_KEY (or GOOGLE_API_KEY) on the server to enable Ask Truvi and AI reports."}
                   </p>
                 </Card>
               )}

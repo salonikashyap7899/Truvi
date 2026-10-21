@@ -1,5 +1,5 @@
 import { Router } from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { aiChatLimiter, aiChatDailyLimiter } from "../middleware/security";
 import { retrieveContext } from "../services/askTruviService";
@@ -8,7 +8,7 @@ const router = Router();
 
 // Model is configurable via env so it can be changed without a redeploy if the
 // account's available models change. Keep a sensible default.
-const AI_MODEL = process.env.ASK_AI_MODEL?.trim() || "claude-opus-4-5";
+const AI_MODEL = process.env.ASK_AI_MODEL?.trim() || "gemini-2.5-flash";
 
 /* ---------------- Sales Copilot modes ---------------- */
 
@@ -104,35 +104,27 @@ function plainFromRaw(raw: string): string {
 }
 
 /**
- * Read ANTHROPIC_API_KEY defensively: strip whitespace/newlines and
- * wrapping quotes — the most common paste mistakes when setting the
- * variable in a dashboard, and each one makes Anthropic return 401.
+ * Read Gemini API key defensively: strip whitespace/newlines and wrapping
+ * quotes so dashboard-pasted values still work.
  */
-function getAnthropicKey(): { key: string | undefined; sanitized: boolean } {
-  const raw = process.env.ANTHROPIC_API_KEY;
+function getGeminiKey(): { key: string | undefined; sanitized: boolean } {
+  const raw = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!raw) return { key: undefined, sanitized: false };
   const cleaned = raw.trim().replace(/^["']+|["']+$/g, "");
   return { key: cleaned || undefined, sanitized: cleaned !== raw };
 }
 
 /**
- * Surface the real Anthropic API failure in the server logs — an invalid
- * key (401), missing credits (400/403 billing), rate limit (429), etc. —
- * so a generic "trouble connecting" reply in the UI is diagnosable.
+ * Surface the real Gemini API failure in the server logs so the UI can
+ * indicate a key, billing, or connectivity problem without leaking secrets.
  */
-function logAnthropicError(label: string, err: unknown) {
-  if (err instanceof Anthropic.APIError) {
-    console.error(`${label} error: HTTP ${err.status} — ${err.message}`);
-  } else {
-    console.error(`${label} error:`, err);
-  }
+function logGeminiError(label: string, err: unknown) {
+  console.error(`${label} error:`, err);
 }
 
 /**
- * GET /api/ai/chat/health — admin-only diagnostic for the AI setup: is
- * ANTHROPIC_API_KEY present, and does Anthropic accept it (validated via the
- * free models-list endpoint — no tokens spent). Never returns any part of the
- * key. The result is cached briefly so repeated hits don't call Anthropic.
+ * GET /api/ai/chat/health — admin-only diagnostic for the AI setup. Never
+ * returns any part of the key. The result is cached briefly.
  */
 let healthCache: { at: number; body: Record<string, unknown> } | null = null;
 const HEALTH_TTL_MS = 60_000;
@@ -140,18 +132,18 @@ const HEALTH_TTL_MS = 60_000;
 router.get("/health", authenticate, requireRole("ADMIN"), async (_req, res) => {
   if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return res.json(healthCache.body);
 
-  const { key: apiKey, sanitized } = getAnthropicKey();
+  const { key: apiKey, sanitized } = getGeminiKey();
   let body: Record<string, unknown>;
   if (!apiKey) {
     body = {
       configured: false,
       ok: false,
-      hint: "ANTHROPIC_API_KEY is not set in this server's environment. Add it to server/.env, then restart the server.",
+      hint: "GEMINI_API_KEY is not set in this server's environment. Add it to server/.env, then restart the server.",
     };
   } else {
     try {
-      const client = new Anthropic({ apiKey });
-      await client.models.list();
+      const client = new GoogleGenAI({ apiKey });
+      await client.models.generateContent({ model: AI_MODEL, contents: "ping" });
       body = {
         configured: true,
         ok: true,
@@ -161,17 +153,12 @@ router.get("/health", authenticate, requireRole("ADMIN"), async (_req, res) => {
           : "Key is valid — Ask Truvi should work.",
       };
     } catch (err: unknown) {
-      const status = err instanceof Anthropic.APIError ? err.status : undefined;
-      logAnthropicError("AI health", err);
+      logGeminiError("AI health", err);
       body = {
         configured: true,
         ok: false,
         sanitized,
-        status,
-        hint:
-          status === 401
-            ? "The key set on this server is being rejected by Anthropic (401). Re-paste the key, or generate a fresh one at console.anthropic.com."
-            : "The key is set but the Anthropic API call failed — check the server logs.",
+        hint: "The key is set but the Gemini API call failed — check the server logs.",
       };
     }
   }
@@ -204,16 +191,16 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
     return res.status(400).json({ error: "message too long" });
   }
 
-  const { key: apiKey } = getAnthropicKey();
+  const { key: apiKey } = getGeminiKey();
 
   if (!apiKey) {
     return res.status(503).json({
       error: "AI service not configured",
-      reply: "Ask Truvi AI is not yet configured. Please add your ANTHROPIC_API_KEY to the server environment.",
+      reply: "Ask Truvi AI is not yet configured. Please add your GEMINI_API_KEY (or GOOGLE_API_KEY) to the server environment.",
     });
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new GoogleGenAI({ apiKey });
 
   /* -------- Sales Copilot path -------- */
   if (mode && COPILOT_PROMPTS[mode]) {
@@ -221,19 +208,15 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
     const contextJson = boundedJson(propertyContext);
     if (contextJson) systemPrompt += `\n\nContext:\n${contextJson}`;
     try {
-      const response = await client.messages.create({
+      const response = await client.models.generateContent({
         model: AI_MODEL,
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: [{ role: "user", content: message.trim() }],
+        contents: `${systemPrompt}\n\nUser: ${message.trim()}`,
+        config: { maxOutputTokens: 400 },
       });
-      const reply = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("") || "Sorry, I couldn't generate a response. Please try again.";
+      const reply = response.text?.trim() || "Sorry, I couldn't generate a response. Please try again.";
       return res.json({ reply });
     } catch (err: unknown) {
-      logAnthropicError("AI copilot", err);
+      logGeminiError("AI copilot", err);
       return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
     }
   }
@@ -292,21 +275,19 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
       historyMessages.pop();
     }
 
-    const response = await client.messages.create({
+    const response = await client.models.generateContent({
       model: AI_MODEL,
-      max_tokens: 1600,
-      system: `${ASK_TRUVI_SYSTEM}\n\n${dataBlock}`,
-      messages: [
-        ...historyMessages,
-        { role: "user", content: message.trim() },
-      ],
+      contents: [
+        ...historyMessages.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`),
+        `User: ${message.trim()}`,
+      ].join("\n\n"),
+      config: {
+        systemInstruction: `${ASK_TRUVI_SYSTEM}\n\n${dataBlock}`,
+        maxOutputTokens: 1600,
+      },
     });
 
-    // Concatenate all text blocks (Claude can return multiple content blocks)
-    const raw = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("");
+    const raw = response.text ?? "";
     let parsed: {
       reply?: string;
       sources?: unknown[];
@@ -345,7 +326,7 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
       intent: context.intent,
     });
   } catch (err: unknown) {
-    logAnthropicError("Ask Truvi AI", err);
+    logGeminiError("Ask Truvi AI", err);
     return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
   }
 });

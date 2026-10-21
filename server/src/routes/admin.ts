@@ -1712,7 +1712,7 @@ function settingsResponse(s: IPlatformSettings, isAdmin = false) {
       email: Boolean(process.env.SMTP_HOST),
       sms: Boolean(process.env.TWILIO_ACCOUNT_SID),
       whatsapp: isAiSensyEnabled() || isWhatsAppEnabled(),
-      ai: Boolean(process.env.ANTHROPIC_API_KEY),
+      ai: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
     },
   };
 }
