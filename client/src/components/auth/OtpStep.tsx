@@ -16,11 +16,13 @@ export function OtpStep({
   phone,
   onVerified,
   onBack,
+  initialDelivery,
 }: {
   email: string;
   phone?: string;
   onVerified: (user: User) => void;
   onBack?: () => void;
+  initialDelivery?: { emailSent?: boolean; smsSent?: boolean };
 }) {
   const { verifyAccount, resendOtp } = useAuth();
   const [emailOtp, setEmailOtp] = useState("");
@@ -28,6 +30,7 @@ export function OtpStep({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [deliveryStatus, setDeliveryStatus] = useState(initialDelivery);
 
   const ready = emailOtp.length === 6 && phoneOtp.length === 6;
 
@@ -53,6 +56,10 @@ export function OtpStep({
       const data = await resendOtp(email);
       const emailOk = data?.emailSent !== false;
       const smsOk = data?.smsSent !== false;
+      setDeliveryStatus({
+        emailSent: typeof data?.emailSent === "boolean" ? data.emailSent : undefined,
+        smsSent: typeof data?.smsSent === "boolean" ? data.smsSent : undefined,
+      });
       if (!emailOk && !smsOk) {
         toast.error("We couldn't send the codes right now. Please try again shortly or contact support.");
       } else if (!emailOk) {
@@ -82,6 +89,17 @@ export function OtpStep({
           {phone ? <> and <span className="text-white/90">{phone}</span></> : null}.
         </p>
       </div>
+
+      {deliveryStatus && (deliveryStatus.emailSent === false || deliveryStatus.smsSent === false) && (
+        <p role="status" className="mt-4 rounded-lg border border-amber-400/25 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+          {deliveryStatus.emailSent === false && deliveryStatus.smsSent === false
+            ? "Neither verification code could be sent. Check your email/phone details and try Resend codes. If this keeps happening, contact Truvi support."
+            : deliveryStatus.emailSent === false
+              ? "The email provider did not accept the verification email. Resend the codes or contact Truvi support before continuing."
+              : "The SMS provider did not accept the phone code. Resend the codes or contact Truvi support before continuing."}
+          {" "}Do not restart signup repeatedly; doing so replaces the current codes.
+        </p>
+      )}
 
       <form onSubmit={onSubmit} className="mt-7 space-y-4">
         <div>
