@@ -27,7 +27,13 @@ export default function AmbassadorLoginPage() {
       const data = err?.response?.data;
       if (data?.needsVerification) {
         const phoneParam = data.phone ? `&phone=${encodeURIComponent(data.phone)}` : "";
-        navigate(`/verify-email?email=${encodeURIComponent(email)}${phoneParam}`);
+        navigate(
+          `/verify-email?email=${encodeURIComponent(email)}${phoneParam}`,
+          { state: { initialDelivery: {
+            emailSent: typeof data.emailSent === "boolean" ? data.emailSent : undefined,
+            smsSent: typeof data.smsSent === "boolean" ? data.smsSent : undefined,
+          } } },
+        );
         return;
       }
       if (err?.response?.status === 429 || data?.code === "LOGIN_RATE_LIMITED") {
