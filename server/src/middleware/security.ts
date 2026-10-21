@@ -137,7 +137,24 @@ const otpSendIdentityLimiter = rateLimit({
   message: { error: "Too many verification codes were requested for this account. Please wait or try again later." },
 });
 export const otpSendLimiter = [otpSendNetworkLimiter, otpSendIdentityLimiter];
-export const otpVerifyLimiter = makeLimiter(20, 15 * 60_000); // 20 verify attempts / 15 min
+
+const otpVerifyNetworkLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => clientIp(req as AuthedRequest),
+  message: { error: "Too many code-verification attempts from this network. Please wait before retrying." },
+});
+const otpVerifyIdentityLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => authIdentityOrIp(req as AuthedRequest),
+  message: { error: "Too many code-verification attempts for this account. Please wait before retrying." },
+});
+export const otpVerifyLimiter = [otpVerifyNetworkLimiter, otpVerifyIdentityLimiter];
 
 // ── AI chat usage guard ───────────────────────────────────────────────────
 // Every Ask Truvi / Sales Copilot message is a paid model call. Keyed by the
