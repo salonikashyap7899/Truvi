@@ -1,0 +1,64 @@
+name: Propose dependency security fixes
+
+on:
+  push:
+    branches:
+      - security/ambassador-os-validation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-remediation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-dependency-fix:
+    name: Verify semver-compatible dependency fixes
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Use main as the clean baseline; the reviewed lockfile changes are in
+      # PR #343. This workflow validates that npm's non-forced fixes work.
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Apply semver-compatible server dependency fixes
+        working-directory: server
+        run: npm audit fix || true
+      - name: Install client dependencies
+        working-directory: client
+        run: npm ci
+      - name: Apply semver-compatible client dependency fixes
+        working-directory: client
+        run: npm audit fix || true
+      # Server's hosting test expects client/dist to exist, so build first.
+      - name: Verify client production build
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+      - name: Verify server types and tests
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+      - name: Recheck server advisories
+        working-directory: server
+        run: npm audit --audit-level=high
+      - name: Recheck client advisories
+        working-directory: client
+        run: npm audit --audit-level=high
