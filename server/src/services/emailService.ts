@@ -27,10 +27,10 @@ export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures
 
 /**
  * Send an email. Returns `true` only when it was actually dispatched via SMTP.
- * When SMTP isn't configured it logs (so a developer can still read the code
- * from the subject) and returns `false`, so callers can honestly tell the user
- * that email wasn't delivered instead of silently claiming success. Throws when
- * SMTP *is* configured but the send fails, so real errors surface.
+ * When SMTP isn't configured it emits a non-sensitive warning and returns
+ * `false`, so callers can honestly tell the user that email wasn't delivered.
+ * OTPs, recipients and message subjects are never written to logs. Throws when
+ * SMTP is configured but delivery fails.
  */
 export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
   if (!transporter) {
@@ -121,8 +121,8 @@ function toE164(phone: string): string {
 /**
  * Send a phone OTP via Twilio SMS.
  *  - Returns `true` when the SMS was accepted by Twilio.
- *  - Returns `false` (and logs the OTP) when SMS isn't configured, so local/dev
- *    still works without credentials.
+ *  - Returns `false` when SMS isn't configured; OTPs and phone numbers are
+ *    never logged.
  *  - Throws when SMS *is* configured but the send fails, so the caller can
  *    surface a real error to the user instead of silently succeeding.
  */
