@@ -402,9 +402,54 @@ router.post("/login", loginLimiter, async (req, res) => {
   }
 
   const { email, password } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
   const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+
+  // Recover unfinished signups when a user leaves the OTP screen and later
+  // returns through Login. The real users row is intentionally not created
+  // until both OTPs verify, so treating this case as "wrong credentials" is
+  // confusing and causes repeated signup attempts to invalidate earlier codes.
+  if (!user) {
+    const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+    if (!pending || !(await bcrypt.compare(password, pending.password))) {
+      return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
+    }
+
+    let emailOtp = pending.emailOtp;
+    let phoneOtp = pending.phoneOtp;
+    let emailOtpExpiry = pending.emailOtpExpiry;
+    let phoneOtpExpiry = pending.phoneOtpExpiry;
+    const now = new Date();
+    const needsFreshCodes =
+      !emailOtp || !phoneOtp || !emailOtpExpiry || !phoneOtpExpiry ||
+      emailOtpExpiry.getTime() <= now.getTime() ||
+      phoneOtpExpiry.getTime() <= now.getTime();
+
+    if (needsFreshCodes) {
+      emailOtp = generateOtp();
+      phoneOtp = generateOtp();
+      emailOtpExpiry = new Date(now.getTime() + 10 * 60 * 1000);
+      phoneOtpExpiry = emailOtpExpiry;
+      await db.update(pendingSignups).set({
+        emailOtp, phoneOtp, emailOtpExpiry, phoneOtpExpiry,
+      }).where(eq(pendingSignups._id, pending._id));
+    }
+
+    const { emailSent, smsSent } = await dispatchOtps(
+      normalizedEmail, pending.phone, emailOtp!, phoneOtp!,
+    );
+    return res.status(403).json({
+      error: emailSent && smsSent
+        ? "Your signup is saved but not finished. Enter the fresh verification codes to complete it."
+        : "Your signup is saved, but one or more verification codes could not be delivered. Use Resend codes or contact Truvi support.",
+      needsVerification: true,
+      email: normalizedEmail,
+      phone: maskPhone(pending.phone),
+      emailSent,
+      smsSent,
+    });
+  }
 
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
@@ -512,7 +557,24 @@ router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
     return res.status(409).json({ error: "An account with this email already exists. Please log in." });
   }
 
-  const created = await createUserFromPending(pending);
+  let created: IUser;
+  try {
+    created = await createUserFromPending(pending);
+  } catch (createError) {
+    // Two verification requests can arrive from separate tabs/devices. If the
+    // other request won the unique-email insert, return its verified session
+    // instead of surfacing an intermittent 500 for an account that now exists.
+    try {
+      const [alreadyCreated] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+      if (alreadyCreated?.emailVerified && alreadyCreated?.phoneVerified) {
+        await db.delete(pendingSignups).where(eq(pendingSignups._id, pending._id)).catch(() => {});
+        return res.json(issueSession(res, alreadyCreated));
+      }
+    } catch {
+      // Keep the original error if the database is unavailable during recovery.
+    }
+    throw createError;
+  }
   // Account is now fully verified — send the one-time welcome email (best-effort).
   void sendWelcomeEmailOnce(created);
   return res.json(issueSession(res, created));
