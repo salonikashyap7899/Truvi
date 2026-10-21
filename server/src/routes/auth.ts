@@ -299,7 +299,7 @@ function issueSession(res: import("express").Response, user: IUser) {
   };
 }
 
-router.post("/signup", otpSendLimiter, async (req, res) => {
+router.post("/signup", ...otpSendLimiter, async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -374,7 +374,7 @@ router.post("/signup", otpSendLimiter, async (req, res) => {
   });
 });
 
-router.post("/login", loginLimiter, async (req, res) => {
+router.post("/login", ...loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -550,7 +550,7 @@ router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
 });
 
 // Public: resend BOTH verification OTPs for an unverified account.
-router.post("/resend-otp", otpSendLimiter, async (req, res) => {
+router.post("/resend-otp", ...otpSendLimiter, async (req, res) => {
   const parsed = resendOtpSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -599,7 +599,7 @@ router.post("/resend-otp", otpSendLimiter, async (req, res) => {
 
 // Public: request a password-reset code. Emails a 6-digit code to the account.
 // Available to every role. Never reveals whether an email exists.
-router.post("/forgot-password", otpSendLimiter, async (req, res) => {
+router.post("/forgot-password", ...otpSendLimiter, async (req, res) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -817,7 +817,7 @@ router.post("/verify-ambassador", authenticate, (_req: AuthedRequest, res) => {
   });
 });
 
-router.post("/request-phone-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
+router.post("/request-phone-otp", authenticate, ...otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
@@ -910,7 +910,7 @@ router.post("/verify-phone-otp", authenticate, otpVerifyLimiter, async (req: Aut
   });
 });
 
-router.post("/request-email-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
+router.post("/request-email-otp", authenticate, ...otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
