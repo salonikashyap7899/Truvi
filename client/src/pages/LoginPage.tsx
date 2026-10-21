@@ -46,7 +46,11 @@ export default function LoginPage() {
   const [feedbackTone, setFeedbackTone] = useState<"error" | "notice" | "credentials">("error");
   const [loading, setLoading] = useState(false);
   // Unverified accounts verify inline on this page instead of bouncing away.
-  const [otpPhase, setOtpPhase] = useState<{ email: string; phone?: string } | null>(null);
+  const [otpPhase, setOtpPhase] = useState<{
+    email: string;
+    phone?: string;
+    initialDelivery?: { emailSent?: boolean; smsSent?: boolean };
+  } | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,7 +66,14 @@ export default function LoginPage() {
       // Unverified account: the server sent fresh OTPs — verify inline here.
       const data = err?.response?.data;
       if (data?.needsVerification) {
-        setOtpPhase({ email, phone: data.phone });
+        setOtpPhase({
+          email,
+          phone: data.phone,
+          initialDelivery: {
+            emailSent: typeof data.emailSent === "boolean" ? data.emailSent : undefined,
+            smsSent: typeof data.smsSent === "boolean" ? data.smsSent : undefined,
+          },
+        });
         return;
       }
       if (err?.response?.status === 429 || data?.code === "LOGIN_RATE_LIMITED") {
@@ -95,6 +106,7 @@ export default function LoginPage() {
               <OtpStep
                 email={otpPhase.email}
                 phone={otpPhase.phone}
+                initialDelivery={otpPhase.initialDelivery}
                 onVerified={navigateAfterAuth}
                 onBack={() => setOtpPhase(null)}
               />

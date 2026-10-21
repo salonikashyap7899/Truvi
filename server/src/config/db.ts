@@ -373,6 +373,27 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "pending_signups_email_unique" ON "pending_signups" ("email")`,
+    // KYC document storage is required by /api/auth/submit-kyc. Keep this in
+    // the idempotent startup schema bootstrap so a fresh/restored database can
+    // accept secure uploads without relying on an undocumented manual SQL step.
+    `CREATE TABLE IF NOT EXISTS "kyc_documents" (
+       "user_id" uuid PRIMARY KEY REFERENCES "users"("id") ON DELETE CASCADE,
+       "aadhaar_data" bytea,
+       "aadhaar_mime" text,
+       "pan_data" bytea,
+       "pan_mime" text,
+       "selfie_data" bytea,
+       "selfie_mime" text,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    // Add missing columns safely for installations created by an earlier pilot.
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "aadhaar_data" bytea`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "aadhaar_mime" text`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "pan_data" bytea`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "pan_mime" text`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "selfie_data" bytea`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "selfie_mime" text`,
+    `ALTER TABLE "kyc_documents" ADD COLUMN IF NOT EXISTS "updated_at" timestamptz NOT NULL DEFAULT now()`,
     // CP commission wallet — developer-onboarding 2% accruals + admin payouts.
     `CREATE TABLE IF NOT EXISTS "developer_commission_accruals" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),

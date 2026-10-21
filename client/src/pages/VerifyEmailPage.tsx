@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { dashboardPath } from "@/lib/rolePaths";
 import { OtpStep } from "@/components/auth/OtpStep";
@@ -11,9 +11,11 @@ import { AuthCard } from "@/components/auth/AuthShell";
  */
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const email = searchParams.get("email") ?? "";
   const phone = searchParams.get("phone") ?? "";
+  const initialDelivery = (location.state as { initialDelivery?: { emailSent?: boolean; smsSent?: boolean } } | null)?.initialDelivery;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-12">
@@ -28,6 +30,7 @@ export default function VerifyEmailPage() {
           <OtpStep
             email={email}
             phone={phone}
+            initialDelivery={initialDelivery}
             onVerified={(u) => navigate(dashboardPath(u))}
             onBack={() => navigate("/login")}
           />

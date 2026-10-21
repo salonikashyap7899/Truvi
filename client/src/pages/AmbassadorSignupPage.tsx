@@ -48,13 +48,20 @@ export default function AmbassadorSignupPage() {
   async function onSubmit(data: SignupForm) {
     setServerError(null);
     try {
-      await signup({
+      const delivery = await signup({
         ...data,
         role: "AMBASSADOR",
         ...(refCode ? { referralCode: refCode } : {}),
       });
-      // Verify the email + phone OTPs before first sign-in.
-      navigate(`/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`);
+      // Keep provider delivery results through the redirect so the user can
+      // recover quickly if SMTP or SMS delivery failed for this attempt.
+      navigate(
+        `/verify-email?email=${encodeURIComponent(data.email)}&phone=${encodeURIComponent(data.phone)}`,
+        { state: { initialDelivery: {
+          emailSent: typeof delivery?.emailSent === "boolean" ? delivery.emailSent : undefined,
+          smsSent: typeof delivery?.smsSent === "boolean" ? delivery.smsSent : undefined,
+        } } },
+      );
     } catch (err: any) {
       setServerError(err?.response?.data?.error || "Something went wrong");
     }

@@ -85,25 +85,76 @@ export const ingestLimiter = makeLimiter(100); // 100/min (admin bulk uploads)
 export const adminLimiter = makeLimiter(60); // general admin CRUD
 
 // ── Auth / OTP limiters ────────────────────────────────────────────────────
-// Protect the pre-auth endpoints (login, signup, OTP send/verify, password
-// reset) that otherwise have no throttle. Keyed by the signed-in user when one
-// exists (the authenticated OTP endpoints) and otherwise by client IP, so a
-// shared NAT is limited together. Limits are set well above normal human use —
-// a real person signing in or verifying a code never hits them; an automated
-// brute-force or SMS-spam run does.
-export const loginLimiter = rateLimit({
+// Apply BOTH an IP/network limit and an identity limit. A single strict IP
+// limit makes unrelated users on the same office/home/mobile network throttle
+// one another, while identity-only limits are too easy to evade with many
+// throwaway email addresses. The combination protects both usability and cost.
+function authIdentityOrIp(req: AuthedRequest): string {
+  if (req.user?.userId) return `user:${req.user.userId}`;
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (email) return `email:${email}`;
+  return `ip:${clientIp(req)}`;
+}
+
+const loginNetworkLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => clientIp(req as AuthedRequest),
+  message: {
+    error: "Too many sign-in attempts from this network. Please wait a few minutes and try again.",
+    code: "LOGIN_RATE_LIMITED",
+  },
+});
+const loginIdentityLimiter = rateLimit({
   windowMs: 15 * 60_000,
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => userOrIp(req as AuthedRequest),
+  keyGenerator: (req) => authIdentityOrIp(req as AuthedRequest),
   message: {
-    error: "Sign-in is temporarily paused after several attempts. Please wait a few minutes before trying again.",
+    error: "Sign-in is temporarily paused after several attempts for this account. Please wait a few minutes before trying again.",
     code: "LOGIN_RATE_LIMITED",
   },
-}); // 10 login attempts / 15 min
-export const otpSendLimiter = makeLimiter(6, 60 * 60_000); // 6 code sends / hour (SMS + email cost)
-export const otpVerifyLimiter = makeLimiter(20, 15 * 60_000); // 20 verify attempts / 15 min
+});
+export const loginLimiter = [loginNetworkLimiter, loginIdentityLimiter];
+
+const otpSendNetworkLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => clientIp(req as AuthedRequest),
+  message: { error: "Too many verification codes were requested from this network. Please try again later." },
+});
+const otpSendIdentityLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => authIdentityOrIp(req as AuthedRequest),
+  message: { error: "Too many verification codes were requested for this account. Please wait or try again later." },
+});
+export const otpSendLimiter = [otpSendNetworkLimiter, otpSendIdentityLimiter];
+
+const otpVerifyNetworkLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => clientIp(req as AuthedRequest),
+  message: { error: "Too many code-verification attempts from this network. Please wait before retrying." },
+});
+const otpVerifyIdentityLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => authIdentityOrIp(req as AuthedRequest),
+  message: { error: "Too many code-verification attempts for this account. Please wait before retrying." },
+});
+export const otpVerifyLimiter = [otpVerifyNetworkLimiter, otpVerifyIdentityLimiter];
 
 // ── AI chat usage guard ───────────────────────────────────────────────────
 // Every Ask Truvi / Sales Copilot message is a paid model call. Keyed by the

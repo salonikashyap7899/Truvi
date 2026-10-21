@@ -105,6 +105,9 @@ const TABS: { id: Tab; label: string; Icon: typeof Users }[] = [
   { id: "career", label: "Career Engine", Icon: Briefcase },
   { id: "campaigns", label: "Campaigns", Icon: Building2 }, { id: "policies", label: "Incentive Policies", Icon: ShieldCheck },
   { id: "incentives", label: "Payouts", Icon: Wallet },
+  { id: "marketing", label: "Marketing Governance", Icon: ShieldCheck },
+  { id: "staff-roles", label: "OS Staff Roles", Icon: Users },
+  { id: "privacy", label: "Privacy & Retention", Icon: ShieldCheck },
 ];
 const money = (value: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value || 0);
 const pretty = (value: string) => value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());

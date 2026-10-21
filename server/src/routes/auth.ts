@@ -33,6 +33,7 @@ import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsapp
 import { notifyUser, notifyRole } from "../services/notificationService";
 import { logAudit } from "../services/audit";
 import { isFounderEmail } from "../config/env";
+import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "../services/otpAttempts";
 
 const router = Router();
 
@@ -82,36 +83,6 @@ function generateOtp(): string {
   return crypto.randomInt(100000, 1000000).toString();
 }
 
-// ── Per-identity OTP guessing cap ──────────────────────────────────────────
-// A second line of defence beyond the IP rate limiter: it caps how many times a
-// SINGLE account's code can be guessed, so a distributed brute-force (many IPs)
-// against one victim's reset/verify code is stopped too. In-memory is fine for
-// the single app process; counts auto-expire with the 10-minute OTP window and
-// clear the moment a correct code is accepted.
-const OTP_MAX_ATTEMPTS = 5;
-const OTP_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
-const otpAttempts = new Map<string, { count: number; first: number }>();
-function otpAttemptBlocked(key: string): boolean {
-  const rec = otpAttempts.get(key);
-  if (!rec) return false;
-  if (Date.now() - rec.first > OTP_ATTEMPT_WINDOW_MS) {
-    otpAttempts.delete(key);
-    return false;
-  }
-  return rec.count >= OTP_MAX_ATTEMPTS;
-}
-function recordOtpFailure(key: string): void {
-  const now = Date.now();
-  const rec = otpAttempts.get(key);
-  if (!rec || now - rec.first > OTP_ATTEMPT_WINDOW_MS) {
-    otpAttempts.set(key, { count: 1, first: now });
-  } else {
-    rec.count += 1;
-  }
-}
-function clearOtpAttempts(key: string): void {
-  otpAttempts.delete(key);
-}
 const TOO_MANY_OTP = "Too many incorrect codes. Please wait a few minutes and request a fresh code.";
 
 function maskPhone(phone?: string | null): string {
@@ -139,8 +110,8 @@ async function dispatchOtps(
   }
   if (phone) {
     try {
-      // Returns false when Twilio isn't configured (the OTP is logged instead),
-      // throws when configured but delivery fails.
+      // Returns false when Twilio is not configured; never logs the OTP.
+      // Throws when configured but delivery fails.
       smsSent = await sendPhoneOtpViaSms(phone, phoneOtp);
     } catch (err) {
       console.error("Failed to send verification SMS:", err);
@@ -167,6 +138,10 @@ async function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean;
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
+  // Issuing a fresh pair of codes invalidates the previous pair; reset the
+  // matching account-level attempt counter so a prior lockout cannot block
+  // the newly issued valid codes.
+  clearOtpAttempts(`verify:${user.email.toLowerCase().trim()}`);
   return dispatchOtps(user.email, user.phone, emailOtp, phoneOtp);
 }
 
@@ -324,7 +299,7 @@ function issueSession(res: import("express").Response, user: IUser) {
   };
 }
 
-router.post("/signup", otpSendLimiter, async (req, res) => {
+router.post("/signup", ...otpSendLimiter, async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -383,6 +358,10 @@ router.post("/signup", otpSendLimiter, async (req, res) => {
     .values(pendingValues)
     .onConflictDoUpdate({ target: pendingSignups.email, set: pendingValues });
 
+  // Signup creates a fresh code pair, including when resuming/retrying an
+  // unverified signup. A lockout against the previous pair must not survive
+  // code rotation.
+  clearOtpAttempts(`verify:${normalizedEmail}`);
   const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, phone, emailOtp, phoneOtp);
 
   return res.status(201).json({
@@ -395,16 +374,51 @@ router.post("/signup", otpSendLimiter, async (req, res) => {
   });
 });
 
-router.post("/login", loginLimiter, async (req, res) => {
+router.post("/login", ...loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
   const { email, password } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
   const db = getDb();
-  const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim()));
-  if (!user) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
+  const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+
+  // Recover unfinished signups when a user leaves the OTP screen and later
+  // returns through Login. The real users row is intentionally not created
+  // until both OTPs verify, so treating this case as "wrong credentials" is
+  // confusing and causes repeated signup attempts to invalidate earlier codes.
+  if (!user) {
+    const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
+    if (!pending || !(await bcrypt.compare(password, pending.password))) {
+      return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
+    }
+
+    // Reissuing from Login always rotates the pair, so an earlier expired
+    // code or identity-level lockout cannot leave a legitimate user stranded.
+    const emailOtp = generateOtp();
+    const phoneOtp = generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    await db.update(pendingSignups).set({
+      emailOtp, phoneOtp, emailOtpExpiry: otpExpiry, phoneOtpExpiry: otpExpiry,
+    }).where(eq(pendingSignups._id, pending._id));
+    clearOtpAttempts(`verify:${normalizedEmail}`);
+
+    const { emailSent, smsSent } = await dispatchOtps(
+      normalizedEmail, pending.phone, emailOtp, phoneOtp,
+    );
+    return res.status(403).json({
+      error: emailSent && smsSent
+        ? "Your signup is saved but not finished. Enter the fresh verification codes to complete it."
+        : "Your signup is saved, but one or more verification codes could not be delivered. Use Resend codes or contact Truvi support.",
+      needsVerification: true,
+      email: normalizedEmail,
+      phone: maskPhone(pending.phone),
+      emailSent,
+      smsSent,
+    });
+  }
 
   const isValid = await bcrypt.compare(password, user.password);
   if (!isValid) return res.status(401).json({ error: "Incorrect email or password. Please double-check both and try again." });
@@ -442,7 +456,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 
 // Public: confirm BOTH the emailed and texted OTPs, mark the account verified
 // and log in.
-router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
+router.post("/verify-account", ...otpVerifyLimiter, async (req, res) => {
   const parsed = verifyAccountSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -512,14 +526,31 @@ router.post("/verify-account", otpVerifyLimiter, async (req, res) => {
     return res.status(409).json({ error: "An account with this email already exists. Please log in." });
   }
 
-  const created = await createUserFromPending(pending);
+  let created: IUser;
+  try {
+    created = await createUserFromPending(pending);
+  } catch (createError) {
+    // Two verification requests can arrive from separate tabs/devices. If the
+    // other request won the unique-email insert, return its verified session
+    // instead of surfacing an intermittent 500 for an account that now exists.
+    try {
+      const [alreadyCreated] = await db.select().from(users).where(eq(users.email, normalizedEmail));
+      if (alreadyCreated?.emailVerified && alreadyCreated?.phoneVerified) {
+        await db.delete(pendingSignups).where(eq(pendingSignups._id, pending._id)).catch(() => {});
+        return res.json(issueSession(res, alreadyCreated));
+      }
+    } catch {
+      // Keep the original error if the database is unavailable during recovery.
+    }
+    throw createError;
+  }
   // Account is now fully verified — send the one-time welcome email (best-effort).
   void sendWelcomeEmailOnce(created);
   return res.json(issueSession(res, created));
 });
 
 // Public: resend BOTH verification OTPs for an unverified account.
-router.post("/resend-otp", otpSendLimiter, async (req, res) => {
+router.post("/resend-otp", ...otpSendLimiter, async (req, res) => {
   const parsed = resendOtpSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -538,6 +569,7 @@ router.post("/resend-otp", otpSendLimiter, async (req, res) => {
       .update(pendingSignups)
       .set({ emailOtp, emailOtpExpiry: otpExpiry, phoneOtp, phoneOtpExpiry: otpExpiry })
       .where(eq(pendingSignups._id, pending._id));
+    clearOtpAttempts(`verify:${normalizedEmail}`);
     const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, pending.phone, emailOtp, phoneOtp);
     return res.json({
       message: "Fresh 6-digit codes have been sent to your email and phone.",
@@ -567,7 +599,7 @@ router.post("/resend-otp", otpSendLimiter, async (req, res) => {
 
 // Public: request a password-reset code. Emails a 6-digit code to the account.
 // Available to every role. Never reveals whether an email exists.
-router.post("/forgot-password", otpSendLimiter, async (req, res) => {
+router.post("/forgot-password", ...otpSendLimiter, async (req, res) => {
   const parsed = forgotPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -586,6 +618,8 @@ router.post("/forgot-password", otpSendLimiter, async (req, res) => {
       resetPasswordExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 mins
     };
     await db.update(users).set({ verification }).where(eq(users._id, user._id));
+    // A newly generated reset code replaces the previous one.
+    clearOtpAttempts(`reset:${user.email.toLowerCase().trim()}`);
     try {
       await sendPasswordResetEmail(user.email, otp);
     } catch (err) {
@@ -601,7 +635,7 @@ router.post("/forgot-password", otpSendLimiter, async (req, res) => {
 
 // Public: confirm the emailed reset code and set a new password. On success the
 // code is cleared and all reset state is wiped.
-router.post("/reset-password", otpVerifyLimiter, async (req, res) => {
+router.post("/reset-password", ...otpVerifyLimiter, async (req, res) => {
   const parsed = resetPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
@@ -783,7 +817,7 @@ router.post("/verify-ambassador", authenticate, (_req: AuthedRequest, res) => {
   });
 });
 
-router.post("/request-phone-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
+router.post("/request-phone-otp", authenticate, ...otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
@@ -799,9 +833,13 @@ router.post("/request-phone-otp", authenticate, otpSendLimiter, async (req: Auth
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
+  clearOtpAttempts(`phone:${userId}`);
 
   try {
-    await sendPhoneOtpViaSms(user.phone!, otp);
+    const smsSent = await sendPhoneOtpViaSms(user.phone!, otp);
+    if (!smsSent) {
+      return res.status(503).json({ error: "SMS verification is temporarily unavailable. Please try again later or contact Truvi support." });
+    }
   } catch (err: any) {
     console.error("Failed to send phone OTP:", err);
     // Twilio trial accounts can only text numbers verified on that account.
@@ -817,7 +855,7 @@ router.post("/request-phone-otp", authenticate, otpSendLimiter, async (req: Auth
   return res.json({ message: "OTP sent to phone", phone: user.phone });
 });
 
-router.post("/verify-phone-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
+router.post("/verify-phone-otp", authenticate, ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 
@@ -872,7 +910,7 @@ router.post("/verify-phone-otp", authenticate, otpVerifyLimiter, async (req: Aut
   });
 });
 
-router.post("/request-email-otp", authenticate, otpSendLimiter, async (req: AuthedRequest, res) => {
+router.post("/request-email-otp", authenticate, ...otpSendLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
 
@@ -887,18 +925,22 @@ router.post("/request-email-otp", authenticate, otpSendLimiter, async (req: Auth
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
+  clearOtpAttempts(`email:${userId}`);
 
   try {
-    await sendOtpEmail(user.email, otp);
+    const emailSent = await sendOtpEmail(user.email, otp);
+    if (!emailSent) {
+      return res.status(503).json({ error: "Email verification is temporarily unavailable. Please try again later or contact Truvi support." });
+    }
   } catch (err) {
     console.error("Failed to send email OTP:", err);
-    return res.status(500).json({ error: "Failed to send OTP email. Please try again." });
+    return res.status(503).json({ error: "Email verification could not be sent right now. Please try again later." });
   }
 
   return res.json({ message: "OTP sent to email", email: user.email });
 });
 
-router.post("/verify-email-otp", authenticate, otpVerifyLimiter, async (req: AuthedRequest, res) => {
+router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const { otp } = req.body;
 

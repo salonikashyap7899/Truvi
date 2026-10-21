@@ -282,10 +282,11 @@ export function CpKycOnboarding() {
           <div className="mx-auto grid size-14 place-items-center rounded-full bg-[var(--trust)]/15 text-[var(--trust)]">
             <Loader2 size={26} className="animate-spin" />
           </div>
-          <h1 className="mt-4 text-xl font-semibold">Verifying your identity…</h1>
+          <h1 className="mt-4 text-xl font-semibold">Saving your KYC submission…</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Checking your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie. This only takes a couple of seconds — your workspace
-            will unlock automatically.
+            Your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie are being submitted securely. This step does not guarantee
+            instant approval: when manual review is needed, your status will show as pending until an authorized reviewer
+            completes the check.
           </p>
         </div>
       </Shell>
