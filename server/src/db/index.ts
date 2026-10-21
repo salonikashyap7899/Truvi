@@ -17,12 +17,25 @@ export type Db = PostgresJsDatabase<typeof schema>;
 let client: ReturnType<typeof postgres> | null = null;
 let dbInstance: Db | null = null;
 
+/**
+ * The Supabase session pooler has a shared connection cap. Keep this process'
+ * pool small by default so normal parallel API requests queue locally instead
+ * of exhausting all server-side pooler slots. Operators may tune DB_POOL_MAX,
+ * but this process is deliberately capped at 8; leave room for migrations,
+ * monitoring, and other services sharing the same database pool.
+ */
+function getPoolMax(): number {
+  const configured = Number.parseInt(process.env.DB_POOL_MAX ?? "4", 10);
+  if (!Number.isInteger(configured) || configured < 1) return 4;
+  return Math.min(configured, 8);
+}
+
 export function connectDb(url: string): Db {
   if (dbInstance) return dbInstance;
   client = postgres(url, {
     prepare: false,
     ssl: url.includes("localhost") || url.includes("127.0.0.1") ? undefined : "require",
-    max: 10,
+    max: getPoolMax(),
   });
   dbInstance = drizzle(client, { schema });
   return dbInstance;
