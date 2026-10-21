@@ -1,12 +1,12 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 
-/** Overridable; falls back to the id the rest of the app uses. */
-const MODEL = process.env.MEDIA_AI_MODEL?.trim() || process.env.ASK_AI_MODEL?.trim() || "claude-opus-4-5";
+/** Overridable; falls back to a modern Gemini model. */
+const MODEL = process.env.MEDIA_AI_MODEL?.trim() || process.env.ASK_AI_MODEL?.trim() || "gemini-2.5-flash";
 const SUPPORTED = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 function getKey(): string | undefined {
-  return process.env.ANTHROPIC_API_KEY?.trim().replace(/\s+/g, "") || undefined;
+  return process.env.GEMINI_API_KEY?.trim().replace(/\s+/g, "") || process.env.GOOGLE_API_KEY?.trim().replace(/\s+/g, "") || undefined;
 }
 
 /**
@@ -31,26 +31,25 @@ export async function scoreImageFile(filePath: string, mimeType: string): Promis
   }
 
   try {
-    const client = new Anthropic({ apiKey });
-    const res = await client.messages.create({
+    const client = new GoogleGenAI({ apiKey });
+    const res = await client.models.generateContent({
       model: MODEL,
-      max_tokens: 12,
-      system:
-        "You rate real-estate listing photos on how attractive and high-quality they are as a cover image — composition, lighting, sharpness and buyer appeal. Reply with ONLY an integer from 0 to 100. No words, no punctuation.",
-      messages: [
+      contents: [
         {
           role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: base64 } },
-            { type: "text", text: "Score this property photo 0-100 as a listing cover. Reply with only the number." },
+          parts: [
+            { inlineData: { mimeType, data: base64 } },
+            { text: "Score this property photo 0-100 as a listing cover. Reply with only the number." },
           ],
         },
       ],
+      config: {
+        systemInstruction:
+          "You rate real-estate listing photos on how attractive and high-quality they are as a cover image — composition, lighting, sharpness and buyer appeal. Reply with ONLY an integer from 0 to 100. No words, no punctuation.",
+        maxOutputTokens: 12,
+      },
     });
-    const text = res.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join(" ");
+    const text = res.text ?? "";
     const m = text.match(/\d{1,3}/);
     if (!m) return null;
     return Math.max(0, Math.min(100, parseInt(m[0], 10)));

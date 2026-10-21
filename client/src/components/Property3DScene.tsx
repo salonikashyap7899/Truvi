@@ -581,7 +581,6 @@ function Plot({
         onPointerOver={(e) => {
           e.stopPropagation();
           onHover(spec.unit._id);
-          // Inline style on the canvas outranks the site-wide brand cursor.
           gl.domElement.style.cursor = "pointer";
         }}
         onPointerOut={() => {

@@ -9,10 +9,10 @@ import {
 } from "../../db/verificationSchema";
 
 /**
- * Retrieval for RAG. Anthropic has no embeddings API, so retrieval is
- * structured (property-scoped) + lexical (open-ended, via Postgres full-text +
- * pg_trgm). Every fact carries a source so the model can cite it. The pgvector
- * `document_embeddings` table stays in place for a future semantic upgrade.
+ * Retrieval for RAG uses structured property context + lexical search via
+ * Postgres full-text + pg_trgm. Every fact carries a source so the model can
+ * cite it. The pgvector `document_embeddings` table stays in place for a future
+ * semantic upgrade.
  */
 
 export interface Source {
