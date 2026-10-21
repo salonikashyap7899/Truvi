@@ -38,15 +38,15 @@ jobs:
       - name: Install server dependencies
         working-directory: server
         run: npm ci
-      - name: Apply non-breaking server dependency fixes
+      - name: Apply semver-compatible server dependency fixes
         working-directory: server
-        run: npm audit fix
+        run: npm audit fix || true
       - name: Install client dependencies
         working-directory: client
         run: npm ci
-      - name: Apply non-breaking client dependency fixes
+      - name: Apply semver-compatible client dependency fixes
         working-directory: client
-        run: npm audit fix
+        run: npm audit fix || true
       - name: Verify server types and tests
         working-directory: server
         run: |
@@ -64,7 +64,7 @@ jobs:
       - name: Recheck client advisories
         working-directory: client
         run: npm audit --audit-level=high
-      - name: Open dependency-fix pull request
+      - name: Open or update dependency-fix pull request
         if: always()
         uses: peter-evans/create-pull-request@v7
         with:
