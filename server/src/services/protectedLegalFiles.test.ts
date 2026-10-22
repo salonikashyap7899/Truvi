@@ -1,18 +1,13 @@
- security/protect-unverified-legal-documents
-import { describe, expect, it } from "vitest";
-import {
-  presentLegalAssetUrl,
-  presentLegalDocumentUrl,
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 
 const { getDbMock } = vi.hoisted(() => ({ getDbMock: vi.fn() }));
 vi.mock("../config/db", () => ({ getDb: getDbMock }));
+
 import {
   presentLegalAssetUrl,
   presentLegalDocumentUrl,
   protectUnverifiedLegalFiles,
- main
   verifyProtectedLegalFileSignature,
 } from "./protectedLegalFiles";
 
@@ -78,7 +73,6 @@ describe("protected legal-file links", () => {
     expect(verifyProtectedLegalFileSignature("legal-document", "doc-1", "doc.pdf", String(Math.floor(Date.now() / 1000) + 3600), "not-a-signature")).toBe(false);
   });
 });
- security/protect-unverified-legal-documents
 
 
 
