@@ -39,6 +39,7 @@ import {
   maskPhone,
 } from "../services/authService";
 import { zodMessage } from "../lib/validationError";
+import { hashOtpForStorage, verifyStoredOtp } from "../lib/otpHash";
 import { sanitizeUserForClient } from "../lib/sanitizeUser";
 
 // HTTP layer: validates requests, invokes auth services, and keeps the public
@@ -93,9 +94,9 @@ export const signup = async (req: Request, res: Response) => {
     companyName: companyName ?? null,
     reraNumber: reraNumber ?? null,
     referredBy,
-    emailOtp,
+    emailOtp: hashOtpForStorage(emailOtp),
     emailOtpExpiry: otpExpiry,
-    phoneOtp,
+    phoneOtp: hashOtpForStorage(phoneOtp),
     phoneOtpExpiry: otpExpiry,
   };
   await db
@@ -146,7 +147,10 @@ export const login = async (req: Request, res: Response) => {
     const phoneOtp = generateOtp();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await db.update(pendingSignups).set({
-      emailOtp, phoneOtp, emailOtpExpiry: otpExpiry, phoneOtpExpiry: otpExpiry,
+      emailOtp: hashOtpForStorage(emailOtp),
+      phoneOtp: hashOtpForStorage(phoneOtp),
+      emailOtpExpiry: otpExpiry,
+      phoneOtpExpiry: otpExpiry,
     }).where(eq(pendingSignups._id, pending._id));
     clearOtpAttempts(`verify:${normalizedEmail}`);
 
@@ -231,8 +235,8 @@ export const verifyAccount = async (req: Request, res: Response) => {
     if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
       return res.status(400).json({ error: "Codes expired. Please resend new codes." });
     }
-    if (v.emailOtp !== emailOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
-    if (v.phoneOtp !== phoneOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+    if (!verifyStoredOtp(emailOtp, v.emailOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+    if (!verifyStoredOtp(phoneOtp, v.phoneOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
     clearOtpAttempts(attemptKey);
 
     const verification: UserVerification = {
@@ -263,8 +267,8 @@ export const verifyAccount = async (req: Request, res: Response) => {
   if (pending.emailOtpExpiry < now || pending.phoneOtpExpiry < now) {
     return res.status(400).json({ error: "Codes expired. Please resend new codes." });
   }
-  if (pending.emailOtp !== emailOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
-  if (pending.phoneOtp !== phoneOtp) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+  if (!verifyStoredOtp(emailOtp, pending.emailOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+  if (!verifyStoredOtp(phoneOtp, pending.phoneOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
   clearOtpAttempts(attemptKey);
 
   // Guard against a race where a real account for this email appeared meanwhile.
@@ -314,7 +318,12 @@ export const resendOtp = async (req: Request, res: Response) => {
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     await db
       .update(pendingSignups)
-      .set({ emailOtp, emailOtpExpiry: otpExpiry, phoneOtp, phoneOtpExpiry: otpExpiry })
+      .set({
+        emailOtp: hashOtpForStorage(emailOtp),
+        emailOtpExpiry: otpExpiry,
+        phoneOtp: hashOtpForStorage(phoneOtp),
+        phoneOtpExpiry: otpExpiry,
+      })
       .where(eq(pendingSignups._id, pending._id));
     clearOtpAttempts(`verify:${normalizedEmail}`);
     const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, pending.phone, emailOtp, phoneOtp);
@@ -359,7 +368,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const otp = generateOtp();
     const verification: UserVerification = {
       ...(user.verification ?? {}),
-      resetPasswordOtp: otp,
+      resetPasswordOtp: hashOtpForStorage(otp),
       resetPasswordExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 mins
     };
     await db.update(users).set({ verification }).where(eq(users._id, user._id));
@@ -399,7 +408,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   if (new Date(v.resetPasswordExpiry) < new Date()) {
     return res.status(400).json({ error: "Reset code expired. Please request a new one." });
   }
-  if (v.resetPasswordOtp !== otp) {
+  if (!verifyStoredOtp(otp, v.resetPasswordOtp)) {
     recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid reset code", field: "otp" });
   }
