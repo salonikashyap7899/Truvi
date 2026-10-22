@@ -278,7 +278,10 @@ export function issueSession(res: import("express").Response, user: IUser) {
     onboardingVerified: user.onboardingVerified,
     ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
   });
-  const refreshToken = signRefreshToken({ userId: String(user._id) });
+  const refreshToken = signRefreshToken({
+    userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
+  });
   issueRefreshCookie(res, refreshToken);
   return {
     accessToken,
