@@ -107,7 +107,10 @@ export async function protectUnverifiedLegalFiles(req: Request, res: Response, n
         verified: legalDocuments.verified,
       }).from(legalDocuments).where(like(legalDocuments.fileUrl, "%/uploads/legal/" + filename)).limit(1);
       if (!doc) return res.status(404).end();
-      if (doc.verified) return next();
+      if (doc.verified) {
+        res.locals.truviVerifiedLegalFile = true;
+        return next();
+      }
       if (!verifyProtectedLegalFileSignature("legal-document", String(doc.id), filename, req.query.exp, req.query.sig)) {
         return res.status(403).json({ error: "This legal document is pending verification or its private link has expired." });
       }
@@ -133,7 +136,10 @@ export async function protectUnverifiedLegalFiles(req: Request, res: Response, n
     )).limit(5);
 
     const pending = matchingAssets.find((asset) => !asset.verified);
-    if (!pending) return next();
+    if (!pending) {
+      if (matchingAssets.length) res.locals.truviVerifiedLegalFile = true;
+      return next();
+    }
     if (!verifyProtectedLegalFileSignature("project-asset", String(pending.id), filename, req.query.exp, req.query.sig)) {
       return res.status(403).json({ error: "This legal asset is pending verification or its private link has expired." });
     }
