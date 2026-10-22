@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, LogOut, Home, ChevronDown, Video } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { initializeAuthSession } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import { IS_NATIVE } from "@/lib/native";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
@@ -16,6 +18,8 @@ import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
  */
 export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
+  const isInitialized = useAuthStore((s) => s.isInitialized);
+  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -45,6 +49,28 @@ export function UserMenu() {
   // A page's own header copy is redundant while the top navbar (which carries
   // the same account menu) is on screen.
   if (!inNavbar && navbarShown) return null;
+
+  // The durable session is restored asynchronously from an HTTP-only cookie.
+  // Never flash "Sign in / Join" before the restore request has resolved.
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center gap-2" role="status" aria-live="polite">
+        {sessionRestoreFailed ? (
+          <button
+            type="button"
+            onClick={() => void initializeAuthSession()}
+            className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-400/15 sm:px-4"
+          >
+            Retry session
+          </button>
+        ) : (
+          <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-muted-foreground sm:px-4">
+            Restoring session…
+          </span>
+        )}
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) {
     return (
