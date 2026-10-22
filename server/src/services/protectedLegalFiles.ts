@@ -6,7 +6,7 @@ import { getDb } from "../config/db";
 import { LEGAL_ASSET_CATEGORIES, legalDocuments, projectAssets } from "../db/schema";
 import { DEV_JWT_ACCESS_DEFAULT } from "../lib/jwt";
 
-const SIGNED_LINK_TTL_SECONDS = 60 * 60;
+const SIGNED_LINK_TTL_SECONDS = 15 * 60;
 const LEGAL_DOCUMENT_NAME = /^legal-\d+-[0-9a-f]{16}\.(?:pdf|jpe?g|png|webp)$/i;
 const PRESENTATION_ASSET_NAME = /^asset-\d+-\d+\.[a-z0-9]+$/i;
 
@@ -107,7 +107,10 @@ export async function protectUnverifiedLegalFiles(req: Request, res: Response, n
         verified: legalDocuments.verified,
       }).from(legalDocuments).where(like(legalDocuments.fileUrl, "%/uploads/legal/" + filename)).limit(1);
       if (!doc) return res.status(404).end();
-      if (doc.verified) return next();
+      if (doc.verified) {
+        res.locals.truviVerifiedLegalFile = true;
+        return next();
+      }
       if (!verifyProtectedLegalFileSignature("legal-document", String(doc.id), filename, req.query.exp, req.query.sig)) {
         return res.status(403).json({ error: "This legal document is pending verification or its private link has expired." });
       }
@@ -133,7 +136,10 @@ export async function protectUnverifiedLegalFiles(req: Request, res: Response, n
     )).limit(5);
 
     const pending = matchingAssets.find((asset) => !asset.verified);
-    if (!pending) return next();
+    if (!pending) {
+      if (matchingAssets.length) res.locals.truviVerifiedLegalFile = true;
+      return next();
+    }
     if (!verifyProtectedLegalFileSignature("project-asset", String(pending.id), filename, req.query.exp, req.query.sig)) {
       return res.status(403).json({ error: "This legal asset is pending verification or its private link has expired." });
     }

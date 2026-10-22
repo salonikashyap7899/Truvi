@@ -25,6 +25,7 @@ import { getEnv } from "../config/env";
 import { scoreImageFile } from "../services/ai/scoreImage";
 import { optimizeUploadedImage } from "../services/media/optimizeImage";
 import { generateThumbnail } from "../services/media/thumbnail";
+import { presentLegalAssetUrl } from "../services/protectedLegalFiles";
 
 const router = Router();
 
@@ -185,7 +186,8 @@ router.get("/:id", async (req: AuthedRequest, res) => {
 
   res.json({
     project: { ...project, developerId: row.developer ?? project.developerId },
-    assets,
+    // Pending legal files receive a short-lived URL for authenticated owners/admins.
+    assets: assets.map((asset) => ({ ...asset, fileUrl: presentLegalAssetUrl(asset) })),
     unitSummary,
     units: unitRows,
   });
@@ -284,7 +286,7 @@ router.post(
     }
 
     res.status(201).json({
-      asset,
+      asset: { ...asset, fileUrl: presentLegalAssetUrl(asset) },
       ...(isLegal && !verified
         ? { message: "Legal document uploaded — it will appear publicly after admin verification." }
         : {}),
@@ -312,7 +314,7 @@ router.patch(
       .returning();
     if (!asset) return res.status(404).json({ error: "Asset not found" });
 
-    res.json({ asset });
+    res.json({ asset: { ...asset, fileUrl: presentLegalAssetUrl(asset) } });
   },
 );
 
