@@ -12,6 +12,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { getEnv } from "../config/env";
 import { emitToRole } from "../sockets";
 import { randomFileStem } from "../services/uploadService";
+import { presentLegalDocumentUrl } from "../services/protectedLegalFiles";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ router.get("/project/:projectId", authenticate, requireRole("DEVELOPER", "ADMIN"
     .from(legalDocuments)
     .where(eq(legalDocuments.projectId, project._id))
     .orderBy(desc(legalDocuments.createdAt));
-  res.json({ documents: docs });
+  res.json({ documents: docs.map((doc) => ({ ...doc, fileUrl: presentLegalDocumentUrl(doc) })) });
 });
 
 // Developer/admin: upload a legal document (starts unverified → not public).
@@ -106,10 +107,12 @@ router.post(
       })
       .returning();
 
-    // Notify admins there's a legal doc awaiting verification.
-    emitToRole("ADMIN", "legal:pending", { projectId: project._id, projectName: project.name, document: doc });
+    // Send reviewers a short-lived link to the pending document. The database
+    // still stores its stable path; no file is moved or duplicated.
+    const presentedDoc = { ...doc, fileUrl: presentLegalDocumentUrl(doc) };
+    emitToRole("ADMIN", "legal:pending", { projectId: project._id, projectName: project.name, document: presentedDoc });
 
-    res.status(201).json({ document: doc });
+    res.status(201).json({ document: presentedDoc });
   }
 );
 
@@ -159,7 +162,7 @@ router.get("/pending", authenticate, requireRole("ADMIN", "VERIFIER"), async (_r
     .leftJoin(projects, eq(legalDocuments.projectId, projects._id))
     .where(eq(legalDocuments.verified, false))
     .orderBy(desc(legalDocuments.createdAt));
-  res.json({ pending: rows });
+  res.json({ pending: rows.map((row) => ({ ...row, document: { ...row.document, fileUrl: presentLegalDocumentUrl(row.document) } })) });
 });
 
 // PUBLIC: only VERIFIED legal documents for a listing.
