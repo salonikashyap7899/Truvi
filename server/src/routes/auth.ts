@@ -63,38 +63,53 @@ const isProduction = process.env.NODE_ENV === "production";
 // sent cross-site. SameSite=None requires Secure, which is only true in
 // production; locally both run on localhost (different ports but the same
 // site), where "lax" already works fine.
-const REFRESH_COOKIE_DOMAIN = isProduction
-  ? (process.env.REFRESH_COOKIE_DOMAIN?.trim() || ".truviventures.com")
-  : undefined;
 const REFRESH_COOKIE_SAME_SITE = (isProduction ? "none" : "lax") as "none" | "lax";
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
-// Keep the production session cookie valid on both truviventures.com and
-// www.truviventures.com. Domain is configurable for non-Truvi deployments.
-// The HttpOnly/Secure flags remain enabled in production.
-const REFRESH_COOKIE_SCOPE = {
-  httpOnly: true,
-  secure: isProduction,
-  sameSite: REFRESH_COOKIE_SAME_SITE,
-  path: "/",
-  ...(REFRESH_COOKIE_DOMAIN ? { domain: REFRESH_COOKIE_DOMAIN } : {}),
-};
-const REFRESH_COOKIE_OPTS = {
-  ...REFRESH_COOKIE_SCOPE,
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days from the most recent refresh
-};
+function refreshCookieScope(res: import("express").Response) {
+  const hostname = String(res.req?.hostname ?? "").trim().toLowerCase().replace(/\.$/, "");
+  const configuredDomain = process.env.REFRESH_COOKIE_DOMAIN
+    ?.trim()
+    .replace(/^\./, "")
+    .toLowerCase();
+  const configuredDomainMatchesHost = Boolean(
+    configuredDomain &&
+    (hostname === configuredDomain || hostname.endsWith(`.${configuredDomain}`)),
+  );
+  const isTruviHost = hostname === "truviventures.com" || hostname.endsWith(".truviventures.com");
+  // Browsers reject a Domain cookie that is not a parent of the API hostname.
+  // Use the shared Truvi domain for apex/www/subdomains; use host-only cookies
+  // when the API is deployed on an unrelated origin (e.g. a platform hostname).
+  const domain = configuredDomainMatchesHost
+    ? `.${configuredDomain}`
+    : !configuredDomain && isTruviHost
+      ? ".truviventures.com"
+      : undefined;
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: REFRESH_COOKIE_SAME_SITE,
+    path: "/",
+    ...(domain ? { domain } : {}),
+  };
+}
 
 function clearRefreshCookies(res: import("express").Response) {
-  // Clear the shared-domain cookie and any older host-only cookie issued
+  // Clear both the shared-domain cookie and any older host-only cookie issued
   // before the domain migration. Both can coexist in browsers after migration.
-  res.clearCookie("refreshToken", REFRESH_COOKIE_SCOPE);
+  res.clearCookie("refreshToken", refreshCookieScope(res));
   res.clearCookie("refreshToken", { path: "/" });
 }
 
 function issueRefreshCookie(res: import("express").Response, token: string) {
   // Remove the previous host-only cookie on this hostname before setting the
-  // canonical shared-domain cookie, avoiding duplicate refreshToken values.
+  // appropriate cookie scope for the current API host.
   res.clearCookie("refreshToken", { path: "/" });
-  res.cookie("refreshToken", token, REFRESH_COOKIE_OPTS);
+  res.cookie("refreshToken", token, {
+    ...refreshCookieScope(res),
+    maxAge: REFRESH_COOKIE_MAX_AGE,
+  });
 }
 
 async function findUserById(userId: string): Promise<IUser | null> {
