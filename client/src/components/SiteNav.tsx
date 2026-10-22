@@ -170,6 +170,7 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
   const { pathname } = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const isInitialized = useAuthStore((s) => s.isInitialized);
+  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const mountNav = useNavChrome((s) => s.mount);
   const unmountNav = useNavChrome((s) => s.unmount);
 
@@ -199,7 +200,8 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
 
   // Avoid briefly displaying the signed-out navigation while a refresh
   // cookie is still being verified after reload or tab restoration.
-  const visibleLinks = isInitialized ? navLinksForRole(user) : [];
+  // If session restoration failed transiently, keep the public navigation visible rather than blanking the entire header.
+  const visibleLinks = isInitialized || sessionRestoreFailed ? navLinksForRole(user) : [];
 
   return (
     <InNavbarContext.Provider value={true}>
