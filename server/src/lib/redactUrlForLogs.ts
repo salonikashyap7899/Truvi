@@ -1,4 +1,4 @@
-const SENSITIVE_QUERY_PARAM = /^(?:token|sig|signature|secret|access_token|refresh_token|api[_-]?key|password|otp|code|state)$/i;
+const SENSITIVE_QUERY_PARAM = /(?:token|sig|signature|secret|password|otp|code|api[_-]?key|^state$)/i;
 
 /**
  * Remove credentials and short-lived signed-link values from URLs before they
