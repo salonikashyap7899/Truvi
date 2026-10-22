@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { isWebhookTokenValid } from "../lib/webhookToken";
+import { trustedExotelRecordingUrl } from "../lib/trustedExotelRecordingUrl";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { calls, projects, users, CallStatus } from "../db/schema";
@@ -7,6 +8,77 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
 import { getEnv } from "../config/env";
 import { getTelephonyProvider } from "../services/telephony";
+
+
+const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
+const MAX_RECORDING_REDIRECTS = 3;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Fetch only approved Exotel S3 recordings; validate every redirect target. */
+async function fetchTrustedRecording(rawUrl: string, authorization?: string): Promise<Response | null> {
+  const initial = trustedExotelRecordingUrl(rawUrl);
+  if (!initial) return null;
+  let current = initial;
+
+  for (let hop = 0; hop <= MAX_RECORDING_REDIRECTS; hop += 1) {
+    const headers: Record<string, string> = {};
+    // Preserve existing provider authentication on the original destination
+    // and same-host redirects only. Never forward it to a different host.
+    if (authorization && current.hostname === initial.hostname) headers.Authorization = authorization;
+
+    const upstream = await fetch(current.toString(), {
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!REDIRECT_STATUSES.has(upstream.status)) return upstream;
+
+    const location = upstream.headers.get("location");
+    await upstream.body?.cancel().catch(() => {});
+    if (!location || hop === MAX_RECORDING_REDIRECTS) return null;
+
+    let redirectTarget: URL;
+    try {
+      redirectTarget = new URL(location, current);
+    } catch {
+      return null;
+    }
+    const trustedTarget = trustedExotelRecordingUrl(redirectTarget.toString());
+    if (!trustedTarget) return null;
+    current = trustedTarget;
+  }
+
+  return null;
+}
+
+/** Bounded read: a provider or stale database URL cannot exhaust server memory. */
+async function readRecordingBody(upstream: Response): Promise<Buffer | null> {
+  const declaredLength = Number(upstream.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_RECORDING_BYTES) {
+    await upstream.body?.cancel().catch(() => {});
+    return null;
+  }
+
+  const reader = upstream.body?.getReader();
+  if (!reader) return null;
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RECORDING_BYTES) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, totalBytes);
+}
 
 const router = Router();
 
@@ -202,19 +274,23 @@ router.get("/admin/calls/:callId/recording", authenticate, requireRole("ADMIN"),
 
   try {
     const e = getEnv().telephony.exotel;
-    const headers: Record<string, string> = {};
-    // Exotel recording URLs sit behind API auth; other providers may be public.
-    if (row.provider === "exotel" && e.apiKey && e.apiToken) {
-      headers.Authorization = `Basic ${Buffer.from(`${e.apiKey}:${e.apiToken}`).toString("base64")}`;
+    const authorization = row.provider === "exotel" && e.apiKey && e.apiToken
+      ? `Basic ${Buffer.from(`${e.apiKey}:${e.apiToken}`).toString("base64")}`
+      : undefined;
+    const upstream = await fetchTrustedRecording(row.recordingUrl, authorization);
+    if (!upstream || !upstream.ok || !upstream.body) {
+      return res.status(502).json({ error: "Couldn't fetch the recording from a trusted provider URL" });
     }
-    const upstream = await fetch(row.recordingUrl, { headers });
-    if (!upstream.ok || !upstream.body) return res.status(502).json({ error: "Couldn't fetch the recording" });
+
+    const recording = await readRecordingBody(upstream);
+    if (!recording) return res.status(502).json({ error: "Recording is too large or could not be read safely" });
     res.setHeader("Content-Type", upstream.headers.get("content-type") || "audio/mpeg");
+    res.setHeader("Content-Length", String(recording.length));
     res.setHeader("Cache-Control", "private, no-store");
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.end(buf);
+    res.end(recording);
   } catch {
-    res.status(502).json({ error: "Couldn't fetch the recording" });
+    if (!res.headersSent) res.status(502).json({ error: "Couldn't fetch the recording" });
+    else res.destroy();
   }
 });
 
