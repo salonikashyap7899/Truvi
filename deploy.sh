@@ -17,9 +17,38 @@ if [ "$(swapon --show | wc -l)" -eq 0 ] && [ ! -f /swapfile ]; then
   grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-echo "==> Pulling latest main (discards local file edits; .env is untouched)"
+# Refuse to overwrite local or untracked work. This deploy script must never
+# discard edits from the VPS; commit/back up changes deliberately before retrying.
+echo "==> Checking repository state (safe deploy mode)"
+CURRENT_BRANCH="$(git branch --show-current)"
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "ERROR: Expected the VPS checkout to be on branch 'main', found '$CURRENT_BRANCH'. No files changed."
+  exit 1
+fi
+
+DIRTY_STATE="$(git status --porcelain --untracked-files=all)"
+if [ -n "$DIRTY_STATE" ]; then
+  echo "ERROR: Local or untracked changes were found. Refusing to overwrite them."
+  printf '%s\n' "$DIRTY_STATE"
+  echo "Back up or commit the changes intentionally, then retry the deploy."
+  exit 1
+fi
+
+echo "==> Fetching latest main without discarding local files"
 git fetch origin main
-git reset --hard origin/main
+
+# Keep deployment non-destructive even when the incoming commit removes or
+# renames tracked files. Review such changes explicitly instead of auto-applying
+# them as part of a routine production deploy.
+INCOMING_REMOVALS="$(git diff --name-status --find-renames=0 HEAD..origin/main | awk '$1 == "D" || $1 ~ /^R/ { print $0 }')"
+if [ -n "$INCOMING_REMOVALS" ]; then
+  echo "ERROR: The incoming update removes or renames tracked files. No update applied."
+  printf '%s\n' "$INCOMING_REMOVALS"
+  echo "Review those file changes explicitly before deploying."
+  exit 1
+fi
+
+git merge --ff-only origin/main
 
 echo "==> Building server"
 cd server
