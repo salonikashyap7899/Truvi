@@ -21,6 +21,7 @@ import { sendDeveloperWelcome, sendWhatsAppCampaign } from "./whatsappService";
 import { notifyUser, notifyRole } from "./notificationService";
 import { isFounderEmail } from "../config/env";
 import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "./otpAttempts";
+import { hashOtpForStorage } from "../lib/otpHash";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -139,9 +140,9 @@ export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
   const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   const verification: UserVerification = {
     ...(user.verification ?? {}),
-    emailOtp,
+    emailOtp: hashOtpForStorage(emailOtp),
     emailOtpExpiry: expiry,
-    phoneOtp,
+    phoneOtp: hashOtpForStorage(phoneOtp),
     phoneOtpExpiry: expiry,
   };
   const db = getDb();
