@@ -262,10 +262,16 @@ export default function App() {
     window.addEventListener("online", restoreIfUnknown);
     window.addEventListener("focus", restoreIfUnknown);
     document.addEventListener("visibilitychange", restoreWhenVisible);
+
+    // Keep retrying quietly if the first refresh attempt failed temporarily.
+    // The interval becomes a no-op once the server confirms auth or logout.
+    const retryTimer = window.setInterval(restoreIfUnknown, 10_000);
+
     return () => {
       window.removeEventListener("online", restoreIfUnknown);
       window.removeEventListener("focus", restoreIfUnknown);
       document.removeEventListener("visibilitychange", restoreWhenVisible);
+      window.clearInterval(retryTimer);
     };
   }, []);
 
