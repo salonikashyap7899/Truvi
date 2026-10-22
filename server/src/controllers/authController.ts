@@ -216,8 +216,13 @@ export const verifyAccount = async (req: Request, res: Response) => {
   const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
   if (user) {
     if (user.emailVerified && user.phoneVerified) {
-      // Already verified — just log them in so a stale verify screen still works.
-      return res.json(issueSession(res, user));
+      // Verification is not authentication. This public endpoint must never
+      // mint a session for an already-verified account based only on its email.
+      // It also prevents bypassing disabled/approval checks enforced by login.
+      return res.status(409).json({
+        error: "This account is already verified. Please sign in with your password.",
+        code: "ACCOUNT_ALREADY_VERIFIED",
+      });
     }
     const v = user.verification;
     if (!v?.emailOtp || !v?.emailOtpExpiry || !v?.phoneOtp || !v?.phoneOtpExpiry) {
