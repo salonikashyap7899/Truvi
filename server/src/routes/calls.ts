@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { isWebhookTokenValid } from "../lib/webhookToken";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { calls, projects, users, CallStatus } from "../db/schema";
@@ -42,6 +43,10 @@ router.post(
     const provider = getTelephonyProvider();
     if (!provider.isConfigured()) {
       return res.status(503).json({ error: "Calling is not available right now. Please try again later." });
+    }
+
+    if (!getEnv().telephony.webhookToken) {
+      return res.status(503).json({ error: "Calling is not available because the secure status callback is not configured." });
     }
 
     const callerId = getEnv().telephony.exotel.callerId;
@@ -101,7 +106,9 @@ router.post(
 // POST /api/calls/webhook/:provider?token=...
 router.post("/calls/webhook/:provider", async (req, res) => {
   const token = getEnv().telephony.webhookToken;
-  if (token && req.query.token !== token) return res.status(401).json({ error: "Unauthorized" });
+  // Fail closed: an unset webhook token must not make this public callback open.
+  if (!token) return res.status(503).json({ error: "Call status webhook is not configured" });
+  if (!isWebhookTokenValid(req.query.token, token)) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const provider = getTelephonyProvider();
