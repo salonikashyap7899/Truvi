@@ -156,4 +156,4 @@ describe("protectUnverifiedLegalFiles middleware", () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
-}); main
+});
