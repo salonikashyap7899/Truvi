@@ -14,9 +14,9 @@ describe("redactUrlForLogs", () => {
       .toBe("https://truviventures.com/login?Password=%5BREDACTED%5D&code=%5BREDACTED%5D");
   });
 
-  it("hides an unparseable query rather than logging its contents", () => {
+  it("redacts sensitive parameters even when their values contain malformed escapes", () => {
     expect(redactUrlForLogs("/path?token=%E0%A4%A"))
-      .toBe("/path?token=%EF%BF%BD%25A");
+      .toBe("/path?token=%5BREDACTED%5D");
   });
 
   it("uses a safe fallback for malformed URL input", () => {
