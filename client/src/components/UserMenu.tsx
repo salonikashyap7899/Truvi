@@ -18,6 +18,7 @@ import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
   const isInitialized = useAuthStore((s) => s.isInitialized);
+  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -50,7 +51,7 @@ export function UserMenu() {
 
   // Resolve the saved session silently. Do not flash sign-in controls or
   // display a restore/retry message while the HTTP-only cookie is checked.
-  if (!isInitialized) return null;
+  if (!isInitialized && !sessionRestoreFailed) return null;
 
   if (!isAuthenticated || !user) {
     return (
