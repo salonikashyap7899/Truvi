@@ -13,10 +13,12 @@ describe("sanitizeUserForClient", () => {
         phoneOtp: "234567",
         resetPasswordOtp: "345678",
       },
+      authVersion: 2,
     });
 
     expect(safeUser).toEqual({ _id: "user-1", name: "Test User", role: "BUYER" });
     expect(safeUser).not.toHaveProperty("password");
     expect(safeUser).not.toHaveProperty("verification");
+    expect(safeUser).not.toHaveProperty("authVersion");
   });
 });
