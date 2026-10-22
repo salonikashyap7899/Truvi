@@ -27,7 +27,7 @@ export function signAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, ACCESS_SECRET, { expiresIn: "15m" });
 }
 
-export function signRefreshToken(payload: { userId: string }): string {
+export function signRefreshToken(payload: { userId: string; authVersion: number }): string {
   return jwt.sign(payload, REFRESH_SECRET, { expiresIn: "30d" });
 }
 
@@ -50,6 +50,20 @@ export function isExpiredAccessToken(token: string): boolean {
   }
 }
 
-export function verifyRefreshToken(token: string): { userId: string } {
-  return jwt.verify(token, REFRESH_SECRET) as { userId: string };
+export interface RefreshTokenPayload {
+  userId: string;
+  /** Missing only on refresh tokens issued before auth-version enforcement. */
+  authVersion?: number;
+}
+
+export function verifyRefreshToken(token: string): RefreshTokenPayload {
+  return jwt.verify(token, REFRESH_SECRET) as RefreshTokenPayload;
+}
+
+/** Legacy refresh tokens are version zero; password reset increments the user's version. */
+export function refreshAuthVersionMatches(tokenVersion: number | undefined, currentVersion: number): boolean {
+  const normalizedTokenVersion = Number.isSafeInteger(tokenVersion) && (tokenVersion as number) >= 0
+    ? (tokenVersion as number)
+    : 0;
+  return normalizedTokenVersion === currentVersion;
 }
