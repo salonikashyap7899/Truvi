@@ -36,6 +36,7 @@ import { notifyUser, notifyRole } from "../services/notificationService";
 import { logAudit } from "../services/audit";
 import { isFounderEmail } from "../config/env";
 import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "../services/otpAttempts";
+import { sanitizeUserForClient } from "../lib/sanitizeUser";
 
 const router = Router();
 
@@ -160,13 +161,13 @@ router.patch("/profile", authenticate, async (req: AuthedRequest, res) => {
   if (Object.keys(update).length === 0) {
     const current = await findUserById(userId);
     if (!current) return res.status(404).json({ error: "User not found" });
-    const { password: _p, ...safeUser } = current;
+    const safeUser = sanitizeUserForClient(current);
     return res.json({ user: { ...safeUser, isFounder: isFounderEmail(current.email) } });
   }
 
   const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
   if (!updated) return res.status(404).json({ error: "User not found" });
-  const { password: _p, ...safeUser } = updated;
+  const safeUser = sanitizeUserForClient(updated);
   return res.json({ user: { ...safeUser, isFounder: isFounderEmail(updated.email) } });
 });
 

@@ -20,7 +20,7 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
 } from "../lib/validations/auth";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, refreshAuthVersionMatches } from "../lib/jwt";
 import { AuthedRequest } from "../middleware/auth";
 import { sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
@@ -39,6 +39,7 @@ import {
   maskPhone,
 } from "../services/authService";
 import { zodMessage } from "../lib/validationError";
+import { sanitizeUserForClient } from "../lib/sanitizeUser";
 
 // HTTP layer: validates requests, invokes auth services, and keeps the public
 // API response shapes stable for all existing Truvi client applications.
@@ -405,7 +406,12 @@ export const resetPassword = async (req: Request, res: Response) => {
     resetPasswordOtp: null,
     resetPasswordExpiry: null,
   };
-  await db.update(users).set({ password: hashedPassword, verification }).where(eq(users._id, user._id));
+  // Incrementing the version revokes all refresh tokens issued before this password reset.
+  await db.update(users).set({
+    password: hashedPassword,
+    verification,
+    authVersion: (user.authVersion ?? 0) + 1,
+  }).where(eq(users._id, user._id));
 
   return res.json({ message: "Password reset. You can now sign in with your new password." });
 };
@@ -414,9 +420,9 @@ export const refresh = async (req: Request, res: Response) => {
   const token = req.cookies?.refreshToken;
   if (!token) return res.status(401).json({ error: "No refresh token" });
 
-  let userId: string;
+  let refreshClaims: ReturnType<typeof verifyRefreshToken>;
   try {
-    ({ userId } = verifyRefreshToken(token));
+    refreshClaims = verifyRefreshToken(token);
   } catch {
     // A genuinely invalid/expired credential can be cleared; an API/database
     // failure must never be misreported as an invalid session.
@@ -424,6 +430,7 @@ export const refresh = async (req: Request, res: Response) => {
     return res.status(401).json({ error: "Invalid or expired refresh token" });
   }
 
+  const userId = refreshClaims.userId;
   if (!isValidId(userId)) {
     clearRefreshCookies(res);
     return res.status(401).json({ error: "User not found" });
@@ -462,6 +469,13 @@ export const refresh = async (req: Request, res: Response) => {
     return res.status(403).json({ error: "This account is not approved. Contact Truvi support." });
   }
 
+  // A reset-password operation increments authVersion. This rejects prior
+  // refresh tokens, including legacy tokens (treated as version zero).
+  if (!refreshAuthVersionMatches(refreshClaims.authVersion, user.authVersion ?? 0)) {
+    clearRefreshCookies(res);
+    return res.status(401).json({ error: "Session revoked. Please sign in again." });
+  }
+
   const accessToken = signAccessToken({
     userId: String(user._id),
     role: user.role,
@@ -472,7 +486,10 @@ export const refresh = async (req: Request, res: Response) => {
 
   // Sliding session: every successful visit extends the HttpOnly refresh
   // cookie for another 30 days, provided the account remains authorized.
-  issueRefreshCookie(res, signRefreshToken({ userId: String(user._id) }));
+  issueRefreshCookie(res, signRefreshToken({
+    userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
+  }));
   return res.json({ accessToken });
 };
 
@@ -486,6 +503,8 @@ export const getMe = async (req: AuthedRequest, res: Response) => {
   if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
-  const { password: _p, ...safeUser } = user;
+  // The raw DB verification JSON can contain active email/phone/password-reset
+  // OTPs. Never include it in a general-purpose profile/session response.
+  const safeUser = sanitizeUserForClient(user);
   return res.json({ user: { ...safeUser, isFounder: isFounderEmail(user.email) } });
 };

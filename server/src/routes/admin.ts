@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
+import { sanitizeUserForClient } from "../lib/sanitizeUser";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -926,7 +927,8 @@ router.get("/users", requireRole("ADMIN"), async (req, res) => {
     subsByUser.set(s.userId, { count: (prev?.count ?? 0) + 1, label: prev?.label ?? s.planLabel });
   }
 
-  const safeUsers = rows.map(({ password, ...u }) => {
+  const safeUsers = rows.map((row) => {
+    const u = sanitizeUserForClient(row);
     const paid = subsByUser.get(u._id);
     const premiumExpiry = u.cpProfile?.premiumExpiresAt ? Date.parse(u.cpProfile.premiumExpiresAt) : null;
     const premiumActive = Boolean(u.cpProfile?.isPremium) && (premiumExpiry === null || Number.isNaN(premiumExpiry) || premiumExpiry > now);
@@ -972,7 +974,7 @@ router.patch("/users/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
   if (parsed.data.approvalStatus !== undefined) update.approvalStatus = parsed.data.approvalStatus as ApprovalStatus;
 
   const [updated] = await db.update(users).set(update).where(eq(users._id, userId)).returning();
-  const { password: _pw, ...safeUser } = updated;
+  const safeUser = sanitizeUserForClient(updated);
   const action = parsed.data.approvalStatus
     ? `user.${parsed.data.approvalStatus.toLowerCase()}`
     : parsed.data.disabled
@@ -1116,7 +1118,7 @@ router.post("/users/:id/cancel-subscription", requireRole("ADMIN"), async (req: 
     .set({ cpProfile: cpProfile as typeof target.cpProfile, cpTier: "SILVER" })
     .where(eq(users._id, userId))
     .returning();
-  const { password: _pw, ...safeUser } = updated;
+  const safeUser = sanitizeUserForClient(updated);
 
   res.json({ cancelledCount: cancelled.length, user: safeUser });
 });
@@ -1298,7 +1300,7 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
   const paymentsTotal = rupees(paidPayments.reduce((s, p) => s + (p.amountPaise + p.gstPaise) / 100, 0));
   const leadSpend = rupees(userLeadPurchases.reduce((s, p) => s + Number(p.amountPaid || 0), 0));
 
-  const { password: _pw, verification: _v, ...rest } = target;
+  const { password: _pw, verification: _v, authVersion: _authVersion, ...rest } = target;
   res.json({
     profile: {
       ...rest,

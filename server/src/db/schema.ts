@@ -381,6 +381,8 @@ export const users = pgTable(
     // history/financial records are preserved) but can no longer log in and is
     // hidden from active user counts. Reversible via reactivate.
     disabled: boolean("disabled").notNull().default(false),
+    // Incremented after a password reset so refresh tokens from prior credentials are rejected.
+    authVersion: integer("auth_version").notNull().default(0),
     phone: text("phone"),
     // Universal account verification: a new signup must confirm one-time codes
     // sent to both their email and phone before they can log in. Both default to
