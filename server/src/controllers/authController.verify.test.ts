@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 
-const { getDbMock } = vi.hoisted(() => ({ getDbMock: vi.fn() }));
-vi.mock("../config/db", () => ({ getDb: getDbMock }));
+const mocks = vi.hoisted(() => {
+  const unsafe = vi.fn(async (_query: string, _params: unknown[] = []) => []);
+  return {
+    getDbMock: vi.fn(),
+    getSqlClientMock: vi.fn(() => ({ unsafe })),
+  };
+});
+vi.mock("../config/db", () => ({ getDb: mocks.getDbMock }));
+vi.mock("../db", () => ({ getSqlClient: mocks.getSqlClientMock }));
 
 import { verifyAccount } from "./authController";
 
@@ -24,7 +31,7 @@ describe("verifyAccount public endpoint", () => {
     const where = vi.fn().mockResolvedValue([verifiedUser]);
     const from = vi.fn().mockReturnValue({ where });
     const select = vi.fn().mockReturnValue({ from });
-    getDbMock.mockReturnValue({ select });
+    mocks.getDbMock.mockReturnValue({ select });
 
     const res = {
       status: vi.fn().mockReturnThis(),
