@@ -6,7 +6,11 @@ import { getDb } from "../config/db";
 import { LEGAL_ASSET_CATEGORIES, legalDocuments, projectAssets } from "../db/schema";
 import { DEV_JWT_ACCESS_DEFAULT } from "../lib/jwt";
 
+ security/protect-unverified-legal-documents
 const SIGNED_LINK_TTL_SECONDS = 60 * 60;
+
+const SIGNED_LINK_TTL_SECONDS = 15 * 60;
+ main
 const LEGAL_DOCUMENT_NAME = /^legal-\d+-[0-9a-f]{16}\.(?:pdf|jpe?g|png|webp)$/i;
 const PRESENTATION_ASSET_NAME = /^asset-\d+-\d+\.[a-z0-9]+$/i;
 

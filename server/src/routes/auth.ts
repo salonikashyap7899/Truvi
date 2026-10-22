@@ -193,7 +193,7 @@ router.post("/request-phone-otp", authenticate, ...otpSendLimiter, async (req: A
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
-  clearOtpAttempts(`phone:${userId}`);
+  await clearOtpAttempts(`phone:${userId}`);
 
   try {
     const smsSent = await sendPhoneOtpViaSms(user.phone!, otp);
@@ -226,7 +226,7 @@ router.post("/verify-phone-otp", authenticate, ...otpVerifyLimiter, async (req: 
   if (!user) return res.status(404).json({ error: "User not found" });
 
   const attemptKey = `phone:${userId}`;
-  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
+  if (await otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
 
   if (!user.verification?.phoneOtp || !user.verification?.phoneOtpExpiry) {
     return res.status(400).json({ error: "No OTP requested" });
@@ -237,10 +237,10 @@ router.post("/verify-phone-otp", authenticate, ...otpVerifyLimiter, async (req: 
   }
 
   if (user.verification.phoneOtp !== otp) {
-    recordOtpFailure(attemptKey);
+    await recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid OTP" });
   }
-  clearOtpAttempts(attemptKey);
+  await clearOtpAttempts(attemptKey);
 
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
@@ -285,7 +285,7 @@ router.post("/request-email-otp", authenticate, ...otpSendLimiter, async (req: A
   };
   const db = getDb();
   await db.update(users).set({ verification }).where(eq(users._id, user._id));
-  clearOtpAttempts(`email:${userId}`);
+  await clearOtpAttempts(`email:${userId}`);
 
   try {
     const emailSent = await sendOtpEmail(user.email, otp);
@@ -311,7 +311,7 @@ router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: 
   if (!user) return res.status(404).json({ error: "User not found" });
 
   const attemptKey = `email:${userId}`;
-  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
+  if (await otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
 
   if (!user.verification?.emailOtp || !user.verification?.emailOtpExpiry) {
     return res.status(400).json({ error: "No OTP requested" });
@@ -322,10 +322,10 @@ router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: 
   }
 
   if (user.verification.emailOtp !== otp) {
-    recordOtpFailure(attemptKey);
+    await recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid OTP" });
   }
-  clearOtpAttempts(attemptKey);
+  await clearOtpAttempts(attemptKey);
 
   const onboardingChecks: OnboardingChecks = {
     ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),

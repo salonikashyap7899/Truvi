@@ -364,6 +364,21 @@ export const DEFAULT_VERIFICATION_DETAILS: VerificationDetails = {
 // Tables
 // ---------------------------------------------------------------------------
 
+// Shared OTP lockout state. Declared in Drizzle as well as boot SQL so a
+// later drizzle-kit push recognizes the table rather than treating it as drift.
+export const otpAttempts = pgTable(
+  "otp_attempts",
+  {
+    identityKey: text("identity_key").primaryKey(),
+    failureCount: integer("failure_count").notNull().default(0),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => ({
+    updatedIdx: index("otp_attempts_updated_idx").on(t.updatedAt),
+  }),
+);
+
 export const users = pgTable(
   "users",
   {
