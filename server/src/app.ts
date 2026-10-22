@@ -100,6 +100,11 @@ import clientTelemetryRoutes from "./routes/clientTelemetry";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
+import { redactUrlForLogs } from "./lib/redactUrlForLogs";
+
+// Redact short-lived signed links and webhook credentials before access logging.
+morgan.token("safe-url", (req) => redactUrlForLogs(req.originalUrl || req.url));
+morgan.token("safe-referrer", (req) => redactUrlForLogs(req.get("referer")));
 
 export function createApp() {
   const app = express();
@@ -157,7 +162,10 @@ export function createApp() {
   app.use(express.json());
   app.use(cookieParser());
   app.use("/api/telemetry", clientTelemetryRoutes);
-  app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+  const requestLogFormat = process.env.NODE_ENV === "production"
+    ? ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":safe-referrer" ":user-agent"'
+    : ':method :safe-url :status :response-time ms';
+  app.use(morgan(requestLogFormat));
 
   // Static file serving for uploaded brochures/price lists/site-visit photos.
   // Uploaded files are content-stable (a new upload gets a new filename), so we
