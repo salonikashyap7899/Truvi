@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
+import { initializeAuthSession } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import PageBackLink from "@/components/PageBackLink";
 
@@ -168,6 +170,8 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+  const isInitialized = useAuthStore((s) => s.isInitialized);
+  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const mountNav = useNavChrome((s) => s.mount);
   const unmountNav = useNavChrome((s) => s.unmount);
 
@@ -195,7 +199,9 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
 
   const close = () => setOpen(false);
 
-  const visibleLinks = navLinksForRole(user);
+  // Avoid briefly displaying the signed-out navigation while a refresh
+  // cookie is still being verified after reload or tab restoration.
+  const visibleLinks = isInitialized ? navLinksForRole(user) : [];
 
   return (
     <InNavbarContext.Provider value={true}>
@@ -300,7 +306,15 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
                 ))}
 
               {/* Auth section (mobile) */}
-              {isAuthenticated && user ? (
+              {!isInitialized ? (
+                <div className="border-b border-white/5 px-5 py-3.5 text-sm text-muted-foreground" role="status" aria-live="polite">
+                  {sessionRestoreFailed ? (
+                    <button type="button" onClick={() => void initializeAuthSession()} className="font-semibold text-sky-300">
+                      Retry session restoration
+                    </button>
+                  ) : "Restoring session…"}
+                </div>
+              ) : isAuthenticated && user ? (
                 <>
                   <Link
                     to={dashboardPath(user)}

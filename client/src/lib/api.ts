@@ -28,7 +28,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-let refreshPromise: Promise<string | null> | null = null;
+type RefreshResult = {
+  accessToken: string | null;
+  /** False only when a network/server failure left session status unknown. */
+  definitive: boolean;
+};
+
+let refreshPromise: Promise<RefreshResult> | null = null;
 let sessionInitializationPromise: Promise<void> | null = null;
 
 // Public/session-establishment endpoints must not trigger a refresh loop.
@@ -57,7 +63,7 @@ function shouldSkipTokenRefresh(url?: string): boolean {
  * cookie, so restoring the session always fetches a fresh token and current user
  * from the server rather than reading an old token/user snapshot from storage.
  */
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<RefreshResult> {
   const initial = useAuthStore.getState();
   try {
     const res = await axios.post(`${API_BASE}/api/auth/refresh`, {}, { withCredentials: true });
@@ -82,43 +88,75 @@ async function refreshAccessToken(): Promise<string | null> {
       latest.user === initial.user;
     if (unchanged) {
       latest.setAuth(freshUser, newToken);
-      return newToken;
+      return { accessToken: newToken, definitive: true };
     }
-    return latest.accessToken;
-  } catch {
-    // A startup restoration failure must not erase a login completed while the
-    // request was in flight; a normal expired-session refresh still clears auth.
+    return { accessToken: latest.accessToken, definitive: latest.isInitialized };
+  } catch (error) {
     const latest = useAuthStore.getState();
     const unchanged =
       latest.accessToken === initial.accessToken &&
       latest.isInitialized === initial.isInitialized &&
       latest.user === initial.user;
-    if (unchanged) latest.clearAuth();
-    return latest.accessToken;
+
+    // A newer sign-in or explicit logout wins over any older request still in
+    // flight. Never resurrect a session after the user clicked Logout.
+    if (!unchanged) {
+      return { accessToken: latest.accessToken, definitive: latest.isInitialized };
+    }
+
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status === 401 || status === 403 || status === 404) {
+      // Only a conclusive rejection from the session endpoints should clear
+      // authentication. These statuses mean the credential/account is invalid.
+      latest.clearAuth();
+      return { accessToken: null, definitive: true };
+    }
+
+    // A timeout, offline device, 5xx response, or failed /me request does NOT
+    // mean the user logged out. Preserve an existing in-memory identity and
+    // keep startup in an unknown state until the browser can retry.
+    return { accessToken: null, definitive: latest.isInitialized };
   }
 }
-
-/** Run once on app startup; route guards wait until this finishes. */
+/** Restore the HTTP-only refresh-cookie session, retrying transient failures. */
 export function initializeAuthSession(): Promise<void> {
   if (useAuthStore.getState().isInitialized) return Promise.resolve();
   if (!sessionInitializationPromise) {
+    useAuthStore.getState().setSessionRestoreFailed(false);
     sessionInitializationPromise = (async () => {
       try {
-        if (!refreshPromise) {
-          refreshPromise = refreshAccessToken().finally(() => {
-            refreshPromise = null;
-          });
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (!refreshPromise) {
+            refreshPromise = refreshAccessToken().finally(() => {
+              refreshPromise = null;
+            });
+          }
+
+          const result = await refreshPromise;
+          if (result.definitive) {
+            const state = useAuthStore.getState();
+            if (!state.isInitialized) state.setInitialized();
+            state.setSessionRestoreFailed(false);
+            return;
+          }
+
+          // Brief retries handle common mobile wake/network hiccups without
+          // converting them into a false logged-out state.
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 350 * (2 ** attempt)));
+          }
         }
-        await refreshPromise;
+
+        useAuthStore.getState().setSessionRestoreFailed(true);
       } finally {
-        const state = useAuthStore.getState();
-        if (!state.isInitialized) state.setInitialized();
+        // On transient failure, online/focus events or the retry button must
+        // be able to start a new attempt rather than reuse a rejected promise.
+        sessionInitializationPromise = null;
       }
     })();
   }
   return sessionInitializationPromise;
 }
-
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
@@ -141,9 +179,9 @@ api.interceptors.response.use(
     ) {
       original._retry = true;
       if (!refreshPromise) refreshPromise = refreshAccessToken().finally(() => (refreshPromise = null));
-      const newToken = await refreshPromise;
-      if (newToken) {
-        original.headers.Authorization = `Bearer ${newToken}`;
+      const refreshResult = await refreshPromise;
+      if (refreshResult.accessToken) {
+        original.headers.Authorization = `Bearer ${refreshResult.accessToken}`;
         return api(original);
       }
     }

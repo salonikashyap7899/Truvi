@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
+import { initializeAuthSession } from "@/lib/api";
 import { dashboardPath } from "@/lib/rolePaths";
 import type { Role } from "@/types";
 import { CpJoiningFlow } from "@/components/CpJoiningGate";
@@ -21,6 +22,7 @@ export function ProtectedRoute({ roles, children }: { roles: Role[]; children: R
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
   const isInitialized = useAuthStore((s) => s.isInitialized);
+  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const { pathname } = useLocation();
 
   // Do not send a user to login just because the in-memory token has not yet
@@ -28,11 +30,26 @@ export function ProtectedRoute({ roles, children }: { roles: Role[]; children: R
   if (!isInitialized) {
     return (
       <div
-        className="flex min-h-[50vh] items-center justify-center"
+        className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center"
         role="status"
         aria-label="Restoring your session"
       >
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+        {sessionRestoreFailed ? (
+          <>
+            <p className="max-w-md text-sm text-muted-foreground">
+              Truvi couldn’t confirm your saved session because the connection failed. Your account has not been signed out.
+            </p>
+            <button
+              type="button"
+              onClick={() => void initializeAuthSession()}
+              className="rounded-full border border-sky-400/30 bg-sky-400/10 px-4 py-2 text-sm font-semibold text-sky-200 hover:bg-sky-400/15"
+            >
+              Try restoring session again
+            </button>
+          </>
+        ) : (
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+        )}
       </div>
     );
   }
