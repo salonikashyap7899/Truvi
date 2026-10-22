@@ -63,12 +63,39 @@ const isProduction = process.env.NODE_ENV === "production";
 // sent cross-site. SameSite=None requires Secure, which is only true in
 // production; locally both run on localhost (different ports but the same
 // site), where "lax" already works fine.
-const REFRESH_COOKIE_OPTS = {
+const REFRESH_COOKIE_DOMAIN = isProduction
+  ? (process.env.REFRESH_COOKIE_DOMAIN?.trim() || ".truviventures.com")
+  : undefined;
+const REFRESH_COOKIE_SAME_SITE = (isProduction ? "none" : "lax") as "none" | "lax";
+
+// Keep the production session cookie valid on both truviventures.com and
+// www.truviventures.com. Domain is configurable for non-Truvi deployments.
+// The HttpOnly/Secure flags remain enabled in production.
+const REFRESH_COOKIE_SCOPE = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
-  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  sameSite: REFRESH_COOKIE_SAME_SITE,
+  path: "/",
+  ...(REFRESH_COOKIE_DOMAIN ? { domain: REFRESH_COOKIE_DOMAIN } : {}),
 };
+const REFRESH_COOKIE_OPTS = {
+  ...REFRESH_COOKIE_SCOPE,
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days from the most recent refresh
+};
+
+function clearRefreshCookies(res: import("express").Response) {
+  // Clear the shared-domain cookie and any older host-only cookie issued
+  // before the domain migration. Both can coexist in browsers after migration.
+  res.clearCookie("refreshToken", REFRESH_COOKIE_SCOPE);
+  res.clearCookie("refreshToken", { path: "/" });
+}
+
+function issueRefreshCookie(res: import("express").Response, token: string) {
+  // Remove the previous host-only cookie on this hostname before setting the
+  // canonical shared-domain cookie, avoiding duplicate refreshToken values.
+  res.clearCookie("refreshToken", { path: "/" });
+  res.cookie("refreshToken", token, REFRESH_COOKIE_OPTS);
+}
 
 async function findUserById(userId: string): Promise<IUser | null> {
   const db = getDb();
@@ -271,7 +298,7 @@ function issueSession(res: import("express").Response, user: IUser) {
     ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
   });
   const refreshToken = signRefreshToken({ userId: String(user._id) });
-  res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTS);
+  issueRefreshCookie(res, refreshToken);
   return {
     accessToken,
     user: {
@@ -679,21 +706,27 @@ router.post("/refresh", async (req, res) => {
 
   try {
     const { userId } = verifyRefreshToken(token);
-    if (!isValidId(userId)) return res.status(401).json({ error: "User not found" });
+    if (!isValidId(userId)) {
+      clearRefreshCookies(res);
+      return res.status(401).json({ error: "User not found" });
+    }
     const user = await findUserById(userId);
-    if (!user) return res.status(401).json({ error: "User not found" });
+    if (!user) {
+      clearRefreshCookies(res);
+      return res.status(401).json({ error: "User not found" });
+    }
 
     // A deactivated account must not keep minting access tokens from a still-
     // valid refresh cookie (which lives 30 days). Login already blocks disabled
     // accounts; mirror that here so an admin deactivating a user actually ends
     // their session at the next token refresh.
     if (user.disabled) {
-      res.clearCookie("refreshToken");
+      clearRefreshCookies(res);
       return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
     }
     // A rejected/pending account can't keep a live session either.
     if (user.approvalStatus !== "APPROVED") {
-      res.clearCookie("refreshToken");
+      clearRefreshCookies(res);
       return res.status(403).json({ error: "This account is not approved. Contact Truvi support." });
     }
 
@@ -704,14 +737,19 @@ router.post("/refresh", async (req, res) => {
       onboardingVerified: user.onboardingVerified,
       ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
     });
+
+    // Sliding session: every successful visit extends the HttpOnly refresh
+    // cookie for another 30 days, provided the account remains authorized.
+    issueRefreshCookie(res, signRefreshToken({ userId: String(user._id) }));
     return res.json({ accessToken });
   } catch {
+    clearRefreshCookies(res);
     return res.status(401).json({ error: "Invalid or expired refresh token" });
   }
 });
 
 router.post("/logout", (_req, res) => {
-  res.clearCookie("refreshToken");
+  clearRefreshCookies(res);
   return res.json({ message: "Logged out" });
 });
 
