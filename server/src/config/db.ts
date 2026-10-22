@@ -20,6 +20,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone_verified" boolean NOT NULL DEFAULT true`,
     // Admin can deactivate ("remove") an account without destroying its history.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "disabled" boolean NOT NULL DEFAULT false`,
+    // Refresh-token invalidation after password reset; must exist before any users query.
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "auth_version" integer NOT NULL DEFAULT 0`,
     // Personal profile: avatar image URL + short bio, editable from dashboard settings.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
