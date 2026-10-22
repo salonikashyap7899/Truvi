@@ -249,7 +249,24 @@ export default function App() {
   // Access tokens are memory-only. Restore a valid session from the HTTP-only
   // refresh cookie before protected routes decide whether to redirect to login.
   useEffect(() => {
+    const restoreIfUnknown = () => {
+      if (!useAuthStore.getState().isInitialized) void initializeAuthSession();
+    };
+    const restoreWhenVisible = () => {
+      if (document.visibilityState === "visible") restoreIfUnknown();
+    };
+
     void initializeAuthSession();
+    // If the API was temporarily unavailable during initial load, retry when
+    // connectivity returns or the user comes back to the tab.
+    window.addEventListener("online", restoreIfUnknown);
+    window.addEventListener("focus", restoreIfUnknown);
+    document.addEventListener("visibilitychange", restoreWhenVisible);
+    return () => {
+      window.removeEventListener("online", restoreIfUnknown);
+      window.removeEventListener("focus", restoreIfUnknown);
+      document.removeEventListener("visibilitychange", restoreWhenVisible);
+    };
   }, []);
 
   // In the installed app, ask for the user's location on open so "Near Me" and
