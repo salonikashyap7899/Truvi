@@ -78,7 +78,7 @@ export function issueRefreshCookie(res: import("express").Response, token: strin
   });
 }
 
-async export function findUserById(userId: string): Promise<IUser | null> {
+export async function findUserById(userId: string): Promise<IUser | null> {
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users._id, userId));
   return user ?? null;
@@ -103,7 +103,7 @@ export function maskPhone(phone?: string | null): string {
  * channels were ACTUALLY delivered, so callers can honestly tell the user if a
  * channel (e.g. email) isn't working instead of falsely claiming success.
  */
-async export function dispatchOtps(
+export async function dispatchOtps(
   email: string,
   phone: string | null | undefined,
   emailOtp: string,
@@ -133,7 +133,7 @@ async export function dispatchOtps(
  * the login-when-unverified path for legacy accounts that predate the
  * pending-signup flow (new signups live in `pending_signups`, not `users`).
  */
-async export function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean; smsSent: boolean }> {
+export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: boolean; smsSent: boolean }> {
   const emailOtp = generateOtp();
   const phoneOtp = generateOtp();
   const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -159,7 +159,7 @@ async export function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
  * old inline signup used. This is the ONLY place a self-signup account is
  * created, so no account can exist without passing OTP verification.
  */
-async export function createUserFromPending(p: IPendingSignup): Promise<IUser> {
+export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
   const db = getDb();
   const role = p.role as Role;
   const [user] = await db
