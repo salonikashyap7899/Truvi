@@ -54,6 +54,7 @@ import { logAudit } from "../services/audit";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagCountsForProjects } from "../services/ragIntel";
 import { presentBuyerDocUrl } from "../services/privateFiles";
+import { presentLegalDocumentUrl, presentLegalAssetUrl } from "../services/protectedLegalFiles";
 import { runLifecycleReminders } from "../services/lifecycleEmails";
 import { getPartnersSummary, getCpWallet, getPartnerDetail, accrueDeveloperCommissions } from "../services/commissionLedger";
 import { normalizePhone, isAiSensyEnabled, isWhatsAppEnabled } from "../services/whatsappService";
@@ -1262,7 +1263,7 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
       category: r.doc.docType,
       kind: "LEGAL",
       fileName: r.doc.fileName,
-      fileUrl: r.doc.fileUrl,
+      fileUrl: presentLegalDocumentUrl(r.doc),
       project: r.project?.name ?? null,
       status: r.doc.verified ? "APPROVED" : "PENDING",
       createdAt: r.doc.createdAt,
@@ -1273,7 +1274,7 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
       category: r.doc.category.replace(/_/g, " "),
       kind: "ASSET",
       fileName: r.doc.fileName,
-      fileUrl: r.doc.fileUrl,
+      fileUrl: presentLegalAssetUrl(r.doc),
       project: r.project?.name ?? null,
       status: r.doc.verified ? "APPROVED" : "PENDING",
       createdAt: r.doc.createdAt,
@@ -2089,7 +2090,7 @@ router.get("/documents", requireRole("ADMIN"), async (_req, res) => {
       source: "LEGAL",
       category: r.doc.docType,
       fileName: r.doc.fileName,
-      fileUrl: r.doc.fileUrl,
+      fileUrl: presentLegalDocumentUrl(r.doc),
       status: r.doc.verified ? "APPROVED" : "PENDING",
       approvable: true,
       uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
@@ -2103,7 +2104,7 @@ router.get("/documents", requireRole("ADMIN"), async (_req, res) => {
       source: "ASSET",
       category: r.doc.category.replace(/_/g, " "),
       fileName: r.doc.fileName,
-      fileUrl: r.doc.fileUrl,
+      fileUrl: presentLegalAssetUrl(r.doc),
       status: r.doc.verified ? "APPROVED" : "PENDING",
       approvable: true,
       uploader: r.uploader?.name ? { name: r.uploader.name, role: r.uploader.role } : null,
