@@ -20,8 +20,8 @@ describe("redactUrlForLogs", () => {
   });
 
   it("uses a safe fallback for malformed URL input", () => {
-    expect(redactUrlForLogs("/path?secret=a b"))
-      .toBe("/path?[REDACTED]");
+    expect(redactUrlForLogs("http://[invalid?secret=a b"))
+      .toBe("http://[invalid?[REDACTED]");
     expect(redactUrlForLogs(undefined)).toBe("-");
   });
 });
