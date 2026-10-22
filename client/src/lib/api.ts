@@ -181,7 +181,6 @@ api.interceptors.response.use(
       if (!refreshPromise) refreshPromise = refreshAccessToken().finally(() => (refreshPromise = null));
       const refreshResult = await refreshPromise;
       if (refreshResult.accessToken) {
-        original.headers = original.headers ?? {};
         original.headers.Authorization = `Bearer ${refreshResult.accessToken}`;
         return api(original);
       }
