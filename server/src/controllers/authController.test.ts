@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 
-const mocks = vi.hoisted(() => ({
-  getDb: vi.fn(),
-  issueSession: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const unsafe = vi.fn(async (_query: string, _params: unknown[] = []) => []);
+  return {
+    getDb: vi.fn(),
+    issueSession: vi.fn(),
+    getSqlClient: vi.fn(() => ({ unsafe })),
+  };
+});
 
 vi.mock("../config/db", () => ({ getDb: mocks.getDb }));
+vi.mock("../db", () => ({ getSqlClient: mocks.getSqlClient }));
 vi.mock("../services/authService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/authService")>();
   return { ...actual, issueSession: mocks.issueSession };

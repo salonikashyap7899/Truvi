@@ -20,7 +20,7 @@ import { sendWelcomeEmailOnce } from "./lifecycleEmails";
 import { sendDeveloperWelcome, sendWhatsAppCampaign } from "./whatsappService";
 import { notifyUser, notifyRole } from "./notificationService";
 import { isFounderEmail } from "../config/env";
-import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "./otpAttempts";
+import { clearOtpAttempts } from "./otpAttempts";
 import { hashOtpForStorage } from "../lib/otpHash";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -150,7 +150,7 @@ export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
   // Issuing a fresh pair of codes invalidates the previous pair; reset the
   // matching account-level attempt counter so a prior lockout cannot block
   // the newly issued valid codes.
-  clearOtpAttempts(`verify:${user.email.toLowerCase().trim()}`);
+  await clearOtpAttempts(`verify:${user.email.toLowerCase().trim()}`);
   return dispatchOtps(user.email, user.phone, emailOtp, phoneOtp);
 }
 
