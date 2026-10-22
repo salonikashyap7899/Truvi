@@ -101,6 +101,7 @@ import clientTelemetryRoutes from "./routes/clientTelemetry";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
 import { redactUrlForLogs } from "./lib/redactUrlForLogs";
+import { protectUnverifiedLegalFiles } from "./services/protectedLegalFiles";
 
 // Redact short-lived signed links and webhook credentials before access logging.
 morgan.token("safe-url", (req) => {
@@ -183,6 +184,10 @@ export function createApp() {
     res.status(404).end();
   });
 
+  // Pending legal uploads are not public. This check preserves their files in
+  // place and requires an authenticated API-issued signed URL until verified.
+  app.use("/uploads", protectUnverifiedLegalFiles);
+
   // Defense in depth during migration: if a public upload URL is still
   // referenced by a buyerDocuments record, do not serve it from /uploads.
   // The migration script can still read the file directly from disk.
@@ -205,7 +210,22 @@ export function createApp() {
       maxAge: "365d",
       immutable: true,
       setHeaders: (res, filePath) => {
-        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        const response = res as import("express").Response;
+        const isPendingLegalFile = Boolean(response.locals?.truviProtectedLegalFile);
+        const isVerifiedLegalFile = Boolean(response.locals?.truviVerifiedLegalFile);
+        if (isPendingLegalFile) {
+          // The signature is a temporary capability. Never persist it in a
+          // browser or intermediate proxy cache.
+          res.setHeader("Cache-Control", "private, no-store");
+          res.setHeader("CDN-Cache-Control", "no-store");
+          res.setHeader("Surrogate-Control", "no-store");
+        } else if (isVerifiedLegalFile || filePath.includes(path.sep + "legal" + path.sep)) {
+          // Verified legal documents can still be opened publicly, but are not
+          // immutable-cache objects because admins may revoke verification.
+          res.setHeader("Cache-Control", "public, max-age=300");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
         setUploadHeaders(res, filePath);
       },
     }),
