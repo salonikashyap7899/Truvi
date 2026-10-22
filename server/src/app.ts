@@ -103,8 +103,11 @@ import { getAllowedOrigins } from "./config/origins";
 import { redactUrlForLogs } from "./lib/redactUrlForLogs";
 
 // Redact short-lived signed links and webhook credentials before access logging.
-morgan.token("safe-url", (req) => redactUrlForLogs(req.originalUrl || req.url));
-morgan.token("safe-referrer", (req) => redactUrlForLogs(req.get("referer")));
+morgan.token("safe-url", (req) => {
+  const request = req as import("express").Request;
+  return redactUrlForLogs(request.originalUrl || request.url);
+});
+morgan.token("safe-referrer", (req) => redactUrlForLogs((req as import("express").Request).get("referer")));
 
 export function createApp() {
   const app = express();
