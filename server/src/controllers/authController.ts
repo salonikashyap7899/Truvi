@@ -107,7 +107,7 @@ export const signup = async (req: Request, res: Response) => {
   // Signup creates a fresh code pair, including when resuming/retrying an
   // unverified signup. A lockout against the previous pair must not survive
   // code rotation.
-  clearOtpAttempts(`verify:${normalizedEmail}`);
+  await clearOtpAttempts(`verify:${normalizedEmail}`);
   const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, phone, emailOtp, phoneOtp);
 
   return res.status(201).json({
@@ -152,7 +152,7 @@ export const login = async (req: Request, res: Response) => {
       emailOtpExpiry: otpExpiry,
       phoneOtpExpiry: otpExpiry,
     }).where(eq(pendingSignups._id, pending._id));
-    clearOtpAttempts(`verify:${normalizedEmail}`);
+    await clearOtpAttempts(`verify:${normalizedEmail}`);
 
     const { emailSent, smsSent } = await dispatchOtps(
       normalizedEmail, pending.phone, emailOtp, phoneOtp,
@@ -212,7 +212,7 @@ export const verifyAccount = async (req: Request, res: Response) => {
   const { email, emailOtp, phoneOtp } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
   const attemptKey = `verify:${normalizedEmail}`;
-  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
+  if (await otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
   const db = getDb();
   const now = new Date();
 
@@ -235,9 +235,9 @@ export const verifyAccount = async (req: Request, res: Response) => {
     if (new Date(v.emailOtpExpiry) < now || new Date(v.phoneOtpExpiry) < now) {
       return res.status(400).json({ error: "Codes expired. Please resend new codes." });
     }
-    if (!verifyStoredOtp(emailOtp, v.emailOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
-    if (!verifyStoredOtp(phoneOtp, v.phoneOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
-    clearOtpAttempts(attemptKey);
+    if (!verifyStoredOtp(emailOtp, v.emailOtp)) { await recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+    if (!verifyStoredOtp(phoneOtp, v.phoneOtp)) { await recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+    await clearOtpAttempts(attemptKey);
 
     const verification: UserVerification = {
       ...(user.verification ?? {}),
@@ -267,9 +267,9 @@ export const verifyAccount = async (req: Request, res: Response) => {
   if (pending.emailOtpExpiry < now || pending.phoneOtpExpiry < now) {
     return res.status(400).json({ error: "Codes expired. Please resend new codes." });
   }
-  if (!verifyStoredOtp(emailOtp, pending.emailOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
-  if (!verifyStoredOtp(phoneOtp, pending.phoneOtp)) { recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
-  clearOtpAttempts(attemptKey);
+  if (!verifyStoredOtp(emailOtp, pending.emailOtp)) { await recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid email code", field: "emailOtp" }); }
+  if (!verifyStoredOtp(phoneOtp, pending.phoneOtp)) { await recordOtpFailure(attemptKey); return res.status(400).json({ error: "Invalid phone code", field: "phoneOtp" }); }
+  await clearOtpAttempts(attemptKey);
 
   // Guard against a race where a real account for this email appeared meanwhile.
   const [already] = await db.select({ _id: users._id }).from(users).where(eq(users.email, normalizedEmail));
@@ -325,7 +325,7 @@ export const resendOtp = async (req: Request, res: Response) => {
         phoneOtpExpiry: otpExpiry,
       })
       .where(eq(pendingSignups._id, pending._id));
-    clearOtpAttempts(`verify:${normalizedEmail}`);
+    await clearOtpAttempts(`verify:${normalizedEmail}`);
     const { emailSent, smsSent } = await dispatchOtps(normalizedEmail, pending.phone, emailOtp, phoneOtp);
     return res.json({
       message: "Fresh 6-digit codes have been sent to your email and phone.",
@@ -373,7 +373,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     };
     await db.update(users).set({ verification }).where(eq(users._id, user._id));
     // A newly generated reset code replaces the previous one.
-    clearOtpAttempts(`reset:${user.email.toLowerCase().trim()}`);
+    await clearOtpAttempts(`reset:${user.email.toLowerCase().trim()}`);
     try {
       await sendPasswordResetEmail(user.email, otp);
     } catch (err) {
@@ -396,7 +396,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   const { email, otp, password } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
   const attemptKey = `reset:${normalizedEmail}`;
-  if (otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
+  if (await otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail));
   if (!user) return res.status(400).json({ error: "Invalid or expired reset code" });
@@ -408,11 +408,10 @@ export const resetPassword = async (req: Request, res: Response) => {
   if (new Date(v.resetPasswordExpiry) < new Date()) {
     return res.status(400).json({ error: "Reset code expired. Please request a new one." });
   }
-  if (!verifyStoredOtp(otp, v.resetPasswordOtp)) {
-    recordOtpFailure(attemptKey);
+  if (!verifyStoredOtp(otp, v.resetPasswordOtp)) { await recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "Invalid reset code", field: "otp" });
   }
-  clearOtpAttempts(attemptKey);
+  await clearOtpAttempts(attemptKey);
 
   const hashedPassword = await bcrypt.hash(password, 12);
   const verification: UserVerification = {
