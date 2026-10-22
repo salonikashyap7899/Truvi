@@ -210,14 +210,16 @@ export function createApp() {
       maxAge: "365d",
       immutable: true,
       setHeaders: (res, filePath) => {
-        const isPendingLegalFile = Boolean((res as express.Response).locals?.truviProtectedLegalFile);
+        const response = res as import("express").Response;
+        const isPendingLegalFile = Boolean(response.locals?.truviProtectedLegalFile);
+        const isVerifiedLegalFile = Boolean(response.locals?.truviVerifiedLegalFile);
         if (isPendingLegalFile) {
           // The signature is a temporary capability. Never persist it in a
           // browser or intermediate proxy cache.
           res.setHeader("Cache-Control", "private, no-store");
           res.setHeader("CDN-Cache-Control", "no-store");
           res.setHeader("Surrogate-Control", "no-store");
-        } else if (path.extname(filePath).toLowerCase() === ".pdf" && filePath.includes(path.sep + "legal" + path.sep)) {
+        } else if (isVerifiedLegalFile || filePath.includes(path.sep + "legal" + path.sep)) {
           // Verified legal documents can still be opened publicly, but are not
           // immutable-cache objects because admins may revoke verification.
           res.setHeader("Cache-Control", "public, max-age=300");
