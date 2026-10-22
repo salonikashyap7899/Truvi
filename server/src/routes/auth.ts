@@ -704,48 +704,66 @@ router.post("/refresh", async (req, res) => {
   const token = req.cookies?.refreshToken;
   if (!token) return res.status(401).json({ error: "No refresh token" });
 
+  let userId: string;
   try {
-    const { userId } = verifyRefreshToken(token);
-    if (!isValidId(userId)) {
-      clearRefreshCookies(res);
-      return res.status(401).json({ error: "User not found" });
-    }
-    const user = await findUserById(userId);
-    if (!user) {
-      clearRefreshCookies(res);
-      return res.status(401).json({ error: "User not found" });
-    }
-
-    // A deactivated account must not keep minting access tokens from a still-
-    // valid refresh cookie (which lives 30 days). Login already blocks disabled
-    // accounts; mirror that here so an admin deactivating a user actually ends
-    // their session at the next token refresh.
-    if (user.disabled) {
-      clearRefreshCookies(res);
-      return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
-    }
-    // A rejected/pending account can't keep a live session either.
-    if (user.approvalStatus !== "APPROVED") {
-      clearRefreshCookies(res);
-      return res.status(403).json({ error: "This account is not approved. Contact Truvi support." });
-    }
-
-    const accessToken = signAccessToken({
-      userId: String(user._id),
-      role: user.role,
-      approvalStatus: user.approvalStatus,
-      onboardingVerified: user.onboardingVerified,
-      ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
-    });
-
-    // Sliding session: every successful visit extends the HttpOnly refresh
-    // cookie for another 30 days, provided the account remains authorized.
-    issueRefreshCookie(res, signRefreshToken({ userId: String(user._id) }));
-    return res.json({ accessToken });
+    ({ userId } = verifyRefreshToken(token));
   } catch {
+    // A genuinely invalid/expired credential can be cleared; an API/database
+    // failure must never be misreported as an invalid session.
     clearRefreshCookies(res);
     return res.status(401).json({ error: "Invalid or expired refresh token" });
   }
+
+  if (!isValidId(userId)) {
+    clearRefreshCookies(res);
+    return res.status(401).json({ error: "User not found" });
+  }
+
+  let user: IUser | null;
+  try {
+    user = await findUserById(userId);
+  } catch (error) {
+    // Keep the refresh cookie. Database/network incidents are temporary service
+    // failures, not a user logout. The client treats 503 as recoverable and can
+    // retry session restoration once the service is healthy.
+    console.error(
+      "[auth] Refresh session lookup temporarily failed:",
+      error instanceof Error ? error.message : "unknown error",
+    );
+    return res.status(503).json({ error: "Session service is temporarily unavailable. Please retry." });
+  }
+
+  if (!user) {
+    clearRefreshCookies(res);
+    return res.status(401).json({ error: "User not found" });
+  }
+
+  // A deactivated account must not keep minting access tokens from a still-
+  // valid refresh cookie (which lives 30 days). Login already blocks disabled
+  // accounts; mirror that here so an admin deactivating a user actually ends
+  // their session at the next token refresh.
+  if (user.disabled) {
+    clearRefreshCookies(res);
+    return res.status(403).json({ error: "This account has been deactivated. Contact Truvi support." });
+  }
+  // A rejected/pending account can't keep a live session either.
+  if (user.approvalStatus !== "APPROVED") {
+    clearRefreshCookies(res);
+    return res.status(403).json({ error: "This account is not approved. Contact Truvi support." });
+  }
+
+  const accessToken = signAccessToken({
+    userId: String(user._id),
+    role: user.role,
+    approvalStatus: user.approvalStatus,
+    onboardingVerified: user.onboardingVerified,
+    ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
+  });
+
+  // Sliding session: every successful visit extends the HttpOnly refresh
+  // cookie for another 30 days, provided the account remains authorized.
+  issueRefreshCookie(res, signRefreshToken({ userId: String(user._id) }));
+  return res.json({ accessToken });
 });
 
 router.post("/logout", (_req, res) => {
