@@ -22,6 +22,15 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "disabled" boolean NOT NULL DEFAULT false`,
     // Refresh-token invalidation after password reset; must exist before any users query.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "auth_version" integer NOT NULL DEFAULT 0`,
+    // Persistent OTP lockout counters survive PM2 restarts and are shared across API workers.
+    // Additive/idempotent: this stores only attempt metadata, not OTP values or user records.
+    `CREATE TABLE IF NOT EXISTS "otp_attempts" (
+       "identity_key" text PRIMARY KEY,
+       "failure_count" integer NOT NULL DEFAULT 0,
+       "window_started_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "otp_attempts_updated_idx" ON "otp_attempts" ("updated_at")`,
     // Personal profile: avatar image URL + short bio, editable from dashboard settings.
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bio" text`,
