@@ -40,7 +40,7 @@ describe("protected legal-file links", () => {
     const presented = new URL(presentLegalAssetUrl({
       _id: "asset-1",
       fileUrl: storedUrl,
-      category: "TITLE",
+      category: "APPROVAL_DOC",
       verified: false,
     }));
     const exp = presented.searchParams.get("exp");
