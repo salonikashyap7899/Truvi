@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
 import type { User } from "@/types";
 import UserMenu from "@/components/UserMenu";
-import { initializeAuthSession } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import PageBackLink from "@/components/PageBackLink";
@@ -171,7 +170,6 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
   const { pathname } = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const isInitialized = useAuthStore((s) => s.isInitialized);
-  const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
   const mountNav = useNavChrome((s) => s.mount);
   const unmountNav = useNavChrome((s) => s.unmount);
 
@@ -305,16 +303,8 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
                   />
                 ))}
 
-              {/* Auth section (mobile) */}
-              {!isInitialized ? (
-                <div className="border-b border-white/5 px-5 py-3.5 text-sm text-muted-foreground" role="status" aria-live="polite">
-                  {sessionRestoreFailed ? (
-                    <button type="button" onClick={() => void initializeAuthSession()} className="font-semibold text-sky-300">
-                      Retry session restoration
-                    </button>
-                  ) : "Restoring session…"}
-                </div>
-              ) : isAuthenticated && user ? (
+              {/* Auth section (mobile). Stay silent while session recovery runs. */}
+              {isInitialized && isAuthenticated && user ? (
                 <>
                   <Link
                     to={dashboardPath(user)}
@@ -335,7 +325,7 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
                     Logout ({user.name})
                   </button>
                 </>
-              ) : (
+              ) : isInitialized ? (
                 <Link
                   to="/login"
                   onClick={close}
@@ -343,7 +333,7 @@ export function SiteNav({ global = false, hideBack = false }: { global?: boolean
                 >
                   Sign in / Join
                 </Link>
-              )}
+              ) : null}
               <a
                 href={WA_URL}
                 target="_blank"
