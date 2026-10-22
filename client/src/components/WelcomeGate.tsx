@@ -28,8 +28,8 @@ const ROLES: { id: GateRole; label: string; tagline: string; icon: React.ReactNo
   },
   {
     id: "CP",
-    label: "Seller · Channel Partner",
-    tagline: "Sell property with verified inventory & leads.",
+    label: "Channel Partner",
+    tagline: "Connect buyers with verified properties and grow your real estate business.",
     icon: <Handshake size={18} />,
     accent: "from-emerald-500/25 to-emerald-900/10 border-emerald-400/30 hover:border-emerald-300/60",
   },
@@ -127,7 +127,7 @@ export default function WelcomeGate() {
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center">
                   <span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_32px_rgba(59,130,246,0.45)]">
-                    <img src="/brand/icon.png" alt="Truvi" className="h-full w-full object-contain" />
+                    <img src="/favicon-32.png" alt="Truvi" className="h-full w-full object-contain" />
                   </span>
                   <h1 className="mt-3 font-display text-xl font-medium leading-snug text-white md:text-[1.35rem]">
                     Know the property <span className="text-gradient-trust">before you buy it.</span>
