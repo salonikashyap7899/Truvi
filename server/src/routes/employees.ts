@@ -780,7 +780,7 @@ router.post("/leads/:id/calls", requireRole("EMPLOYEE"), async (req: AuthedReque
     if (!hasPermission(emp.permissions, "telecalling.use")) return res.status(403).json({ error: "Telecalling access is not enabled." });
     const db = getDb();
     const [lead] = await db.select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
-    if (!lead || !hasLeadScopePermission(emp.permissions, lead, req.user!.userId, "lead.call.own", "lead.call.assigned")) return res.status(404).json({ error: "Lead not found." });
+    if (!lead || !canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.call.own", "lead.call.assigned")) return res.status(404).json({ error: "Lead not found." });
     const d = parsed.data;
     const [activity] = await db.insert(leadActivities).values({
       leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "CALL",
@@ -804,7 +804,7 @@ router.get("/leads/:id/activities", async (req: AuthedRequest, res, next) => {
     if (!lead) return res.status(404).json({ error: "Lead not found." });
     if (req.user!.role === "EMPLOYEE") {
       const emp = await needEmployee(req, res); if (!emp) return;
-      if (!hasLeadScopePermission(emp.permissions, lead, req.user!.userId, "lead.read.own", "lead.read.assigned")) return res.status(404).json({ error: "Lead not found." });
+      if (!canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.read.own", "lead.read.assigned")) return res.status(404).json({ error: "Lead not found." });
     } else if (req.user!.role !== "ADMIN") return res.status(403).json({ error: "Insufficient permissions." });
     const [activities, followUps] = await Promise.all([
       getDb().select().from(leadActivities).where(eq(leadActivities.leadId, lead._id)).orderBy(desc(leadActivities.createdAt)),
@@ -823,7 +823,7 @@ router.post("/leads/:id/followups", async (req: AuthedRequest, res, next) => {
     if (!lead) return res.status(404).json({ error: "Lead not found." });
     if (req.user!.role === "EMPLOYEE") {
       const emp = await needEmployee(req, res); if (!emp) return;
-      if (!hasLeadScopePermission(emp.permissions, lead, req.user!.userId, "followup.create.own", "followup.create.assigned")) return res.status(404).json({ error: "Lead not found." });
+      if (!canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "followup.create.own", "followup.create.assigned")) return res.status(404).json({ error: "Lead not found." });
     } else if (req.user!.role !== "ADMIN") return res.status(403).json({ error: "Insufficient permissions." });
     const dueAt = parseDate(parsed.data.dueAt);
     if (!dueAt) return res.status(400).json({ error: "Enter a valid follow-up date." });
@@ -861,7 +861,7 @@ router.post("/site-visits", requireRole("EMPLOYEE"), async (req: AuthedRequest, 
     const emp = await needEmployee(req, res); if (!emp) return;
     if (!hasPermission(emp.permissions, "sitevisit.create")) return res.status(403).json({ error: "Site visit scheduling is not enabled." });
     const [lead] = await db.select().from(leads).where(and(eq(leads._id, parsed.data.leadId), or(eq(leads.submittedById, req.user!.userId), eq(leads.assignedToId, req.user!.userId))!)).limit(1);
-    if (!lead || !hasLeadScopePermission(emp.permissions, lead, req.user!.userId, "lead.read.own", "lead.read.assigned")) return res.status(404).json({ error: "Lead not found." });
+    if (!lead || !canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.read.own", "lead.read.assigned")) return res.status(404).json({ error: "Lead not found." });
     const scheduledAt = parseDate(parsed.data.scheduledAt);
     if (!scheduledAt || scheduledAt < new Date()) return res.status(400).json({ error: "Choose a future site-visit date and time." });
     const [visit] = await db.insert(siteVisits).values({
