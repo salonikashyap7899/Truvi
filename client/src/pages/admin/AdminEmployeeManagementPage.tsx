@@ -237,6 +237,11 @@ export default function AdminEmployeeManagementPage() {
     ? Math.min(100, Math.round((attendanceMarked / summary.activeEmployees) * 100))
     : 0;
   const pendingLeaveCount = leaveRequests.filter((request) => request.status === "PENDING").length;
+  const employeeActivity = useMemo(() => auditLogs
+    .filter((row) => row.action.toLowerCase().startsWith("employee.") || row.resourceType?.toLowerCase().startsWith("employee"))
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 8), [auditLogs]);
 
   function startEdit(e: Employee) {
     setEditing(e); setShowForm(true);
@@ -505,6 +510,31 @@ export default function AdminEmployeeManagementPage() {
               </div>
             </Panel>
 
+            <Panel title="Live employee activity" sub="Recent check-ins, task updates, lead activity and profile changes." action={<button type="button" onClick={() => setTab("activity")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">View audit log</button>}>
+              <div className="truvi-admin-employee-activity">
+                {employeeActivity.map((row) => {
+                  const action = row.action.replace(/^employee\./i, "").replace(/[._]/g, " ");
+                  const isAttendance = row.action.toLowerCase().includes("attendance");
+                  const isSecurity = row.action.toLowerCase().includes("password") || row.action.toLowerCase().includes("contact");
+                  return <div key={row._id} className="truvi-admin-employee-activity__row">
+                    <span className={"truvi-admin-employee-activity__icon " + (isSecurity ? "is-security" : isAttendance ? "is-attendance" : "is-general")}>
+                      {isSecurity ? <ShieldCheck size={15} aria-hidden="true"/> : isAttendance ? <CalendarCheck size={15} aria-hidden="true"/> : <Users size={15} aria-hidden="true"/>}
+                    </span>
+                    <span className="truvi-admin-employee-activity__copy">
+                      <strong>{action.charAt(0).toUpperCase() + action.slice(1)}</strong>
+                      <small>{row.actorName || row.actorEmail || "Employee account"}{row.resourceType ? " · " + row.resourceType.replaceAll("_", " ") : ""}</small>
+                    </span>
+                    <time>{dt(row.createdAt)}</time>
+                  </div>;
+                })}
+                {employeeActivity.length === 0 && <div className="truvi-dashboard-empty truvi-dashboard-empty--compact">
+                  <span><Clock3 size={20} aria-hidden="true"/></span>
+                  <strong>No employee activity yet</strong>
+                  <p>Check-ins, task updates, lead activity and profile changes will appear here automatically.</p>
+                </div>}
+              </div>
+            </Panel>
+
             <Panel title="Employees list" sub="A quick view of the latest employee profiles" action={<button onClick={() => { setQuery(""); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">See all employees</button>}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[540px] text-left text-sm">
@@ -516,13 +546,13 @@ export default function AdminEmployeeManagementPage() {
                       <tr key={employee.id} className="border-t border-white/10 align-middle transition hover:bg-white/[0.02]">
                         <td className="py-3 pr-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <div className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{employee.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                            <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{employee.avatarUrl ? <img src={employee.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{employee.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div>
                             <div className="min-w-0"><p className="truncate font-medium">{employee.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{employee.employeeCode || employee.officialEmail || "No employee ID"}</p></div>
                           </div>
                         </td>
                         <td className="py-3 pr-3"><p className="font-medium">{employee.department || "Unassigned"}</p><p className="mt-0.5 text-xs text-muted-foreground">{employee.designation || "No designation"}</p></td>
                         <td className="py-3 pr-3"><Status value={employee.status} /></td>
-                        <td className="py-3 text-right"><button onClick={() => { setQuery(employee.name); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition hover:border-primary/30 hover:text-primary">View</button></td>
+                        <td className="py-3 text-right"><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => void openEmployeeProfile(employee)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary transition hover:bg-primary/10">Full profile</button><button type="button" onClick={() => { setQuery(employee.name); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition hover:border-primary/30 hover:text-primary">Directory</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -609,7 +639,7 @@ export default function AdminEmployeeManagementPage() {
 
       {tab === "employees" && <Panel title="Employee directory" sub="Search by name, email, employee ID, department or phone" action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}>
         <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]"><input aria-label="Search employees" className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" placeholder="Search employees…" value={query} onChange={(e) => setQuery(e.target.value)}/><select className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><div className="flex min-w-0 items-start gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{e.avatarUrl ? <img src={e.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{e.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div><div className="min-w-0"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></div></div></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void openEmployeeProfile(e)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary">Full profile</button><button type="button" onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
       </Panel>}
 
       {tab === "tasks" && <div className="space-y-4">
