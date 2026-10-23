@@ -1379,6 +1379,161 @@ router.get("/performance", requireRole("ADMIN"), async (req: AuthedRequest, res,
   } catch (err) { next(err); }
 });
 
+// -------------------------------------------------------------------- Leave requests
+router.get("/leave-requests", async (req: AuthedRequest, res, next) => {
+  try {
+    const db = getDb();
+    if (req.user!.role === "ADMIN") {
+      const status = typeof req.query.status === "string" ? req.query.status : "";
+      const rows = await db.select({
+        request: employeeLeaveRequests, employeeName: employees.name,
+        employeeCode: employees.employeeCode, department: employees.department,
+      }).from(employeeLeaveRequests)
+        .innerJoin(employees, eq(employeeLeaveRequests.employeeId, employees._id))
+        .where(status ? eq(employeeLeaveRequests.status, status as typeof employeeLeaveRequests.$inferSelect.status) : undefined)
+        .orderBy(desc(employeeLeaveRequests.createdAt)).limit(500);
+      return res.json({ leaveRequests: rows.map((row) => ({
+        ...row.request, employeeName: row.employeeName,
+        employeeCode: row.employeeCode, department: row.department,
+      })) });
+    }
+    if (req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
+    const emp = await needEmployee(req, res); if (!emp) return;
+    if (!hasPermission(emp.permissions, "leave.read.own")) return res.status(403).json({ error: "Leave-request access is not enabled." });
+    const rows = await db.select().from(employeeLeaveRequests)
+      .where(eq(employeeLeaveRequests.employeeId, emp._id))
+      .orderBy(desc(employeeLeaveRequests.createdAt)).limit(200);
+    return res.json({ leaveRequests: rows });
+  } catch (err) { next(err); }
+});
+
+router.post("/leave-requests", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+  try {
+    const emp = await needEmployee(req, res); if (!emp) return;
+    if (!hasPermission(emp.permissions, "leave.request.own")) return res.status(403).json({ error: "Leave requests are not enabled for this account." });
+    const parsed = leaveCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Enter the leave type, dates, and reason.", issues: parsed.error.flatten() });
+    const d = parsed.data;
+    if (d.endDate < d.startDate) return res.status(400).json({ error: "End date cannot be before the start date." });
+    if (d.startDate < dateInIndia()) return res.status(400).json({ error: "Leave requests must start today or in the future. Ask Admin for retrospective corrections." });
+    const totalDays = daysInclusive(d.startDate, d.endDate);
+    if (totalDays < 1 || totalDays > 90) return res.status(400).json({ error: "A leave request must be between 1 and 90 calendar days." });
+    const db = getDb();
+    const existing = await db.select().from(employeeLeaveRequests)
+      .where(and(eq(employeeLeaveRequests.employeeId, emp._id), inArray(employeeLeaveRequests.status, ["PENDING", "APPROVED"])));
+    if (existing.some((row) => d.startDate <= row.endDate && d.endDate >= row.startDate)) {
+      return res.status(409).json({ error: "These dates overlap an existing pending or approved leave request." });
+    }
+    const [request] = await db.insert(employeeLeaveRequests).values({
+      employeeId: emp._id, requestedByUserId: req.user!.userId,
+      leaveType: d.leaveType, startDate: d.startDate, endDate: d.endDate,
+      totalDays, reason: d.reason, status: "PENDING",
+    }).returning();
+    const admins = await db.select({ id: users._id }).from(users)
+      .where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+    await createNotifications(admins.map((row) => String(row.id)), {
+      type: "employee_leave_requested", title: "Employee leave request",
+      message: emp.name + " requested " + totalDays + " day(s) of leave (" + d.startDate + " to " + d.endDate + ").",
+      actorUserId: req.user!.userId, data: { href: "/admin/employees?tab=leave" },
+      dedupeKey: "employee-leave-request:" + String(request._id),
+    }).catch(() => []);
+    await logAudit({
+      userId: req.user!.userId, action: "employee.leave.request",
+      resourceType: "employee_leave_request", resourceId: String(request._id),
+      metadata: { employeeId: String(emp._id), leaveType: d.leaveType, startDate: d.startDate, endDate: d.endDate, totalDays },
+    });
+    return res.status(201).json({ leaveRequest: request });
+  } catch (err) { next(err); }
+});
+
+router.patch("/leave-requests/:id", async (req: AuthedRequest, res, next) => {
+  try {
+    const requestId = String(req.params.id);
+    if (!isValidId(requestId)) return res.status(404).json({ error: "Leave request not found." });
+    const parsed = leaveReviewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Choose a valid leave decision." });
+    const db = getDb();
+    const [before] = await db.select().from(employeeLeaveRequests).where(eq(employeeLeaveRequests._id, requestId)).limit(1);
+    if (!before) return res.status(404).json({ error: "Leave request not found." });
+    const admin = req.user!.role === "ADMIN";
+    if (!admin) {
+      if (req.user!.role !== "EMPLOYEE" || String(before.requestedByUserId) !== req.user!.userId) {
+        return res.status(404).json({ error: "Leave request not found." });
+      }
+      const emp = await needEmployee(req, res); if (!emp) return;
+      if (!hasPermission(emp.permissions, "leave.request.own") || before.status !== "PENDING" || parsed.data.status !== "CANCELLED") {
+        return res.status(403).json({ error: "You can only cancel your own pending leave request." });
+      }
+    } else if (before.status !== "PENDING" || parsed.data.status === "CANCELLED") {
+      return res.status(409).json({ error: "Only pending requests can be approved or rejected by Admin." });
+    }
+    const [employee] = await db.select().from(employees).where(eq(employees._id, before.employeeId)).limit(1);
+    if (!employee) return res.status(404).json({ error: "Employee not found." });
+
+    if (admin && parsed.data.status === "APPROVED") {
+      const dayAfterEnd = new Date(before.endDate + "T00:00:00.000Z");
+      dayAfterEnd.setUTCDate(dayAfterEnd.getUTCDate() + 1);
+      const existingAttendance = await db.select().from(employeeAttendance)
+        .where(and(
+          eq(employeeAttendance.employeeId, before.employeeId),
+          gte(employeeAttendance.attendanceDate, before.startDate),
+          lt(employeeAttendance.attendanceDate, dayAfterEnd.toISOString().slice(0, 10)),
+        ));
+      if (existingAttendance.some((row) => row.checkInAt || row.status === "PRESENT" || row.status === "HALF_DAY")) {
+        return res.status(409).json({ error: "Attendance already records work on one or more requested days. Resolve that conflict before approving leave." });
+      }
+    }
+
+    const [updated] = await db.transaction(async (tx) => {
+      const [row] = await tx.update(employeeLeaveRequests).set({
+        status: parsed.data.status, reviewNotes: parsed.data.reviewNotes || null,
+        reviewedByUserId: admin ? req.user!.userId : null,
+        reviewedAt: admin ? new Date() : null, updatedAt: new Date(),
+      }).where(and(eq(employeeLeaveRequests._id, before._id), eq(employeeLeaveRequests.status, "PENDING"))).returning();
+      if (!row) throw new Error("This leave request was already reviewed. Refresh and try again.");
+
+      if (admin && parsed.data.status === "APPROVED") {
+        const start = new Date(before.startDate + "T00:00:00.000Z");
+        const end = new Date(before.endDate + "T00:00:00.000Z");
+        for (const day = new Date(start); day <= end; day.setUTCDate(day.getUTCDate() + 1)) {
+          const dateKey = day.toISOString().slice(0, 10);
+          const [existing] = await tx.select().from(employeeAttendance).where(and(
+            eq(employeeAttendance.employeeId, before.employeeId),
+            eq(employeeAttendance.attendanceDate, dateKey),
+          )).limit(1);
+          if (existing?.status === "HOLIDAY") continue;
+          if (existing) {
+            await tx.update(employeeAttendance).set({
+              status: "ON_LEAVE", notes: "Approved leave request " + String(before._id), updatedAt: new Date(),
+            }).where(eq(employeeAttendance._id, existing._id));
+          } else {
+            await tx.insert(employeeAttendance).values({
+              employeeId: before.employeeId, attendanceDate: dateKey, status: "ON_LEAVE",
+              notes: "Approved leave request " + String(before._id), correctedByUserId: req.user!.userId,
+            });
+          }
+        }
+      }
+      return [row];
+    });
+
+    if (employee.accountUserId) {
+      await notifyUser(
+        String(employee.accountUserId), "employee_leave_decision",
+        "Leave request " + updated.status.toLowerCase(),
+        "Your leave request for " + updated.startDate + " to " + updated.endDate + " was " + updated.status.toLowerCase() + (updated.reviewNotes ? ". " + updated.reviewNotes : "."),
+        req.user!.userId, "/employee/dashboard?tab=leave",
+      );
+    }
+    await logAudit({
+      userId: req.user!.userId, action: "employee.leave." + updated.status.toLowerCase(),
+      resourceType: "employee_leave_request", resourceId: requestId,
+      metadata: { employeeId: String(employee._id), startDate: updated.startDate, endDate: updated.endDate, reviewNotes: updated.reviewNotes },
+    });
+    return res.json({ leaveRequest: updated });
+  } catch (err) { next(err); }
+});
+
 // ------------------------------------------------------------------ Salaries
 router.get("/salaries", async (req: AuthedRequest, res, next) => {
   try {
