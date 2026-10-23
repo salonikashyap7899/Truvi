@@ -22,7 +22,7 @@ type Summary = {
   employeeAccounts: number; activeAccounts: number; pendingInvitations: number; tasksAssignedToday: number;
   tasksCompletedToday: number; pendingTasks: number; overdueTasks: number; totalLeadsSubmitted: number;
   assignedLeads: number; hotLeads: number; warmLeads: number; coldLeads: number; upcomingSiteVisits: number;
-  callsCompletedToday: number; attendanceSummary: { present: number; absent: number; halfDay: number; onLeave: number; notMarked: number };
+  callsLoggedToday: number; attendanceSummary: { present: number; absent: number; halfDay: number; onLeave: number; notMarked: number };
   byDepartment: { department: string; count: number }[]; byRecruitmentSource: { source: string; count: number }[];
 };
 
@@ -45,8 +45,8 @@ function Kpi({ label, value, sub }: { label: string; value: string | number; sub
 function Panel({ title, sub, children, action }: { title: string; sub?: string; children: ReactNode; action?: ReactNode }) {
   return <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">{title}</h2>{sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}</div>{action}</div>{children}</section>;
 }
-function Field({ label, value, onChange, type = "text", required = false, placeholder = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string }) {
-  return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary" type={type} required={required} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /></label>;
+function Field({ label, value, onChange, type = "text", required = false, placeholder = "", disabled = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string; disabled?: boolean }) {
+  return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input disabled={disabled} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary disabled:opacity-60" type={type} required={required} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /></label>;
 }
 function SelectField({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; required?: boolean }) {
   return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
@@ -106,7 +106,7 @@ export default function AdminEmployeeManagementPage() {
       name: e.name, employeeCode: e.employeeCode ?? "", officialEmail: e.officialEmail, phone: e.phone ?? "",
       department: e.department, designation: e.designation ?? "", employmentType: e.employmentType || "FULL_TIME",
       reportingManagerId: e.reportingManagerId ?? "", joiningDate: e.joiningDate?.slice(0, 10) ?? "",
-      recruitmentSource: e.recruitmentSource || "Other", recruitmentCampaign: e.recruitmentCampaign ?? "",
+      recruitmentSource: e.recruitmentSource || "Other", recruitmentCampaign: e.recruitmentCampaign ?? "", permissions: (e.permissions ?? []).join(", "),
       applicationDate: e.applicationDate?.slice(0, 10) ?? "", interviewDate: e.interviewDate?.slice(0, 10) ?? "",
       status: e.status, monthlySalary: String(e.monthlySalary ?? 0), salaryDueDay: String(e.salaryDueDay ?? 1), notes: e.notes ?? "",
     });
@@ -115,6 +115,7 @@ export default function AdminEmployeeManagementPage() {
     e.preventDefault(); setBusy(true);
     const payload = {
       ...employeeForm, monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
+      permissions: employeeForm.permissions.trim() ? employeeForm.permissions.split(",").map((p) => p.trim()).filter(Boolean) : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
       interviewDate: employeeForm.interviewDate || null,
@@ -132,6 +133,16 @@ export default function AdminEmployeeManagementPage() {
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Could not save employee.");
     } finally { setBusy(false); }
+  }
+  async function createAccount(emp: Employee) {
+    const officialEmail = window.prompt("Official email for " + emp.name + ":", emp.officialEmail || "");
+    if (!officialEmail?.trim()) return;
+    const phone = window.prompt("Employee phone number (optional):", emp.phone || "") ?? "";
+    try {
+      const r = await api.post("/employees/" + emp.id + "/account", { officialEmail: officialEmail.trim(), phone: phone.trim(), employeeCode: emp.employeeCode || undefined });
+      toast[r.data?.inviteDelivered ? "success" : "warning"](r.data?.inviteMessage || "Employee login created.");
+      await reload();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not create employee login."); }
   }
   async function resendInvite(emp: Employee) {
     try { const r = await api.post(`/employees/${emp.id}/invite`); toast[r.data?.delivered ? "success" : "warning"](r.data?.message || "Invitation request completed."); await reload(); }
@@ -201,7 +212,7 @@ export default function AdminEmployeeManagementPage() {
           <Kpi label="Tasks completed today" value={summary.tasksCompletedToday} />
           <Kpi label="Pending / overdue" value={`${summary.pendingTasks} / ${summary.overdueTasks}`} />
           <Kpi label="Leads submitted" value={summary.totalLeadsSubmitted} sub={`${summary.assignedLeads} assigned`} />
-          <Kpi label="Calls logged today" value={summary.callsCompletedToday} />
+          <Kpi label="Calls logged today" value={summary.callsLoggedToday} />
           <Kpi label="Upcoming site visits" value={summary.upcomingSiteVisits} />
           <Kpi label="Attendance marked" value={summary.attendanceSummary.present + summary.attendanceSummary.absent + summary.attendanceSummary.halfDay + summary.attendanceSummary.onLeave} sub={`${summary.attendanceSummary.notMarked} active staff not yet marked`} />
         </div>
@@ -221,7 +232,7 @@ export default function AdminEmployeeManagementPage() {
         <form onSubmit={saveEmployee} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Field label="Full name" value={employeeForm.name} onChange={(v) => setEmployeeForm((s) => ({ ...s, name: v }))} required/>
           <Field label="Employee ID (auto-generated if empty)" value={employeeForm.employeeCode} onChange={(v) => setEmployeeForm((s) => ({ ...s, employeeCode: v }))}/>
-          <Field label="Official email" type="email" value={employeeForm.officialEmail} onChange={(v) => setEmployeeForm((s) => ({ ...s, officialEmail: v }))} required/>
+          <Field label="Official email" type="email" value={employeeForm.officialEmail} onChange={(v) => setEmployeeForm((s) => ({ ...s, officialEmail: v }))} required disabled={!!editing}/>
           <Field label="Phone number" value={employeeForm.phone} onChange={(v) => setEmployeeForm((s) => ({ ...s, phone: v }))} required={!editing}/>
           <Field label="Department" value={employeeForm.department} onChange={(v) => setEmployeeForm((s) => ({ ...s, department: v }))} required/>
           <Field label="Designation" value={employeeForm.designation} onChange={(v) => setEmployeeForm((s) => ({ ...s, designation: v }))}/>
@@ -232,17 +243,18 @@ export default function AdminEmployeeManagementPage() {
           <Field label="Recruitment campaign" value={employeeForm.recruitmentCampaign} onChange={(v) => setEmployeeForm((s) => ({ ...s, recruitmentCampaign: v }))}/>
           <Field label="Application date" type="date" value={employeeForm.applicationDate} onChange={(v) => setEmployeeForm((s) => ({ ...s, applicationDate: v }))}/>
           <Field label="Interview date" type="date" value={employeeForm.interviewDate} onChange={(v) => setEmployeeForm((s) => ({ ...s, interviewDate: v }))}/>
-          <SelectField label="Employment status" value={employeeForm.status} onChange={(v) => setEmployeeForm((s) => ({ ...s, status: v }))} options={[{value:"ACTIVE",label:"Active"},{value:"ON_LEAVE",label:"On leave"},{value:"INACTIVE",label:"Inactive"}]}/>
+          <SelectField label="Employment status" value={employeeForm.status} onChange={(v) => setEmployeeForm((s) => ({ ...s, status: v }))} options={editing ? [{value:"ACTIVE",label:"Active"},{value:"ON_LEAVE",label:"On leave"},{value:"INACTIVE",label:"Inactive"}] : [{value:"ACTIVE",label:"Active"},{value:"ON_LEAVE",label:"On leave"}]}/>
           <Field label="Monthly gross salary (₹)" type="number" value={employeeForm.monthlySalary} onChange={(v) => setEmployeeForm((s) => ({ ...s, monthlySalary: v }))}/>
           <Field label="Salary due day (1–28)" type="number" value={employeeForm.salaryDueDay} onChange={(v) => setEmployeeForm((s) => ({ ...s, salaryDueDay: v }))}/>
           <label className="block space-y-1.5 text-sm sm:col-span-2 xl:col-span-3"><span className="text-muted-foreground">Admin notes</span><textarea className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5" rows={2} value={employeeForm.notes} onChange={(e) => setEmployeeForm((s) => ({ ...s, notes: e.target.value }))}/></label>
+          <div className="sm:col-span-2 xl:col-span-3"><Field label="Assigned permissions (comma-separated permission keys; blank uses defaults on creation)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/></div>
           <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><button disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Create employee & send invitation"}</button><button type="button" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button></div>
         </form>
       </Panel>}
 
       {tab === "employees" && <Panel title="Employee directory" sub="Search by name, email, employee ID, department or phone" action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}>
         <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]"><input aria-label="Search employees" className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" placeholder="Search employees…" value={query} onChange={(e) => setQuery(e.target.value)}/><select className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button>}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
       </Panel>}
 
       {tab === "tasks" && <div className="space-y-4">
