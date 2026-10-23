@@ -11,6 +11,7 @@ import { and, eq, inArray, lte } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { leadFollowUps, leads, users, projects, subscriptions, employees, employeeTasks, employeeTaskAssignments } from "../db/schema";
 import { notifyUser } from "./notificationService";
+import { shouldSendTaskDeadlineReminder } from "../lib/employeeTaskRules";
 import { sendWhatsAppCampaign } from "./whatsappService";
 
 /** Remind CPs about follow-ups due within the next 2 hours (or overdue). */
@@ -63,7 +64,7 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
 
   const tasks = (await db.select().from(employeeTasks)
     .where(lte(employeeTasks.deadlineAt, nextDay)))
-    .filter((task) => !!task.deadlineAt && !["COMPLETED", "CANCELLED"].includes(task.status));
+    .filter((task) => !!task.deadlineAt && shouldSendTaskDeadlineReminder(task.status));
 
   let sent = 0;
   for (const task of tasks) {
@@ -81,7 +82,7 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
     });
     for (const target of targets) {
       const ownAssignment = assignments.find((row) => String(row.employeeId) === String(target.employeeId));
-      if (ownAssignment && ["COMPLETED", "CANCELLED"].includes(ownAssignment.status)) continue;
+      if (!shouldSendTaskDeadlineReminder(task.status, ownAssignment?.status)) continue;
       if (!target.accountUserId || target.disabled || !target.name) continue;
       const created = await notifyUser(String(target.accountUserId), {
         type: "employee_task_reminder",
