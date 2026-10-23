@@ -219,7 +219,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = normalizedPath === "/employee/dashboard" || normalizedPath === "/about";
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
@@ -328,7 +328,7 @@ export default function App() {
         <Route path="/welcome" element={<WelcomeRoute />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
         <Route path="/ask-truvi" element={<AskTruviPage />} />
-        <Route path="/help/meet" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MeetPage /></ProtectedRoute>} />
+        <Route path="/help/meet" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "EMPLOYEE"]}><MeetPage /></ProtectedRoute>} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
         <Route path="/join" element={<JoinPage />} />
