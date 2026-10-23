@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, RefreshCw, Users } from "lucide-react";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
@@ -39,6 +40,11 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "tasks", label: "Tasks" }, { id: "leads", label: "Lead management" },
   { id: "visits", label: "Site visits" }, { id: "attendance", label: "Attendance" }, { id: "leave", label: "Leave requests" }, { id: "salary", label: "Salary & payroll" }, { id: "reports", label: "Performance reports" }, { id: "activity", label: "Activity logs" },
 ];
+const tabIcons = {
+  overview: LayoutDashboard, employees: Users, tasks: ListChecks, leads: Users,
+  visits: CalendarClock, attendance: CalendarCheck, leave: CalendarDays,
+  salary: Banknote, reports: BarChart3, activity: History,
+} as const;
 const money = (n?: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const date = (raw?: string | null) => raw ? new Date(raw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const dt = (raw?: string | null) => raw ? new Date(raw).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -109,6 +115,7 @@ export default function AdminEmployeeManagementPage() {
   const [perfTo, setPerfTo] = useState("");
   const [perfDepartment, setPerfDepartment] = useState("ALL");
   const [loading, setLoading] = useState(true);
+  const [loadIssues, setLoadIssues] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
@@ -123,18 +130,39 @@ export default function AdminEmployeeManagementPage() {
 
   async function reload() {
     setLoading(true);
-    try {
-      const [ov, em, ta, le, vi, at, sa, pe, au, lr] = await Promise.all([
-        api.get("/employees/overview"), api.get("/employees"), api.get("/employees/tasks"),
-        api.get("/employees/leads"), api.get("/employees/site-visits"), api.get("/employees/attendance"), api.get("/employees/salaries"),
-        api.get("/employees/performance"), api.get("/employees/audit-logs?limit=100"), api.get("/employees/leave-requests"),
-      ]);
-      setSummary(ov.data); setEmployees(em.data.employees ?? []); setTasks(ta.data.tasks ?? []);
-      setLeads(le.data.leads ?? []); setVisits(vi.data.siteVisits ?? []); setAttendance(at.data.attendance ?? []); setSalaries(sa.data.salaries ?? []);
-      setPerformance(pe.data.metrics ?? []); setAuditLogs(au.data.auditLogs ?? []); setLeaveRequests(lr.data.leaveRequests ?? []);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Unable to load Employee Management.");
-    } finally { setLoading(false); }
+    setLoadIssues([]);
+    const requests = await Promise.allSettled([
+      api.get("/employees/overview"), api.get("/employees"), api.get("/employees/tasks"),
+      api.get("/employees/leads"), api.get("/employees/site-visits"), api.get("/employees/attendance"), api.get("/employees/salaries"),
+      api.get("/employees/performance"), api.get("/employees/audit-logs?limit=100"), api.get("/employees/leave-requests"),
+    ]);
+    const failures: string[] = [];
+    const apply = (index: number, label: string, consume: (data: any) => void) => {
+      const result = requests[index];
+      if (result.status === "fulfilled") {
+        consume(result.value.data);
+        return;
+      }
+      const status = result.reason?.response?.status;
+      failures.push(status ? `${label} (HTTP ${status})` : label);
+    };
+    apply(0, "Overview", (data) => setSummary(data));
+    apply(1, "Employee directory", (data) => setEmployees(data.employees ?? []));
+    apply(2, "Tasks", (data) => setTasks(data.tasks ?? []));
+    apply(3, "Lead management", (data) => setLeads(data.leads ?? []));
+    apply(4, "Site visits", (data) => setVisits(data.siteVisits ?? []));
+    apply(5, "Attendance", (data) => setAttendance(data.attendance ?? []));
+    apply(6, "Salary and payroll", (data) => setSalaries(data.salaries ?? []));
+    apply(7, "Performance reports", (data) => setPerformance(data.metrics ?? []));
+    apply(8, "Audit logs", (data) => setAuditLogs(data.auditLogs ?? []));
+    apply(9, "Leave requests", (data) => setLeaveRequests(data.leaveRequests ?? []));
+    setLoadIssues(failures);
+    if (failures.length === requests.length) {
+      toast.error("Employee Management could not load any sections. Check your admin session and server deployment.");
+    } else if (failures.length) {
+      toast.warning(`${failures.length} Employee Management section(s) could not load. Other sections remain available.`);
+    }
+    setLoading(false);
   }
   useEffect(() => { void reload(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabs.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
@@ -356,17 +384,18 @@ export default function AdminEmployeeManagementPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 p-4 text-foreground sm:p-6 lg:p-8">
+    <div className="truvi-erm truvi-erm-admin mx-auto max-w-[1600px] space-y-6 p-4 text-foreground sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Operations</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Employee Management</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Employee accounts, work allocation, central buyer leads, attendance and controlled payroll records.</p></div>
-        <div className="flex flex-wrap gap-2"><Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Activity &amp; audit logs</Link><button onClick={() => { setEditing(null); setEmployeeForm({ ...emptyEmployee }); setShowForm((v) => !v); }} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{showForm ? "Close form" : "+ Add employee"}</button></div>
+        <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/> Refresh data</button><Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Activity &amp; audit logs</Link><button onClick={() => { setEditing(null); setEmployeeForm({ ...emptyEmployee }); setShowForm((v) => !v); }} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{showForm ? "Close form" : "+ Add employee"}</button></div>
       </header>
 
-      <div className="flex gap-2 overflow-x-auto border-b border-white/10 pb-2">
-        {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}>{t.label}</button>)}
-      </div>
+      <nav aria-label="Employee management sections" className="truvi-erm-tabs flex gap-2 overflow-x-auto border-b border-white/10 pb-2">
+        {tabs.map((t) => { const Icon = tabIcons[t.id]; return <button key={t.id} type="button" aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}><Icon size={16} aria-hidden="true"/><span>{t.label}</span></button>; })}
+      </nav>
 
-      {loading && <div className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading live company records…</div>}
+      {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading live company records…</div>}
+      {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some sections need attention</p><p className="mt-1">The rest of Employee Management remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void reload()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Retry data</button></div>}
 
       {tab === "overview" && summary && <>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
