@@ -442,6 +442,3 @@ export default function EmployeeDashboardPage() {
     </main>
   );
 }
-    </main>
-  );
-}
