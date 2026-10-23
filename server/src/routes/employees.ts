@@ -351,7 +351,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
         phone: data.phone || null, emailVerified: false, phoneVerified: false,
       }).returning({ id: users._id });
       const [employee] = await tx.insert(employees).values({
-        accountUserId: account._id, employeeCode: code, officialEmail: data.officialEmail,
+        accountUserId: account.id, employeeCode: code, officialEmail: data.officialEmail,
         phone: data.phone || null, name: data.name, title: data.designation || null,
         department: data.department, employmentType: data.employmentType,
         reportingManagerId: data.reportingManagerId || null,
@@ -363,7 +363,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
         salaryStartDate: parseDate(data.joiningDate), notes: data.notes || null,
         permissions: data.permissions || [...DEFAULT_EMPLOYEE_PERMISSIONS],
       }).returning();
-      return { accountId: String(account._id), employee };
+      return { accountId: String(account.id), employee };
     });
     const invite = await issueInvite(String(created.employee._id), req.user!.userId).catch(() => ({ delivered: false, expiresAt: null }));
     await logAudit({ userId: req.user!.userId, action: "employee.create", resourceType: "employee", resourceId: String(created.employee._id), metadata: { name: data.name, employeeCode: code, department: data.department, inviteDelivered: invite.delivered } });
@@ -380,7 +380,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
 
 router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Employee not found." });
     const parsed = z.object({
       officialEmail: z.email().transform((v) => v.trim().toLowerCase()),
       phone: z.string().trim().max(30).optional().default(""),
@@ -388,7 +388,7 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Enter a valid official email and employee details." });
     const db = getDb();
-    const [employee] = await db.select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
+    const [employee] = await db.select().from(employees).where(eq(employees._id, String(req.params.id))).limit(1);
     if (!employee) return res.status(404).json({ error: "Employee not found." });
     if (employee.accountUserId) return res.status(409).json({ error: "This employee already has a linked account." });
     if (employee.status === "INACTIVE") return res.status(409).json({ error: "Reactivate the employee profile before creating an account." });
@@ -405,7 +405,7 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
         emailVerified: false, phoneVerified: false,
       }).returning({ id: users._id });
       const [updated] = await tx.update(employees).set({
-        accountUserId: account._id, employeeCode: code, officialEmail: parsed.data.officialEmail,
+        accountUserId: account.id, employeeCode: code, officialEmail: parsed.data.officialEmail,
         phone, permissions: employee.permissions?.length ? employee.permissions : [...DEFAULT_EMPLOYEE_PERMISSIONS],
       }).where(and(eq(employees._id, employee._id), isNull(employees.accountUserId))).returning();
       if (!updated) throw new Error("The employee profile was linked concurrently. Refresh and try again.");
@@ -423,8 +423,8 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
 
 router.post("/:id/invite", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
-    const emp = await getDb().select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Employee not found." });
+    const emp = await getDb().select().from(employees).where(eq(employees._id, String(req.params.id))).limit(1);
     if (!emp[0]?.accountUserId || emp[0].status === "INACTIVE") return res.status(400).json({ error: "Only employees with a linked, non-inactive account can be invited." });
     const [account] = await getDb().select({ disabled: users.disabled, emailVerified: users.emailVerified }).from(users).where(eq(users._id, emp[0].accountUserId)).limit(1);
     if (!account || !account.disabled || account.emailVerified) return res.status(409).json({ error: "This account has already completed email activation. Use the password-reset flow for access recovery." });
@@ -436,11 +436,11 @@ router.post("/:id/invite", requireRole("ADMIN"), async (req: AuthedRequest, res,
 
 router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Employee not found." });
     const parsed = employeePatchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Check employee fields.", issues: parsed.error.flatten() });
     const db = getDb();
-    const [before] = await db.select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
+    const [before] = await db.select().from(employees).where(eq(employees._id, String(req.params.id))).limit(1);
     if (!before) return res.status(404).json({ error: "Employee not found." });
     const d = parsed.data;
     if (d.officialEmail && d.officialEmail !== before.officialEmail && before.accountUserId) {
@@ -473,7 +473,7 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
     if (d.salaryDueDay !== undefined) patch.salaryDueDay = d.salaryDueDay;
     if (d.notes !== undefined) patch.notes = d.notes || null;
     if (d.permissions !== undefined) patch.permissions = d.permissions;
-    const [updated] = await db.update(employees).set(patch).where(eq(employees._id, req.params.id)).returning();
+    const [updated] = await db.update(employees).set(patch).where(eq(employees._id, String(req.params.id))).returning();
     if (before.accountUserId) {
       const userPatch: Partial<typeof users.$inferInsert> = {};
       if (d.name !== undefined) userPatch.name = d.name;
@@ -491,12 +491,12 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
       if (Object.keys(userPatch).length) await db.update(users).set(userPatch).where(eq(users._id, before.accountUserId));
     }
     if (d.monthlySalary !== undefined && d.monthlySalary !== before.monthlyCtc) {
-      await logAudit({ userId: req.user!.userId, action: "employee.salary.structure.update", resourceType: "employee", resourceId: req.params.id, metadata: { from: before.monthlyCtc, to: d.monthlySalary, reason: "Employee profile update" } });
+      await logAudit({ userId: req.user!.userId, action: "employee.salary.structure.update", resourceType: "employee", resourceId: String(req.params.id), metadata: { from: before.monthlyCtc, to: d.monthlySalary, reason: "Employee profile update" } });
     }
     if (d.permissions !== undefined && JSON.stringify(d.permissions) !== JSON.stringify(before.permissions ?? [])) {
-      await logAudit({ userId: req.user!.userId, action: "employee.permissions.update", resourceType: "employee", resourceId: req.params.id, metadata: { before: before.permissions ?? [], after: updated.permissions ?? [] } });
+      await logAudit({ userId: req.user!.userId, action: "employee.permissions.update", resourceType: "employee", resourceId: String(req.params.id), metadata: { before: before.permissions ?? [], after: updated.permissions ?? [] } });
     }
-    await logAudit({ userId: req.user!.userId, action: d.status === "INACTIVE" ? "employee.deactivate" : "employee.update", resourceType: "employee", resourceId: req.params.id, metadata: { changedFields: Object.keys(d) } });
+    await logAudit({ userId: req.user!.userId, action: d.status === "INACTIVE" ? "employee.deactivate" : "employee.update", resourceType: "employee", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
     return res.json({ employee: employeePublicShape(updated) });
   } catch (err) { next(err); }
 });
@@ -593,11 +593,11 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
 
 router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Task not found." });
     const parsed = taskPatchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Check the task fields.", issues: parsed.error.flatten() });
     const db = getDb();
-    const [before] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+    const [before] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, String(req.params.id))).limit(1);
     if (!before) return res.status(404).json({ error: "Task not found." });
     const admin = req.user!.role === "ADMIN";
     if (!admin && req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
@@ -636,14 +636,14 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
       const [newEmp] = await db.select().from(employees).where(eq(employees._id, updated.employeeId)).limit(1);
       if (newEmp?.accountUserId) await notifyUser(String(newEmp.accountUserId), "employee_task_reassigned", "Task reassigned", `A task was assigned to you: ${updated.title}`, req.user!.userId, "/employee/dashboard?tab=tasks");
     }
-    await logAudit({ userId: req.user!.userId, action: "employee.task.update", resourceType: "employee_task", resourceId: req.params.id, metadata: { changedFields: Object.keys(d) } });
+    await logAudit({ userId: req.user!.userId, action: "employee.task.update", resourceType: "employee_task", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
     return res.json({ task: updated });
   } catch (err) { next(err); }
 });
 
 router.get("/tasks/:id/history", async (req: AuthedRequest, res, next) => {
   try {
-    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, String(req.params.id))).limit(1);
     if (!task) return res.status(404).json({ error: "Task not found." });
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res); if (!emp) return;
@@ -660,14 +660,14 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res, next) => {
   try {
     const body = z.object({ body: z.string().trim().min(1).max(3000) }).safeParse(req.body);
     if (!body.success) return res.status(400).json({ error: "Enter a comment." });
-    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, String(req.params.id))).limit(1);
     if (!task) return res.status(404).json({ error: "Task not found." });
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res); if (!emp) return;
       if (String(task.employeeId) !== String(emp._id)) return res.status(404).json({ error: "Task not found." });
     }
     const [comment] = await getDb().insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: body.data.body }).returning();
-    await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: req.params.id });
+    await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: String(req.params.id) });
     return res.status(201).json({ comment });
   } catch (err) { next(err); }
 });
@@ -744,7 +744,7 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
       siteVisitStatus: z.enum(["NOT_DISCUSSED", "INTERESTED", "PROPOSED", "CONFIRMED", "COMPLETED", "RESCHEDULED", "CANCELLED"]).optional(),
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid lead update." });
-    const [lead] = await getDb().select().from(leads).where(eq(leads._id, req.params.id)).limit(1);
+    const [lead] = await getDb().select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
     if (!lead || (String(lead.submittedById) !== req.user!.userId && String(lead.assignedToId) !== req.user!.userId)) return res.status(404).json({ error: "Lead not found." });
     const d = parsed.data;
     const patch: Partial<typeof leads.$inferInsert> = { updatedAt: new Date() };
@@ -755,7 +755,7 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     if (d.siteVisitStatus) patch.siteVisitStatus = d.siteVisitStatus;
     const [updated] = await getDb().update(leads).set(patch).where(eq(leads._id, lead._id)).returning();
     await getDb().insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "NOTE", content: d.followUpNotes || "Employee updated lead details", metadata: { changedFields: Object.keys(d) } });
-    await logAudit({ userId: req.user!.userId, action: "employee.lead.update", resourceType: "lead", resourceId: req.params.id, metadata: { changedFields: Object.keys(d) } });
+    await logAudit({ userId: req.user!.userId, action: "employee.lead.update", resourceType: "lead", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
     return res.json({ lead: updated });
   } catch (err) { next(err); }
 });
@@ -766,7 +766,7 @@ router.post("/leads/:id/calls", requireRole("EMPLOYEE"), async (req: AuthedReque
     if (!parsed.success) return res.status(400).json({ error: "Check call outcome and notes." });
     const emp = await needEmployee(req, res); if (!emp) return;
     const db = getDb();
-    const [lead] = await db.select().from(leads).where(and(eq(leads._id, req.params.id), or(eq(leads.submittedById, req.user!.userId), eq(leads.assignedToId, req.user!.userId))!)).limit(1);
+    const [lead] = await db.select().from(leads).where(and(eq(leads._id, String(req.params.id)), or(eq(leads.submittedById, req.user!.userId), eq(leads.assignedToId, req.user!.userId))!)).limit(1);
     if (!lead) return res.status(404).json({ error: "Lead not found." });
     const d = parsed.data;
     const [activity] = await db.insert(leadActivities).values({
@@ -787,7 +787,7 @@ router.post("/leads/:id/calls", requireRole("EMPLOYEE"), async (req: AuthedReque
 
 router.get("/leads/:id/activities", async (req: AuthedRequest, res, next) => {
   try {
-    const [lead] = await getDb().select().from(leads).where(eq(leads._id, req.params.id)).limit(1);
+    const [lead] = await getDb().select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
     if (!lead) return res.status(404).json({ error: "Lead not found." });
     if (req.user!.role !== "ADMIN" && String(lead.submittedById) !== req.user!.userId && String(lead.assignedToId) !== req.user!.userId) return res.status(404).json({ error: "Lead not found." });
     const [activities, followUps] = await Promise.all([
@@ -803,7 +803,7 @@ router.post("/leads/:id/followups", async (req: AuthedRequest, res, next) => {
     const parsed = followUpSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Enter a valid follow-up date and channel." });
     const db = getDb();
-    const [lead] = await db.select().from(leads).where(eq(leads._id, req.params.id)).limit(1);
+    const [lead] = await db.select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
     if (!lead) return res.status(404).json({ error: "Lead not found." });
     if (req.user!.role !== "ADMIN" && String(lead.submittedById) !== req.user!.userId && String(lead.assignedToId) !== req.user!.userId) return res.status(404).json({ error: "Lead not found." });
     const dueAt = parseDate(parsed.data.dueAt);
@@ -858,7 +858,7 @@ router.patch("/site-visits/:id", async (req: AuthedRequest, res, next) => {
   try {
     const d = z.object({ status: z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"]).optional(), scheduledAt: z.string().optional(), reportNotes: z.string().max(3000).optional(), timeSlot: z.string().max(100).optional() }).safeParse(req.body);
     if (!d.success) return res.status(400).json({ error: "Invalid site visit update." });
-    const [visit] = await getDb().select().from(siteVisits).where(eq(siteVisits._id, req.params.id)).limit(1);
+    const [visit] = await getDb().select().from(siteVisits).where(eq(siteVisits._id, String(req.params.id))).limit(1);
     if (!visit) return res.status(404).json({ error: "Site visit not found." });
     if (req.user!.role !== "ADMIN" && String(visit.responsibleUserId) !== req.user!.userId) return res.status(404).json({ error: "Site visit not found." });
     const patch: Partial<typeof siteVisits.$inferInsert> = {};
@@ -871,7 +871,7 @@ router.patch("/site-visits/:id", async (req: AuthedRequest, res, next) => {
       const map = { CONFIRMED: "CONFIRMED", COMPLETED: "COMPLETED", CANCELLED: "CANCELLED", SCHEDULED: "PROPOSED", NO_SHOW: "CANCELLED" } as const;
       await getDb().update(leads).set({ siteVisitStatus: map[d.data.status] }).where(eq(leads._id, visit.leadId));
     }
-    await logAudit({ userId: req.user!.userId, action: "employee.sitevisit.update", resourceType: "site_visit", resourceId: req.params.id, metadata: { changedFields: Object.keys(d.data) } });
+    await logAudit({ userId: req.user!.userId, action: "employee.sitevisit.update", resourceType: "site_visit", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d.data) } });
     return res.json({ siteVisit: updated });
   } catch (err) { next(err); }
 });
@@ -924,11 +924,11 @@ router.post("/attendance/check-out", requireRole("EMPLOYEE"), async (req: Authed
 });
 router.patch("/attendance/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Attendance record not found." });
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Attendance record not found." });
     const parsed = attendanceCorrectionSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "A correction reason is required.", issues: parsed.error.flatten() });
     const db = getDb();
-    const [before] = await db.select().from(employeeAttendance).where(eq(employeeAttendance._id, req.params.id)).limit(1);
+    const [before] = await db.select().from(employeeAttendance).where(eq(employeeAttendance._id, String(req.params.id))).limit(1);
     if (!before) return res.status(404).json({ error: "Attendance record not found." });
     const d = parsed.data;
     const checkIn = d.checkInAt !== undefined ? parseDate(d.checkInAt) : before.checkInAt;
@@ -941,7 +941,7 @@ router.patch("/attendance/:id", requireRole("ADMIN"), async (req: AuthedRequest,
       ...(d.checkOutAt !== undefined ? { checkOutAt: checkOut } : {}),
       workingMinutes: minutes, updatedAt: new Date(),
     }).where(eq(employeeAttendance._id, before._id)).returning();
-    await logAudit({ userId: req.user!.userId, action: "employee.attendance.correct", resourceType: "attendance", resourceId: req.params.id, metadata: { before: { status: before.status, checkInAt: before.checkInAt?.toISOString() ?? null, checkOutAt: before.checkOutAt?.toISOString() ?? null }, after: { status: row.status, checkInAt: row.checkInAt?.toISOString() ?? null, checkOutAt: row.checkOutAt?.toISOString() ?? null }, reason: d.correctionReason } });
+    await logAudit({ userId: req.user!.userId, action: "employee.attendance.correct", resourceType: "attendance", resourceId: String(req.params.id), metadata: { before: { status: before.status, checkInAt: before.checkInAt?.toISOString() ?? null, checkOutAt: before.checkOutAt?.toISOString() ?? null }, after: { status: row.status, checkInAt: row.checkInAt?.toISOString() ?? null, checkOutAt: row.checkOutAt?.toISOString() ?? null }, reason: d.correctionReason } });
     return res.json({ attendance: row });
   } catch (err) { next(err); }
 });
@@ -983,11 +983,11 @@ router.post("/salaries", requireRole("ADMIN"), async (req: AuthedRequest, res, n
 });
 router.patch("/salaries/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Salary record not found." });
+    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Salary record not found." });
     const parsed = salaryPatchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Check salary fields.", issues: parsed.error.flatten() });
     const db = getDb(), d = parsed.data;
-    const [before] = await db.select().from(employeeSalaryRecords).where(eq(employeeSalaryRecords._id, req.params.id)).limit(1);
+    const [before] = await db.select().from(employeeSalaryRecords).where(eq(employeeSalaryRecords._id, String(req.params.id))).limit(1);
     if (!before) return res.status(404).json({ error: "Salary record not found." });
     const patch: Partial<typeof employeeSalaryRecords.$inferInsert> = { updatedAt: new Date() };
     const gross = d.grossSalary ?? before.grossSalary, allowances = d.allowances ?? before.allowances, deductions = d.deductions ?? before.deductions;
@@ -1019,7 +1019,7 @@ router.patch("/salaries/:id", requireRole("ADMIN"), async (req: AuthedRequest, r
       }
     }
     const [updated] = await db.update(employeeSalaryRecords).set(patch).where(eq(employeeSalaryRecords._id, before._id)).returning();
-    await logAudit({ userId: req.user!.userId, action: updated.status === "APPROVED" ? "employee.salary.approve" : updated.status === "PAID" ? "employee.salary.mark_paid" : "employee.salary.update", resourceType: "employee_salary", resourceId: req.params.id, metadata: { monthKey: updated.monthKey, statusFrom: before.status, statusTo: updated.status, changedFields: Object.keys(d) } });
+    await logAudit({ userId: req.user!.userId, action: updated.status === "APPROVED" ? "employee.salary.approve" : updated.status === "PAID" ? "employee.salary.mark_paid" : "employee.salary.update", resourceType: "employee_salary", resourceId: String(req.params.id), metadata: { monthKey: updated.monthKey, statusFrom: before.status, statusTo: updated.status, changedFields: Object.keys(d) } });
     return res.json({ salary: updated });
   } catch (err) { next(err); }
 });
