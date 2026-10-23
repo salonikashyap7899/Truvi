@@ -52,6 +52,9 @@ const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
 const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
 const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").then((m) => ({ default: m.AdminOsLayout })));
 const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
+const AdminEmployeeManagementPage = lazy(() => import("@/pages/admin/AdminEmployeeManagementPage"));
+const EmployeeDashboardPage = lazy(() => import("@/pages/employee/EmployeeDashboardPage"));
+const EmployeeActivatePage = lazy(() => import("@/pages/EmployeeActivatePage"));
 const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePage"));
 const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
 const AdminScoresPage = lazy(() => import("@/pages/admin/AdminScoresPage"));
@@ -371,6 +374,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/employee/activate" element={<EmployeeActivatePage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
@@ -392,6 +396,7 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<ProtectedRoute roles={["ADMIN"]}><AdminOsDashboardPage /></ProtectedRoute>} />
           <Route path="users" element={<ProtectedRoute roles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
+          <Route path="employees" element={<ProtectedRoute roles={["ADMIN"]}><AdminEmployeeManagementPage /></ProtectedRoute>} />
           <Route path="users/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminUserProfilePage /></ProtectedRoute>} />
           <Route path="listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
           <Route path="scores" element={<ProtectedRoute roles={["ADMIN"]}><AdminScoresPage /></ProtectedRoute>} />
