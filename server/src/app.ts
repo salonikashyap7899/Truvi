@@ -74,6 +74,7 @@ import vaultRoutes from "./routes/vault";
 import founderModuleRoutes from "./routes/founderModules";
 import commandFinanceRoutes from "./routes/commandFinance";
 import employerRoutes from "./routes/employers";
+import employeeRoutes from "./routes/employees";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
 import investRoutes from "./routes/invest";
@@ -270,6 +271,7 @@ export function createApp() {
   app.use("/api/founder", founderModuleRoutes);
   app.use("/api/command-finance", commandFinanceRoutes);
   app.use("/api/employers", employerRoutes);
+  app.use("/api/employees", employeeRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
   app.use("/api/invest", investRoutes);
