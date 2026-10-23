@@ -14,6 +14,7 @@ import {
   users,
   employeeInvites,
   employeeTasks,
+  employeeTaskAssignments,
   employeeAttendance,
   employeeSalaryRecords,
   leads,
@@ -67,7 +68,7 @@ const zBool = z.preprocess((v) => {
 // --------------------------------------------------------------- aggregate
 router.get("/summary", async (_req, res) => {
   const db = getDb();
-  const [emps, campaigns, land, cap, rounds, updates, feedback, employeeAccounts, invites, workTasks, attendanceRows, salaryRows, employeeLeadRows, employeeVisitRows] = await Promise.all([
+  const [emps, campaigns, land, cap, rounds, updates, feedback, employeeAccounts, invites, workTasks, taskAssignmentRows, attendanceRows, salaryRows, employeeLeadRows, employeeVisitRows] = await Promise.all([
     db.select().from(employees).orderBy(desc(employees.performanceScore)),
     db.select().from(marketingCampaigns).orderBy(desc(marketingCampaigns.createdAt)),
     db.select().from(landParcels).orderBy(desc(landParcels.createdAt)),
@@ -78,6 +79,7 @@ router.get("/summary", async (_req, res) => {
     db.select().from(users).where(eq(users.role, "EMPLOYEE")),
     db.select().from(employeeInvites),
     db.select().from(employeeTasks),
+    db.select().from(employeeTaskAssignments),
     db.select().from(employeeAttendance),
     db.select().from(employeeSalaryRecords),
     db.select().from(leads).where(eq(leads.creatorRole, "EMPLOYEE")),
@@ -94,6 +96,14 @@ router.get("/summary", async (_req, res) => {
   const todayIST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const todayAttendance = attendanceRows.filter((a) => a.attendanceDate === todayIST);
   const pendingTasks = workTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
+  const assignedTaskIds = new Set(taskAssignmentRows.map((row) => String(row.taskId)));
+  const openAssignments = taskAssignmentRows.filter((row) => !["COMPLETED", "CANCELLED"].includes(row.status));
+  const personalOrLegacyPending = pendingTasks.filter((task) => task.taskType === "PERSONAL" || !assignedTaskIds.has(String(task._id)));
+  const employeeTasksPending = openAssignments.length + personalOrLegacyPending.length;
+  const employeeTasksOverdue = openAssignments.filter((assignment) => {
+    const task = workTasks.find((row) => String(row._id) === String(assignment.taskId));
+    return !!task?.deadlineAt && task.deadlineAt < new Date();
+  }).length + personalOrLegacyPending.filter((task) => !!task.deadlineAt && task.deadlineAt < new Date()).length;
   const employeeLeadIds = new Set(employeeLeadRows.filter((l) => linkedEmployeeIds.has(String(l.submittedById)) || linkedEmployeeIds.has(String(l.assignedToId))).map((l) => String(l._id)));
   const now = new Date();
   const team = {
@@ -101,15 +111,15 @@ router.get("/summary", async (_req, res) => {
     active: activeEmps.length,
     presentToday: todayAttendance.filter((a) => a.status === "PRESENT").length + (emps.filter((e) => !e.accountUserId && e.presentToday && e.status !== "INACTIVE").length),
     onLeave: todayAttendance.filter((a) => a.status === "ON_LEAVE").length + emps.filter((e) => !e.accountUserId && e.status === "ON_LEAVE").length,
-    tasksPending: pendingTasks.length + emps.filter((e) => !e.accountUserId).reduce((sum, e) => sum + e.tasksPending, 0),
+    tasksPending: employeeTasksPending + emps.filter((e) => !e.accountUserId).reduce((sum, e) => sum + e.tasksPending, 0),
     avgPerformance: emps.length ? Math.round(emps.reduce((s, e) => s + e.performanceScore, 0) / emps.length) : 0,
     monthlyPayroll: round(activeEmps.reduce((s, e) => s + e.monthlyCtc, 0)),
     employeeAccounts: employeeAccounts.length,
     activeEmployeeAccounts: enabledAccounts.length,
     inactiveEmployeeAccounts: employeeAccounts.filter((u) => u.disabled).length,
     pendingInvitations: pendingInvitations.size,
-    employeeTasksPending: pendingTasks.length,
-    employeeTasksOverdue: pendingTasks.filter((t) => t.deadlineAt && t.deadlineAt < now).length,
+    employeeTasksPending,
+    employeeTasksOverdue,
     employeeLeadsSubmitted: employeeLeadIds.size,
     employeeSiteVisits: employeeVisitRows.filter((v) => linkedEmployeeIds.has(String(v.responsibleUserId))).length,
     employeeAttendanceMarkedToday: todayAttendance.length,
@@ -120,7 +130,7 @@ router.get("/summary", async (_req, res) => {
     ).map(([department, count]) => ({ department, count })),
     ranking: emps.slice(0, 8).map((e) => ({
       id: String(e._id), name: e.name, title: e.title, department: e.department,
-      status: e.status, performanceScore: e.performanceScore, tasksPending: e.accountUserId ? pendingTasks.filter((t) => String(t.employeeId) === String(e._id)).length : e.tasksPending,
+      status: e.status, performanceScore: e.performanceScore, tasksPending: e.accountUserId ? openAssignments.filter((a) => String(a.employeeId) === String(e._id)).length + pendingTasks.filter((t) => String(t.employeeId) === String(e._id) && (t.taskType === "PERSONAL" || !assignedTaskIds.has(String(t._id)))).length : e.tasksPending,
       presentToday: e.accountUserId ? todayAttendance.some((a) => String(a.employeeId) === String(e._id) && a.status === "PRESENT") : e.presentToday,
     })),
   };
