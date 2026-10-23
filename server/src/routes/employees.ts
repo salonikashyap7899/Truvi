@@ -258,11 +258,22 @@ const salaryPatchSchema = z.object({
 });
 const roundMoney = (n: number) => Math.round(n * 100) / 100;
 
-function employeePublicShape(e: typeof employees.$inferSelect, account?: { email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean } | null, includeSalary = true) {
+function employeePublicShape(
+  e: typeof employees.$inferSelect,
+  account?: {
+    email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean;
+    phone?: string | null; avatarUrl?: string | null; bio?: string | null;
+    createdAt?: Date | null; lastActiveAt?: Date | null;
+  } | null,
+  includeSalary = true,
+) {
   return {
     id: String(e._id), accountUserId: e.accountUserId, employeeCode: e.employeeCode,
     name: e.name, officialEmail: e.officialEmail ?? account?.email ?? "",
-    phone: e.phone ?? "", department: e.department, designation: e.title ?? "",
+    phone: e.phone ?? account?.phone ?? "", avatarUrl: account?.avatarUrl ?? null, bio: account?.bio ?? null,
+    emailVerified: account?.emailVerified ?? false, phoneVerified: account?.phoneVerified ?? false,
+    accountCreatedAt: account?.createdAt ?? null, lastActiveAt: account?.lastActiveAt ?? null,
+    department: e.department, designation: e.title ?? "",
     employmentType: e.employmentType, reportingManagerId: e.reportingManagerId,
     recruitmentSource: e.recruitmentSource ?? "Other", recruitmentCampaign: e.recruitmentCampaign ?? "",
     applicationDate: e.applicationDate, interviewDate: e.interviewDate, joiningDate: e.joinedAt,
@@ -383,10 +394,118 @@ router.get("/", requireRole("ADMIN"), async (req, res, next) => {
     if (department) conditions.push(eq(employees.department, department));
     if (source) conditions.push(eq(employees.recruitmentSource, source));
     if (q) conditions.push(or(sql`${employees.name} ILIKE ${"%" + q + "%"}`, sql`${employees.officialEmail} ILIKE ${"%" + q + "%"}`, sql`${employees.employeeCode} ILIKE ${"%" + q + "%"}`)!);
-    const rows = await db.select({ employee: employees, email: users.email, disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified })
+    const rows = await db.select({
+      employee: employees, email: users.email, accountPhone: users.phone, avatarUrl: users.avatarUrl, bio: users.bio,
+      accountCreatedAt: users.createdAt, lastActiveAt: users.lastActiveAt,
+      disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified,
+    })
       .from(employees).leftJoin(users, eq(employees.accountUserId, users._id))
       .where(conditions.length ? and(...conditions) : undefined).orderBy(desc(employees.createdAt));
-    return res.json({ employees: rows.map((r) => employeePublicShape(r.employee, r.email ? { email: r.email, disabled: !!r.disabled, emailVerified: !!r.emailVerified, phoneVerified: !!r.phoneVerified } : null)) });
+    return res.json({ employees: rows.map((r) => employeePublicShape(r.employee, r.email ? {
+      email: r.email, phone: r.accountPhone, avatarUrl: r.avatarUrl, bio: r.bio,
+      createdAt: r.accountCreatedAt, lastActiveAt: r.lastActiveAt,
+      disabled: !!r.disabled, emailVerified: !!r.emailVerified, phoneVerified: !!r.phoneVerified,
+    } : null)) });
+  } catch (err) { next(err); }
+});
+
+// Full safe employee profile for authorized administrators. Account credentials,
+// OTP material, password hashes and auth-version fields are deliberately omitted.
+router.get("/:id/profile", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
+  try {
+    const employeeId = String(req.params.id);
+    if (!isValidId(employeeId)) return res.status(404).json({ error: "Employee not found." });
+    const db = getDb();
+    const [row] = await db.select({
+      employee: employees,
+      accountId: users._id,
+      accountName: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+      emailVerified: users.emailVerified,
+      phoneVerified: users.phoneVerified,
+      disabled: users.disabled,
+      accountCreatedAt: users.createdAt,
+      lastActiveAt: users.lastActiveAt,
+    }).from(employees).leftJoin(users, eq(employees.accountUserId, users._id))
+      .where(eq(employees._id, employeeId)).limit(1);
+    if (!row) return res.status(404).json({ error: "Employee not found." });
+
+    const userId = row.accountId ? String(row.accountId) : null;
+    const [taskRows, attendanceRows, leaveRows, salaryRows, leadRows, visitRows] = await Promise.all([
+      db.select({
+        id: employeeTasks._id, title: employeeTasks.title, priority: employeeTasks.priority,
+        status: employeeTasks.status, taskType: employeeTasks.taskType,
+        deadlineAt: employeeTasks.deadlineAt, createdAt: employeeTasks.createdAt,
+      }).from(employeeTasks).where(eq(employeeTasks.employeeId, row.employee._id))
+        .orderBy(desc(employeeTasks.createdAt)).limit(12),
+      db.select({
+        id: employeeAttendance._id, attendanceDate: employeeAttendance.attendanceDate,
+        status: employeeAttendance.status, checkInAt: employeeAttendance.checkInAt,
+        checkOutAt: employeeAttendance.checkOutAt, workingMinutes: employeeAttendance.workingMinutes,
+      }).from(employeeAttendance).where(eq(employeeAttendance.employeeId, row.employee._id))
+        .orderBy(desc(employeeAttendance.attendanceDate)).limit(10),
+      db.select({
+        id: employeeLeaveRequests._id, leaveType: employeeLeaveRequests.leaveType,
+        startDate: employeeLeaveRequests.startDate, endDate: employeeLeaveRequests.endDate,
+        totalDays: employeeLeaveRequests.totalDays, status: employeeLeaveRequests.status,
+        reason: employeeLeaveRequests.reason, createdAt: employeeLeaveRequests.createdAt,
+      }).from(employeeLeaveRequests).where(eq(employeeLeaveRequests.employeeId, row.employee._id))
+        .orderBy(desc(employeeLeaveRequests.createdAt)).limit(10),
+      db.select({
+        id: employeeSalaryRecords._id, monthKey: employeeSalaryRecords.monthKey,
+        grossSalary: employeeSalaryRecords.grossSalary, allowances: employeeSalaryRecords.allowances,
+        deductions: employeeSalaryRecords.deductions, netPayable: employeeSalaryRecords.netPayable,
+        status: employeeSalaryRecords.status, paymentDate: employeeSalaryRecords.paymentDate,
+        paymentReference: employeeSalaryRecords.paymentReference,
+      }).from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, row.employee._id))
+        .orderBy(desc(employeeSalaryRecords.monthKey)).limit(12),
+      userId ? db.select({
+        id: leads._id, clientName: leads.clientName, clientPhone: leads.clientPhone,
+        stage: leads.stage, leadTemperature: leads.leadTemperature, createdAt: leads.createdAt,
+      }).from(leads).where(or(eq(leads.submittedById, userId), eq(leads.assignedToId, userId))!)
+        .orderBy(desc(leads.createdAt)).limit(12) : Promise.resolve([]),
+      userId ? db.select({
+        id: siteVisits._id, scheduledAt: siteVisits.scheduledAt, status: siteVisits.status,
+        projectId: siteVisits.projectId, leadId: siteVisits.leadId,
+      }).from(siteVisits).where(eq(siteVisits.responsibleUserId, userId))
+        .orderBy(desc(siteVisits.scheduledAt)).limit(10) : Promise.resolve([]),
+    ]);
+
+    const account = userId ? {
+      id: userId,
+      name: row.accountName,
+      email: row.email,
+      phone: row.phone,
+      role: row.role,
+      avatarUrl: row.avatarUrl,
+      bio: row.bio,
+      emailVerified: !!row.emailVerified,
+      phoneVerified: !!row.phoneVerified,
+      disabled: !!row.disabled,
+      createdAt: row.accountCreatedAt,
+      lastActiveAt: row.lastActiveAt,
+    } : null;
+
+    return res.json({
+      employee: employeePublicShape(row.employee, row.email ? {
+        email: row.email, phone: row.phone, avatarUrl: row.avatarUrl, bio: row.bio,
+        createdAt: row.accountCreatedAt, lastActiveAt: row.lastActiveAt,
+        disabled: !!row.disabled, emailVerified: !!row.emailVerified, phoneVerified: !!row.phoneVerified,
+      } : null),
+      account,
+      activity: {
+        tasks: taskRows,
+        attendance: attendanceRows,
+        leaveRequests: leaveRows,
+        salaryRecords: salaryRows,
+        buyerLeads: leadRows,
+        siteVisits: visitRows,
+      },
+    });
   } catch (err) { next(err); }
 });
 
