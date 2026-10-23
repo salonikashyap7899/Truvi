@@ -648,21 +648,25 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
     const d = parsed.data;
     const admin = req.user!.role === "ADMIN";
     if (!admin && req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
-    let emp;
+    let emp: typeof employees.$inferSelect | null = null;
+    let selectedEmployees: (typeof employees.$inferSelect)[] = [];
+    let assignedEmployeeIds: string[] = [];
     if (admin) {
-      if (!d.employeeId || !isValidId(d.employeeId)) return res.status(400).json({ error: "Choose an employee for this task." });
-      [emp] = await getDb().select().from(employees).where(eq(employees._id, d.employeeId)).limit(1);
-      if (!emp || emp.status === "INACTIVE") return res.status(404).json({ error: "Active employee not found." });
-      if (!emp.accountUserId) return res.status(409).json({ error: "Link a login account to this employee before assigning an online task." });
+      assignedEmployeeIds = d.employeeIds?.length ? d.employeeIds : d.employeeId ? [d.employeeId] : [];
+      const targets = await activeLinkedEmployees(assignedEmployeeIds);
+      if (!targets) return res.status(400).json({ error: "Choose one or more active employees with linked login accounts." });
+      selectedEmployees = targets;
+      emp = targets[0];
+      assignedEmployeeIds = targets.map((target) => String(target._id));
     } else {
       emp = await needEmployee(req, res);
       if (!emp) return;
       if (!hasPermission(emp.permissions, "task.create.own")) return res.status(403).json({ error: "Personal task creation is not enabled for this account." });
-      if (d.employeeId && d.employeeId !== String(emp._id)) return res.status(403).json({ error: "Employees may only create personal tasks." });
+      if ((d.employeeIds && d.employeeIds.length) || (d.employeeId && d.employeeId !== String(emp._id))) return res.status(403).json({ error: "Employees may only create personal tasks." });
     }
     const db = getDb();
     const [task] = await db.insert(employeeTasks).values({
-      employeeId: emp._id, taskType: admin ? "ASSIGNED" : "PERSONAL",
+      employeeId: emp!._id, taskType: admin ? "ASSIGNED" : "PERSONAL",
       title: d.title, description: d.description || null, category: d.category || "GENERAL",
       assignedByUserId: req.user!.userId, priority: d.priority,
       status: admin ? "ASSIGNED" : "IN_PROGRESS",
@@ -671,10 +675,23 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
       projectId: d.projectId && isValidId(d.projectId) ? d.projectId : null,
       leadId: d.leadId && isValidId(d.leadId) ? d.leadId : null,
     }).returning();
-    await db.insert(employeeTaskHistory).values({ taskId: task._id, actorUserId: req.user!.userId, action: admin ? "ASSIGNED" : "PERSONAL_CREATED", afterValue: { status: task.status, title: task.title } });
-    if (admin && emp.accountUserId) await notifyUser(String(emp.accountUserId), "employee_task_assigned", "New task assigned", `A new task was assigned: ${task.title}`, req.user!.userId, "/employee/dashboard?tab=tasks");
-    await logAudit({ userId: req.user!.userId, action: admin ? "employee.task.assign" : "employee.task.personal.create", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeId: String(emp._id), priority: task.priority } });
-    return res.status(201).json({ task });
+    if (admin) {
+      await db.insert(employeeTaskAssignments).values(assignedEmployeeIds.map((employeeId) => ({
+        taskId: task._id, employeeId, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const,
+      }))).onConflictDoNothing();
+    }
+    await db.insert(employeeTaskHistory).values({
+      taskId: task._id, actorUserId: req.user!.userId, action: admin ? "ASSIGNED" : "PERSONAL_CREATED",
+      afterValue: { status: task.status, title: task.title, employeeIds: assignedEmployeeIds },
+    });
+    if (admin) {
+      for (const target of selectedEmployees) {
+        if (target.accountUserId) await notifyUser(String(target.accountUserId), "employee_task_assigned", "New task assigned", "A new task was assigned: " + task.title, req.user!.userId, "/employee/dashboard?tab=tasks");
+      }
+    }
+    await logAudit({ userId: req.user!.userId, action: admin ? "employee.task.assign" : "employee.task.personal.create", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeIds: admin ? assignedEmployeeIds : [String(emp!._id)], priority: task.priority } });
+    const [responseTask] = await shapeEmployeeTasks([task]);
+    return res.status(201).json({ task: responseTask });
   } catch (err) { next(err); }
 });
 
