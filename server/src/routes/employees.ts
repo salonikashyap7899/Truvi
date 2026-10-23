@@ -22,6 +22,7 @@ import { createNotifications } from "../services/notificationService";
 import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
+import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib/employeeLeaveRules";
 import { fileMatchesExtension } from "../services/uploadService";
 import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
 
@@ -48,8 +49,6 @@ const dateInIndia = (d = new Date()) => {
   return `${val("year")}-${val("month")}-${val("day")}`;
 };
 const thisMonth = (d = new Date()) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-const validIsoDate = (s: string) => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T00:00:00.000Z`).getTime()) && new Date(`${s}T00:00:00.000Z`).toISOString().slice(0, 10) === s;
-const daysInclusive = (start: string, end: string) => Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1;
 function employeeLeadScope(permissions: string[] | null | undefined, userId: string) {
   const scopes = [];
   if (hasPermission(permissions, "lead.read.own")) scopes.push(eq(leads.submittedById, userId));
@@ -198,8 +197,8 @@ const attendanceCorrectionSchema = z.object({
 });
 const leaveCreateSchema = z.object({
   leaveType: z.enum(["ANNUAL", "SICK", "CASUAL", "UNPAID", "OTHER"]).default("CASUAL"),
-  startDate: z.string().refine(validIsoDate, "Choose a valid start date."),
-  endDate: z.string().refine(validIsoDate, "Choose a valid end date."),
+  startDate: z.string().refine(isValidIsoDate, "Choose a valid start date."),
+  endDate: z.string().refine(isValidIsoDate, "Choose a valid end date."),
   reason: z.string().trim().min(5).max(2000),
 });
 const leaveReviewSchema = z.object({
@@ -1417,12 +1416,12 @@ router.post("/leave-requests", requireRole("EMPLOYEE"), async (req: AuthedReques
     const d = parsed.data;
     if (d.endDate < d.startDate) return res.status(400).json({ error: "End date cannot be before the start date." });
     if (d.startDate < dateInIndia()) return res.status(400).json({ error: "Leave requests must start today or in the future. Ask Admin for retrospective corrections." });
-    const totalDays = daysInclusive(d.startDate, d.endDate);
+    const totalDays = inclusiveCalendarDays(d.startDate, d.endDate);
     if (totalDays < 1 || totalDays > 90) return res.status(400).json({ error: "A leave request must be between 1 and 90 calendar days." });
     const db = getDb();
     const existing = await db.select().from(employeeLeaveRequests)
       .where(and(eq(employeeLeaveRequests.employeeId, emp._id), inArray(employeeLeaveRequests.status, ["PENDING", "APPROVED"])));
-    if (existing.some((row) => d.startDate <= row.endDate && d.endDate >= row.startDate)) {
+    if (existing.some((row) => dateRangesOverlap(d.startDate, d.endDate, row.startDate, row.endDate))) {
       return res.status(409).json({ error: "These dates overlap an existing pending or approved leave request." });
     }
     const [request] = await db.insert(employeeLeaveRequests).values({
