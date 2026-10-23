@@ -175,6 +175,45 @@ export default function AdminEmployeeManagementPage() {
     try { await api.patch(`/employees/tasks/${task._id}`, { status }); toast.success("Task updated."); await reload(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not update task."); }
   }
+  async function uploadTaskAttachment(taskId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      await api.post("/employees/tasks/" + taskId + "/attachments", form, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success("Task attachment uploaded privately.");
+      await reload();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not upload attachment."); }
+  }
+  async function downloadTaskAttachment(taskId: string, attachment: TaskAttachment) {
+    try {
+      const response = await api.get("/employees/tasks/" + taskId + "/attachments/" + attachment._id, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: attachment.mimeType }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.originalFileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not download attachment."); }
+  }
+  async function deleteTaskAttachment(taskId: string, attachment: TaskAttachment) {
+    if (!window.confirm("Delete task attachment " + attachment.originalFileName + "?")) return;
+    try {
+      await api.delete("/employees/tasks/" + taskId + "/attachments/" + attachment._id);
+      toast.success("Attachment deleted.");
+      await reload();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not delete attachment."); }
+  }
+  async function reviewLeave(request: LeaveRequest, status: "APPROVED" | "REJECTED") {
+    const reviewNotes = window.prompt("Review notes (optional):", request.reviewNotes || "");
+    if (reviewNotes === null) return;
+    try {
+      await api.patch("/employees/leave-requests/" + request._id, { status, reviewNotes });
+      toast.success("Leave request " + status.toLowerCase() + ".");
+      await reload();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not review leave request."); }
+  }
   async function createSalary(e: FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
