@@ -1334,9 +1334,10 @@ router.get("/performance", requireRole("ADMIN"), async (req: AuthedRequest, res,
     if (fromDate && toDate && fromDate > toDate) return res.status(400).json({ error: "Start date must be before end date." });
     const department = typeof req.query.department === "string" ? req.query.department : "";
     const employeeFilter = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
-    const [employeeRows, taskRows, leadRows, callRows, visitRows, attendanceRows] = await Promise.all([
+    const [employeeRows, taskRows, taskAssignmentRows, leadRows, callRows, visitRows, attendanceRows] = await Promise.all([
       db.select().from(employees).orderBy(employees.name),
       db.select().from(employeeTasks),
+      db.select().from(employeeTaskAssignments),
       db.select().from(leads),
       db.select().from(leadActivities).where(eq(leadActivities.type, "CALL")),
       db.select().from(siteVisits),
@@ -1347,20 +1348,25 @@ router.get("/performance", requireRole("ADMIN"), async (req: AuthedRequest, res,
       (!department || e.department === department) && (!employeeFilter || String(e._id) === employeeFilter)
     ).map((emp) => {
       const userId = emp.accountUserId ? String(emp.accountUserId) : "";
-      const taskItems = taskRows.filter((t) => String(t.employeeId) === String(emp._id));
+      const myAssignments = taskAssignmentRows.filter((assignment) => String(assignment.employeeId) === String(emp._id));
+      const assignmentByTask = new Map(myAssignments.map((assignment) => [String(assignment.taskId), assignment]));
+      const assignedTaskIds = new Set(myAssignments.map((assignment) => String(assignment.taskId)));
+      const taskItems = taskRows.filter((task) => String(task.employeeId) === String(emp._id) || assignedTaskIds.has(String(task._id)));
+      const statusForEmployee = (task: typeof employeeTasks.$inferSelect) => assignmentByTask.get(String(task._id))?.status ?? task.status;
+      const completionTimeForEmployee = (task: typeof employeeTasks.$inferSelect) => assignmentByTask.get(String(task._id))?.completedAt ?? task.completedAt ?? task.updatedAt;
       const myLeads = leadRows.filter((l) => userId && (String(l.submittedById) === userId || String(l.assignedToId) === userId));
       const calls = callRows.filter((c) => userId && String(c.actorUserId ?? "") === userId && inRange(c.createdAt) && myLeads.some((l) => String(l._id) === String(c.leadId)));
       const visits = visitRows.filter((v) => userId && String(v.responsibleUserId ?? "") === userId && inRange(v.scheduledAt));
       const attendance = attendanceRows.filter((a) => String(a.employeeId) === String(emp._id) && (!fromDate || a.attendanceDate >= dateInIndia(fromDate)) && (!toDate || a.attendanceDate <= dateInIndia(toDate)));
       const submitted = myLeads.filter((l) => String(l.submittedById) === userId && inRange(l.createdAt));
-      const completedTasks = taskItems.filter((t) => t.status === "COMPLETED" && inRange(t.completedAt ?? t.updatedAt));
-      const overdueTasks = taskItems.filter((t) => t.deadlineAt && t.deadlineAt < new Date() && !["COMPLETED", "CANCELLED"].includes(t.status) && inRange(t.createdAt));
+      const completedTasks = taskItems.filter((task) => statusForEmployee(task) === "COMPLETED" && inRange(completionTimeForEmployee(task)));
+      const overdueTasks = taskItems.filter((task) => task.deadlineAt && task.deadlineAt < new Date() && !["COMPLETED", "CANCELLED"].includes(statusForEmployee(task)) && inRange(task.createdAt));
       return {
         employeeId: String(emp._id), employeeCode: emp.employeeCode, name: emp.name,
         department: emp.department, designation: emp.title, recruitmentSource: emp.recruitmentSource,
         status: emp.status, accountLinked: !!emp.accountUserId,
         tasksCompleted: completedTasks.length, tasksOverdue: overdueTasks.length,
-        tasksOpen: taskItems.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status)).length,
+        tasksOpen: taskItems.filter((task) => !["COMPLETED", "CANCELLED"].includes(statusForEmployee(task))).length,
         leadsSubmitted: submitted.length, leadsAssigned: myLeads.filter((l) => String(l.assignedToId) === userId && inRange(l.createdAt)).length,
         callsLogged: calls.length, siteVisitsScheduled: visits.length,
         siteVisitsCompleted: visits.filter((v) => v.status === "COMPLETED").length,
