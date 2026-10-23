@@ -669,24 +669,27 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
       if ((d.employeeIds && d.employeeIds.length) || (d.employeeId && d.employeeId !== String(emp._id))) return res.status(403).json({ error: "Employees may only create personal tasks." });
     }
     const db = getDb();
-    const [task] = await db.insert(employeeTasks).values({
-      employeeId: emp!._id, taskType: admin ? "ASSIGNED" : "PERSONAL",
-      title: d.title, description: d.description || null, category: d.category || "GENERAL",
-      assignedByUserId: req.user!.userId, priority: d.priority,
-      status: admin ? "ASSIGNED" : "IN_PROGRESS",
-      startAt: parseDate(d.startAt), deadlineAt: parseDate(d.deadlineAt),
-      estimatedMinutes: d.estimatedMinutes ?? null,
-      projectId: d.projectId && isValidId(d.projectId) ? d.projectId : null,
-      leadId: d.leadId && isValidId(d.leadId) ? d.leadId : null,
-    }).returning();
-    if (admin) {
-      await db.insert(employeeTaskAssignments).values(assignedEmployeeIds.map((employeeId) => ({
-        taskId: task._id, employeeId, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const,
-      }))).onConflictDoNothing();
-    }
-    await db.insert(employeeTaskHistory).values({
-      taskId: task._id, actorUserId: req.user!.userId, action: admin ? "ASSIGNED" : "PERSONAL_CREATED",
-      afterValue: { status: task.status, title: task.title, employeeIds: assignedEmployeeIds },
+    const task = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(employeeTasks).values({
+        employeeId: emp!._id, taskType: admin ? "ASSIGNED" : "PERSONAL",
+        title: d.title, description: d.description || null, category: d.category || "GENERAL",
+        assignedByUserId: req.user!.userId, priority: d.priority,
+        status: admin ? "ASSIGNED" : "IN_PROGRESS",
+        startAt: parseDate(d.startAt), deadlineAt: parseDate(d.deadlineAt),
+        estimatedMinutes: d.estimatedMinutes ?? null,
+        projectId: d.projectId && isValidId(d.projectId) ? d.projectId : null,
+        leadId: d.leadId && isValidId(d.leadId) ? d.leadId : null,
+      }).returning();
+      if (admin) {
+        await tx.insert(employeeTaskAssignments).values(assignedEmployeeIds.map((employeeId) => ({
+          taskId: created._id, employeeId, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const,
+        }))).onConflictDoNothing();
+      }
+      await tx.insert(employeeTaskHistory).values({
+        taskId: created._id, actorUserId: req.user!.userId, action: admin ? "ASSIGNED" : "PERSONAL_CREATED",
+        afterValue: { status: created.status, title: created.title, employeeIds: assignedEmployeeIds },
+      });
+      return created;
     });
     if (admin) {
       for (const target of selectedEmployees) {
@@ -1325,14 +1328,15 @@ router.get("/audit-logs", requireRole("ADMIN"), async (req: AuthedRequest, res, 
       metadataEmployeeId = String(emp._id);
       employeeResourceIds = [String(emp._id)];
       if (emp.accountUserId) employeeResourceIds.push(String(emp.accountUserId));
-      const [tasks, attendanceRows, salaries, visits, relatedLeads] = await Promise.all([
+      const [tasks, taskAssignments, attendanceRows, salaries, visits, relatedLeads] = await Promise.all([
         db.select({ id: employeeTasks._id }).from(employeeTasks).where(eq(employeeTasks.employeeId, emp._id)),
+        db.select({ id: employeeTaskAssignments.taskId }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.employeeId, emp._id)),
         db.select({ id: employeeAttendance._id }).from(employeeAttendance).where(eq(employeeAttendance.employeeId, emp._id)),
         db.select({ id: employeeSalaryRecords._id }).from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, emp._id)),
         emp.accountUserId ? db.select({ id: siteVisits._id }).from(siteVisits).where(eq(siteVisits.responsibleUserId, emp.accountUserId)) : Promise.resolve([]),
         emp.accountUserId ? db.select({ id: leads._id }).from(leads).where(or(eq(leads.submittedById, emp.accountUserId), eq(leads.assignedToId, emp.accountUserId))) : Promise.resolve([]),
       ]);
-      employeeResourceIds.push(...tasks.map((r) => String(r.id)), ...attendanceRows.map((r) => String(r.id)), ...salaries.map((r) => String(r.id)), ...visits.map((r) => String(r.id)), ...relatedLeads.map((r) => String(r.id)));
+      employeeResourceIds.push(...tasks.map((r) => String(r.id)), ...taskAssignments.map((r) => String(r.id)), ...attendanceRows.map((r) => String(r.id)), ...salaries.map((r) => String(r.id)), ...visits.map((r) => String(r.id)), ...relatedLeads.map((r) => String(r.id)));
     }
     const conditions = [like(auditLogs.action, "employee.%")];
     if (metadataEmployeeId) {
