@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, UserRound, Users, Wallet } from "lucide-react";
+import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, Trash2, UserRound, Users, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useAuthStore } from "@/store/authStore";
 
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
@@ -64,6 +65,10 @@ export default function EmployeeDashboardPage() {
   const [searchParams] = useSearchParams();
   const [loadIssues, setLoadIssues] = useState<string[]>([]);
   const notificationIdsRef = useRef(new Set<string>());
+  const currentUser = useAuthStore((state) => state.user);
+  const setAuthUser = useAuthStore((state) => state.setUser);
+  const profilePhotoInputRef = useRef<HTMLInputElement>(null);
+  const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
@@ -302,6 +307,52 @@ export default function EmployeeDashboardPage() {
     const href = n.data?.href;
     if (typeof href === "string" && href.startsWith("/") && !href.startsWith("//")) navigate(href);
   }
+
+  async function uploadProfilePhoto(file?: File) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Choose a JPG, PNG or WEBP image.");
+      if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Profile photos must be 5 MB or smaller.");
+      if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = "";
+      return;
+    }
+
+    setProfilePhotoBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const uploadResponse = await api.post("/uploads/profile-image", form);
+      const uploadedUrl = typeof uploadResponse.data?.url === "string" ? uploadResponse.data.url.trim() : "";
+      if (!uploadedUrl) throw new Error("The image uploaded but no profile URL was returned.");
+
+      const response = await api.patch("/auth/profile", { avatarUrl: uploadedUrl });
+      if (currentUser) setAuthUser({ ...currentUser, avatarUrl: response.data?.user?.avatarUrl ?? uploadedUrl });
+      toast.success("Profile photo updated.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || "Could not update your profile photo.");
+    } finally {
+      setProfilePhotoBusy(false);
+      if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = "";
+    }
+  }
+
+  async function removeProfilePhoto() {
+    if (!currentUser?.avatarUrl || profilePhotoBusy) return;
+    setProfilePhotoBusy(true);
+    try {
+      const response = await api.patch("/auth/profile", { avatarUrl: null });
+      if (currentUser) setAuthUser({ ...currentUser, avatarUrl: response.data?.user?.avatarUrl ?? null });
+      toast.success("Profile photo removed.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not remove your profile photo.");
+    } finally {
+      setProfilePhotoBusy(false);
+    }
+  }
   async function updateLeadStage(lead: Lead, stage: string) {
     try { await api.patch(`/employees/leads/${lead._id}`,{stage}); toast.success("Lead stage updated."); await load(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not update lead."); }
@@ -421,6 +472,25 @@ export default function EmployeeDashboardPage() {
         </div>}
 
         {tab==="profile" && <Panel title="My employee profile" note="Sensitive employment and permission fields can only be updated by an authorised administrator.">
+          <section className="truvi-erm-profile-photo">
+            <div className="truvi-erm-profile-photo__avatar">
+              {currentUser?.avatarUrl
+                ? <img src={currentUser.avatarUrl} alt="Your profile" />
+                : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold">Profile photo</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Add a clear photo so your team can recognise you across Truvi.</p>
+              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG or WEBP · maximum 5 MB</p>
+              <div className="truvi-erm-profile-photo__actions">
+                <button type="button" onClick={() => profilePhotoInputRef.current?.click()} disabled={profilePhotoBusy}>
+                  <Camera size={15} aria-hidden="true"/>{profilePhotoBusy ? "Saving photo…" : currentUser?.avatarUrl ? "Change photo" : "Upload photo"}
+                </button>
+                {currentUser?.avatarUrl && <button type="button" onClick={() => void removeProfilePhoto()} disabled={profilePhotoBusy}><Trash2 size={15} aria-hidden="true"/>Remove photo</button>}
+              </div>
+              <input ref={profilePhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => void uploadProfilePhoto(event.target.files?.[0])}/>
+            </div>
+          </section>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[
             ["Full name",employee?.name],["Employee ID",employee?.employeeCode],["Official email",employee?.officialEmail],["Phone",employee?.phone],["Department",employee?.department],["Designation",employee?.designation],["Joining date",fmtDate(employee?.joiningDate)],["Recruitment source",employee?.recruitmentSource],["Reporting manager",employee?.reportingManagerId||"Not assigned"],["Employment status",employee?.status],
           ].map(([label,value])=><div key={label} className="rounded-xl border border-white/10 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-medium">{value||"—"}</p></div>)}</div>

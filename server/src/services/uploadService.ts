@@ -92,6 +92,19 @@ export const upload = multer({
   },
 });
 
+/** Dedicated avatar upload: image-only, smaller limit, shared random-name storage. */
+const ALLOWED_PROFILE_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
+export const uploadProfileImage = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB profile photos
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_PROFILE_IMAGE_MIME.has(file.mimetype)) {
+      return cb(new Error("Unsupported file type. Profile photos must be JPG, PNG or WEBP images."));
+    }
+    cb(null, true);
+  },
+});
+
 const ALLOWED_MEDIA_MIME = new Set([
   "application/pdf",
   // Voice notes (Hindi audio lessons)
