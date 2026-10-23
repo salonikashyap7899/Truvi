@@ -115,7 +115,7 @@ export default function AdminEmployeeManagementPage() {
     e.preventDefault(); setBusy(true);
     const payload = {
       ...employeeForm, monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
-      permissions: employeeForm.permissions.trim() ? employeeForm.permissions.split(",").map((p) => p.trim()).filter(Boolean) : undefined,
+      permissions: employeeForm.permissions.trim() ? employeeForm.permissions.split(",").map((p) => p.trim()).filter(Boolean) : editing ? [] : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
       interviewDate: employeeForm.interviewDate || null,
@@ -261,7 +261,7 @@ export default function AdminEmployeeManagementPage() {
       {tab === "tasks" && <div className="space-y-4">
         <Panel title="Assign a task" sub="Assigned tasks are distinct from employees' personal tasks.">
           <form onSubmit={assignTask} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <SelectField label="Employee" required value={taskForm.employeeId} onChange={(v) => setTaskForm((s) => ({ ...s, employeeId: v }))} options={[{value:"",label:"Choose employee"}, ...employees.filter((e)=>e.status!=="INACTIVE").map((e)=>({value:e.id,label:`${e.name} · ${e.department}`}))]}/>
+            <SelectField label="Employee" required value={taskForm.employeeId} onChange={(v) => setTaskForm((s) => ({ ...s, employeeId: v }))} options={[{value:"",label:"Choose employee"}, ...employees.filter((e)=>e.status!=="INACTIVE" && !!e.accountUserId).map((e)=>({value:e.id,label:`${e.name} · ${e.department}`}))]}/>
             <Field label="Task title" required value={taskForm.title} onChange={(v) => setTaskForm((s) => ({ ...s, title: v }))}/>
             <SelectField label="Priority" value={taskForm.priority} onChange={(v) => setTaskForm((s) => ({ ...s, priority: v }))} options={["LOW","MEDIUM","HIGH","URGENT"].map((v)=>({value:v,label:v}))}/>
             <Field label="Deadline" type="datetime-local" value={taskForm.deadlineAt} onChange={(v) => setTaskForm((s) => ({ ...s, deadlineAt: v }))}/>
