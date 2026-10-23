@@ -6,6 +6,9 @@ import { toast } from "sonner";
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
+type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
+type TaskComment = { _id: string; authorUserId: string; body: string; createdAt: string };
+type TaskActivity = { history: TaskHistoryItem[]; comments: TaskComment[] };
 type TaskAssignee = { employeeId: string; name: string; employeeCode?: string | null; status: string };
 type Task = { _id: string; title: string; description?: string; taskType: string; priority: string; status: string; taskStatus?: string; deadlineAt?: string | null; completionNotes?: string | null; assignees?: TaskAssignee[]; attachments?: TaskAttachment[] };
 type LeaveRequest = { _id: string; employeeId: string; leaveType: string; startDate: string; endDate: string; totalDays: number; reason: string; status: string; reviewNotes?: string | null; createdAt: string };
@@ -36,6 +39,9 @@ export default function EmployeeDashboardPage() {
   const [searchParams] = useSearchParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
+  const [taskActivity, setTaskActivity] = useState<TaskActivity | null>(null);
+  const [taskCommentDraft, setTaskCommentDraft] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [visits, setVisits] = useState<SiteVisit[]>([]);
@@ -200,6 +206,29 @@ export default function EmployeeDashboardPage() {
       document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not download attachment."); }
   }
+  async function openTaskActivity(taskId: string) {
+    if (taskActivityId === taskId) {
+      setTaskActivityId(null); setTaskActivity(null); setTaskCommentDraft("");
+      return;
+    }
+    setTaskActivityId(taskId);
+    setTaskActivity(null);
+    try {
+      const response = await api.get("/employees/tasks/" + taskId + "/history");
+      setTaskActivity(response.data);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load task activity."); }
+  }
+  async function addTaskComment(e: FormEvent) {
+    e.preventDefault();
+    if (!taskActivityId || !taskCommentDraft.trim()) return;
+    try {
+      await api.post("/employees/tasks/" + taskActivityId + "/comments", { body: taskCommentDraft.trim() });
+      setTaskCommentDraft("");
+      const response = await api.get("/employees/tasks/" + taskActivityId + "/history");
+      setTaskActivity(response.data);
+      toast.success("Comment added to task.");
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not add task comment."); }
+  }
   async function deleteTaskAttachment(taskId: string, attachment: TaskAttachment) {
     if (attachment.uploadedByUserId !== employee?.accountUserId) return;
     if (!window.confirm("Delete your attachment " + attachment.originalFileName + "?")) return;
@@ -249,8 +278,17 @@ export default function EmployeeDashboardPage() {
         {tab==="tasks" && <div className="space-y-4">
           <div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-lg font-semibold">My tasks</h2><p className="mt-1 text-sm text-muted-foreground">Admin-assigned and personal tasks are labelled separately.</p></div><button onClick={()=>setShowTaskForm((v)=>!v)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{showTaskForm?"Close":"Create personal task"}</button></div>
           {showTaskForm&&<Panel title="Create a personal task"><form onSubmit={createPersonalTask} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><Input label="Title" required value={taskForm.title} onChange={(v)=>setTaskForm((s)=>({...s,title:v}))}/><Input label="Description" value={taskForm.description} onChange={(v)=>setTaskForm((s)=>({...s,description:v}))}/><Select label="Priority" value={taskForm.priority} onChange={(v)=>setTaskForm((s)=>({...s,priority:v}))} options={["LOW","MEDIUM","HIGH","URGENT"].map((v)=>({value:v,label:v}))}/><Input label="Deadline" type="datetime-local" value={taskForm.deadlineAt} onChange={(v)=>setTaskForm((s)=>({...s,deadlineAt:v}))}/><Input label="Estimated duration (minutes)" type="number" value={taskForm.estimatedMinutes} onChange={(v)=>setTaskForm((s)=>({...s,estimatedMinutes:v}))}/><button disabled={busy} className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{busy?"Saving…":"Save personal task"}</button></form></Panel>}
-          <Panel title={`Task list · ${tasks.length}`}><div className="space-y-3">{tasks.map((t)=><article key={t._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{t.title}</h3><Badge value={t.taskType}/><Badge value={t.priority}/></div>{t.description&&<p className="mt-2 text-sm text-muted-foreground">{t.description}</p>}<p className="mt-2 text-xs text-muted-foreground">Deadline: {fmtDateTime(t.deadlineAt)}</p>{t.completionNotes&&<p className="mt-1 text-xs text-muted-foreground">Completion note: {t.completionNotes}</p>}{t.assignees && t.assignees.length>1 && <p className="mt-1 text-xs text-muted-foreground">Shared with: {t.assignees.filter((a)=>a.employeeId!==employee?.id).map((a)=>a.name).join(", ") || "your team"}</p>}<div className="mt-3 flex flex-wrap gap-2">{(t.attachments||[]).map((a)=><span key={a._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,a)} className="text-xs underline">{a.originalFileName}</button>{a.uploadedByUserId===employee?.accountUserId&&<button aria-label={"Delete "+a.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,a)} className="px-1 text-xs text-red-300">×</button>}</span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></div><Badge value={t.status}/></div><div className="mt-3 flex flex-wrap gap-2">{t.status!=="COMPLETED"&&t.status!=="CANCELLED"&&<><button onClick={()=>void updateTask(t,"IN_PROGRESS")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Start / in progress</button><button onClick={()=>void updateTask(t,"ON_HOLD")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">On hold</button><button onClick={()=>void updateTask(t,"COMPLETED")} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Complete</button></>}</div></article>)}{tasks.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">You have no tasks assigned yet.</p>}</div></Panel>
+          <Panel title={`Task list · ${tasks.length}`}><div className="space-y-3">{tasks.map((t)=><article key={t._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{t.title}</h3><button onClick={()=>void openTaskActivity(t._id)} className="rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><Badge value={t.taskType}/><Badge value={t.priority}/></div>{t.description&&<p className="mt-2 text-sm text-muted-foreground">{t.description}</p>}<p className="mt-2 text-xs text-muted-foreground">Deadline: {fmtDateTime(t.deadlineAt)}</p>{t.completionNotes&&<p className="mt-1 text-xs text-muted-foreground">Completion note: {t.completionNotes}</p>}{t.assignees && t.assignees.length>1 && <p className="mt-1 text-xs text-muted-foreground">Shared with: {t.assignees.filter((a)=>a.employeeId!==employee?.id).map((a)=>a.name).join(", ") || "your team"}</p>}<div className="mt-3 flex flex-wrap gap-2">{(t.attachments||[]).map((a)=><span key={a._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,a)} className="text-xs underline">{a.originalFileName}</button>{a.uploadedByUserId===employee?.accountUserId&&<button aria-label={"Delete "+a.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,a)} className="px-1 text-xs text-red-300">×</button>}</span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></div><Badge value={t.status}/></div><div className="mt-3 flex flex-wrap gap-2">{t.status!=="COMPLETED"&&t.status!=="CANCELLED"&&<><button onClick={()=>void updateTask(t,"IN_PROGRESS")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Start / in progress</button><button onClick={()=>void updateTask(t,"ON_HOLD")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">On hold</button><button onClick={()=>void updateTask(t,"COMPLETED")} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Complete</button></>}</div></article>)}{tasks.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">You have no tasks assigned yet.</p>}</div></Panel>
         </div>}
+
+        {taskActivityId && <Panel title={"Task history & comments · " + (tasks.find((task) => task._id === taskActivityId)?.title || "Task")} note="Activity is available only for tasks assigned to you or created in your own workspace.">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div><h3 className="mb-2 text-sm font-semibold">Comments</h3><div className="max-h-72 space-y-2 overflow-y-auto">{(taskActivity?.comments||[]).map((comment)=><div key={comment._id} className="rounded-xl border border-white/10 p-3"><p className="whitespace-pre-wrap text-sm">{comment.body}</p><p className="mt-2 text-xs text-muted-foreground">{comment.authorUserId} · {fmtDateTime(comment.createdAt)}</p></div>)}{taskActivity && taskActivity.comments.length===0&&<p className="text-sm text-muted-foreground">No comments yet.</p>}</div>
+              <form onSubmit={addTaskComment} className="mt-3 flex gap-2"><input value={taskCommentDraft} onChange={(e)=>setTaskCommentDraft(e.target.value)} maxLength={3000} required placeholder="Add a task comment…" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-background px-3 py-2 text-sm"/><button className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">Post</button></form>
+            </div>
+            <div><h3 className="mb-2 text-sm font-semibold">History</h3><div className="max-h-96 space-y-2 overflow-y-auto">{(taskActivity?.history||[]).map((entry)=><div key={entry._id} className="rounded-xl border border-white/10 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><b className="text-sm">{entry.action.replaceAll("_"," ")}</b><span className="text-xs text-muted-foreground">{fmtDateTime(entry.createdAt)}</span></div>{entry.reason&&<p className="mt-1 text-xs">Reason: {entry.reason}</p>}{entry.afterValue&&<pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">{JSON.stringify(entry.afterValue,null,2)}</pre>}</div>)}{taskActivity && taskActivity.history.length===0&&<p className="text-sm text-muted-foreground">No history events are available.</p>}</div></div>
+          </div>
+        </Panel>}
 
         {tab==="leads" && <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">My buyer leads</h2><p className="mt-1 text-sm text-muted-foreground">Submitted leads are saved to Truvi's central CRM and are visible to authorised Admins.</p></div><button onClick={()=>setShowLeadForm((v)=>!v)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{showLeadForm?"Close form":"Submit buyer lead"}</button></div>
           {showLeadForm&&<Panel title="Buyer lead submission" note="Only submit buyer contact data after the buyer has consented to its use by Truvi. Potential duplicates are flagged for review."><form onSubmit={submitLead} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
