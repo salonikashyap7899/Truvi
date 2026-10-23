@@ -87,8 +87,10 @@ router.get("/summary", async (_req, res) => {
   // ---- Team ----
   const activeEmps = emps.filter((e) => e.status === "ACTIVE");
   const linkedEmployeeIds = new Set(emps.filter((e) => e.accountUserId).map((e) => String(e.accountUserId)));
-  const enabledAccounts = employeeAccounts.filter((u) => !u.disabled);
-  const pendingInvitations = new Set(invites.filter((i) => !i.usedAt && i.expiresAt > new Date()).map((i) => String(i.employeeId)));
+  const linkedAccountRows = employeeAccounts.filter((u) => linkedEmployeeIds.has(String(u._id)));
+  const enabledAccounts = linkedAccountRows.filter((u) => !u.disabled);
+  const activeProfileIds = new Set(emps.filter((e) => e.status !== "INACTIVE").map((e) => String(e._id)));
+  const pendingInvitations = new Set(invites.filter((i) => !i.usedAt && i.expiresAt > new Date() && activeProfileIds.has(String(i.employeeId))).map((i) => String(i.employeeId)));
   const todayIST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   const todayAttendance = attendanceRows.filter((a) => a.attendanceDate === todayIST);
   const pendingTasks = workTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
@@ -109,7 +111,7 @@ router.get("/summary", async (_req, res) => {
     employeeTasksPending: pendingTasks.length,
     employeeTasksOverdue: pendingTasks.filter((t) => t.deadlineAt && t.deadlineAt < now).length,
     employeeLeadsSubmitted: employeeLeadIds.size,
-    employeeSiteVisits: employeeVisitRows.length,
+    employeeSiteVisits: employeeVisitRows.filter((v) => linkedEmployeeIds.has(String(v.responsibleUserId))).length,
     employeeAttendanceMarkedToday: todayAttendance.length,
     paidPayrollThisPeriod: round(salaryRows.filter((s) => s.status === "PAID").reduce((sum, s) => sum + s.netPayable, 0)),
     byRecruitmentSource: Object.entries(emps.reduce<Record<string, number>>((acc, e) => { const source = e.recruitmentSource || "Other"; acc[source] = (acc[source] || 0) + 1; return acc; }, {})).map(([source, count]) => ({ source, count })),
