@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleHelp, CircleDollarSign, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
+import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleHelp, CircleDollarSign, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -410,23 +410,134 @@ export default function EmployeeDashboardPage() {
   const [showLeadForm, setShowLeadForm] = useState(false);
 
   return (
-    <main className="truvi-erm truvi-erm-employee min-h-screen bg-background px-3 py-5 text-foreground sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-[1450px] space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Ventures · Employee Workspace</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Hello{employee?.name ? `, ${employee.name.split(" ")[0]}` : ""}</h1><p className="mt-2 text-sm text-muted-foreground">{new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Kolkata"})} · {employee?.designation || "Employee"} · {employee?.department || "Team"}</p></div>
-          <div className="flex items-center gap-2"><NotificationBell/><button type="button" onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Refresh</button><Link to="/login" className="rounded-xl border border-white/10 px-3 py-2 text-sm">Sign in help</Link></div>
-        </header>
+    <main className="truvi-erm truvi-erm-employee">
+      <div className="truvi-employee-app-shell">
+        <aside className="truvi-employee-sidebar" aria-label="Employee navigation">
+          <div className="truvi-employee-brand">
+            <span className="truvi-employee-brand__mark">T</span>
+            <span className="truvi-employee-brand__words">
+              <strong>TRUVI VENTURES</strong>
+              <small>EMPLOYEE WORKSPACE</small>
+            </span>
+          </div>
 
-        <div className="truvi-erm-workspace">
-          <nav className="truvi-erm-tabs truvi-employee-nav" aria-label="Employee workspace">
-            {tabItems.map((t)=>{ const Icon = tabIcons[t.id]; const unreadCount = t.id === "notifications" ? notices.filter((n)=>!n.isRead).length : 0; return <button key={t.id} type="button" aria-current={t.id===tab?"page":undefined} onClick={()=>setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${t.id===tab?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}><Icon size={17} aria-hidden="true"/><span>{t.label}</span>{unreadCount>0&&<span className="truvi-erm-count">{unreadCount>99?"99+":unreadCount}</span>}</button>;})}
+          <nav className="truvi-employee-sidebar-nav" aria-label="Workspace sections">
+            {navigationGroups.map((group) => (
+              <div className="truvi-employee-nav-group" key={group.label}>
+                <p className="truvi-employee-nav-group__label">{group.label}</p>
+                <div className="truvi-employee-nav-group__items">
+                  {group.items.map((tabId) => {
+                    const item = tabItems.find((candidate) => candidate.id === tabId);
+                    if (!item) return null;
+                    const Icon = tabIcons[item.id];
+                    const unreadCount = item.id === "notifications" ? notices.filter((notice) => !notice.isRead).length : 0;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-current={tab === item.id ? "page" : undefined}
+                        className={"truvi-employee-nav-button" + (tab === item.id ? " is-active" : "")}
+                        onClick={() => { setTab(item.id); setQuickSearchOpen(false); }}
+                      >
+                        <Icon size={17} aria-hidden="true" />
+                        <span>{item.label}</span>
+                        {unreadCount > 0 && <span className="truvi-erm-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
+
+          <button type="button" className="truvi-employee-sidebar-profile" onClick={() => setTab("profile")} title="Open my profile">
+            <span className="truvi-employee-sidebar-profile__avatar">
+              {currentUser?.avatarUrl
+                ? <img src={currentUser.avatarUrl} alt="" />
+                : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+            </span>
+            <span className="truvi-employee-sidebar-profile__text">
+              <strong>{employee?.name || currentUser?.name || "Employee"}</strong>
+              <small>{employee?.designation || employee?.department || "Employee account"}</small>
+            </span>
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
+        </aside>
+
+        <div className="truvi-employee-main">
+          <header className="truvi-employee-topbar">
+            <div className="truvi-employee-breadcrumb">
+              <span>EMPLOYEE WORKSPACE</span>
+              <ChevronRight size={14} aria-hidden="true" />
+              <strong>{tabItems.find((item) => item.id === tab)?.label || "Overview"}</strong>
+            </div>
+
+            <div className="truvi-employee-search">
+              <Search size={17} aria-hidden="true" />
+              <input
+                aria-label="Search tasks, leads and notifications"
+                value={quickSearch}
+                onFocus={() => setQuickSearchOpen(true)}
+                onChange={(event) => { setQuickSearch(event.target.value); setQuickSearchOpen(true); }}
+                onKeyDown={(event) => { if (event.key === "Escape") setQuickSearchOpen(false); }}
+                placeholder="Search tasks, buyer leads, notifications…"
+              />
+              {quickSearch && <button type="button" className="truvi-employee-search__clear" aria-label="Clear search" onClick={() => { setQuickSearch(""); setQuickSearchOpen(false); }}><X size={15}/></button>}
+              {quickSearchOpen && quickSearch.trim() && (
+                <div className="truvi-employee-search-results" role="listbox" aria-label="Search results">
+                  {quickSearchResults.map((result) => {
+                    const Icon = result.icon;
+                    return (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        key={result.id}
+                        onClick={() => { setTab(result.tab); setQuickSearchOpen(false); setQuickSearch(""); setSearchTarget(result.id); }}
+                      >
+                        <span className="truvi-employee-search-results__icon"><Icon size={16} aria-hidden="true"/></span>
+                        <span className="truvi-employee-search-results__copy"><strong>{result.title}</strong><small>{result.kind} · {result.detail}</small></span>
+                        <ChevronRight size={15} aria-hidden="true"/>
+                      </button>
+                    );
+                  })}
+                  {quickSearchResults.length === 0 && <p className="truvi-employee-search-results__empty">No matching tasks, leads or notifications.</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="truvi-employee-topbar-actions">
+              <NotificationBell />
+              <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
+                <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
+              </button>
+              <Link to="/login" className="truvi-employee-icon-button" aria-label="Sign in help" title="Sign in help"><CircleHelp size={17} aria-hidden="true"/></Link>
+              <button type="button" className="truvi-employee-topbar-user" onClick={() => setTab("profile")} aria-label="Open my profile">
+                <span className="truvi-employee-topbar-user__avatar">
+                  {currentUser?.avatarUrl
+                    ? <img src={currentUser.avatarUrl} alt="" />
+                    : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 1).join("").toUpperCase()}</span>}
+                </span>
+                <span>{employee?.name || currentUser?.name || "My profile"}</span>
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
           <div className="truvi-erm-workspace-content">
+            <div className="truvi-employee-page-heading">
+              <div>
+                <p className="truvi-employee-eyebrow">TRUVI VENTURES · PEOPLE & OPERATIONS</p>
+                <h1>Hello{employee?.name ? ", " + employee.name.split(" ")[0] : ""}</h1>
+                <p>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })} <span>·</span> {employee?.designation || "Employee"} <span>·</span> {employee?.department || "Team"}</p>
+              </div>
+              <div className="truvi-employee-heading-status"><span className="truvi-employee-status-dot" /> Workspace active</div>
+            </div>
 
-        {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading your work…</div>}
-        {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some workspace sections need attention</p><p className="mt-1">The rest of your workspace remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={()=>void load()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Info size={15}/> Retry data</button></div>}
+            {loading && <div role="status" className="truvi-erm-loading-state">Loading your workspace data…</div>}
+            {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some workspace sections need attention</p><p className="mt-1">The rest of your workspace remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void load()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Info size={15}/> Retry data</button></div>}
 
-        {tab==="home" && <>
+            {tab==="home" && <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5"><Kpi label="Pending tasks" value={pendingTasks.length}/><Kpi label="Overdue tasks" value={overdueTasks.length}/><Kpi label="Completed tasks" value={tasks.filter((t)=>t.status==="COMPLETED").length}/><Kpi label="My leads" value={leads.length}/><Kpi label="Hot leads" value={myHotLeads}/></div>
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Today's attendance" note="Check-in and check-out use server timestamps and the Asia/Kolkata work date.">
