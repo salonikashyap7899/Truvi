@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
-type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "salary" | "reports" | "activity";
+type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
   id: string; accountUserId?: string | null; employeeCode?: string | null; name: string;
   officialEmail: string; phone: string; department: string; designation: string;
@@ -12,7 +12,10 @@ type Employee = {
   joiningDate?: string | null; status: "ACTIVE" | "ON_LEAVE" | "INACTIVE"; monthlySalary: number;
   salaryDueDay: number; notes?: string; permissions?: string[]; accountStatus?: string;
 };
-type Task = { _id: string; employeeId: string; title: string; description?: string | null; taskType: string; priority: string; status: string; deadlineAt?: string | null; createdAt: string };
+type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
+type TaskAssignee = { employeeId: string; name: string; employeeCode?: string | null; status: string };
+type Task = { _id: string; employeeId: string; title: string; description?: string | null; taskType: string; priority: string; status: string; taskStatus?: string; deadlineAt?: string | null; createdAt: string; assignees?: TaskAssignee[]; assignedEmployeeIds?: string[]; attachments?: TaskAttachment[] };
+type LeaveRequest = { _id: string; employeeId: string; employeeName?: string; employeeCode?: string; department?: string; leaveType: string; startDate: string; endDate: string; totalDays: number; reason: string; status: string; reviewNotes?: string | null; createdAt: string };
 type Lead = { _id: string; leadNo?: number; clientName: string; clientPhone: string; clientEmail?: string | null; projectId: string; submittedById: string; assignedToId?: string | null; stage: string; source: string; leadTemperature?: string | null; siteVisitStatus?: string | null; nextFollowUpAt?: string | null; createdAt: string };
 type Visit = { _id: string; leadId?: string | null; projectId: string; projectName?: string; clientName?: string; clientPhone?: string; responsibleUserId?: string | null; scheduledAt: string; status: string; reportNotes?: string | null };
 type Attendance = { _id: string; employeeId: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null; correctionReason?: string | null };
@@ -31,7 +34,7 @@ type Summary = {
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "employees", label: "All employees" },
   { id: "tasks", label: "Tasks" }, { id: "leads", label: "Lead management" },
-  { id: "visits", label: "Site visits" }, { id: "attendance", label: "Attendance" }, { id: "salary", label: "Salary & payroll" }, { id: "reports", label: "Performance reports" }, { id: "activity", label: "Activity logs" },
+  { id: "visits", label: "Site visits" }, { id: "attendance", label: "Attendance" }, { id: "leave", label: "Leave requests" }, { id: "salary", label: "Salary & payroll" }, { id: "reports", label: "Performance reports" }, { id: "activity", label: "Activity logs" },
 ];
 const money = (n?: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const date = (raw?: string | null) => raw ? new Date(raw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -69,6 +72,7 @@ export default function AdminEmployeeManagementPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
   const [performance, setPerformance] = useState<PerformanceMetric[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditRow[]>([]);
@@ -83,21 +87,21 @@ export default function AdminEmployeeManagementPage() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [employeeForm, setEmployeeForm] = useState<Record<string, string>>({ ...emptyEmployee });
   const [busy, setBusy] = useState(false);
-  const [taskForm, setTaskForm] = useState({ employeeId: "", title: "", description: "", priority: "MEDIUM", deadlineAt: "", category: "GENERAL" });
+  const [taskForm, setTaskForm] = useState({ employeeId: "", employeeIds: [] as string[], title: "", description: "", priority: "MEDIUM", deadlineAt: "", category: "GENERAL" });
   const [salaryForm, setSalaryForm] = useState({ employeeId: "", monthKey: new Date().toISOString().slice(0, 7), grossSalary: "", allowances: "0", deductions: "0", notes: "" });
   const [correction, setCorrection] = useState({ id: "", status: "PRESENT", correctionReason: "" });
 
   async function reload() {
     setLoading(true);
     try {
-      const [ov, em, ta, le, vi, at, sa, pe, au] = await Promise.all([
+      const [ov, em, ta, le, vi, at, sa, pe, au, lr] = await Promise.all([
         api.get("/employees/overview"), api.get("/employees"), api.get("/employees/tasks"),
         api.get("/employees/leads"), api.get("/employees/site-visits"), api.get("/employees/attendance"), api.get("/employees/salaries"),
-        api.get("/employees/performance"), api.get("/employees/audit-logs?limit=100"),
+        api.get("/employees/performance"), api.get("/employees/audit-logs?limit=100"), api.get("/employees/leave-requests"),
       ]);
       setSummary(ov.data); setEmployees(em.data.employees ?? []); setTasks(ta.data.tasks ?? []);
       setLeads(le.data.leads ?? []); setVisits(vi.data.siteVisits ?? []); setAttendance(at.data.attendance ?? []); setSalaries(sa.data.salaries ?? []);
-      setPerformance(pe.data.metrics ?? []); setAuditLogs(au.data.auditLogs ?? []);
+      setPerformance(pe.data.metrics ?? []); setAuditLogs(au.data.auditLogs ?? []); setLeaveRequests(lr.data.leaveRequests ?? []);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Unable to load Employee Management.");
     } finally { setLoading(false); }
@@ -162,8 +166,8 @@ export default function AdminEmployeeManagementPage() {
   async function assignTask(e: FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
-      await api.post("/employees/tasks", { ...taskForm, estimatedMinutes: undefined, deadlineAt: taskForm.deadlineAt ? new Date(taskForm.deadlineAt).toISOString() : null });
-      toast.success("Task assigned."); setTaskForm({ employeeId: "", title: "", description: "", priority: "MEDIUM", deadlineAt: "", category: "GENERAL" }); await reload();
+      await api.post("/employees/tasks", { ...taskForm, employeeIds: taskForm.employeeIds, employeeId: taskForm.employeeIds[0], estimatedMinutes: undefined, deadlineAt: taskForm.deadlineAt ? new Date(taskForm.deadlineAt).toISOString() : null });
+      toast.success("Task assigned to " + taskForm.employeeIds.length + " employee(s)."); setTaskForm({ employeeId: "", employeeIds: [], title: "", description: "", priority: "MEDIUM", deadlineAt: "", category: "GENERAL" }); await reload();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not assign task."); }
     finally { setBusy(false); }
   }
