@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
-type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "salary";
+type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "salary" | "reports" | "activity";
 type Employee = {
   id: string; accountUserId?: string | null; employeeCode?: string | null; name: string;
   officialEmail: string; phone: string; department: string; designation: string;
@@ -17,6 +17,8 @@ type Lead = { _id: string; leadNo?: number; clientName: string; clientPhone: str
 type Visit = { _id: string; leadId?: string | null; projectId: string; projectName?: string; clientName?: string; clientPhone?: string; responsibleUserId?: string | null; scheduledAt: string; status: string; reportNotes?: string | null };
 type Attendance = { _id: string; employeeId: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null; correctionReason?: string | null };
 type Salary = { _id: string; employeeId: string; employeeName?: string; employeeCode?: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null };
+type PerformanceMetric = { employeeId: string; employeeCode?: string | null; name: string; department: string; designation?: string | null; recruitmentSource?: string | null; status: string; accountLinked: boolean; tasksCompleted: number; tasksOverdue: number; tasksOpen: number; leadsSubmitted: number; leadsAssigned: number; callsLogged: number; siteVisitsScheduled: number; siteVisitsCompleted: number; attendancePresentDays: number };
+type AuditRow = { _id: string; userId?: string | null; actorName?: string | null; actorEmail?: string | null; action: string; resourceType?: string | null; resourceId?: string | null; metadata?: Record<string, unknown>; createdAt: string };
 type Summary = {
   totalEmployees: number; activeEmployees: number; inactiveEmployees: number; employeesOnLeave: number;
   employeeAccounts: number; activeAccounts: number; pendingInvitations: number; tasksAssignedToday: number;
@@ -29,7 +31,7 @@ type Summary = {
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "employees", label: "All employees" },
   { id: "tasks", label: "Tasks" }, { id: "leads", label: "Lead management" },
-  { id: "visits", label: "Site visits" }, { id: "attendance", label: "Attendance" }, { id: "salary", label: "Salary & payroll" },
+  { id: "visits", label: "Site visits" }, { id: "attendance", label: "Attendance" }, { id: "salary", label: "Salary & payroll" }, { id: "reports", label: "Performance reports" }, { id: "activity", label: "Activity logs" },
 ];
 const money = (n?: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const date = (raw?: string | null) => raw ? new Date(raw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -68,6 +70,12 @@ export default function AdminEmployeeManagementPage() {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [performance, setPerformance] = useState<PerformanceMetric[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditRow[]>([]);
+  const [auditEmployeeId, setAuditEmployeeId] = useState("ALL");
+  const [perfFrom, setPerfFrom] = useState("");
+  const [perfTo, setPerfTo] = useState("");
+  const [perfDepartment, setPerfDepartment] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -82,12 +90,14 @@ export default function AdminEmployeeManagementPage() {
   async function reload() {
     setLoading(true);
     try {
-      const [ov, em, ta, le, vi, at, sa] = await Promise.all([
+      const [ov, em, ta, le, vi, at, sa, pe, au] = await Promise.all([
         api.get("/employees/overview"), api.get("/employees"), api.get("/employees/tasks"),
         api.get("/employees/leads"), api.get("/employees/site-visits"), api.get("/employees/attendance"), api.get("/employees/salaries"),
+        api.get("/employees/performance"), api.get("/employees/audit-logs?limit=100"),
       ]);
       setSummary(ov.data); setEmployees(em.data.employees ?? []); setTasks(ta.data.tasks ?? []);
       setLeads(le.data.leads ?? []); setVisits(vi.data.siteVisits ?? []); setAttendance(at.data.attendance ?? []); setSalaries(sa.data.salaries ?? []);
+      setPerformance(pe.data.metrics ?? []); setAuditLogs(au.data.auditLogs ?? []);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Unable to load Employee Management.");
     } finally { setLoading(false); }
@@ -183,6 +193,28 @@ export default function AdminEmployeeManagementPage() {
     e.preventDefault();
     try { await api.patch(`/employees/attendance/${correction.id}`, { status: correction.status, correctionReason: correction.correctionReason }); toast.success("Attendance corrected and audited."); setCorrection({ id: "", status: "PRESENT", correctionReason: "" }); await reload(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not correct attendance."); }
+  }
+  async function loadPerformance() {
+    setBusy(true);
+    try {
+      const params = new URLSearchParams();
+      if (perfFrom) params.set("from", new Date(perfFrom).toISOString());
+      if (perfTo) params.set("to", new Date(perfTo + "T23:59:59").toISOString());
+      if (perfDepartment !== "ALL") params.set("department", perfDepartment);
+      const r = await api.get("/employees/performance" + (params.size ? "?" + params.toString() : ""));
+      setPerformance(r.data.metrics ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load performance reports."); }
+    finally { setBusy(false); }
+  }
+  async function loadAuditLogs() {
+    setBusy(true);
+    try {
+      const params = new URLSearchParams({ limit: "250" });
+      if (auditEmployeeId !== "ALL") params.set("employeeId", auditEmployeeId);
+      const r = await api.get("/employees/audit-logs?" + params.toString());
+      setAuditLogs(r.data.auditLogs ?? []);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load employee audit logs."); }
+    finally { setBusy(false); }
   }
   async function updateVisit(v: Visit, status: string) {
     try { await api.patch(`/employees/site-visits/${v._id}`, { status }); toast.success("Site visit updated."); await reload(); }
@@ -297,6 +329,28 @@ export default function AdminEmployeeManagementPage() {
           <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Date</th><th className="p-3">Status</th><th className="p-3">Check in</th><th className="p-3">Check out</th><th className="p-3">Hours</th></tr></thead><tbody>{attendance.map((a)=><tr key={a._id} className="border-t border-white/10"><td className="p-3">{employees.find((e)=>e.id===a.employeeId)?.name||"Employee"}</td><td className="p-3">{a.attendanceDate}</td><td className="p-3"><Status value={a.status}/></td><td className="p-3">{dt(a.checkInAt)}</td><td className="p-3">{dt(a.checkOutAt)}</td><td className="p-3">{a.workingMinutes == null ? "—" : `${Math.floor(a.workingMinutes/60)}h ${a.workingMinutes%60}m`}</td></tr>)}</tbody></table>{attendance.length===0&&<p className="p-6 text-sm text-muted-foreground">No attendance has been recorded yet. This does not mean employees are absent.</p>}</div>
         </Panel>
       </div>}
+
+      {tab === "reports" && <div className="space-y-4">
+        <Panel title="Employee performance reports" sub="Metrics are calculated from central CRM records, task history, site visits, and explicit attendance records. These counts are not a complete measure of individual performance.">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Field label="From date" type="date" value={perfFrom} onChange={setPerfFrom}/>
+            <Field label="To date" type="date" value={perfTo} onChange={setPerfTo}/>
+            <SelectField label="Department" value={perfDepartment} onChange={setPerfDepartment} options={[{value:"ALL",label:"All departments"},...Array.from(new Set(employees.map((e)=>e.department))).sort().map((d)=>({value:d,label:d}))]}/>
+            <button disabled={busy} onClick={()=>void loadPerformance()} className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Loading…":"Apply filters"}</button>
+          </div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Tasks completed</th><th className="p-3">Open / overdue</th><th className="p-3">Leads submitted</th><th className="p-3">Leads assigned</th><th className="p-3">Calls logged</th><th className="p-3">Visits scheduled / completed</th><th className="p-3">Present days</th></tr></thead><tbody>{performance.map((m)=><tr key={m.employeeId} className="border-t border-white/10"><td className="p-3"><b>{m.name}</b><p className="mt-1 text-xs text-muted-foreground">{m.employeeCode||"No ID"} · {m.department}</p><p className="text-xs text-muted-foreground">{m.designation}</p></td><td className="p-3">{m.tasksCompleted}</td><td className="p-3">{m.tasksOpen} / {m.tasksOverdue}</td><td className="p-3">{m.leadsSubmitted}</td><td className="p-3">{m.leadsAssigned}</td><td className="p-3">{m.callsLogged}</td><td className="p-3">{m.siteVisitsScheduled} / {m.siteVisitsCompleted}</td><td className="p-3">{m.attendancePresentDays}</td></tr>)}</tbody></table>{performance.length===0&&<p className="p-6 text-sm text-muted-foreground">No metrics are available for these filters.</p>}</div>
+        </Panel>
+        <p className="text-xs leading-5 text-muted-foreground">“Calls logged” means call outcomes entered by employees, not detected phone calls or call recordings. Missing attendance is not counted as absence. Conversion rate is omitted unless a reliable closed-won data field is verified.</p>
+      </div>}
+
+      {tab === "activity" && <Panel title="Employee activity and audit history" sub="Append-only audit entries for employee, task, lead, attendance, site-visit, permission, and salary actions. Passwords and tokens are not shown.">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="min-w-[240px] flex-1"><SelectField label="Filter by employee" value={auditEmployeeId} onChange={setAuditEmployeeId} options={[{value:"ALL",label:"All employee activity"},...employees.map((e)=>({value:e.id,label:e.name+" · "+(e.employeeCode||e.department)}))]}/></div>
+          <button disabled={busy} onClick={()=>void loadAuditLogs()} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50">{busy?"Loading…":"Apply filter"}</button>
+          <Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Open all system audit logs</Link>
+        </div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Timestamp</th><th className="p-3">Action</th><th className="p-3">Actor</th><th className="p-3">Resource</th><th className="p-3">Details</th></tr></thead><tbody>{auditLogs.map((a)=><tr key={a._id} className="border-t border-white/10 align-top"><td className="whitespace-nowrap p-3">{dt(a.createdAt)}</td><td className="p-3"><span className="font-medium">{a.action}</span></td><td className="p-3">{a.actorName||"System"}<p className="mt-1 text-xs text-muted-foreground">{a.actorEmail}</p></td><td className="p-3">{a.resourceType||"—"}<p className="mt-1 max-w-[180px] break-all text-xs text-muted-foreground">{a.resourceId}</p></td><td className="max-w-[300px] p-3"><pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{JSON.stringify(a.metadata||{},null,2)}</pre></td></tr>)}</tbody></table>{auditLogs.length===0&&<p className="p-6 text-sm text-muted-foreground">No employee-management audit events match this filter.</p>}</div>
+      </Panel>}
 
       {tab === "salary" && <div className="space-y-4">
         <Panel title="Create monthly payroll record" sub="Creates a Draft record only. This does not transfer money or automatically mark a salary as paid.">
