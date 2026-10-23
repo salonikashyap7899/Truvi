@@ -765,6 +765,123 @@ export default function AdminEmployeeManagementPage() {
         </Panel>
         <p className="text-xs leading-5 text-muted-foreground">Marking a record paid requires a payment date and reference. Truvi does not execute a bank transfer or UPI payout.</p>
       </div>}
+
+      {selectedProfile && <div className="truvi-admin-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProfile(null); }}>
+        <section className="truvi-admin-profile-modal" role="dialog" aria-modal="true" aria-label={"Employee profile: " + selectedProfile.employee.name}>
+          <header className="truvi-admin-profile-modal__header">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="truvi-admin-profile-modal__avatar">
+                {(selectedProfile.account?.avatarUrl || selectedProfile.employee.avatarUrl)
+                  ? <img src={(selectedProfile.account?.avatarUrl || selectedProfile.employee.avatarUrl) as string} alt={selectedProfile.employee.name}/>
+                  : <span>{selectedProfile.employee.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+              </div>
+              <div className="min-w-0">
+                <p className="truvi-admin-profile-modal__eyebrow">EMPLOYEE PROFILE</p>
+                <h2>{selectedProfile.employee.name}</h2>
+                <p>{selectedProfile.employee.designation || "Employee"} · {selectedProfile.employee.department || "Department not assigned"}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Status value={selectedProfile.employee.status}/>
+                  <Status value={selectedProfile.employee.accountStatus || "UNKNOWN"}/>
+                </div>
+              </div>
+            </div>
+            <button type="button" className="truvi-admin-profile-modal__close" onClick={() => setSelectedProfile(null)} aria-label="Close employee profile"><X size={18}/></button>
+          </header>
+
+          {profileLoading && <div className="truvi-admin-profile-modal__loading" role="status"><RefreshCw size={16} className="animate-spin"/> Refreshing employee profile…</div>}
+
+          <div className="truvi-admin-profile-modal__body">
+            <section className="truvi-admin-profile-card">
+              <div className="truvi-admin-profile-card__title"><div><h3>Account & contact</h3><p>Employee-owned account details and verification state.</p></div><UserRound size={17}/></div>
+              <div className="truvi-admin-profile-details-grid">
+                <div><span>Official email</span><strong className="break-all">{selectedProfile.account?.email || selectedProfile.employee.officialEmail || "—"}</strong><small className={selectedProfile.account?.emailVerified ? "is-good" : "is-pending"}>{selectedProfile.account?.emailVerified ? "Email verified" : "Email not verified"}</small></div>
+                <div><span>Phone number</span><strong>{selectedProfile.account?.phone || selectedProfile.employee.phone || "—"}</strong><small className={selectedProfile.account?.phoneVerified ? "is-good" : "is-pending"}>{selectedProfile.account?.phoneVerified ? "Phone verified" : "Phone not verified"}</small></div>
+                <div><span>Account role</span><strong>{selectedProfile.account?.role || "EMPLOYEE"}</strong></div>
+                <div><span>Account status</span><strong>{selectedProfile.account?.disabled ? "Disabled / awaiting activation" : selectedProfile.account ? "Enabled" : "No linked account"}</strong></div>
+                <div><span>Account created</span><strong>{date(selectedProfile.account?.createdAt || null)}</strong></div>
+                <div><span>Last active</span><strong>{selectedProfile.account?.lastActiveAt ? dt(selectedProfile.account.lastActiveAt) : "No activity timestamp"}</strong></div>
+              </div>
+              {(selectedProfile.account?.bio || selectedProfile.employee.bio) && <div className="truvi-admin-profile-bio"><span>Profile bio</span><p>{selectedProfile.account?.bio || selectedProfile.employee.bio}</p></div>}
+            </section>
+
+            <section className="truvi-admin-profile-card">
+              <div className="truvi-admin-profile-card__title"><div><h3>Employment details</h3><p>HR details managed by authorised administrators.</p></div><ShieldCheck size={17}/></div>
+              <div className="truvi-admin-profile-details-grid">
+                <div><span>Employee ID</span><strong>{selectedProfile.employee.employeeCode || "—"}</strong></div>
+                <div><span>Joining date</span><strong>{date(selectedProfile.employee.joiningDate)}</strong></div>
+                <div><span>Department</span><strong>{selectedProfile.employee.department || "—"}</strong></div>
+                <div><span>Designation</span><strong>{selectedProfile.employee.designation || "—"}</strong></div>
+                <div><span>Employment type</span><strong>{(selectedProfile.employee.employmentType || "—").replaceAll("_", " ")}</strong></div>
+                <div><span>Reporting manager</span><strong>{selectedProfile.employee.reportingManagerId || "Not assigned"}</strong></div>
+                <div><span>Recruitment source</span><strong>{selectedProfile.employee.recruitmentSource || "—"}</strong></div>
+                <div><span>Recruitment campaign</span><strong>{selectedProfile.employee.recruitmentCampaign || "—"}</strong></div>
+                <div><span>Application date</span><strong>{date(selectedProfile.employee.applicationDate)}</strong></div>
+                <div><span>Interview date</span><strong>{date(selectedProfile.employee.interviewDate)}</strong></div>
+                <div><span>Monthly gross salary</span><strong>{money(selectedProfile.employee.monthlySalary)}</strong></div>
+                <div><span>Salary due day</span><strong>{selectedProfile.employee.salaryDueDay || "—"}</strong></div>
+              </div>
+              {selectedProfile.employee.notes && <div className="truvi-admin-profile-bio"><span>Admin notes</span><p>{selectedProfile.employee.notes}</p></div>}
+              <div className="truvi-admin-profile-permissions"><span>Assigned permissions</span><div>{(selectedProfile.employee.permissions || []).length ? selectedProfile.employee.permissions?.map((permission) => <code key={permission}>{permission}</code>) : <small>No explicit permissions recorded.</small>}</div></div>
+            </section>
+
+            <div className="truvi-admin-profile-activity-grid">
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Tasks</h3><p>Latest assigned and personal work.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.tasks.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.tasks.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.taskType.replaceAll("_", " ")} · {task.deadlineAt ? "Due " + dt(task.deadlineAt) : "No deadline"}</small></div><Status value={task.status}/></article>)}
+                  {!selectedProfile.activity.tasks.length && <p className="truvi-admin-profile-empty">No tasks recorded.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Attendance</h3><p>Most recent attendance records.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.attendance.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.attendance.slice(0, 6).map((record) => <article key={record.id}><div><strong>{date(record.attendanceDate)}</strong><small>In: {record.checkInAt ? dt(record.checkInAt) : "—"} · Out: {record.checkOutAt ? dt(record.checkOutAt) : "—"}</small>{record.workingMinutes != null && <small>{Math.floor(record.workingMinutes / 60)}h {record.workingMinutes % 60}m recorded</small>}</div><Status value={record.status}/></article>)}
+                  {!selectedProfile.activity.attendance.length && <p className="truvi-admin-profile-empty">No attendance records.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Leave requests</h3><p>Submitted time-off history.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.leaveRequests.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.leaveRequests.slice(0, 6).map((request) => <article key={request.id}><div><strong>{request.leaveType.replaceAll("_", " ")} · {request.totalDays} day(s)</strong><small>{request.startDate} → {request.endDate}</small><small>{request.reason}</small></div><Status value={request.status}/></article>)}
+                  {!selectedProfile.activity.leaveRequests.length && <p className="truvi-admin-profile-empty">No leave requests.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Buyer leads</h3><p>Submitted or assigned CRM leads.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.buyerLeads.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.buyerLeads.slice(0, 6).map((lead) => <article key={lead.id}><div><strong>{lead.clientName}</strong><small>{lead.clientPhone} · {date(lead.createdAt)}</small></div><Status value={lead.stage}/></article>)}
+                  {!selectedProfile.activity.buyerLeads.length && <p className="truvi-admin-profile-empty">No related buyer leads.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Site visits</h3><p>Visits organised by this employee.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.siteVisits.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.siteVisits.slice(0, 6).map((visit) => <article key={visit.id}><div><strong>Site visit</strong><small>{dt(visit.scheduledAt)} · Project {visit.projectId}</small></div><Status value={visit.status}/></article>)}
+                  {!selectedProfile.activity.siteVisits.length && <p className="truvi-admin-profile-empty">No site visits recorded.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Salary & payroll</h3><p>Recent payroll records.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.salaryRecords.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.salaryRecords.slice(0, 6).map((record) => <article key={record.id}><div><strong>{record.monthKey} · {money(record.netPayable)}</strong><small>Gross {money(record.grossSalary)} · Allowances {money(record.allowances)} · Deductions {money(record.deductions)}</small>{record.status === "PAID" && <small>Paid {date(record.paymentDate)} · {record.paymentReference || "No payment reference"}</small>}</div><Status value={record.status}/></article>)}
+                  {!selectedProfile.activity.salaryRecords.length && <p className="truvi-admin-profile-empty">No salary records.</p>}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <footer className="truvi-admin-profile-modal__footer">
+            <span>Private HR information · Visible to authorised administrators only</span>
+            <button type="button" onClick={() => setSelectedProfile(null)}>Close profile</button>
+          </footer>
+        </section>
+      </div>}
+
     </div>
   );
 }
