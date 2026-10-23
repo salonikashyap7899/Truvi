@@ -531,7 +531,7 @@ export default function AdminEmployeeManagementPage() {
           <Field label="Full name" value={employeeForm.name} onChange={(v) => setEmployeeForm((s) => ({ ...s, name: v }))} required/>
           <Field label="Employee ID (auto-generated if empty)" value={employeeForm.employeeCode} onChange={(v) => setEmployeeForm((s) => ({ ...s, employeeCode: v }))}/>
           <Field label="Official email" type="email" value={employeeForm.officialEmail} onChange={(v) => setEmployeeForm((s) => ({ ...s, officialEmail: v }))} required disabled={!!editing}/>
-          <Field label="Phone number (optional; if provided, phone OTP verification is required)" value={employeeForm.phone} onChange={(v) => setEmployeeForm((s) => ({ ...s, phone: v }))}/>
+          <Field label="Phone number (required for employee account)" type="tel" value={employeeForm.phone} onChange={(v) => setEmployeeForm((s) => ({ ...s, phone: v }))} placeholder="+91 98765 43210" required/>
           <Field label="Department" value={employeeForm.department} onChange={(v) => setEmployeeForm((s) => ({ ...s, department: v }))} required/>
           <Field label="Designation" value={employeeForm.designation} onChange={(v) => setEmployeeForm((s) => ({ ...s, designation: v }))}/>
           <SelectField label="Employment type" value={employeeForm.employmentType} onChange={(v) => setEmployeeForm((s) => ({ ...s, employmentType: v }))} options={[{value:"FULL_TIME",label:"Full time"},{value:"PART_TIME",label:"Part time"},{value:"CONTRACT",label:"Contract"},{value:"INTERN",label:"Intern"}]}/>
