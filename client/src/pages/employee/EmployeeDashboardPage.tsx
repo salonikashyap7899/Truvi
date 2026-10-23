@@ -436,9 +436,12 @@ export default function EmployeeDashboardPage() {
         </Panel>}
 
         {tab==="notifications" && <Panel title="Notifications" note="Personal updates for tasks, buyer leads, attendance, leave, site visits and payroll. Select an item to open its workspace and mark it read."><div className="space-y-2">{notices.map((n)=>{const {Icon,tone}=noticeVisual(n.type); return <button key={n._id} onClick={()=>openNotice(n)} className={`truvi-erm-notification flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${n.isRead?"is-read border-white/5":"is-unread border-primary/25 bg-primary/5"}`}><span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${tone}`}><Icon size={19} aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-start justify-between gap-2"><span className="font-semibold">{n.title||"Truvi notification"}</span><Badge value={n.isRead?"READ":"UNREAD"}/></span><span className="mt-1 block text-sm text-muted-foreground">{n.message}</span><span className="mt-2 block text-xs text-muted-foreground">{fmtDateTime(n.createdAt)}</span></span>{!n.isRead&&<span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-label="Unread"/>}</button>;})}{notices.length===0&&<div className="truvi-erm-empty py-10 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true"/><p className="font-semibold">You’re all caught up</p><p className="mt-1 text-sm text-muted-foreground">New Truvi notifications will appear here.</p></div>}</div></Panel>}
-      </div>
           </div>
         </div>
+      </div>
+    </main>
+  );
+}
     </main>
   );
 }
