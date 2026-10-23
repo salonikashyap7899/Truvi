@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -766,7 +767,7 @@ export default function AdminEmployeeManagementPage() {
         <p className="text-xs leading-5 text-muted-foreground">Marking a record paid requires a payment date and reference. Truvi does not execute a bank transfer or UPI payout.</p>
       </div>}
 
-      {selectedProfile && <div className="truvi-admin-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProfile(null); }}>
+      {selectedProfile && createPortal(<div className="truvi-admin-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProfile(null); }}>
         <section className="truvi-admin-profile-modal" role="dialog" aria-modal="true" aria-label={"Employee profile: " + selectedProfile.employee.name}>
           <header className="truvi-admin-profile-modal__header">
             <div className="flex min-w-0 items-center gap-4">
@@ -880,7 +881,7 @@ export default function AdminEmployeeManagementPage() {
             <button type="button" onClick={() => setSelectedProfile(null)}>Close profile</button>
           </footer>
         </section>
-      </div>}
+      </div>, document.body)}
 
     </div>
   );
