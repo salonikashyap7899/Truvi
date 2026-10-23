@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 /** Projects also start as DRAFT until the developer submits them for review. */
 export type ProjectApprovalStatus = ApprovalStatus | "DRAFT";
