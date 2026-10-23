@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, UserRound, Users, Wallet } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useSocketEvent } from "@/lib/socket";
 
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
@@ -17,7 +20,7 @@ type Project = { _id: string; name: string; city?: string; location?: string };
 type SiteVisit = { _id: string; leadId?: string; projectId: string | { _id: string; name: string }; projectName?: string; clientName?: string; scheduledAt: string; status: string; reportNotes?: string };
 type Attendance = { _id: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null };
 type Salary = { _id: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null };
-type Notice = { _id: string; title?: string; message: string; isRead: boolean; createdAt: string };
+type Notice = { _id: string; title?: string; message: string; isRead: boolean; createdAt: string; type?: string; data?: { href?: string; [key: string]: unknown } };
 const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 const fmtDate = (s?: string | null) => s ? new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const fmtDateTime = (s?: string | null) => s ? new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -33,10 +36,33 @@ const tabItems: { id: Tab; label: string }[] = [
   { id:"telecalling", label:"Telecalling" }, { id:"visits", label:"Site visits" }, { id:"attendance", label:"Attendance" },
   { id:"leave", label:"Leave requests" }, { id:"profile", label:"My profile" }, { id:"salary", label:"My salary" }, { id:"notifications", label:"Notifications" },
 ];
+const tabIcons = {
+  home: LayoutDashboard, tasks: ListChecks, leads: Users, telecalling: PhoneCall,
+  visits: MapPin, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
+  salary: Wallet, notifications: Bell,
+} as const;
+
+function noticeVisual(type?: string): { Icon: LucideIcon; tone: string } {
+  const key = (type ?? "").toLowerCase();
+  if (key.includes("security") || key.includes("verification") || key.includes("account_disabled")) return { Icon: ShieldAlert, tone: "text-rose-300 bg-rose-500/10 border-rose-500/20" };
+  if (key.includes("salary") || key.includes("payroll") || key.includes("payment") || key.includes("commission")) return { Icon: CircleDollarSign, tone: "text-amber-300 bg-amber-500/10 border-amber-500/20" };
+  if (key.includes("leave") || key.includes("attendance") || key.includes("checkin") || key.includes("check_out")) return { Icon: CalendarDays, tone: "text-violet-300 bg-violet-500/10 border-violet-500/20" };
+  if (key.includes("site_visit") || key.includes("sitevisit") || key.includes("meeting")) return { Icon: CalendarClock, tone: "text-indigo-300 bg-indigo-500/10 border-indigo-500/20" };
+  if (key.includes("task")) return { Icon: ClipboardList, tone: "text-teal-300 bg-teal-500/10 border-teal-500/20" };
+  if (key.includes("lead") || key.includes("call") || key.includes("followup") || key.includes("referr")) return { Icon: Users, tone: "text-sky-300 bg-sky-500/10 border-sky-500/20" };
+  if (key.includes("project") || key.includes("property")) return { Icon: Building2, tone: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" };
+  if (key.includes("announcement") || key.includes("campaign")) return { Icon: Megaphone, tone: "text-pink-300 bg-pink-500/10 border-pink-500/20" };
+  if (key.includes("employee") || key.includes("invite") || key.includes("profile")) return { Icon: UserRound, tone: "text-blue-300 bg-blue-500/10 border-blue-500/20" };
+  if (key === "general" || !key) return { Icon: Bell, tone: "text-slate-300 bg-slate-500/10 border-slate-500/20" };
+  return { Icon: Info, tone: "text-sky-300 bg-sky-500/10 border-sky-500/20" };
+}
 
 export default function EmployeeDashboardPage() {
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("home");
   const [searchParams] = useSearchParams();
+  const [loadIssues, setLoadIssues] = useState<string[]>([]);
+  const notificationIdsRef = useRef(new Set<string>());
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
@@ -68,32 +94,64 @@ export default function EmployeeDashboardPage() {
 
   async function load() {
     setLoading(true);
+    setLoadIssues([]);
     try {
       const results = await Promise.allSettled([
         api.get("/employees/me/overview"), api.get("/employees/tasks"), api.get("/employees/leads"),
         api.get("/projects"), api.get("/employees/site-visits"), api.get("/employees/attendance"),
         api.get("/employees/salaries"), api.get("/notifications"), api.get("/employees/leave-requests"),
       ]);
-      const assign = <T,>(index: number, fn: (value: any) => void) => { const r = results[index]; if (r.status === "fulfilled") fn(r.value.data as T); };
-      assign(0,(d)=>{ setEmployee(d.employee); setCallCount(d.callsLoggedToday ?? 0); });
-      assign(1,(d)=>setTasks(d.tasks ?? []));
-      assign(2,(d)=>setLeads(d.leads ?? []));
-      assign(3,(d)=>setProjects(d.projects ?? []));
-      assign(4,(d)=>setVisits(d.siteVisits ?? []));
-      assign(5,(d)=>setAttendance(d.attendance ?? []));
-      assign(6,(d)=>setSalaries(d.salaries ?? []));
-      assign(7,(d)=>setNotices(d.notifications ?? []));
-      assign(8,(d)=>setLeaveRequests(d.leaveRequests ?? []));
-      const firstError = results.find((r) => r.status === "rejected");
-      if (firstError?.status === "rejected") {
-        const status = firstError.reason?.response?.status;
-        if (status === 401 || status === 403) toast.error(firstError.reason?.response?.data?.error || "Some workspace data is not available.");
+      const failures: string[] = [];
+      const assign = (index: number, label: string, consume: (value: any) => void) => {
+        const result = results[index];
+        if (result.status === "fulfilled") {
+          consume(result.value.data);
+          return;
+        }
+        const status = result.reason?.response?.status;
+        failures.push(status ? `${label} (HTTP ${status})` : label);
+      };
+      assign(0, "Employee profile", (d) => { setEmployee(d.employee); setCallCount(d.callsLoggedToday ?? 0); });
+      assign(1, "Tasks", (d) => setTasks(d.tasks ?? []));
+      assign(2, "Leads", (d) => setLeads(d.leads ?? []));
+      assign(3, "Approved projects", (d) => setProjects(d.projects ?? []));
+      assign(4, "Site visits", (d) => setVisits(d.siteVisits ?? []));
+      assign(5, "Attendance", (d) => setAttendance(d.attendance ?? []));
+      assign(6, "Salary records", (d) => setSalaries(d.salaries ?? []));
+      assign(7, "Notifications", (d) => {
+        const list: Notice[] = d.notifications ?? [];
+        list.forEach((notice) => notificationIdsRef.current.add(notice._id));
+        setNotices((current) => {
+          const merged = new Map([...list, ...current].map((notice) => [notice._id, notice]));
+          return [...merged.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 200);
+        });
+      });
+      assign(8, "Leave requests", (d) => setLeaveRequests(d.leaveRequests ?? []));
+      setLoadIssues(failures);
+      if (failures.length === results.length) {
+        toast.error("Your employee workspace could not load. Please check your session and try refreshing.");
+      } else if (failures.length) {
+        toast.warning(`${failures.length} workspace section(s) could not load. Your other sections remain available.`);
       }
-    } catch (error: any) { toast.error(error?.response?.data?.error || "Unable to load your employee workspace."); }
-    finally { setLoading(false); }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Unable to load your employee workspace.");
+    } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
+
+  useSocketEvent<Notice>("notification:new", (notice) => {
+    if (!notice?._id || notificationIdsRef.current.has(notice._id)) return;
+    notificationIdsRef.current.add(notice._id);
+    setNotices((current) => [notice, ...current.filter((item) => item._id !== notice._id)].slice(0, 200));
+    if (!notice.isRead) {
+      const { Icon, tone } = noticeVisual(notice.type);
+      toast.info(notice.title || "New Truvi notification", {
+        description: notice.message,
+        icon: <Icon size={18} className={tone.split(" ")[0]} />,
+      });
+    }
+  });
 
   const today = (() => { const ps = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(new Date()); const val = (k:string) => ps.find((p)=>p.type===k)?.value ?? ""; return `${val("year")}-${val("month")}-${val("day")}`; })();
   const todayAttendance = attendance.find((a)=>a.attendanceDate===today);
@@ -243,6 +301,11 @@ export default function EmployeeDashboardPage() {
     try { await api.patch(`/notifications/${n._id}/read`,{}); setNotices((old)=>old.map((x)=>x._id===n._id?{...x,isRead:true}:x)); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not mark notification read."); }
   }
+  function openNotice(n: Notice) {
+    void markRead(n);
+    const href = n.data?.href;
+    if (typeof href === "string" && href.startsWith("/") && !href.startsWith("//")) navigate(href);
+  }
   async function updateLeadStage(lead: Lead, stage: string) {
     try { await api.patch(`/employees/leads/${lead._id}`,{stage}); toast.success("Lead stage updated."); await load(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not update lead."); }
@@ -250,18 +313,21 @@ export default function EmployeeDashboardPage() {
   const [showLeadForm, setShowLeadForm] = useState(false);
 
   return (
-    <main className="min-h-screen bg-background px-3 py-5 text-foreground sm:px-6 sm:py-8">
+    <main className="truvi-erm truvi-erm-employee min-h-screen bg-background px-3 py-5 text-foreground sm:px-6 sm:py-8">
       <div className="mx-auto max-w-[1450px] space-y-6">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Ventures · Employee Workspace</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Hello{employee?.name ? `, ${employee.name.split(" ")[0]}` : ""}</h1><p className="mt-2 text-sm text-muted-foreground">{new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Kolkata"})} · {employee?.designation || "Employee"} · {employee?.department || "Team"}</p></div>
           <div className="flex gap-2"><button onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Refresh</button><Link to="/login" className="rounded-xl border border-white/10 px-3 py-2 text-sm">Sign in help</Link></div>
         </header>
 
-        <nav className="flex gap-2 overflow-x-auto border-b border-white/10 pb-2" aria-label="Employee workspace">
-          {tabItems.map((t)=><button key={t.id} onClick={()=>setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${t.id===tab?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}>{t.label}{t.id==="notifications"&&notices.filter((n)=>!n.isRead).length>0? ` (${notices.filter((n)=>!n.isRead).length})`:""}</button>)}
-        </nav>
+        <div className="truvi-erm-workspace">
+          <nav className="truvi-erm-tabs truvi-employee-nav" aria-label="Employee workspace">
+            {tabItems.map((t)=>{ const Icon = tabIcons[t.id]; const unreadCount = t.id === "notifications" ? notices.filter((n)=>!n.isRead).length : 0; return <button key={t.id} type="button" aria-current={t.id===tab?"page":undefined} onClick={()=>setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${t.id===tab?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}><Icon size={17} aria-hidden="true"/><span>{t.label}</span>{unreadCount>0&&<span className="truvi-erm-count">{unreadCount>99?"99+":unreadCount}</span>}</button>;})}
+          </nav>
+          <div className="truvi-erm-workspace-content">
 
-        {loading && <div className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading your work…</div>}
+        {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading your work…</div>}
+        {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some workspace sections need attention</p><p className="mt-1">The rest of your workspace remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={()=>void load()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Info size={15}/> Retry data</button></div>}
 
         {tab==="home" && <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5"><Kpi label="Pending tasks" value={pendingTasks.length}/><Kpi label="Overdue tasks" value={overdueTasks.length}/><Kpi label="Completed tasks" value={tasks.filter((t)=>t.status==="COMPLETED").length}/><Kpi label="My leads" value={leads.length}/><Kpi label="Hot leads" value={myHotLeads}/></div>
@@ -369,8 +435,10 @@ export default function EmployeeDashboardPage() {
           <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Payroll month</th><th className="p-3">Gross</th><th className="p-3">Allowances</th><th className="p-3">Deductions</th><th className="p-3">Net payable</th><th className="p-3">Status</th><th className="p-3">Payment date / reference</th></tr></thead><tbody>{salaries.map((s)=><tr key={s._id} className="border-t border-white/10"><td className="p-3">{s.monthKey}</td><td className="p-3">{money(s.grossSalary)}</td><td className="p-3">{money(s.allowances)}</td><td className="p-3">{money(s.deductions)}</td><td className="p-3 font-semibold">{money(s.netPayable)}</td><td className="p-3"><Badge value={s.status}/></td><td className="p-3">{s.status==="PAID"?`${fmtDate(s.paymentDate)} · ${s.paymentReference||"—"}`:"—"}</td></tr>)}</tbody></table>{salaries.length===0&&<p className="p-6 text-sm text-muted-foreground">No salary record is available for your account. Contact Admin if you believe this is an error.</p>}</div>
         </Panel>}
 
-        {tab==="notifications" && <Panel title="Notifications" note="Notifications are personal to your account. Select a notification to mark it read."><div className="space-y-3">{notices.map((n)=><button key={n._id} onClick={()=>void markRead(n)} className={`block w-full rounded-xl border p-4 text-left ${n.isRead?"border-white/5":"border-primary/25 bg-primary/5"}`}><div className="flex items-start justify-between gap-3"><p className="font-medium">{n.title||"Truvi notification"}</p><Badge value={n.isRead?"READ":"UNREAD"}/></div><p className="mt-1 text-sm text-muted-foreground">{n.message}</p><p className="mt-2 text-xs text-muted-foreground">{fmtDateTime(n.createdAt)}</p></button>)}{notices.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">No notifications available.</p>}</div></Panel>}
+        {tab==="notifications" && <Panel title="Notifications" note="Personal updates for tasks, buyer leads, attendance, leave, site visits and payroll. Select an item to open its workspace and mark it read."><div className="space-y-2">{notices.map((n)=>{const {Icon,tone}=noticeVisual(n.type); return <button key={n._id} onClick={()=>openNotice(n)} className={`truvi-erm-notification flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${n.isRead?"is-read border-white/5":"is-unread border-primary/25 bg-primary/5"}`}><span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${tone}`}><Icon size={19} aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-start justify-between gap-2"><span className="font-semibold">{n.title||"Truvi notification"}</span><Badge value={n.isRead?"READ":"UNREAD"}/></span><span className="mt-1 block text-sm text-muted-foreground">{n.message}</span><span className="mt-2 block text-xs text-muted-foreground">{fmtDateTime(n.createdAt)}</span></span>{!n.isRead&&<span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-label="Unread"/>}</button>;})}{notices.length===0&&<div className="truvi-erm-empty py-10 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true"/><p className="font-semibold">You’re all caught up</p><p className="mt-1 text-sm text-muted-foreground">New Truvi notifications will appear here.</p></div>}</div></Panel>}
       </div>
+          </div>
+        </div>
     </main>
   );
 }
