@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
