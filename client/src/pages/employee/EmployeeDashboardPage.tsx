@@ -81,6 +81,7 @@ export default function EmployeeDashboardPage() {
   const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [searchTarget, setSearchTarget] = useState<string | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
@@ -157,6 +158,13 @@ export default function EmployeeDashboardPage() {
   }
   useEffect(() => { void load(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
+  useEffect(() => {
+    if (!searchTarget) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(searchTarget)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, searchTarget]);
 
   useSocketEvent<Notice>("notification:new", (notice) => {
     if (!notice?._id || notificationIdsRef.current.has(notice._id)) return;
@@ -171,6 +179,7 @@ export default function EmployeeDashboardPage() {
   const pendingTasks = useMemo(()=>tasks.filter((t)=>!["COMPLETED","CANCELLED"].includes(t.status)),[tasks]);
   const overdueTasks = useMemo(()=>pendingTasks.filter((t)=>t.deadlineAt && new Date(t.deadlineAt)<new Date()),[pendingTasks]);
   const myHotLeads = leads.filter((l)=>l.leadTemperature==="HOT").length;
+  const projectName = (p: Lead["projectId"]) => typeof p === "string" ? projects.find((x)=>x._id===p)?.name ?? "Project" : p.name;
   const salaryTrend = useMemo(() => [...salaries]
     .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
     .slice(-8)
@@ -201,7 +210,6 @@ export default function EmployeeDashboardPage() {
       .map((notice) => ({ id: `employee-notice-${notice._id}`, kind: "Notification", title: notice.title || "Truvi notification", detail: notice.message, tab: "notifications", icon: Bell }));
     return [...taskItems, ...leadItems, ...noticeItems].slice(0, 8);
   }, [quickSearch, tasks, leads, notices, projects]);
-  const projectName = (p: Lead["projectId"]) => typeof p === "string" ? projects.find((x)=>x._id===p)?.name ?? "Project" : p.name;
 
   async function createPersonalTask(e: FormEvent) {
     e.preventDefault(); setBusy(true);
