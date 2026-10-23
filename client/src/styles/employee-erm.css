@@ -336,3 +336,15 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* KPI tiles read as operational metrics rather than generic cards. */
+.truvi-erm .grid > div.rounded-2xl.border,
+.truvi-erm .group.relative.overflow-hidden.rounded-2xl {
+  background: linear-gradient(150deg, rgba(20, 31, 49, 0.96), rgba(12, 20, 32, 0.96)) !important;
+  border-color: rgba(148, 163, 184, 0.19) !important;
+  border-radius: 14px !important;
+}
+
+.truvi-erm .grid > div.rounded-2xl.border:hover {
+  border-color: rgba(111, 140, 255, 0.35) !important;
+}
