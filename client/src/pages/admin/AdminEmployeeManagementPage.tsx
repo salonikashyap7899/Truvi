@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, RefreshCw, Users } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { useSocketEvent } from "@/lib/socket";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
@@ -12,6 +13,8 @@ type Employee = {
   recruitmentCampaign?: string; applicationDate?: string | null; interviewDate?: string | null;
   joiningDate?: string | null; status: "ACTIVE" | "ON_LEAVE" | "INACTIVE"; monthlySalary: number;
   salaryDueDay: number; notes?: string; permissions?: string[]; accountStatus?: string;
+  avatarUrl?: string | null; bio?: string | null; emailVerified?: boolean; phoneVerified?: boolean;
+  accountCreatedAt?: string | null; lastActiveAt?: string | null;
 };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
 type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
@@ -26,6 +29,22 @@ type Attendance = { _id: string; employeeId: string; attendanceDate: string; sta
 type Salary = { _id: string; employeeId: string; employeeName?: string; employeeCode?: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null };
 type PerformanceMetric = { employeeId: string; employeeCode?: string | null; name: string; department: string; designation?: string | null; recruitmentSource?: string | null; status: string; accountLinked: boolean; tasksCompleted: number; tasksOverdue: number; tasksOpen: number; leadsSubmitted: number; leadsAssigned: number; callsLogged: number; siteVisitsScheduled: number; siteVisitsCompleted: number; attendancePresentDays: number };
 type AuditRow = { _id: string; userId?: string | null; actorName?: string | null; actorEmail?: string | null; action: string; resourceType?: string | null; resourceId?: string | null; metadata?: Record<string, unknown>; createdAt: string };
+type EmployeeProfileData = {
+  employee: Employee;
+  account: {
+    id: string; name?: string | null; email?: string | null; phone?: string | null; role?: string;
+    avatarUrl?: string | null; bio?: string | null; emailVerified: boolean; phoneVerified: boolean;
+    disabled: boolean; createdAt?: string | null; lastActiveAt?: string | null;
+  } | null;
+  activity: {
+    tasks: Array<{ id: string; title: string; priority: string; status: string; taskType: string; deadlineAt?: string | null; createdAt: string }>;
+    attendance: Array<{ id: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null }>;
+    leaveRequests: Array<{ id: string; leaveType: string; startDate: string; endDate: string; totalDays: number; status: string; reason: string; createdAt: string }>;
+    salaryRecords: Array<{ id: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null }>;
+    buyerLeads: Array<{ id: string; clientName: string; clientPhone: string; stage: string; leadTemperature?: string | null; createdAt: string }>;
+    siteVisits: Array<{ id: string; scheduledAt: string; status: string; projectId: string; leadId?: string | null }>;
+  };
+};
 type Summary = {
   totalEmployees: number; activeEmployees: number; inactiveEmployees: number; employeesOnLeave: number;
   employeeAccounts: number; activeAccounts: number; pendingInvitations: number; tasksAssignedToday: number;
@@ -99,6 +118,8 @@ export default function AdminEmployeeManagementPage() {
   const [searchParams] = useSearchParams();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<EmployeeProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
   const [taskActivity, setTaskActivity] = useState<TaskActivity | null>(null);
@@ -166,6 +187,42 @@ export default function AdminEmployeeManagementPage() {
   }
   useEffect(() => { void reload(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabs.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
+
+  async function openEmployeeProfile(employee: Employee) {
+    setProfileLoading(true);
+    setSelectedProfile({
+      employee,
+      account: employee.accountUserId ? {
+        id: employee.accountUserId, name: employee.name, email: employee.officialEmail, phone: employee.phone,
+        avatarUrl: employee.avatarUrl, bio: employee.bio, emailVerified: !!employee.emailVerified,
+        phoneVerified: !!employee.phoneVerified, disabled: employee.accountStatus === "INVITED_OR_DISABLED",
+        createdAt: employee.accountCreatedAt, lastActiveAt: employee.lastActiveAt,
+      } : null,
+      activity: { tasks: [], attendance: [], leaveRequests: [], salaryRecords: [], buyerLeads: [], siteVisits: [] },
+    });
+    try {
+      const response = await api.get(`/employees/${employee.id}/profile`);
+      setSelectedProfile(response.data as EmployeeProfileData);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not load the employee profile.");
+      setSelectedProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  useSocketEvent<{ type?: string; title?: string }>("notification:new", (notice) => {
+    // Employee work updates are persisted and emitted over the existing shared
+    // notification socket; reload this module so counts and recent activity
+    // update without requiring the administrator to refresh manually.
+    if (notice?.type?.startsWith("employee_")) {
+      void reload();
+      if (selectedProfile?.employee?.id) {
+        const current = employees.find((employee) => employee.id === selectedProfile.employee.id);
+        if (current) void openEmployeeProfile(current);
+      }
+    }
+  });
 
   const shownEmployees = useMemo(() => employees.filter((e) => {
     const q = query.toLowerCase().trim();
