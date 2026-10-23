@@ -72,6 +72,25 @@ async function needEmployee(req: AuthedRequest, res: import("express").Response)
 async function notifyUser(userId: string, type: string, title: string, message: string, actorUserId: string, href: string) {
   await createNotifications([userId], { type, title, message, actorUserId, data: { href }, priority: "normal" }).catch(() => []);
 }
+
+async function notifyActiveAdmins(input: { type: string; title: string; message: string; actorUserId: string; href: string; dedupeKey?: string }) {
+  try {
+    const admins = await getDb().select({ id: users._id }).from(users)
+      .where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+    await createNotifications(admins.map((row) => String(row.id)), {
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      actorUserId: input.actorUserId,
+      data: { href: input.href },
+      priority: "normal",
+      ...(input.dedupeKey ? { dedupeKey: input.dedupeKey } : {}),
+    });
+  } catch (error) {
+    // Notifications must never make a successful attendance/task write fail.
+    console.error("Could not deliver employee activity notification:", error);
+  }
+}
 async function issueInvite(employeeId: string, actorUserId: string) {
   const db = getDb();
   const [employee] = await db.select().from(employees).where(eq(employees._id, employeeId)).limit(1);
@@ -711,6 +730,14 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
       }
     }
     await logAudit({ userId: req.user!.userId, action: admin ? "employee.task.assign" : "employee.task.personal.create", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeIds: admin ? assignedEmployeeIds : [String(emp!._id)], priority: task.priority } });
+    if (!admin && emp) await notifyActiveAdmins({
+      type: "employee_task_created",
+      title: "Employee created a personal task",
+      message: emp.name + " created a task: " + task.title,
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=tasks",
+      dedupeKey: "employee-task-created:" + String(task._id),
+    });
     const [responseTask] = await shapeEmployeeTasks([task]);
     return res.status(201).json({ task: responseTask });
   } catch (err) { next(err); }
@@ -869,6 +896,16 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
       resourceType: "employee_task", resourceId: taskId,
       metadata: { changedFields: Object.keys(d), employeeIds: requestedEmployeeIds ?? undefined },
     });
+    if (!admin && emp && updated.status !== before.status) {
+      await notifyActiveAdmins({
+        type: updated.status === "COMPLETED" ? "employee_task_completed" : "employee_task_status_updated",
+        title: updated.status === "COMPLETED" ? "Employee completed a task" : "Employee updated a task",
+        message: emp.name + " changed task \"" + updated.title + "\" to " + updated.status.replaceAll("_", " ").toLowerCase() + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-status:" + String(updated._id) + ":" + String(updated.status) + ":" + Math.floor(Date.now() / 60000),
+      });
+    }
     const [result] = await shapeEmployeeTasks([updated], emp ? String(emp._id) : undefined);
     return res.json({ task: result });
   } catch (err) { next(err); }
@@ -1147,6 +1184,14 @@ router.post("/leads/:id/calls", requireRole("EMPLOYEE"), async (req: AuthedReque
       await db.update(leads).set({ lastContactAt: new Date(), ...(d.leadTemperature ? { leadTemperature: d.leadTemperature } : {}) }).where(eq(leads._id, lead._id));
     }
     await logAudit({ userId: req.user!.userId, action: "employee.call.log", resourceType: "lead", resourceId: String(lead._id), metadata: { employeeId: String(emp._id), outcome: d.outcome } });
+    await notifyActiveAdmins({
+      type: "employee_telecalling_activity",
+      title: "Employee logged a buyer call",
+      message: emp.name + " logged a call outcome for " + lead.clientName + ": " + d.outcome.replaceAll("_", " ").toLowerCase() + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=leads",
+      dedupeKey: "employee-call:" + String(activity._id),
+    });
     return res.status(201).json({ activity });
   } catch (err) { next(err); }
 });
@@ -1287,6 +1332,14 @@ router.post("/attendance/check-in", requireRole("EMPLOYEE"), async (req: AuthedR
     if (existing) [row] = await db.update(employeeAttendance).set({ status: "PRESENT", checkInAt: now, checkOutAt: null, workingMinutes: null, updatedAt: now }).where(eq(employeeAttendance._id, existing._id)).returning();
     else [row] = await db.insert(employeeAttendance).values({ employeeId: emp._id, attendanceDate: day, status: "PRESENT", checkInAt: now, updatedAt: now }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.attendance.checkin", resourceType: "attendance", resourceId: String(row._id), metadata: { date: day } });
+    await notifyActiveAdmins({
+      type: "employee_attendance_checkin",
+      title: "Employee checked in",
+      message: emp.name + " checked in for " + day + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=attendance",
+      dedupeKey: "employee-checkin:" + String(row._id) + ":" + req.user!.userId,
+    });
     return res.status(201).json({ attendance: row });
   } catch (err) { next(err); }
 });
@@ -1301,6 +1354,14 @@ router.post("/attendance/check-out", requireRole("EMPLOYEE"), async (req: Authed
     const minutes = Math.max(0, Math.round((now.getTime() - existing.checkInAt.getTime()) / 60000));
     const [row] = await db.update(employeeAttendance).set({ checkOutAt: now, workingMinutes: minutes, updatedAt: now }).where(eq(employeeAttendance._id, existing._id)).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.attendance.checkout", resourceType: "attendance", resourceId: String(row._id), metadata: { date: day, workingMinutes: minutes } });
+    await notifyActiveAdmins({
+      type: "employee_attendance_checkout",
+      title: "Employee checked out",
+      message: emp.name + " checked out after " + Math.floor(minutes / 60) + "h " + (minutes % 60) + "m on " + day + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=attendance",
+      dedupeKey: "employee-checkout:" + String(row._id) + ":" + req.user!.userId,
+    });
     return res.json({ attendance: row });
   } catch (err) { next(err); }
 });
