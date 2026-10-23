@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Activity, Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, RefreshCw, Users } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, RefreshCw, Users } from "lucide-react";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
