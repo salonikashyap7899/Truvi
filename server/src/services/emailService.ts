@@ -10,6 +10,10 @@ const transporter = hasSmtpConfig
       // Port 465 uses implicit TLS; 587/others use STARTTLS.
       secure: Number(process.env.SMTP_PORT) === 465,
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      // Keep invitation/OTP requests from hanging indefinitely on an unresponsive SMTP host.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     })
   : null;
 
