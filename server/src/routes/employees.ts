@@ -774,7 +774,7 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
         }
       }
 
-      if (admin && d.status !== undefined && before.taskType === "ASSIGNED") {
+      if (admin && d.status !== undefined && (before.taskType === "ASSIGNED" || requestedEmployeeIds !== null)) {
         await tx.update(employeeTaskAssignments).set({
           status: d.status,
           completedAt: d.status === "COMPLETED" ? new Date() : null,
@@ -803,6 +803,13 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
         patch.completedAt = allComplete ? new Date() : null;
       }
 
+      if (admin && requestedEmployeeIds && d.status === undefined) {
+        const assignments = await tx.select().from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, before._id));
+        const allComplete = assignments.length > 0 && assignments.every((assignment) => assignment.status === "COMPLETED");
+        const anyProgress = assignments.some((assignment) => ["ACCEPTED", "IN_PROGRESS", "ON_HOLD", "COMPLETED"].includes(assignment.status));
+        patch.status = allComplete ? "COMPLETED" : anyProgress ? "IN_PROGRESS" : "ASSIGNED";
+        patch.completedAt = allComplete ? new Date() : null;
+      }
       const [row] = await tx.update(employeeTasks).set(patch).where(eq(employeeTasks._id, before._id)).returning();
       updated = row;
       await tx.insert(employeeTaskHistory).values({
