@@ -23,6 +23,7 @@ import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
 import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib/employeeLeaveRules";
+import { aggregateAssignedTaskStatus } from "../lib/employeeTaskRules";
 import { fileMatchesExtension } from "../services/uploadService";
 import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
 
@@ -736,6 +737,9 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
 
     let requestedEmployeeIds: string[] | null = null;
     let newlyAssignedIds: string[] = [];
+    if (admin && (d.employeeIds !== undefined || d.employeeId !== undefined) && ["COMPLETED", "CANCELLED"].includes(before.status)) {
+      return res.status(409).json({ error: "Closed tasks cannot be reassigned. Create a new task or reopen it first." });
+    }
     if (admin && (d.employeeIds !== undefined || d.employeeId !== undefined)) {
       const requested = d.employeeIds?.length ? d.employeeIds : d.employeeId ? [d.employeeId] : [];
       const targets = await activeLinkedEmployees(requested);
@@ -805,10 +809,8 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
 
       if (admin && requestedEmployeeIds && d.status === undefined) {
         const assignments = await tx.select().from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, before._id));
-        const allComplete = assignments.length > 0 && assignments.every((assignment) => assignment.status === "COMPLETED");
-        const anyProgress = assignments.some((assignment) => ["ACCEPTED", "IN_PROGRESS", "ON_HOLD", "COMPLETED"].includes(assignment.status));
-        patch.status = allComplete ? "COMPLETED" : anyProgress ? "IN_PROGRESS" : "ASSIGNED";
-        patch.completedAt = allComplete ? new Date() : null;
+        patch.status = aggregateAssignedTaskStatus(assignments.map((assignment) => assignment.status));
+        patch.completedAt = patch.status === "COMPLETED" ? new Date() : null;
       }
       const [row] = await tx.update(employeeTasks).set(patch).where(eq(employeeTasks._id, before._id)).returning();
       updated = row;
