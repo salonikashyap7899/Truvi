@@ -77,8 +77,20 @@ export default function EmployeeDashboardPage() {
   const notificationIdsRef = useRef(new Set<string>());
   const currentUser = useAuthStore((state) => state.user);
   const setAuthUser = useAuthStore((state) => state.setUser);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
   const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
+  const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [profileBioDraft, setProfileBioDraft] = useState("");
+  const [profileEmailDraft, setProfileEmailDraft] = useState("");
+  const [profilePhoneDraft, setProfilePhoneDraft] = useState("");
+  const [emailChangeOtp, setEmailChangeOtp] = useState("");
+  const [phoneChangeOtp, setPhoneChangeOtp] = useState("");
+  const [emailChangeRequested, setEmailChangeRequested] = useState(false);
+  const [phoneChangeRequested, setPhoneChangeRequested] = useState(false);
+  const [contactBusy, setContactBusy] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passwordBusy, setPasswordBusy] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [searchTarget, setSearchTarget] = useState<string | null>(null);
@@ -157,6 +169,12 @@ export default function EmployeeDashboardPage() {
     } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    setProfileNameDraft(employee?.name || currentUser?.name || "");
+    setProfileBioDraft(currentUser?.bio || "");
+    setProfileEmailDraft(currentUser?.email || employee?.officialEmail || "");
+    setProfilePhoneDraft(employee?.phone || currentUser?.phone || "");
+  }, [employee?.id, currentUser?._id]);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
   useEffect(() => {
     if (!searchTarget) return;
@@ -401,6 +419,122 @@ export default function EmployeeDashboardPage() {
       toast.error(error?.response?.data?.error || "Could not remove your profile photo.");
     } finally {
       setProfilePhotoBusy(false);
+    }
+  }
+
+  async function savePersonalProfile(event: FormEvent) {
+    event.preventDefault();
+    if (profileNameDraft.trim().length < 2) {
+      toast.error("Name must be at least 2 characters.");
+      return;
+    }
+    setContactBusy(true);
+    try {
+      const response = await api.patch("/auth/profile", {
+        name: profileNameDraft.trim(),
+        bio: profileBioDraft.trim(),
+      });
+      const updated = response.data?.user;
+      if (currentUser && updated) setAuthUser({ ...currentUser, name: updated.name, bio: updated.bio ?? null, avatarUrl: updated.avatarUrl ?? currentUser.avatarUrl });
+      toast.success("Personal profile updated.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not update your personal profile.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function requestEmailChange(event: FormEvent) {
+    event.preventDefault();
+    if (profileEmailDraft.trim().toLowerCase() === (currentUser?.email || employee?.officialEmail || "").toLowerCase()) {
+      toast.error("Enter a different email address.");
+      return;
+    }
+    setContactBusy(true);
+    try {
+      await api.post("/auth/profile/request-email-change", { email: profileEmailDraft.trim() });
+      setEmailChangeRequested(true);
+      setEmailChangeOtp("");
+      toast.success("Verification code sent to your new email.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not request email change.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function verifyEmailChange(event: FormEvent) {
+    event.preventDefault();
+    setContactBusy(true);
+    try {
+      await api.post("/auth/profile/verify-email-change", { otp: emailChangeOtp.trim() });
+      toast.success("Email verified. Sign in with your new email address.");
+      clearAuth();
+      navigate("/login", { replace: true });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Email verification failed.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function requestPhoneChange(event: FormEvent) {
+    event.preventDefault();
+    setContactBusy(true);
+    try {
+      await api.post("/auth/profile/request-phone-change", { phone: profilePhoneDraft.trim() });
+      setPhoneChangeRequested(true);
+      setPhoneChangeOtp("");
+      toast.success("Verification code sent to your new phone number.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not request phone change.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function verifyPhoneChange(event: FormEvent) {
+    event.preventDefault();
+    setContactBusy(true);
+    try {
+      const response = await api.post("/auth/profile/verify-phone-change", { otp: phoneChangeOtp.trim() });
+      if (currentUser && response.data?.user) setAuthUser({
+        ...currentUser,
+        phone: response.data.user.phone ?? profilePhoneDraft.trim(),
+        phoneVerified: true,
+        email: response.data.user.email ?? currentUser.email,
+      });
+      setPhoneChangeRequested(false);
+      setPhoneChangeOtp("");
+      toast.success("Phone number updated and verified.");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Phone verification failed.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function changePassword(event: FormEvent) {
+    event.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("The new passwords do not match.");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await api.post("/auth/change-password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      toast.success("Password changed. Please sign in again.");
+      clearAuth();
+      navigate("/login", { replace: true });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not change password.");
+    } finally {
+      setPasswordBusy(false);
     }
   }
   async function updateLeadStage(lead: Lead, stage: string) {
