@@ -1,15 +1,18 @@
 import { Router } from "express";
+import fs from "fs";
+import path from "path";
 import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import {
-  and, desc, eq, gte, inArray, isNull, like, lt, or, sql,
+  and, desc, eq, gte, inArray, isNull, like, lt, notInArray, or, sql,
 } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   users, employees, employeeInvites, employeeTasks, employeeTaskHistory,
-  employeeTaskComments, employeeAttendance, employeeSalaryRecords,
-  projects, leads, leadActivities, leadFollowUps, siteVisits, notifications,
+  employeeTaskComments, employeeTaskAssignments, employeeTaskAttachments, employeeLeaveRequests,
+  employeeAttendance, employeeSalaryRecords, projects, leads, leadActivities, leadFollowUps,
+  siteVisits, notifications,
 } from "../db/schema";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
@@ -19,6 +22,8 @@ import { createNotifications } from "../services/notificationService";
 import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
+import { fileMatchesExtension } from "../services/uploadService";
+import { PRIVATE_UPLOAD_DIR, privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -26,7 +31,7 @@ const DEFAULT_EMPLOYEE_PERMISSIONS = [
   "lead.create", "lead.read.own", "lead.read.assigned", "lead.update.own", "lead.update.assigned",
   "lead.call.own", "lead.call.assigned", "telecalling.use", "followup.create.own", "followup.create.assigned",
   "sitevisit.create", "sitevisit.read.own", "sitevisit.update.own", "attendance.read.own", "attendance.checkin",
-  "attendance.checkout", "profile.read.own", "salary.read.own",
+  "attendance.checkout", "leave.request.own", "leave.read.own", "profile.read.own", "salary.read.own",
 ] as const;
 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
@@ -43,6 +48,8 @@ const dateInIndia = (d = new Date()) => {
   return `${val("year")}-${val("month")}-${val("day")}`;
 };
 const thisMonth = (d = new Date()) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+const validIsoDate = (s: string) => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !Number.isNaN(new Date(`${s}T00:00:00.000Z`).getTime()) && new Date(`${s}T00:00:00.000Z`).toISOString().slice(0, 10) === s;
+const daysInclusive = (start: string, end: string) => Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1;
 function employeeLeadScope(permissions: string[] | null | undefined, userId: string) {
   const scopes = [];
   if (hasPermission(permissions, "lead.read.own")) scopes.push(eq(leads.submittedById, userId));
@@ -116,6 +123,7 @@ const activateSchema = z.object({
 });
 const taskCreateSchema = z.object({
   employeeId: z.string().optional(),
+  employeeIds: z.array(z.string()).min(1).max(100).optional(),
   title: z.string().trim().min(2).max(180),
   description: z.string().max(5000).optional().default(""),
   category: z.string().max(80).optional().default("GENERAL"),
@@ -137,6 +145,7 @@ const taskPatchSchema = z.object({
   estimatedMinutes: z.coerce.number().int().min(1).max(100000).optional().nullable(),
   completionNotes: z.string().max(5000).optional(),
   employeeId: z.string().optional(),
+  employeeIds: z.array(z.string()).min(1).max(100).optional(),
   reason: z.string().max(500).optional(),
 });
 const leadCreateSchema = z.object({
@@ -186,6 +195,16 @@ const attendanceCorrectionSchema = z.object({
   correctionReason: z.string().trim().min(3).max(500),
   checkInAt: z.string().optional().nullable(),
   checkOutAt: z.string().optional().nullable(),
+});
+const leaveCreateSchema = z.object({
+  leaveType: z.enum(["ANNUAL", "SICK", "CASUAL", "UNPAID", "OTHER"]).default("CASUAL"),
+  startDate: z.string().refine(validIsoDate, "Choose a valid start date."),
+  endDate: z.string().refine(validIsoDate, "Choose a valid end date."),
+  reason: z.string().trim().min(5).max(2000),
+});
+const leaveReviewSchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED", "CANCELLED"]),
+  reviewNotes: z.string().trim().max(2000).optional().default(""),
 });
 const salaryCreateSchema = z.object({
   employeeId: z.string().refine(isValidId),
