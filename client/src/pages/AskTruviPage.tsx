@@ -2,7 +2,6 @@ import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { AskTruviChat, AskTruviSignInGate, profileIsSet, useAskTruviChat } from "@/components/assistant/AskTruviChat";
-import { IS_NATIVE } from "@/lib/native";
 
 /**
  * Ask Truvi — full-page chat. The exact card from the home-page "Ask Truvi"
@@ -16,26 +15,18 @@ export default function AskTruviPage() {
 
   return (
     <main
-      className={`text-white ${
-        IS_NATIVE
-          ? "h-[calc(100dvh-4.75rem-64px-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] min-h-0 overflow-hidden"
-          : "px-4 pb-4 pt-4"
-      }`}
+      className="px-4 pb-4 pt-4 text-white"
     >
-      <div className={`relative mx-auto h-full w-full ${IS_NATIVE ? "max-w-none" : "max-w-3xl"}`}>
-        {!IS_NATIVE && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -inset-8 -z-10 opacity-40 blur-3xl"
-            style={{ background: "var(--gradient-aurora)" }}
-          />
-        )}
+      <div className="relative mx-auto h-full w-full max-w-3xl">
         <div
-          className={`flex min-h-0 flex-col ${
-            IS_NATIVE ? "h-full" : "rounded-2xl glass p-5 md:p-7"
-          }`}
+          aria-hidden
+          className="pointer-events-none absolute -inset-8 -z-10 opacity-40 blur-3xl"
+          style={{ background: "var(--gradient-aurora)" }}
+        />
+        <div
+          className="flex min-h-0 flex-col rounded-2xl glass p-5 md:p-7"
           style={{
-            height: IS_NATIVE ? "100%" : "calc(100dvh - env(safe-area-inset-top, 0px) - 7rem)",
+            height: "calc(100dvh - env(safe-area-inset-top, 0px) - 7rem)",
           }}
         >
           {/* Window chrome — identical to the home card */}

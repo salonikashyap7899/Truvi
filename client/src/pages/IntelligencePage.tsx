@@ -2,7 +2,6 @@ import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
-import { IS_NATIVE } from "@/lib/native";
 import {
   Database, ShieldCheck, LayoutGrid, Zap, ArrowRight, Check, Clock, HelpCircle,
   FileText, Landmark, Newspaper, Map, ScrollText, HardHat, Building2,
@@ -117,9 +116,9 @@ export default function IntelligencePage() {
     <main className="min-h-screen text-white pb-28">
       <SiteNav />
       {/* 1 ── HERO */}
-      <Section className={`${IS_NATIVE ? "pt-16 md:pt-36" : "pt-28 md:pt-36"}`}>
+      <Section className="pt-28 md:pt-36">
         <Reveal delay={0.1}>
-          <h1 className={`${IS_NATIVE ? "mt-0" : "mt-6"} max-w-3xl font-display text-4xl font-medium leading-[1.05] tracking-tight md:text-6xl`}>
+          <h1 className="mt-6 max-w-3xl font-display text-4xl font-medium leading-[1.05] tracking-tight md:text-6xl">
             How Truvi's <span className="text-gradient-trust">AI</span> turns raw data into verified intelligence.
           </h1>
         </Reveal>

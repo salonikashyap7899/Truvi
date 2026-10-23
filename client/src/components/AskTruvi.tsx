@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
-import { IS_NATIVE } from "@/lib/native";
 import { Sparkles, SlidersHorizontal, X, Minus, ChevronUp } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { AskTruviChat, AskTruviSignInGate, profileIsSet, useAskTruviChat } from "@/components/assistant/AskTruviChat";
@@ -90,7 +89,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       {/* Floating trigger button. Hidden in the installed app — the bottom
           navigation already has a prominent "Ask Truvi" action that opens this
           panel via the `open-ask-truvi` event. The website keeps it. */}
-      {!IS_NATIVE && !open && (
+      {!open && (
         <button
           onClick={() => { setMinimized(false); setOpen(true); }}
           aria-label="Ask Truvi"

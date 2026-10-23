@@ -1,32 +1,14 @@
-import { Capacitor } from "@capacitor/core";
-
 export interface Coords {
   lat: number;
   lng: number;
 }
 
 /**
- * Get the user's current position. Uses the Capacitor Geolocation plugin inside
- * the installed app (it handles the native permission prompt), and the browser
- * Geolocation API on the web. Resolves to null if unavailable or denied.
+ * Get the user's current position through the browser Geolocation API.
+ * Resolves to null if unavailable or denied.
  */
 export async function getCurrentPosition(): Promise<Coords | null> {
   try {
-    if (Capacitor.isNativePlatform()) {
-      const { Geolocation } = await import("@capacitor/geolocation");
-      try {
-        const perm = await Geolocation.checkPermissions();
-        if (perm.location !== "granted") {
-          const req = await Geolocation.requestPermissions();
-          if (req.location !== "granted") return null;
-        }
-      } catch {
-        /* older plugin / no checkPermissions — fall through to getCurrentPosition */
-      }
-      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
-      return { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    }
-
     if (typeof navigator === "undefined" || !navigator.geolocation) return null;
     return await new Promise<Coords | null>((resolve) => {
       navigator.geolocation.getCurrentPosition(

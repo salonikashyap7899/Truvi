@@ -34,8 +34,8 @@ export default function VisitorGateModal({ onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
           <div className="flex items-center gap-2 font-display text-sm font-semibold tracking-tight text-white">
-            <span className="grid size-5 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)]">
-              <img src="/brand/icon-white.png" alt="" className="h-3 w-3 object-contain" />
+            <span className="grid size-5 place-items-center">
+              <img src="/favicon-32.png" alt="" className="h-5 w-5 object-contain" />
             </span>
             TRUVI
           </div>

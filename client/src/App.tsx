@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
@@ -21,16 +21,10 @@ import PageBackLink from "@/components/PageBackLink";
 import { showsNavBack } from "@/lib/navChrome";
 import { dashboardPath } from "@/lib/rolePaths";
 import { useAuthStore } from "@/store/authStore";
-import MobileTabBar from "@/components/mobile/MobileTabBar";
 import InvestFab from "@/components/InvestFab";
-import NativeShell from "@/components/NativeShell";
 import OfflineBanner from "@/components/OfflineBanner";
-import PushRegistration from "@/components/PushRegistration";
 import { IS_TOUCH } from "@/lib/device";
-import { IS_NATIVE, showsTabBar } from "@/lib/native";
-import { useLocationStore } from "@/store/locationStore";
 import { initializeAuthSession } from "@/lib/api";
-import "@/styles/mobile-app.css";
 import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/PolicyPages";
 
 // Every other route page is lazy-loaded, so the initial download is tiny and
@@ -192,7 +186,7 @@ function PageTransition({ children }: { children: ReactNode }) {
   const navOffset = useGlobalNavVisible();
   const user = useAuthStore((s) => s.user);
   // The "← Back" link sits just under the app-level navbar, in the page flow.
-  const pageBack = !IS_NATIVE && navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
+  const pageBack = navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
   return (
     <motion.div
       key={transitionKey}
@@ -203,38 +197,12 @@ function PageTransition({ children }: { children: ReactNode }) {
       // Leave room for the app-level navbar at the top (inside the page's
       // height, so short pages don't scroll) and for the app's bottom tab bar.
       style={{
-        // The native body already reserves its safe-area inset; don't count it
-        // a second time in the page offset below the fixed navbar.
-        ...(navOffset ? { paddingTop: IS_NATIVE ? "4.75rem" : GLOBAL_NAV_OFFSET } : {}),
-        ...(showsTabBar(pathname) ? { paddingBottom: "calc(64px + env(safe-area-inset-bottom, 0px))" } : {}),
+        ...(navOffset ? { paddingTop: GLOBAL_NAV_OFFSET } : {}),
       }}
     >
       {pageBack && <PageBackLink />}
       {children}
     </motion.div>
-  );
-}
-
-/**
- * First-run onboarding tour — shown once in the installed app (remembered via
- * localStorage). Purely additive; it doesn't touch any existing flow.
- */
-function OnboardingGate() {
-  const [show, setShow] = useState(() => {
-    try {
-      return IS_NATIVE && !localStorage.getItem("truvi_onboarding_seen");
-    } catch {
-      return false;
-    }
-  });
-  if (!show) return null;
-  return (
-    <Onboarding
-      onDone={() => {
-        try { localStorage.setItem("truvi_onboarding_seen", "1"); } catch { /* ignore */ }
-        setShow(false);
-      }}
-    />
   );
 }
 
@@ -275,12 +243,6 @@ export default function App() {
     };
   }, []);
 
-  // In the installed app, ask for the user's location on open so "Near Me" and
-  // property distances work right away. On the web we ask only when needed.
-  useEffect(() => {
-    if (IS_NATIVE) useLocationStore.getState().request();
-  }, []);
-
   // Once the app is idle, quietly pre-load the chunks for the screens people
   // open most (Explore + a listing). Their code is then already in memory, so
   // tapping through feels instant instead of showing a loading state. Failures
@@ -301,9 +263,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <NativeShell />
       <OfflineBanner />
-      <PushRegistration />
       <Toaster
         position="top-center"
         theme="dark"
@@ -334,7 +294,6 @@ export default function App() {
       />
       <Ambience />
       <WelcomeGate />
-      <OnboardingGate />
       <WhatsAppChannelPrompt />
       <OnboardingMeetPrompt />
       <FloatingAssistants />
@@ -477,7 +436,6 @@ export default function App() {
       </Routes>
       </Suspense>
       </PageTransition>
-      <MobileTabBar />
     </BrowserRouter>
   );
 }

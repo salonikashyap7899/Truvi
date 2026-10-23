@@ -1,21 +1,10 @@
 import axios from "axios";
-import { Capacitor } from "@capacitor/core";
 import { useAuthStore } from "@/store/authStore";
 import type { User } from "@/types";
 
-// The installed Android app is bundled and served from https://localhost, so
-// window.location.origin points at the device, not our API. Native builds must
-// therefore call the production API by its absolute URL. Web keeps using its
-// own origin (same-origin in production, the dev server locally).
-const NATIVE_API_URL = "https://truviventures.com";
-
 export const API_BASE =
   import.meta.env.VITE_API_URL ||
-  (Capacitor.isNativePlatform()
-    ? NATIVE_API_URL
-    : import.meta.env.PROD
-      ? window.location.origin
-      : "http://localhost:5000");
+  (import.meta.env.PROD ? window.location.origin : "http://localhost:5000");
 
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,
