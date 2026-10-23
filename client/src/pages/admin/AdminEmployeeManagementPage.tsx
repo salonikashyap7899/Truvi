@@ -89,6 +89,8 @@ export default function AdminEmployeeManagementPage() {
   const [employeeForm, setEmployeeForm] = useState<Record<string, string>>({ ...emptyEmployee });
   const [busy, setBusy] = useState(false);
   const [taskForm, setTaskForm] = useState({ employeeId: "", employeeIds: [] as string[], title: "", description: "", priority: "MEDIUM", deadlineAt: "", category: "GENERAL" });
+  const [reassignTaskId, setReassignTaskId] = useState<string | null>(null);
+  const [reassignEmployeeIds, setReassignEmployeeIds] = useState<string[]>([]);
   const [salaryForm, setSalaryForm] = useState({ employeeId: "", monthKey: new Date().toISOString().slice(0, 7), grossSalary: "", allowances: "0", deductions: "0", notes: "" });
   const [correction, setCorrection] = useState({ id: "", status: "PRESENT", correctionReason: "" });
 
@@ -215,6 +217,23 @@ export default function AdminEmployeeManagementPage() {
       toast.success("Leave request " + status.toLowerCase() + ".");
       await reload();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not review leave request."); }
+  }
+  function startReassignTask(task: Task) {
+    const ids = task.assignedEmployeeIds?.length ? task.assignedEmployeeIds : [task.employeeId];
+    setReassignTaskId(task._id);
+    setReassignEmployeeIds(ids.filter((id) => employees.some((employee) => employee.id === id && employee.accountUserId && employee.status !== "INACTIVE")));
+  }
+  async function saveTaskAssignees() {
+    if (!reassignTaskId || !reassignEmployeeIds.length) return;
+    setBusy(true);
+    try {
+      await api.patch("/employees/tasks/" + reassignTaskId, { employeeIds: reassignEmployeeIds });
+      toast.success("Task assignees updated.");
+      setReassignTaskId(null);
+      setReassignEmployeeIds([]);
+      await reload();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not reassign task."); }
+    finally { setBusy(false); }
   }
   async function createSalary(e: FormEvent) {
     e.preventDefault(); setBusy(true);
@@ -364,8 +383,12 @@ export default function AdminEmployeeManagementPage() {
           </form>
         </Panel>
         <Panel title="Company task board" sub="Filterable task lifecycle and deadlines">
-          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><div className="flex flex-col items-start gap-2"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select>{t.taskType==="ASSIGNED"&&<button onClick={()=>startReassignTask(t)} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Edit assignees</button>}</div></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
         </Panel>
+        {reassignTaskId && <Panel title={"Update assignees · " + (tasks.find((task) => task._id === reassignTaskId)?.title || "Task")} sub="Choose one or more active employees with linked login accounts. Completed assignments remain completed for employees who stay assigned.">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{employees.filter((employee) => employee.accountUserId && employee.status !== "INACTIVE").map((employee) => <label key={employee.id} className="flex items-center gap-2 rounded-lg border border-white/10 p-3 text-sm"><input type="checkbox" checked={reassignEmployeeIds.includes(employee.id)} onChange={(event) => setReassignEmployeeIds((current) => event.target.checked ? Array.from(new Set([...current, employee.id])) : current.filter((id) => id !== employee.id))}/><span>{employee.name} · {employee.department}</span></label>)}</div>
+          <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy || !reassignEmployeeIds.length} onClick={()=>void saveTaskAssignees()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Saving…":"Save assignees"}</button><button onClick={()=>{setReassignTaskId(null);setReassignEmployeeIds([]);}} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Cancel</button></div>
+        </Panel>}
       </div>}
 
       {tab === "leads" && <Panel title="Central buyer lead management" sub="These are rows from Truvi's existing leads table, not a separate employee lead database. Employee identity is the submitting user.">
