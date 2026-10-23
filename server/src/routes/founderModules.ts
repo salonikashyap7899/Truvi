@@ -239,6 +239,8 @@ router.post("/employees", async (req, res) => {
 });
 router.delete("/employees/:id", async (req, res) => {
   const db = getDb();
+  const [existing] = await db.select().from(employees).where(eq(employees._id, String(req.params.id))).limit(1);
+  if (existing?.accountUserId) return res.status(409).json({ error: "This employee has a login account and operational history. Deactivate the account from Employee Management instead so tasks, attendance, leads and payroll remain linked." });
   const [row] = await db.delete(employees).where(eq(employees._id, String(req.params.id))).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });
