@@ -9,6 +9,8 @@ export const API_BASE =
 export const api = axios.create({
   baseURL: `${API_BASE}/api`,
   withCredentials: true, // send the httpOnly refresh-token cookie
+  // Avoid leaving forms in a pending state forever when the server/network stalls.
+  timeout: 30_000,
 });
 
 api.interceptors.request.use((config) => {
