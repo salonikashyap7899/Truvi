@@ -884,7 +884,7 @@ export default function EmployeeDashboardPage() {
           </Panel>
         </div>}
 
-        {tab==="profile" && <Panel title="My employee profile" note="Sensitive employment and permission fields can only be updated by an authorised administrator.">
+        {tab==="profile" && <Panel title="My employee profile" note="Update your personal details, verified contact information and account security. Employment records and permissions remain administrator-managed.">
           <section className="truvi-erm-profile-photo">
             <div className="truvi-erm-profile-photo__avatar">
               {currentUser?.avatarUrl
@@ -904,6 +904,57 @@ export default function EmployeeDashboardPage() {
               <input ref={profilePhotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(event) => void uploadProfilePhoto(event.target.files?.[0])}/>
             </div>
           </section>
+          <form onSubmit={savePersonalProfile} className="truvi-profile-settings-card">
+            <div className="truvi-profile-settings-card__heading"><div><h3>Personal details</h3><p>These details appear on your Truvi employee profile.</p></div></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Display name</span><input required minLength={2} maxLength={80} value={profileNameDraft} onChange={(event) => setProfileNameDraft(event.target.value)} autoComplete="name"/></label>
+              <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Bio / role summary</span><input maxLength={500} value={profileBioDraft} onChange={(event) => setProfileBioDraft(event.target.value)} placeholder="A short introduction (optional)"/></label>
+            </div>
+            <div className="truvi-profile-settings-actions"><span>Changes are saved to your own account.</span><button type="submit" disabled={contactBusy}>{contactBusy ? "Saving…" : "Save personal details"}</button></div>
+          </form>
+
+          <div className="truvi-profile-settings-grid">
+            <section className="truvi-profile-settings-card">
+              <div className="truvi-profile-settings-card__heading"><div><h3>Email address</h3><p>Verify the new address before it replaces your current email.</p></div><span className={"truvi-profile-verified " + (currentUser?.emailVerified ? "is-verified" : "is-pending")}>{currentUser?.emailVerified ? "Verified" : "Not verified"}</span></div>
+              <form onSubmit={emailChangeRequested ? verifyEmailChange : requestEmailChange} className="space-y-3">
+                <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Current email</span><input value={currentUser?.email || employee?.officialEmail || ""} readOnly aria-label="Current email address"/></label>
+                {!emailChangeRequested ? <>
+                  <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">New email address</span><input type="email" required maxLength={254} value={profileEmailDraft} onChange={(event) => setProfileEmailDraft(event.target.value)} autoComplete="email" placeholder="name@company.com"/></label>
+                  <button type="submit" disabled={contactBusy}>{contactBusy ? "Sending code…" : "Send email verification code"}</button>
+                </> : <>
+                  <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">6-digit code sent to {profileEmailDraft}</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required value={emailChangeOtp} onChange={(event) => setEmailChangeOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000"/></label>
+                  <div className="truvi-profile-settings-actions"><button type="submit" disabled={contactBusy}>{contactBusy ? "Verifying…" : "Verify and update email"}</button><button type="button" className="is-secondary" onClick={() => { setEmailChangeRequested(false); setEmailChangeOtp(""); }} disabled={contactBusy}>Cancel</button></div>
+                  <p className="text-xs text-muted-foreground">For account security, Truvi signs you out after a successful email change.</p>
+                </>}
+              </form>
+            </section>
+
+            <section className="truvi-profile-settings-card">
+              <div className="truvi-profile-settings-card__heading"><div><h3>Phone number</h3><p>An SMS code confirms that you own the new number.</p></div><span className={"truvi-profile-verified " + (currentUser?.phoneVerified ? "is-verified" : "is-pending")}>{currentUser?.phoneVerified ? "Verified" : "Not verified"}</span></div>
+              <form onSubmit={phoneChangeRequested ? verifyPhoneChange : requestPhoneChange} className="space-y-3">
+                <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Current phone</span><input value={employee?.phone || currentUser?.phone || ""} readOnly aria-label="Current phone number"/></label>
+                {!phoneChangeRequested ? <>
+                  <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">New phone number</span><input type="tel" required minLength={10} maxLength={20} value={profilePhoneDraft} onChange={(event) => setProfilePhoneDraft(event.target.value)} autoComplete="tel" placeholder="+91 98765 43210"/></label>
+                  <button type="submit" disabled={contactBusy}>{contactBusy ? "Sending code…" : "Send SMS verification code"}</button>
+                </> : <>
+                  <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">6-digit SMS code</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" required value={phoneChangeOtp} onChange={(event) => setPhoneChangeOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000"/></label>
+                  <div className="truvi-profile-settings-actions"><button type="submit" disabled={contactBusy}>{contactBusy ? "Verifying…" : "Verify and update phone"}</button><button type="button" className="is-secondary" onClick={() => { setPhoneChangeRequested(false); setPhoneChangeOtp(""); }} disabled={contactBusy}>Cancel</button></div>
+                </>}
+              </form>
+            </section>
+
+            <section className="truvi-profile-settings-card truvi-profile-settings-card--password">
+              <div className="truvi-profile-settings-card__heading"><div><h3>Change password</h3><p>Use your current password and choose a strong new one.</p></div><span className="truvi-profile-password-icon"><ShieldAlert size={18}/></span></div>
+              <form onSubmit={changePassword} className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-1.5 text-sm sm:col-span-2"><span className="text-muted-foreground">Current password</span><input type="password" autoComplete="current-password" required maxLength={200} value={passwordForm.currentPassword} onChange={(event) => setPasswordForm((value) => ({ ...value, currentPassword: event.target.value }))}/></label>
+                <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">New password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={passwordForm.newPassword} onChange={(event) => setPasswordForm((value) => ({ ...value, newPassword: event.target.value }))} placeholder="12+ characters"/></label>
+                <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Confirm new password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={128} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm((value) => ({ ...value, confirmPassword: event.target.value }))}/></label>
+                <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">Use uppercase and lowercase letters, a number and a symbol. Other active sessions are invalidated after a successful change.</p>
+                <div className="truvi-profile-settings-actions sm:col-span-2"><span>Password is never shown to administrators.</span><button type="submit" disabled={passwordBusy}>{passwordBusy ? "Updating…" : "Update password"}</button></div>
+              </form>
+            </section>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[
             ["Full name",employee?.name],["Employee ID",employee?.employeeCode],["Official email",employee?.officialEmail],["Phone",employee?.phone],["Department",employee?.department],["Designation",employee?.designation],["Joining date",fmtDate(employee?.joiningDate)],["Recruitment source",employee?.recruitmentSource],["Reporting manager",employee?.reportingManagerId||"Not assigned"],["Employment status",employee?.status],
           ].map(([label,value])=><div key={label} className="rounded-xl border border-white/10 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 break-words text-sm font-medium">{value||"—"}</p></div>)}</div>
