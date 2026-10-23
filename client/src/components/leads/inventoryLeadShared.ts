@@ -77,6 +77,7 @@ export const ROLE_LABEL: Record<string, string> = {
   AMBASSADOR: "Ambassador",
   DEVELOPER: "Developer",
   ADMIN: "Admin",
+  EMPLOYEE: "Employee",
 };
 
 /** Roles that can add a lead from an inventory card. */
