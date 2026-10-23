@@ -182,6 +182,13 @@ export interface UserVerification {
   // can set a new password without being logged in. Cleared once used.
   resetPasswordOtp?: string | null;
   resetPasswordExpiry?: string | null; // ISO date string
+  // Short-lived, hashed OTPs for changes to the destination contact details.
+  pendingEmailChange?: string | null;
+  pendingEmailChangeOtp?: string | null;
+  pendingEmailChangeExpiry?: string | null;
+  pendingPhoneChange?: string | null;
+  pendingPhoneChangeOtp?: string | null;
+  pendingPhoneChangeExpiry?: string | null;
   aadhaarDocumentUrl?: string;
   aadhaarVerifiedAt?: string | null; // ISO date string
   // CP/Ambassador identity docs. PAN number is stored masked. The document
