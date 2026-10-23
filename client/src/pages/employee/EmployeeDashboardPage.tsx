@@ -39,6 +39,7 @@ export default function EmployeeDashboardPage() {
   const [salaries, setSalaries] = useState<Salary[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [callCount, setCallCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [taskForm, setTaskForm] = useState({ title:"", description:"", priority:"MEDIUM", deadlineAt:"", estimatedMinutes:"" });
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -57,12 +58,12 @@ export default function EmployeeDashboardPage() {
     setLoading(true);
     try {
       const results = await Promise.allSettled([
-        api.get("/employees/me"), api.get("/employees/tasks"), api.get("/employees/leads"),
+        api.get("/employees/me/overview"), api.get("/employees/tasks"), api.get("/employees/leads"),
         api.get("/projects"), api.get("/employees/site-visits"), api.get("/employees/attendance"),
         api.get("/employees/salaries"), api.get("/notifications"),
       ]);
       const assign = <T,>(index: number, fn: (value: any) => void) => { const r = results[index]; if (r.status === "fulfilled") fn(r.value.data as T); };
-      assign(0,(d)=>setEmployee(d.employee));
+      assign(0,(d)=>{ setEmployee(d.employee); setCallCount(d.callsLoggedToday ?? 0); });
       assign(1,(d)=>setTasks(d.tasks ?? []));
       assign(2,(d)=>setLeads(d.leads ?? []));
       assign(3,(d)=>setProjects(d.projects ?? []));
@@ -223,7 +224,7 @@ export default function EmployeeDashboardPage() {
         </div>}
 
         {tab==="telecalling" && <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Kpi label="Leads I can access" value={leads.length}/><Kpi label="Hot leads" value={myHotLeads}/><Kpi label="Follow-ups due" value={leads.filter((l)=>l.nextFollowUpAt&&new Date(l.nextFollowUpAt)<new Date()).length}/><Kpi label="Call records logged" value={leads.length} note="Lead count, not call count"/></div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Kpi label="Leads I can access" value={leads.length}/><Kpi label="Hot leads" value={myHotLeads}/><Kpi label="Follow-ups due" value={leads.filter((l)=>l.nextFollowUpAt&&new Date(l.nextFollowUpAt)<new Date()).length}/><Kpi label="Calls logged today" value={callCount} note="Attempts recorded in the lead timeline"/></div>
           <Panel title="Record a call" note="This records the employee-submitted outcome in the existing lead activity timeline; it does not place or record a phone call."><form onSubmit={logCall} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <Select label="Buyer lead" required value={callForm.leadId} onChange={(v)=>setCallForm((s)=>({...s,leadId:v}))} options={[{value:"",label:"Choose buyer"},...leads.map((l)=>({value:l._id,label:`${l.clientName} · ${l.clientPhone}`}))]}/>
             <Select label="Call outcome" value={callForm.outcome} onChange={(v)=>setCallForm((s)=>({...s,outcome:v}))} options={["CONNECTED","NO_ANSWER","BUSY","SWITCHED_OFF","CALL_BACK_REQUESTED","INTERESTED","NOT_INTERESTED","FOLLOW_UP_REQUIRED"].map((v)=>({value:v,label:v.replaceAll("_"," ")}))}/>
