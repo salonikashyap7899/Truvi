@@ -91,13 +91,24 @@ async function issueInvite(employeeId: string, actorUserId: string) {
   return { delivered, expiresAt };
 }
 
+function isValidEmployeePhone(phone: string | null | undefined): boolean {
+  const value = String(phone ?? "").trim();
+  const digits = value.replace(/\D/g, "");
+  return /^[+\d\s()-]{10,20}$/.test(value) && digits.length >= 10 && digits.length <= 15;
+}
+
+const employeePhoneSchema = z.string().trim()
+  .min(10, "Phone number is required to create an employee account.")
+  .max(20, "Enter a valid phone number.")
+  .refine(isValidEmployeePhone, { message: "Enter a valid phone number containing 10–15 digits." });
+
 const employeeCreateSchema = z.object({
   name: z.string().trim().min(2).max(160),
   employeeCode: z.string().trim().max(40).optional()
     .refine((value) => !value || value.length >= 2, { message: "Employee ID must be at least 2 characters when provided." })
     .transform((value) => value || undefined),
   officialEmail: z.string().trim().pipe(z.email()).transform((v) => v.toLowerCase()),
-  phone: z.string().trim().max(30).optional().default(""),
+  phone: employeePhoneSchema,
   department: z.string().trim().min(1).max(100),
   designation: z.string().trim().max(160).optional().default(""),
   employmentType: z.enum(["FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"]).default("FULL_TIME"),
@@ -429,7 +440,6 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
     const code = parsed.data.employeeCode || employee.employeeCode || `TRV-EMP-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
     const [existingCode] = await db.select({ id: employees._id }).from(employees).where(eq(employees.employeeCode, code)).limit(1);
     if (existingCode && String(existingCode.id) !== String(employee._id)) return res.status(409).json({ error: "That employee ID is already in use." });
-    const phone = parsed.data.phone || employee.phone || null;
     const linked = await db.transaction(async (tx) => {
       const [account] = await tx.insert(users).values({
         name: employee.name, email: parsed.data.officialEmail, password: passwordHash,
