@@ -508,11 +508,12 @@ router.get("/me/overview", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     if (!emp) return;
     const db = getDb();
     const userId = req.user!.userId;
-    const [tasks, myLeads, visits, attendance] = await Promise.all([
+    const [tasks, myLeads, visits, attendance, callActivities] = await Promise.all([
       db.select().from(employeeTasks).where(eq(employeeTasks.employeeId, emp._id)).orderBy(desc(employeeTasks.deadlineAt)),
       db.select().from(leads).where(or(eq(leads.submittedById, userId), eq(leads.assignedToId, userId))).orderBy(desc(leads.createdAt)),
       db.select().from(siteVisits).where(eq(siteVisits.responsibleUserId, userId)).orderBy(desc(siteVisits.scheduledAt)),
       db.select().from(employeeAttendance).where(eq(employeeAttendance.employeeId, emp._id)).orderBy(desc(employeeAttendance.attendanceDate)),
+      db.select().from(leadActivities).where(and(eq(leadActivities.actorUserId, userId), eq(leadActivities.type, "CALL"))).orderBy(desc(leadActivities.createdAt)).limit(200),
     ]);
     const today = dateInIndia();
     const todayAttendance = attendance.find((a) => a.attendanceDate === today) || null;
@@ -528,6 +529,8 @@ router.get("/me/overview", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
       },
       leads: { all: myLeads, submitted: myLeads.filter((l) => String(l.submittedById) === userId).length, hot: myLeads.filter((l) => l.leadTemperature === "HOT").length, warm: myLeads.filter((l) => l.leadTemperature === "WARM").length, cold: myLeads.filter((l) => l.leadTemperature === "COLD").length },
       siteVisits: visits,
+      callsLoggedToday: callActivities.filter((c) => c.createdAt >= new Date(`${today}T00:00:00+05:30`) && c.createdAt < new Date(new Date(`${today}T00:00:00+05:30`).getTime() + 86400000)).length,
+      recentCallActivities: callActivities.slice(0, 20),
       attendance: todayAttendance,
       attendanceHistory: attendance.slice(0, 30),
     });
