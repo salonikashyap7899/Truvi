@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Bell, CheckCheck, Building2, Home, Wallet, Users, CalendarClock,
@@ -33,20 +33,29 @@ function markToasted(id: string): void {
   }
 }
 
-/** Pick an icon + accent for a notification from its `type`. */
+/** Pick a recognizable icon + accent from a notification's event type. */
 function iconFor(type?: string): { Icon: LucideIcon; cls: string } {
-  const t = type ?? "general";
-  if (t.startsWith("project")) return { Icon: Building2, cls: "text-sky-400" };
-  if (t.startsWith("property") || t === "new_property") return { Icon: Home, cls: "text-emerald-400" };
-  if (t === "commission_earned") return { Icon: Wallet, cls: "text-amber-400" };
-  if (t.includes("referr")) return { Icon: Users, cls: "text-violet-400" };
-  if (t.startsWith("lead")) return { Icon: Users, cls: "text-blue-400" };
+  const t = (type ?? "general").toLowerCase();
+  if (t.includes("security") || t.includes("verification") || t.includes("disabled")) return { Icon: ShieldAlert, cls: "text-red-400" };
+  if (t.includes("project")) return { Icon: Building2, cls: "text-sky-400" };
+  if (t.includes("property")) return { Icon: Home, cls: "text-emerald-400" };
+  if (t.includes("salary") || t.includes("payroll") || t.includes("payment") || t.includes("commission")) return { Icon: Wallet, cls: "text-amber-400" };
+  if (t.includes("leave") || t.includes("attendance") || t.includes("check-in") || t.includes("checkin")) return { Icon: CalendarClock, cls: "text-indigo-400" };
+  if (t.includes("site_visit") || t.includes("sitevisit") || t.includes("meeting")) return { Icon: CalendarClock, cls: "text-indigo-400" };
+  if (t.includes("lead") || t.includes("referr") || t.includes("followup") || t.includes("call")) return { Icon: Users, cls: "text-blue-400" };
   if (t.includes("task")) return { Icon: ListChecks, cls: "text-teal-400" };
-  if (t.startsWith("meeting")) return { Icon: CalendarClock, cls: "text-indigo-400" };
-  if (t.includes("investment") || t === "investment_opportunity") return { Icon: TrendingUp, cls: "text-emerald-400" };
-  if (t === "system_announcement") return { Icon: Megaphone, cls: "text-pink-400" };
-  if (t === "security_alert") return { Icon: ShieldAlert, cls: "text-red-400" };
+  if (t.includes("employee") || t.includes("invite") || t.includes("account")) return { Icon: Users, cls: "text-violet-400" };
+  if (t.includes("investment")) return { Icon: TrendingUp, cls: "text-emerald-400" };
+  if (t.includes("announcement") || t.includes("campaign")) return { Icon: Megaphone, cls: "text-pink-400" };
   return { Icon: Bell, cls: "text-muted-foreground" };
+}
+
+function showNotificationToast(n: Notification) {
+  const { Icon, cls } = iconFor(n.type);
+  toast.info(n.title || n.message, {
+    description: n.title ? n.message : undefined,
+    icon: <Icon size={18} className={cls} />,
+  });
 }
 
 /** Where a notification navigates when tapped, if it carries a deep link. */
@@ -58,6 +67,7 @@ function hrefFor(n: Notification): string | null {
 export function NotificationBell() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const seenNotificationIds = useRef(new Set<string>());
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   // On mobile the dropdown is a near-full-screen overlay — lock the page behind
@@ -69,6 +79,7 @@ export function NotificationBell() {
       .get("/notifications")
       .then((res) => {
         const list: Notification[] = res.data.notifications ?? [];
+        list.forEach((n) => seenNotificationIds.current.add(n._id));
         setNotifications(list);
         // Pop up notifications that arrived while we were offline — e.g. the
         // welcome + onboarding notifications created at signup, BEFORE this
@@ -81,7 +92,7 @@ export function NotificationBell() {
             .slice(0, 3)
             .reverse();
           for (const n of fresh) {
-            toast.info(n.title || n.message);
+            showNotificationToast(n);
             markToasted(n._id);
           }
         } catch {
@@ -94,25 +105,36 @@ export function NotificationBell() {
 
   // Real-time: new notifications appear instantly and bump the badge.
   useSocketEvent<Notification>("notification:new", (n) => {
-    setNotifications((prev) => (prev.some((p) => p._id === n._id) ? prev : [n, ...prev]));
-    setUnread((c) => c + 1);
+    if (!n?._id || seenNotificationIds.current.has(n._id)) return;
+    seenNotificationIds.current.add(n._id);
+    setNotifications((prev) => [n, ...prev.filter((item) => item._id !== n._id)].slice(0, 200));
+    if (!n.isRead) setUnread((count) => count + 1);
     if (!wasToasted(n._id)) {
-      toast.info(n.title || n.message);
+      showNotificationToast(n);
       markToasted(n._id);
     }
   });
 
   async function markRead(n: Notification) {
     if (n.isRead) return;
-    setNotifications((prev) => prev.map((p) => (p._id === n._id ? { ...p, isRead: true } : p)));
-    setUnread((c) => Math.max(0, c - 1));
-    await api.patch(`/notifications/${n._id}/read`).catch(() => {});
+    try {
+      await api.patch(`/notifications/${n._id}/read`);
+      setNotifications((prev) => prev.map((p) => (p._id === n._id ? { ...p, isRead: true } : p)));
+      setUnread((count) => Math.max(0, count - 1));
+    } catch {
+      toast.error("Could not mark this notification as read. Please retry.");
+    }
   }
 
   async function markAllRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnread(0);
-    await api.patch("/notifications/read-all").catch(() => {});
+    if (unread === 0) return;
+    try {
+      await api.patch("/notifications/read-all");
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnread(0);
+    } catch {
+      toast.error("Could not mark all notifications as read. Please retry.");
+    }
   }
 
   function onTap(n: Notification) {
