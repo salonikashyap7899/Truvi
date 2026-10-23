@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   employees,
@@ -12,6 +12,12 @@ import {
   investorUpdates,
   customerFeedback,
   users,
+  employeeInvites,
+  employeeTasks,
+  employeeAttendance,
+  employeeSalaryRecords,
+  leads,
+  siteVisits,
 } from "../db/schema";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { isFounderEmail } from "../config/env";
@@ -61,7 +67,7 @@ const zBool = z.preprocess((v) => {
 // --------------------------------------------------------------- aggregate
 router.get("/summary", async (_req, res) => {
   const db = getDb();
-  const [emps, campaigns, land, cap, rounds, updates, feedback] = await Promise.all([
+  const [emps, campaigns, land, cap, rounds, updates, feedback, employeeAccounts, invites, workTasks, attendanceRows, salaryRows, employeeLeadRows, employeeVisitRows] = await Promise.all([
     db.select().from(employees).orderBy(desc(employees.performanceScore)),
     db.select().from(marketingCampaigns).orderBy(desc(marketingCampaigns.createdAt)),
     db.select().from(landParcels).orderBy(desc(landParcels.createdAt)),
@@ -69,24 +75,51 @@ router.get("/summary", async (_req, res) => {
     db.select().from(fundraiseRounds).orderBy(desc(fundraiseRounds.createdAt)),
     db.select().from(investorUpdates).orderBy(desc(investorUpdates.createdAt)),
     db.select().from(customerFeedback).orderBy(desc(customerFeedback.createdAt)),
+    db.select().from(users).where(eq(users.role, "EMPLOYEE")),
+    db.select().from(employeeInvites),
+    db.select().from(employeeTasks),
+    db.select().from(employeeAttendance),
+    db.select().from(employeeSalaryRecords),
+    db.select().from(leads).where(eq(leads.creatorRole, "EMPLOYEE")),
+    db.select().from(siteVisits).where(sql`responsible_user_id IS NOT NULL`),
   ]);
 
   // ---- Team ----
   const activeEmps = emps.filter((e) => e.status === "ACTIVE");
+  const linkedEmployeeIds = new Set(emps.filter((e) => e.accountUserId).map((e) => String(e.accountUserId)));
+  const enabledAccounts = employeeAccounts.filter((u) => !u.disabled);
+  const pendingInvitations = new Set(invites.filter((i) => !i.usedAt && i.expiresAt > new Date()).map((i) => String(i.employeeId)));
+  const todayIST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const todayAttendance = attendanceRows.filter((a) => a.attendanceDate === todayIST);
+  const pendingTasks = workTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
+  const employeeLeadIds = new Set(employeeLeadRows.filter((l) => linkedEmployeeIds.has(String(l.submittedById)) || linkedEmployeeIds.has(String(l.assignedToId))).map((l) => String(l._id)));
+  const now = new Date();
   const team = {
     total: emps.length,
     active: activeEmps.length,
-    presentToday: emps.filter((e) => e.presentToday && e.status !== "INACTIVE").length,
-    onLeave: emps.filter((e) => e.status === "ON_LEAVE").length,
-    tasksPending: emps.reduce((s, e) => s + e.tasksPending, 0),
+    presentToday: todayAttendance.filter((a) => a.status === "PRESENT").length + (emps.filter((e) => !e.accountUserId && e.presentToday && e.status !== "INACTIVE").length),
+    onLeave: todayAttendance.filter((a) => a.status === "ON_LEAVE").length + emps.filter((e) => !e.accountUserId && e.status === "ON_LEAVE").length,
+    tasksPending: pendingTasks.length + emps.filter((e) => !e.accountUserId).reduce((sum, e) => sum + e.tasksPending, 0),
     avgPerformance: emps.length ? Math.round(emps.reduce((s, e) => s + e.performanceScore, 0) / emps.length) : 0,
     monthlyPayroll: round(activeEmps.reduce((s, e) => s + e.monthlyCtc, 0)),
+    employeeAccounts: employeeAccounts.length,
+    activeEmployeeAccounts: enabledAccounts.length,
+    inactiveEmployeeAccounts: employeeAccounts.filter((u) => u.disabled).length,
+    pendingInvitations: pendingInvitations.size,
+    employeeTasksPending: pendingTasks.length,
+    employeeTasksOverdue: pendingTasks.filter((t) => t.deadlineAt && t.deadlineAt < now).length,
+    employeeLeadsSubmitted: employeeLeadIds.size,
+    employeeSiteVisits: employeeVisitRows.length,
+    employeeAttendanceMarkedToday: todayAttendance.length,
+    paidPayrollThisPeriod: round(salaryRows.filter((s) => s.status === "PAID").reduce((sum, s) => sum + s.netPayable, 0)),
+    byRecruitmentSource: Object.entries(emps.reduce<Record<string, number>>((acc, e) => { const source = e.recruitmentSource || "Other"; acc[source] = (acc[source] || 0) + 1; return acc; }, {})).map(([source, count]) => ({ source, count })),
     byDepartment: Object.entries(
       emps.reduce<Record<string, number>>((acc, e) => ((acc[e.department] = (acc[e.department] || 0) + 1), acc), {})
     ).map(([department, count]) => ({ department, count })),
     ranking: emps.slice(0, 8).map((e) => ({
       id: String(e._id), name: e.name, title: e.title, department: e.department,
-      status: e.status, performanceScore: e.performanceScore, tasksPending: e.tasksPending, presentToday: e.presentToday,
+      status: e.status, performanceScore: e.performanceScore, tasksPending: e.accountUserId ? pendingTasks.filter((t) => String(t.employeeId) === String(e._id)).length : e.tasksPending,
+      presentToday: e.accountUserId ? todayAttendance.some((a) => String(a.employeeId) === String(e._id) && a.status === "PRESENT") : e.presentToday,
     })),
   };
 
