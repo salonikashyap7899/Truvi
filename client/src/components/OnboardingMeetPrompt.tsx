@@ -4,7 +4,6 @@ import { Video, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { dashboardPath } from "@/lib/rolePaths";
-import { IS_NATIVE } from "@/lib/native";
 import { formatDate, formatTime } from "@/components/leads/inventoryLeadShared";
 
 /**
@@ -72,7 +71,7 @@ export default function OnboardingMeetPrompt() {
   return (
     <div
       className="fixed inset-x-3 z-[60] sm:inset-x-auto sm:left-5 sm:w-[360px]"
-      style={{ bottom: IS_NATIVE ? "calc(76px + env(safe-area-inset-bottom, 0px))" : "4.5rem" }}
+      style={{ bottom: "4.5rem" }}
       role="dialog"
       aria-label="Onboarding"
     >

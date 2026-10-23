@@ -5,8 +5,6 @@ import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
-import AppHomeTop from "@/components/mobile/AppHomeTop";
-import { IS_NATIVE } from "@/lib/native";
 import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
@@ -898,18 +896,12 @@ export default function LandingPage() {
       <CursorGlow />
       <SiteNav />
 
-      {/* Installed app only: a search-first marketplace section at the very top.
-          The website is unaffected, and all the landing content stays below. */}
-      {IS_NATIVE && <AppHomeTop />}
-
-      {/* The 3D WebGL city backdrop is website-only — in the installed app it's
-          heavy (pulls three.js) and distracting, so the app stays flat & fast. */}
-      {!IS_NATIVE && <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>}
+      <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
 
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className={`items-center !justify-start pb-16 text-center ${IS_NATIVE ? "pt-6" : "min-h-screen pt-32 md:pt-36"}`}>
+      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36">
         {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
             Shown to every signed-in user except Admin/Founder. */}
         {showEnrollBanner && (
@@ -963,10 +955,6 @@ export default function LandingPage() {
       {/* ---------- 1c · LIVE PROJECT SHOWCASE (self-populating) ---------- */}
       <LiveProjectsShowcase />
 
-      {/* The long marketing story (problem → methodology → company profile) is
-          website-only. The installed app keeps a focused home: search, banners,
-          live stats, verified projects and the final call-to-action. */}
-      {!IS_NATIVE && (
       <>
       {/* ---------- 2 · THE PROBLEM ---------- */}
       <Section id="the-problem">
@@ -1441,7 +1429,6 @@ export default function LandingPage() {
       />
 
       </>
-      )}
 
       {/* ---------- FINAL CTA ---------- */}
       <Section id="join" className="items-center pb-32 text-center">

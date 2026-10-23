@@ -5,7 +5,6 @@ import { LayoutDashboard, LogOut, Home, ChevronDown, Video } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/authStore";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
-import { IS_NATIVE } from "@/lib/native";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 
 /**
@@ -42,9 +41,6 @@ export function UserMenu() {
   const inNavbar = useContext(InNavbarContext);
   const navbarShown = useNavChrome((s) => s.navs > 0);
 
-  // In the installed app the header shows no account pop-up — every account
-  // option (dashboard, logout, sign in, WhatsApp) lives in the bottom "Menu".
-  if (IS_NATIVE) return null;
   // A page's own header copy is redundant while the top navbar (which carries
   // the same account menu) is on screen.
   if (!inNavbar && navbarShown) return null;
