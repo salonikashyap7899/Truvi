@@ -16,6 +16,7 @@ import {
 } from "../db/schema";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
+import { zodMessage } from "../lib/validationError";
 import { sendEmail } from "../services/emailService";
 import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
@@ -95,7 +96,7 @@ const employeeCreateSchema = z.object({
   employeeCode: z.string().trim().max(40).optional()
     .refine((value) => !value || value.length >= 2, { message: "Employee ID must be at least 2 characters when provided." })
     .transform((value) => value || undefined),
-  officialEmail: z.email().transform((v) => v.trim().toLowerCase()),
+  officialEmail: z.string().trim().pipe(z.email()).transform((v) => v.toLowerCase()),
   phone: z.string().trim().max(30).optional().default(""),
   department: z.string().trim().min(1).max(100),
   designation: z.string().trim().max(160).optional().default(""),
@@ -113,7 +114,7 @@ const employeeCreateSchema = z.object({
   permissions: z.array(z.string().min(1).max(80)).max(80).optional(),
 });
 const employeePatchSchema = employeeCreateSchema.partial().omit({ officialEmail: true }).extend({
-  officialEmail: z.email().transform((v) => v.trim().toLowerCase()).optional(),
+  officialEmail: z.string().trim().pipe(z.email()).transform((v) => v.toLowerCase()).optional(),
 });
 const activateSchema = z.object({
   token: z.string().regex(/^[a-f0-9]{64}$/i),
@@ -362,7 +363,7 @@ router.get("/", requireRole("ADMIN"), async (req, res, next) => {
 router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
     const parsed = employeeCreateSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: "Check the employee details and try again.", issues: parsed.error.flatten() });
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
     const data = parsed.data;
     if (data.phone && !/^[+\d\s()-]{10,20}$/.test(data.phone)) return res.status(400).json({ error: "Enter a valid phone number." });
     if (data.reportingManagerId && !isValidId(data.reportingManagerId)) return res.status(400).json({ error: "Reporting manager is invalid." });
