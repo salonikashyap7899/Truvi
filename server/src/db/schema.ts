@@ -28,7 +28,7 @@ import {
 // Shared enum-ish types (kept identical to the old model exports)
 // ---------------------------------------------------------------------------
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type HabitatProviderStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
@@ -610,6 +610,14 @@ export const leads = pgTable(
     clientName: text("client_name").notNull(),
     clientPhone: text("client_phone").notNull(),
     clientEmail: text("client_email"),
+    leadTemperature: text("lead_temperature").$type<"HOT" | "WARM" | "COLD">(),
+    preferredLocation: text("preferred_location"),
+    preferredPropertyType: text("preferred_property_type"),
+    preferredContactMethod: text("preferred_contact_method"),
+    siteVisitStatus: text("site_visit_status").$type<"NOT_DISCUSSED" | "INTERESTED" | "PROPOSED" | "CONFIRMED" | "COMPLETED" | "RESCHEDULED" | "CANCELLED">(),
+    lastContactAt: timestamp("last_contact_at", { withTimezone: true, mode: "date" }),
+    followUpNotes: text("follow_up_notes"),
+    additionalRequirements: text("additional_requirements"),
     // Consent record for sharing a non-user customer's contact details with Truvi.
     // Buyer-owned enquiries do not use this field as third-party consent.
     contactConsent: boolean("contact_consent").notNull().default(false),
@@ -703,6 +711,7 @@ export const siteVisits = pgTable(
     leadId: uuid("lead_id").references(() => leads._id),
     projectId: uuid("project_id").notNull().references(() => projects._id),
     cpId: uuid("cp_id").references(() => users._id),
+    responsibleUserId: uuid("responsible_user_id").references(() => users._id),
     buyerId: uuid("buyer_id").references(() => users._id),
     scheduledAt: timestamp("scheduled_at", { withTimezone: true, mode: "date" }).notNull(),
     timeSlot: text("time_slot"),
@@ -731,7 +740,8 @@ export const leadActivities = pgTable(
   {
     _id: uuid("id").defaultRandom().primaryKey(),
     leadId: uuid("lead_id").notNull().references(() => leads._id),
-    cpId: uuid("cp_id").notNull().references(() => users._id),
+    cpId: uuid("cp_id").references(() => users._id),
+    actorUserId: uuid("actor_user_id").references(() => users._id),
     type: text("type").$type<LeadActivityType>().notNull(),
     content: text("content").notNull(),
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
@@ -1183,6 +1193,17 @@ export const ambassadorTasks = pgTable(
 
 export const employees = pgTable("employees", {
   _id: uuid("id").defaultRandom().primaryKey(),
+  accountUserId: uuid("account_user_id").references(() => users._id).unique(),
+  employeeCode: text("employee_code").unique(),
+  officialEmail: text("official_email"),
+  phone: text("phone"),
+  employmentType: text("employment_type").$type<"FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERN">().notNull().default("FULL_TIME"),
+  reportingManagerId: uuid("reporting_manager_id").references(() => users._id),
+  recruitmentSource: text("recruitment_source"),
+  recruitmentCampaign: text("recruitment_campaign"),
+  applicationDate: timestamp("application_date", { withTimezone: true, mode: "date" }),
+  interviewDate: timestamp("interview_date", { withTimezone: true, mode: "date" }),
+  permissions: jsonb("permissions").$type<string[]>().notNull().default([]),
   name: text("name").notNull(),
   title: text("title"),
   department: text("department").notNull().default("General"),
@@ -1221,7 +1242,113 @@ export const employeePayments = pgTable("employee_payments", {
   createdById: uuid("created_by_id").references(() => users._id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 }, (t) => [index("employee_payments_employee_idx").on(t.employeeId, t.monthKey)]);
+
 export type IEmployeePayment = typeof employeePayments.$inferSelect;
+
+/** Secure one-time employee account activation; only a token hash is stored. */
+export const employeeInvites = pgTable("employee_invites", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("employee_invites_employee_idx").on(t.employeeId, t.createdAt)]);
+export type IEmployeeInvite = typeof employeeInvites.$inferSelect;
+
+/** Work assigned to an employee or created by them for personal use. */
+export const employeeTasks = pgTable("employee_tasks", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  taskType: text("task_type").$type<"ASSIGNED" | "PERSONAL">().notNull().default("ASSIGNED"),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("GENERAL"),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  priority: text("priority").$type<"LOW" | "MEDIUM" | "HIGH" | "URGENT">().notNull().default("MEDIUM"),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  startAt: timestamp("start_at", { withTimezone: true, mode: "date" }),
+  deadlineAt: timestamp("deadline_at", { withTimezone: true, mode: "date" }),
+  estimatedMinutes: integer("estimated_minutes"),
+  projectId: uuid("project_id").references(() => projects._id),
+  leadId: uuid("lead_id").references(() => leads._id),
+  completionNotes: text("completion_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+}, (t) => [
+  index("employee_tasks_employee_status_idx").on(t.employeeId, t.status),
+  index("employee_tasks_deadline_idx").on(t.deadlineAt, t.status),
+  index("employee_tasks_project_idx").on(t.projectId),
+  index("employee_tasks_lead_idx").on(t.leadId),
+]);
+export type IEmployeeTask = typeof employeeTasks.$inferSelect;
+
+export const employeeTaskHistory = pgTable("employee_task_history", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id),
+  actorUserId: uuid("actor_user_id").notNull().references(() => users._id),
+  action: text("action").notNull(),
+  beforeValue: jsonb("before_value").$type<Record<string, unknown>>(),
+  afterValue: jsonb("after_value").$type<Record<string, unknown>>(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("employee_task_history_task_idx").on(t.taskId, t.createdAt)]);
+export type IEmployeeTaskHistory = typeof employeeTaskHistory.$inferSelect;
+
+export const employeeTaskComments = pgTable("employee_task_comments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id),
+  authorUserId: uuid("author_user_id").notNull().references(() => users._id),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("employee_task_comments_task_idx").on(t.taskId, t.createdAt)]);
+export type IEmployeeTaskComment = typeof employeeTaskComments.$inferSelect;
+
+export const employeeAttendance = pgTable("employee_attendance", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  attendanceDate: text("attendance_date").notNull(),
+  status: text("status").$type<"PRESENT" | "ABSENT" | "HALF_DAY" | "ON_LEAVE" | "HOLIDAY">().notNull().default("PRESENT"),
+  checkInAt: timestamp("check_in_at", { withTimezone: true, mode: "date" }),
+  checkOutAt: timestamp("check_out_at", { withTimezone: true, mode: "date" }),
+  workingMinutes: integer("working_minutes"),
+  late: boolean("late"),
+  notes: text("notes"),
+  correctionReason: text("correction_reason"),
+  correctedByUserId: uuid("corrected_by_user_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("employee_attendance_employee_date_unique").on(t.employeeId, t.attendanceDate),
+  index("employee_attendance_date_status_idx").on(t.attendanceDate, t.status),
+]);
+export type IEmployeeAttendance = typeof employeeAttendance.$inferSelect;
+
+/** Monthly payroll record. Marking a record Paid is a manual status update only. */
+export const employeeSalaryRecords = pgTable("employee_salary_records", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  monthKey: text("month_key").notNull(),
+  grossSalary: doublePrecision("gross_salary").notNull().default(0),
+  allowances: doublePrecision("allowances").notNull().default(0),
+  deductions: doublePrecision("deductions").notNull().default(0),
+  netPayable: doublePrecision("net_payable").notNull().default(0),
+  status: text("status").$type<"DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "PAID" | "ON_HOLD">().notNull().default("DRAFT"),
+  paymentDate: timestamp("payment_date", { withTimezone: true, mode: "date" }),
+  paymentReference: text("payment_reference"),
+  notes: text("notes"),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => users._id),
+  approvedByUserId: uuid("approved_by_user_id").references(() => users._id),
+  paidByUserId: uuid("paid_by_user_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("employee_salary_employee_month_unique").on(t.employeeId, t.monthKey),
+  index("employee_salary_status_month_idx").on(t.status, t.monthKey),
+]);
+export type IEmployeeSalaryRecord = typeof employeeSalaryRecords.$inferSelect;
 
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   _id: uuid("id").defaultRandom().primaryKey(),
