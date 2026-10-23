@@ -1057,6 +1057,17 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res, next) => {
     }
     const [comment] = await getDb().insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: body.data.body }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: String(req.params.id) });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_comment",
+        title: "Employee commented on a task",
+        message: actor.name + " commented on task: " + task.title,
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-comment:" + String(comment._id),
+      });
+    }
     return res.status(201).json({ comment });
   } catch (err) { next(err); }
 });
@@ -1129,6 +1140,17 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
       resourceType: "employee_task", resourceId: taskId,
       metadata: { attachmentId: String(attachment._id), fileName: originalFileName, sizeBytes: file.size },
     });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_attachment",
+        title: "Employee added a task attachment",
+        message: actor.name + " attached " + originalFileName + " to task: " + task.title,
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-attachment:" + String(attachment._id),
+      });
+    }
     return res.status(201).json({ attachment: {
       _id: String(attachment._id), originalFileName, mimeType: verifiedMimeType,
       sizeBytes: file.size, uploadedByUserId: req.user!.userId, createdAt: attachment.createdAt,
@@ -1277,6 +1299,14 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     const [updated] = await getDb().update(leads).set(patch).where(eq(leads._id, lead._id)).returning();
     await getDb().insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "NOTE", content: d.followUpNotes || "Employee updated lead details", metadata: { changedFields: Object.keys(d) } });
     await logAudit({ userId: req.user!.userId, action: "employee.lead.update", resourceType: "lead", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
+    await notifyActiveAdmins({
+      type: "employee_lead_updated",
+      title: "Employee updated a buyer lead",
+      message: emp.name + " updated buyer lead " + lead.clientName + (d.stage ? " to " + d.stage.replaceAll("_", " ").toLowerCase() : "."),
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=leads",
+      dedupeKey: "employee-lead-update:" + String(lead._id) + ":" + Math.floor(Date.now() / 60000),
+    });
     return res.json({ lead: updated });
   } catch (err) { next(err); }
 });
@@ -1350,6 +1380,17 @@ router.post("/leads/:id/followups", async (req: AuthedRequest, res, next) => {
     await db.update(leads).set({ nextFollowUpAt: dueAt }).where(eq(leads._id, lead._id));
     await db.insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "FOLLOW_UP", content: `Follow-up scheduled for ${dueAt.toISOString()}`, metadata: { channel: parsed.data.channel } });
     await logAudit({ userId: req.user!.userId, action: "employee.lead.followup.create", resourceType: "lead", resourceId: String(lead._id), metadata: { dueAt: dueAt.toISOString(), channel: parsed.data.channel } });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_lead_followup",
+        title: "Employee scheduled a buyer follow-up",
+        message: actor.name + " scheduled a " + parsed.data.channel.toLowerCase() + " follow-up for " + lead.clientName + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=leads",
+        dedupeKey: "employee-lead-followup:" + String(lead._id) + ":" + dueAt.toISOString(),
+      });
+    }
     return res.status(201).json({ followUp });
   } catch (err) { next(err); }
 });
@@ -1417,6 +1458,17 @@ router.patch("/site-visits/:id", async (req: AuthedRequest, res, next) => {
       await getDb().update(leads).set({ siteVisitStatus: map[d.data.status] }).where(eq(leads._id, visit.leadId));
     }
     await logAudit({ userId: req.user!.userId, action: "employee.sitevisit.update", resourceType: "site_visit", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d.data) } });
+    if (req.user!.role === "EMPLOYEE" && (d.data.status || d.data.scheduledAt)) {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_site_visit_updated",
+        title: "Employee updated a site visit",
+        message: actor.name + " updated a site visit" + (d.data.status ? " to " + d.data.status.replaceAll("_", " ").toLowerCase() : " schedule") + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=visits",
+        dedupeKey: "employee-site-visit-update:" + String(visit._id) + ":" + Math.floor(Date.now() / 60000),
+      });
+    }
     return res.json({ siteVisit: updated });
   } catch (err) { next(err); }
 });
