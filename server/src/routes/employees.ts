@@ -23,7 +23,7 @@ import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
 import { fileMatchesExtension } from "../services/uploadService";
-import { PRIVATE_UPLOAD_DIR, privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
+import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -873,6 +873,127 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res, next) => {
     const [comment] = await getDb().insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: body.data.body }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: String(req.params.id) });
     return res.status(201).json({ comment });
+  } catch (err) { next(err); }
+});
+
+// ----------------------------------------------------------- Private task files
+router.get("/tasks/:id/attachments", async (req: AuthedRequest, res, next) => {
+  try {
+    const taskId = String(req.params.id);
+    if (!isValidId(taskId)) return res.status(404).json({ error: "Task not found." });
+    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
+    if (!task) return res.status(404).json({ error: "Task not found." });
+    if (req.user!.role !== "ADMIN") {
+      const emp = await needEmployee(req, res);
+      if (!emp) return;
+      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
+        return res.status(404).json({ error: "Task not found." });
+      }
+    }
+    const rows = await getDb().select().from(employeeTaskAttachments)
+      .where(eq(employeeTaskAttachments.taskId, taskId)).orderBy(desc(employeeTaskAttachments.createdAt));
+    return res.json({ attachments: rows.map((a) => ({
+      _id: String(a._id), originalFileName: a.originalFileName, mimeType: a.mimeType,
+      sizeBytes: a.sizeBytes, uploadedByUserId: String(a.uploadedByUserId), createdAt: a.createdAt,
+    })) });
+  } catch (err) { next(err); }
+});
+
+router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: AuthedRequest, res, next) => {
+  const file = req.file;
+  const cleanup = () => { if (file?.path) fs.promises.unlink(file.path).catch(() => {}); };
+  try {
+    const taskId = String(req.params.id);
+    if (!isValidId(taskId)) { cleanup(); return res.status(404).json({ error: "Task not found." }); }
+    if (!file) return res.status(400).json({ error: "Choose a PDF or image file (maximum 10 MB)." });
+    const ext = path.extname(file.filename).toLowerCase();
+    if (!fileMatchesExtension(file.path, ext)) {
+      cleanup();
+      return res.status(400).json({ error: "The file content does not match its declared type." });
+    }
+    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
+    if (!task) { cleanup(); return res.status(404).json({ error: "Task not found." }); }
+    if (req.user!.role !== "ADMIN") {
+      const emp = await needEmployee(req, res);
+      if (!emp) { cleanup(); return; }
+      if (!hasPermission(emp.permissions, "task.update.own") || !(await canEmployeeAccessTask(task, emp))) {
+        cleanup();
+        return res.status(404).json({ error: "Task not found." });
+      }
+    }
+    const originalFileName = path.basename(file.originalname).replace(/[\r\n"]/g, "_").slice(0, 180) || "attachment";
+    const [attachment] = await getDb().insert(employeeTaskAttachments).values({
+      taskId, uploadedByUserId: req.user!.userId, storedFileName: file.filename,
+      originalFileName, mimeType: file.mimetype, sizeBytes: file.size,
+    }).returning();
+    await getDb().insert(employeeTaskHistory).values({
+      taskId, actorUserId: req.user!.userId, action: "ATTACHMENT_ADDED",
+      afterValue: { attachmentId: String(attachment._id), fileName: originalFileName, sizeBytes: file.size },
+    });
+    await logAudit({
+      userId: req.user!.userId, action: "employee.task.attachment.add",
+      resourceType: "employee_task", resourceId: taskId,
+      metadata: { attachmentId: String(attachment._id), fileName: originalFileName, sizeBytes: file.size },
+    });
+    return res.status(201).json({ attachment: {
+      _id: String(attachment._id), originalFileName, mimeType: file.mimetype,
+      sizeBytes: file.size, uploadedByUserId: req.user!.userId, createdAt: attachment.createdAt,
+    } });
+  } catch (err) { cleanup(); next(err); }
+});
+
+router.get("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, res, next) => {
+  try {
+    const taskId = String(req.params.id), attachmentId = String(req.params.attachmentId);
+    if (!isValidId(taskId) || !isValidId(attachmentId)) return res.status(404).json({ error: "Attachment not found." });
+    const [task] = await getDb().select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
+    if (!task) return res.status(404).json({ error: "Attachment not found." });
+    if (req.user!.role !== "ADMIN") {
+      const emp = await needEmployee(req, res);
+      if (!emp) return;
+      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
+        return res.status(404).json({ error: "Attachment not found." });
+      }
+    }
+    const [attachment] = await getDb().select().from(employeeTaskAttachments)
+      .where(and(eq(employeeTaskAttachments._id, attachmentId), eq(employeeTaskAttachments.taskId, taskId))).limit(1);
+    const full = attachment ? privateFilePath(privateRef(attachment.storedFileName)) : null;
+    if (!attachment || !full || !fs.existsSync(full)) return res.status(404).json({ error: "Attachment not found." });
+    const safeName = attachment.originalFileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "attachment";
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Type", attachment.mimeType);
+    res.setHeader("Content-Disposition", 'attachment; filename="' + safeName + '"');
+    return res.sendFile(full, { dotfiles: "deny" }, (err) => {
+      if (err && !res.headersSent) res.status(404).json({ error: "Attachment not found." });
+    });
+  } catch (err) { next(err); }
+});
+
+router.delete("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, res, next) => {
+  try {
+    const taskId = String(req.params.id), attachmentId = String(req.params.attachmentId);
+    if (!isValidId(taskId) || !isValidId(attachmentId)) return res.status(404).json({ error: "Attachment not found." });
+    const db = getDb();
+    const [attachment] = await db.select().from(employeeTaskAttachments)
+      .where(and(eq(employeeTaskAttachments._id, attachmentId), eq(employeeTaskAttachments.taskId, taskId))).limit(1);
+    if (!attachment) return res.status(404).json({ error: "Attachment not found." });
+    if (req.user!.role !== "ADMIN") {
+      if (String(attachment.uploadedByUserId) !== req.user!.userId) return res.status(403).json({ error: "Only the uploader or an Admin can delete this attachment." });
+      const emp = await needEmployee(req, res);
+      if (!emp) return;
+      const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
+      if (!task || !(await canEmployeeAccessTask(task, emp))) return res.status(404).json({ error: "Attachment not found." });
+    }
+    const [deleted] = await db.delete(employeeTaskAttachments).where(eq(employeeTaskAttachments._id, attachment._id)).returning();
+    const full = privateFilePath(privateRef(attachment.storedFileName));
+    if (full) fs.promises.unlink(full).catch(() => {});
+    await logAudit({
+      userId: req.user!.userId, action: "employee.task.attachment.delete",
+      resourceType: "employee_task", resourceId: taskId,
+      metadata: { attachmentId, fileName: attachment.originalFileName },
+    });
+    return res.json({ ok: !!deleted });
   } catch (err) { next(err); }
 });
 
