@@ -562,6 +562,50 @@ router.get("/me/overview", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
   } catch (err) { next(err); }
 });
 
+async function canEmployeeAccessTask(task: typeof employeeTasks.$inferSelect, emp: typeof employees.$inferSelect) {
+  if (String(task.employeeId) === String(emp._id)) return true;
+  const [assignment] = await getDb().select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments)
+    .where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1);
+  return !!assignment;
+}
+async function shapeEmployeeTasks(rows: (typeof employeeTasks.$inferSelect)[], currentEmployeeId?: string) {
+  if (!rows.length) return [];
+  const db = getDb();
+  const ids = rows.map((row) => row._id);
+  const [assignments, attachments] = await Promise.all([
+    db.select({
+      taskId: employeeTaskAssignments.taskId, employeeId: employeeTaskAssignments.employeeId,
+      name: employees.name, employeeCode: employees.employeeCode, status: employeeTaskAssignments.status,
+      assignedAt: employeeTaskAssignments.assignedAt, completedAt: employeeTaskAssignments.completedAt,
+    }).from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id))
+      .where(inArray(employeeTaskAssignments.taskId, ids)),
+    db.select().from(employeeTaskAttachments).where(inArray(employeeTaskAttachments.taskId, ids)).orderBy(desc(employeeTaskAttachments.createdAt)),
+  ]);
+  return rows.map((task) => {
+    const assignees = assignments.filter((a) => String(a.taskId) === String(task._id));
+    const mine = currentEmployeeId ? assignees.find((a) => String(a.employeeId) === currentEmployeeId) : undefined;
+    return {
+      ...task,
+      status: mine?.status ?? task.status,
+      taskStatus: task.status,
+      currentUserAssignmentId: mine ? String(mine.employeeId) : null,
+      assignedEmployeeIds: assignees.map((a) => String(a.employeeId)),
+      assignees: assignees.map((a) => ({ employeeId: String(a.employeeId), name: a.name, employeeCode: a.employeeCode, status: a.status, assignedAt: a.assignedAt, completedAt: a.completedAt })),
+      attachments: attachments.filter((a) => String(a.taskId) === String(task._id)).map((a) => ({
+        _id: String(a._id), originalFileName: a.originalFileName, mimeType: a.mimeType,
+        sizeBytes: a.sizeBytes, uploadedByUserId: String(a.uploadedByUserId), createdAt: a.createdAt,
+      })),
+    };
+  });
+}
+async function activeLinkedEmployees(employeeIds: string[]) {
+  const uniqueIds = Array.from(new Set(employeeIds));
+  if (!uniqueIds.length || uniqueIds.some((id) => !isValidId(id))) return null;
+  const rows = await getDb().select().from(employees).where(inArray(employees._id, uniqueIds));
+  if (rows.length !== uniqueIds.length || rows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return null;
+  return uniqueIds.map((id) => rows.find((e) => String(e._id) === id)!);
+}
+
 // ------------------------------------------------------------------- Tasks
 router.get("/tasks", async (req: AuthedRequest, res, next) => {
   try {
@@ -569,17 +613,31 @@ router.get("/tasks", async (req: AuthedRequest, res, next) => {
     let rows;
     if (req.user!.role === "ADMIN") {
       const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
-      const conditions = employeeId && isValidId(employeeId) ? [eq(employeeTasks.employeeId, employeeId)] : [];
+      const conditions = [];
       const status = typeof req.query.status === "string" ? req.query.status : "";
+      if (employeeId && isValidId(employeeId)) {
+        const assignedRows = await db.select({ taskId: employeeTaskAssignments.taskId }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.employeeId, employeeId));
+        const scope = [eq(employeeTasks.employeeId, employeeId)];
+        if (assignedRows.length) scope.push(inArray(employeeTasks._id, assignedRows.map((r) => r.taskId)));
+        conditions.push(or(...scope)!);
+      }
       if (status) conditions.push(eq(employeeTasks.status, status as typeof employeeTasks.$inferSelect.status));
       rows = await db.select().from(employeeTasks).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(employeeTasks.createdAt)).limit(500);
+      return res.json({ tasks: await shapeEmployeeTasks(rows) });
     } else if (req.user!.role === "EMPLOYEE") {
       const emp = await needEmployee(req, res);
       if (!emp) return;
       if (!hasPermission(emp.permissions, "task.read.own")) return res.status(403).json({ error: "Task access is not enabled for this account." });
-      rows = await db.select().from(employeeTasks).where(eq(employeeTasks.employeeId, emp._id)).orderBy(desc(employeeTasks.createdAt)).limit(300);
+      const assignedRows = await db.select({ taskId: employeeTaskAssignments.taskId, status: employeeTaskAssignments.status })
+        .from(employeeTaskAssignments).where(eq(employeeTaskAssignments.employeeId, emp._id));
+      const scope = [eq(employeeTasks.employeeId, emp._id)];
+      if (assignedRows.length) scope.push(inArray(employeeTasks._id, assignedRows.map((r) => r.taskId)));
+      rows = await db.select().from(employeeTasks).where(or(...scope)).orderBy(desc(employeeTasks.createdAt)).limit(300);
+      const enriched = await shapeEmployeeTasks(rows, String(emp._id));
+      const filterStatus = typeof req.query.status === "string" ? req.query.status : "";
+      return res.json({ tasks: filterStatus ? enriched.filter((task) => task.status === filterStatus) : enriched });
     } else return res.status(403).json({ error: "Insufficient permissions." });
-    return res.json({ tasks: rows });
+    return res.json({ tasks: await shapeEmployeeTasks(rows) });
   } catch (err) { next(err); }
 });
 
