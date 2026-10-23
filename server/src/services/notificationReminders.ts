@@ -67,7 +67,7 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
 
   let sent = 0;
   for (const task of tasks) {
-    const assignments = await db.select({ employeeId: employeeTaskAssignments.employeeId })
+    const assignments = await db.select({ employeeId: employeeTaskAssignments.employeeId, status: employeeTaskAssignments.status })
       .from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, task._id));
     const targetIds = assignments.length ? assignments.map((row) => row.employeeId) : [task.employeeId];
     const targets = await db.select({
@@ -80,6 +80,8 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
       timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
     });
     for (const target of targets) {
+      const ownAssignment = assignments.find((row) => String(row.employeeId) === String(target.employeeId));
+      if (ownAssignment && ["COMPLETED", "CANCELLED"].includes(ownAssignment.status)) continue;
       if (!target.accountUserId || target.disabled || !target.name) continue;
       const created = await notifyUser(String(target.accountUserId), {
         type: "employee_task_reminder",
