@@ -183,7 +183,10 @@ export default function AdminEmployeeManagementPage() {
         const response = await api.post("/employees", payload);
         toast[response.data?.inviteDelivered ? "success" : "warning"](response.data?.inviteMessage || "Employee profile created.");
       }
-      setShowForm(false); setEditing(null); setEmployeeForm({ ...emptyEmployee }); await reload();
+      setShowForm(false); setEditing(null); setEmployeeForm({ ...emptyEmployee });
+      // Refresh records in the background so a slow dashboard refresh does not
+      // keep the submit button stuck on “Saving…” after the save succeeded.
+      void reload();
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Could not save employee.");
     } finally { setBusy(false); }
