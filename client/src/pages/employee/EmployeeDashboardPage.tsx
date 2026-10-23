@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, Trash2, UserRound, Users, Wallet } from "lucide-react";
+import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleHelp, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuthStore } from "@/store/authStore";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
@@ -28,7 +29,7 @@ const fmtDate = (s?: string | null) => s ? new Date(s).toLocaleDateString("en-IN
 const fmtDateTime = (s?: string | null) => s ? new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const badgeClass = (s: string) => ["COMPLETED","ACTIVE","PRESENT","CONFIRMED","PAID","APPROVED"].includes(s) ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : ["OVERDUE","ABSENT","INACTIVE","CANCELLED","LOST","ON_HOLD"].includes(s) ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-amber-500/20 bg-amber-500/10 text-amber-200";
 function Badge({ value }: { value: string }) { return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${badgeClass(value)}`}>{value.replaceAll("_"," ")}</span>; }
-function Kpi({ label, value, note }: { label: string; value: string | number; note?: string }) { return <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p>{note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}</div>; }
+function Kpi({ label, value, note, icon: Icon = LayoutDashboard, tone = "blue" }: { label: string; value: string | number; note?: string; icon?: LucideIcon; tone?: "blue" | "violet" | "cyan" | "amber" | "green" }) { return <div className="truvi-dashboard-kpi"><div className="truvi-dashboard-kpi__top"><p>{label}</p><span className={`truvi-dashboard-kpi__icon is-${tone}`}><Icon size={17} aria-hidden="true"/></span></div><p className="truvi-dashboard-kpi__value">{value}</p>{note && <p className="truvi-dashboard-kpi__note">{note}</p>}</div>; }
 function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) { return <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5"><div className="mb-4"><h2 className="font-semibold">{title}</h2>{note && <p className="mt-1 text-xs leading-5 text-muted-foreground">{note}</p>}</div>{children}</section>; }
 function Input({ label, value, onChange, type = "text", required = false, placeholder = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input type={type} required={required} value={value} placeholder={placeholder} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary"/></label>; }
 function Select({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; required?: boolean }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
@@ -43,6 +44,15 @@ const tabIcons = {
   visits: MapPin, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
   salary: Wallet, notifications: Bell,
 } as const;
+
+const navigationGroups: { label: string; items: Tab[] }[] = [
+  { label: "Workspace", items: ["home", "tasks"] },
+  { label: "Sales & field", items: ["leads", "telecalling", "visits"] },
+  { label: "People & time", items: ["attendance", "leave"] },
+  { label: "Account", items: ["profile", "salary", "notifications"] },
+];
+
+type QuickSearchItem = { id: string; kind: string; title: string; detail: string; tab: Tab; icon: LucideIcon };
 
 function noticeVisual(type?: string): { Icon: LucideIcon; tone: string } {
   const key = (type ?? "").toLowerCase();
@@ -69,6 +79,9 @@ export default function EmployeeDashboardPage() {
   const setAuthUser = useAuthStore((state) => state.setUser);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
   const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [searchTarget, setSearchTarget] = useState<string | null>(null);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
@@ -145,6 +158,13 @@ export default function EmployeeDashboardPage() {
   }
   useEffect(() => { void load(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
+  useEffect(() => {
+    if (!searchTarget) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(searchTarget)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [tab, searchTarget]);
 
   useSocketEvent<Notice>("notification:new", (notice) => {
     if (!notice?._id || notificationIdsRef.current.has(notice._id)) return;
@@ -160,6 +180,36 @@ export default function EmployeeDashboardPage() {
   const overdueTasks = useMemo(()=>pendingTasks.filter((t)=>t.deadlineAt && new Date(t.deadlineAt)<new Date()),[pendingTasks]);
   const myHotLeads = leads.filter((l)=>l.leadTemperature==="HOT").length;
   const projectName = (p: Lead["projectId"]) => typeof p === "string" ? projects.find((x)=>x._id===p)?.name ?? "Project" : p.name;
+  const salaryTrend = useMemo(() => [...salaries]
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    .slice(-8)
+    .map((salary) => ({
+      month: salary.monthKey,
+      netPayable: Number(salary.netPayable) || 0,
+    })), [salaries]);
+  const dashboardTodos = useMemo(() => [...pendingTasks].sort((a, b) => {
+    if (!a.deadlineAt && !b.deadlineAt) return 0;
+    if (!a.deadlineAt) return 1;
+    if (!b.deadlineAt) return -1;
+    return new Date(a.deadlineAt).getTime() - new Date(b.deadlineAt).getTime();
+  }).slice(0, 4), [pendingTasks]);
+  const quickSearchResults = useMemo<QuickSearchItem[]>(() => {
+    const query = quickSearch.trim().toLowerCase();
+    if (!query) return [];
+    const taskItems: QuickSearchItem[] = tasks
+      .filter((task) => `${task.title} ${task.description ?? ""} ${task.status} ${task.priority}`.toLowerCase().includes(query))
+      .slice(0, 4)
+      .map((task) => ({ id: `employee-task-${task._id}`, kind: "Task", title: task.title, detail: `${task.status.replaceAll("_", " ")} · ${task.priority}`, tab: "tasks", icon: ListChecks }));
+    const leadItems: QuickSearchItem[] = leads
+      .filter((lead) => `${lead.clientName} ${lead.clientPhone} ${lead.clientEmail ?? ""} ${lead.stage}`.toLowerCase().includes(query))
+      .slice(0, 3)
+      .map((lead) => ({ id: `employee-lead-${lead._id}`, kind: "Buyer lead", title: lead.clientName, detail: `${lead.stage.replaceAll("_", " ")} · ${projectName(lead.projectId)}`, tab: "leads", icon: Users }));
+    const noticeItems: QuickSearchItem[] = notices
+      .filter((notice) => `${notice.title ?? ""} ${notice.message}`.toLowerCase().includes(query))
+      .slice(0, 2)
+      .map((notice) => ({ id: `employee-notice-${notice._id}`, kind: "Notification", title: notice.title || "Truvi notification", detail: notice.message, tab: "notifications", icon: Bell }));
+    return [...taskItems, ...leadItems, ...noticeItems].slice(0, 8);
+  }, [quickSearch, tasks, leads, notices, projects]);
 
   async function createPersonalTask(e: FormEvent) {
     e.preventDefault(); setBusy(true);
@@ -360,38 +410,267 @@ export default function EmployeeDashboardPage() {
   const [showLeadForm, setShowLeadForm] = useState(false);
 
   return (
-    <main className="truvi-erm truvi-erm-employee min-h-screen bg-background px-3 py-5 text-foreground sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-[1450px] space-y-6">
-        <header className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Ventures · Employee Workspace</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Hello{employee?.name ? `, ${employee.name.split(" ")[0]}` : ""}</h1><p className="mt-2 text-sm text-muted-foreground">{new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Kolkata"})} · {employee?.designation || "Employee"} · {employee?.department || "Team"}</p></div>
-          <div className="flex items-center gap-2"><NotificationBell/><button type="button" onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Refresh</button><Link to="/login" className="rounded-xl border border-white/10 px-3 py-2 text-sm">Sign in help</Link></div>
-        </header>
-
-        <div className="truvi-erm-workspace">
-          <nav className="truvi-erm-tabs truvi-employee-nav" aria-label="Employee workspace">
-            {tabItems.map((t)=>{ const Icon = tabIcons[t.id]; const unreadCount = t.id === "notifications" ? notices.filter((n)=>!n.isRead).length : 0; return <button key={t.id} type="button" aria-current={t.id===tab?"page":undefined} onClick={()=>setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${t.id===tab?"bg-primary text-primary-foreground":"text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}><Icon size={17} aria-hidden="true"/><span>{t.label}</span>{unreadCount>0&&<span className="truvi-erm-count">{unreadCount>99?"99+":unreadCount}</span>}</button>;})}
-          </nav>
-          <div className="truvi-erm-workspace-content">
-
-        {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading your work…</div>}
-        {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some workspace sections need attention</p><p className="mt-1">The rest of your workspace remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={()=>void load()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Info size={15}/> Retry data</button></div>}
-
-        {tab==="home" && <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5"><Kpi label="Pending tasks" value={pendingTasks.length}/><Kpi label="Overdue tasks" value={overdueTasks.length}/><Kpi label="Completed tasks" value={tasks.filter((t)=>t.status==="COMPLETED").length}/><Kpi label="My leads" value={leads.length}/><Kpi label="Hot leads" value={myHotLeads}/></div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title="Today's attendance" note="Check-in and check-out use server timestamps and the Asia/Kolkata work date.">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><Badge value={todayAttendance?.status || "NOT_MARKED"}/><p className="mt-2 text-xs text-muted-foreground">In: {fmtDateTime(todayAttendance?.checkInAt)} · Out: {fmtDateTime(todayAttendance?.checkOutAt)}</p></div><div className="flex gap-2"><button disabled={!!todayAttendance?.checkInAt || ["ON_LEAVE","HOLIDAY"].includes(todayAttendance?.status || "")} onClick={()=>void attendanceAction("check-in")} className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-40">Check in</button><button disabled={!todayAttendance?.checkInAt||!!todayAttendance?.checkOutAt} onClick={()=>void attendanceAction("check-out")} className="rounded-xl border border-white/10 px-3 py-2 text-sm disabled:opacity-40">Check out</button></div></div>
-            </Panel>
-            <Panel title="Employee profile"><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-xs text-muted-foreground">Employee ID</p><p className="mt-1 font-medium">{employee?.employeeCode||"—"}</p></div><div><p className="text-xs text-muted-foreground">Joining date</p><p className="mt-1 font-medium">{fmtDate(employee?.joiningDate)}</p></div><div><p className="text-xs text-muted-foreground">Reporting manager</p><p className="mt-1 break-all font-medium">{employee?.reportingManagerId||"Not assigned"}</p></div><div><p className="text-xs text-muted-foreground">Status</p><p className="mt-1"><Badge value={employee?.status||"UNKNOWN"}/></p></div></div></Panel>
-            <Panel title="Upcoming deadlines"><div className="space-y-3">{pendingTasks.filter((t)=>t.deadlineAt).sort((a,b)=>new Date(a.deadlineAt!).getTime()-new Date(b.deadlineAt!).getTime()).slice(0,5).map((t)=><div key={t._id} className="flex items-start justify-between gap-3 border-b border-white/5 pb-3 last:border-0"><div><p className="text-sm font-medium">{t.title}</p><p className="mt-1 text-xs text-muted-foreground">{fmtDateTime(t.deadlineAt)}</p></div><Badge value={t.priority}/></div>)}{pendingTasks.filter((t)=>t.deadlineAt).length===0&&<p className="text-sm text-muted-foreground">No dated open tasks.</p>}</div><button className="mt-3 text-sm underline" onClick={()=>setTab("tasks")}>View all tasks</button></Panel>
-            <Panel title="Recent notifications"><div className="space-y-3">{notices.slice(0,4).map((n)=><button key={n._id} onClick={()=>void markRead(n)} className={`block w-full rounded-xl border p-3 text-left ${n.isRead?"border-white/5 bg-white/[0.015]":"border-primary/20 bg-primary/5"}`}><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{n.title||"Truvi update"}</p>{!n.isRead&&<span className="mt-1 size-2 rounded-full bg-primary"/>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{n.message}</p><p className="mt-1 text-[11px] text-muted-foreground">{fmtDateTime(n.createdAt)}</p></button>)}{notices.length===0&&<p className="text-sm text-muted-foreground">No notifications yet.</p>}</div></Panel>
+    <main className="truvi-erm truvi-erm-employee">
+      <div className="truvi-employee-app-shell">
+        <aside className="truvi-employee-sidebar" aria-label="Employee navigation">
+          <div className="truvi-employee-brand">
+            <span className="truvi-employee-brand__mark">T</span>
+            <span className="truvi-employee-brand__words">
+              <strong>TRUVI VENTURES</strong>
+              <small>EMPLOYEE WORKSPACE</small>
+            </span>
           </div>
-        </>}
 
+          <nav className="truvi-employee-sidebar-nav" aria-label="Workspace sections">
+            {navigationGroups.map((group) => (
+              <div className="truvi-employee-nav-group" key={group.label}>
+                <p className="truvi-employee-nav-group__label">{group.label}</p>
+                <div className="truvi-employee-nav-group__items">
+                  {group.items.map((tabId) => {
+                    const item = tabItems.find((candidate) => candidate.id === tabId);
+                    if (!item) return null;
+                    const Icon = tabIcons[item.id];
+                    const unreadCount = item.id === "notifications" ? notices.filter((notice) => !notice.isRead).length : 0;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-current={tab === item.id ? "page" : undefined}
+                        className={"truvi-employee-nav-button" + (tab === item.id ? " is-active" : "")}
+                        onClick={() => { setTab(item.id); setQuickSearchOpen(false); }}
+                      >
+                        <Icon size={17} aria-hidden="true" />
+                        <span>{item.label}</span>
+                        {unreadCount > 0 && <span className="truvi-erm-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+
+          <button type="button" className="truvi-employee-sidebar-profile" onClick={() => setTab("profile")} title="Open my profile">
+            <span className="truvi-employee-sidebar-profile__avatar">
+              {currentUser?.avatarUrl
+                ? <img src={currentUser.avatarUrl} alt="" />
+                : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+            </span>
+            <span className="truvi-employee-sidebar-profile__text">
+              <strong>{employee?.name || currentUser?.name || "Employee"}</strong>
+              <small>{employee?.designation || employee?.department || "Employee account"}</small>
+            </span>
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
+        </aside>
+
+        <div className="truvi-employee-main">
+          <header className="truvi-employee-topbar">
+            <div className="truvi-employee-breadcrumb">
+              <span>EMPLOYEE WORKSPACE</span>
+              <ChevronRight size={14} aria-hidden="true" />
+              <strong>{tabItems.find((item) => item.id === tab)?.label || "Overview"}</strong>
+            </div>
+
+            <div className="truvi-employee-search">
+              <Search size={17} aria-hidden="true" />
+              <input
+                aria-label="Search tasks, leads and notifications"
+                value={quickSearch}
+                onFocus={() => setQuickSearchOpen(true)}
+                onChange={(event) => { setQuickSearch(event.target.value); setQuickSearchOpen(true); }}
+                onKeyDown={(event) => { if (event.key === "Escape") setQuickSearchOpen(false); }}
+                placeholder="Search tasks, buyer leads, notifications…"
+              />
+              {quickSearch && <button type="button" className="truvi-employee-search__clear" aria-label="Clear search" onClick={() => { setQuickSearch(""); setQuickSearchOpen(false); }}><X size={15}/></button>}
+              {quickSearchOpen && quickSearch.trim() && (
+                <div className="truvi-employee-search-results" role="listbox" aria-label="Search results">
+                  {quickSearchResults.map((result) => {
+                    const Icon = result.icon;
+                    return (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        key={result.id}
+                        onClick={() => { setTab(result.tab); setQuickSearchOpen(false); setQuickSearch(""); setSearchTarget(result.id); }}
+                      >
+                        <span className="truvi-employee-search-results__icon"><Icon size={16} aria-hidden="true"/></span>
+                        <span className="truvi-employee-search-results__copy"><strong>{result.title}</strong><small>{result.kind} · {result.detail}</small></span>
+                        <ChevronRight size={15} aria-hidden="true"/>
+                      </button>
+                    );
+                  })}
+                  {quickSearchResults.length === 0 && <p className="truvi-employee-search-results__empty">No matching tasks, leads or notifications.</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="truvi-employee-topbar-actions">
+              <NotificationBell />
+              <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
+                <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
+              </button>
+              <Link to="/login" className="truvi-employee-icon-button" aria-label="Sign in help" title="Sign in help"><CircleHelp size={17} aria-hidden="true"/></Link>
+              <button type="button" className="truvi-employee-topbar-user" onClick={() => setTab("profile")} aria-label="Open my profile">
+                <span className="truvi-employee-topbar-user__avatar">
+                  {currentUser?.avatarUrl
+                    ? <img src={currentUser.avatarUrl} alt="" />
+                    : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 1).join("").toUpperCase()}</span>}
+                </span>
+                <span>{employee?.name || currentUser?.name || "My profile"}</span>
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
+          <div className="truvi-erm-workspace-content">
+            <div className="truvi-employee-page-heading">
+              <div>
+                <p className="truvi-employee-eyebrow">TRUVI VENTURES · PEOPLE & OPERATIONS</p>
+                <h1>Hello{employee?.name ? ", " + employee.name.split(" ")[0] : ""}</h1>
+                <p>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })} <span>·</span> {employee?.designation || "Employee"} <span>·</span> {employee?.department || "Team"}</p>
+              </div>
+              <div className="truvi-employee-heading-status"><span className="truvi-employee-status-dot" /> Workspace active</div>
+            </div>
+
+            {loading && <div role="status" className="truvi-erm-loading-state">Loading your workspace data…</div>}
+            {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some workspace sections need attention</p><p className="mt-1">The rest of your workspace remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void load()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><Info size={15}/> Retry data</button></div>}
+
+            {tab==="home" && <div className="truvi-dashboard-home">
+              <div className="truvi-dashboard-kpis">
+                <Kpi label="Pending tasks" value={pendingTasks.length} note="Awaiting completion" icon={ListChecks} tone="blue"/>
+                <Kpi label="Overdue tasks" value={overdueTasks.length} note="Need your attention" icon={Clock3} tone="amber"/>
+                <Kpi label="Completed tasks" value={tasks.filter((task) => task.status === "COMPLETED").length} note="All-time completion" icon={CheckCircle2} tone="green"/>
+                <Kpi label="My buyer leads" value={leads.length} note="Assigned or submitted" icon={Users} tone="violet"/>
+                <Kpi label="Hot leads" value={myHotLeads} note="Priority follow-ups" icon={Flame} tone="cyan"/>
+              </div>
+
+              <div className="truvi-dashboard-grid">
+                <div className="truvi-dashboard-primary-column">
+                  <Panel title="Payroll & finance" note="Your own salary records, shown by payroll month. No sample or estimated figures are added.">
+                    {salaryTrend.length > 0 ? <div className="truvi-dashboard-payroll">
+                      <div className="truvi-dashboard-payroll__summary">
+                        <div><p>Latest net payable</p><strong>{money(salaryTrend[salaryTrend.length - 1].netPayable)}</strong></div>
+                        <span className="truvi-dashboard-payroll__status"><span/> {salaries.slice().sort((a, b) => b.monthKey.localeCompare(a.monthKey))[0]?.status?.replaceAll("_", " ") || "RECORDED"}</span>
+                      </div>
+                      <div className="truvi-dashboard-chart">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={salaryTrend} margin={{ top: 12, right: 10, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="truvi-payroll-gradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#718cff" stopOpacity={0.34}/>
+                                <stop offset="95%" stopColor="#718cff" stopOpacity={0.015}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid vertical={false} stroke="rgba(148,163,184,.13)" strokeDasharray="4 4"/>
+                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#8fa0ba", fontSize: 11 }} tickFormatter={(value) => { const parts = String(value).split("-"); return parts.length > 1 ? new Date(Number(parts[0]), Number(parts[1]) - 1, 1).toLocaleDateString("en-IN", { month: "short" }) : String(value); }}/>
+                            <YAxis width={58} axisLine={false} tickLine={false} tick={{ fill: "#8fa0ba", fontSize: 10 }} tickFormatter={(value) => Number(value) >= 1000 ? "₹" + Math.round(Number(value) / 1000) + "k" : "₹" + value}/>
+                            <Tooltip contentStyle={{ background: "#101a2a", border: "1px solid rgba(148,163,184,.22)", borderRadius: 12, color: "#e8eef8" }} labelStyle={{ color: "#cbd7eb" }} formatter={(value) => [money(Number(value)), "Net payable"]}/>
+                            <Area type="monotone" dataKey="netPayable" stroke="#718cff" strokeWidth={2.5} fill="url(#truvi-payroll-gradient)" activeDot={{ r: 4, fill: "#718cff", stroke: "#e8eef8", strokeWidth: 2 }}/>
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div> : <div className="truvi-dashboard-empty">
+                      <span><Wallet size={22} aria-hidden="true"/></span>
+                      <strong>No payroll trend yet</strong>
+                      <p>Your salary trend will appear here once payroll records are available.</p>
+                      <button type="button" onClick={() => setTab("salary")}>View my salary records <ChevronRight size={14}/></button>
+                    </div>}
+                  </Panel>
+
+                  <Panel title="My tasks" note="Your assigned work at a glance. Open a task to view comments, attachments and its full activity history.">
+                    <div className="truvi-dashboard-table-wrap">
+                      <table className="truvi-dashboard-table">
+                        <thead><tr><th>Task</th><th>Priority</th><th>Due date</th><th>Status</th></tr></thead>
+                        <tbody>
+                          {tasks.slice(0, 6).map((task) => (
+                            <tr id={"employee-task-" + task._id} key={task._id} tabIndex={0} onClick={() => setTab("tasks")} onKeyDown={(event) => { if (event.key === "Enter") setTab("tasks"); }}>
+                              <td><div className="truvi-dashboard-table__main"><span className="truvi-dashboard-table__task-icon"><ListChecks size={15}/></span><span><strong>{task.title}</strong><small>{task.taskType.replaceAll("_", " ")}</small></span></div></td>
+                              <td><Badge value={task.priority}/></td>
+                              <td>{task.deadlineAt ? fmtDate(task.deadlineAt) : "No deadline"}</td>
+                              <td><Badge value={task.status}/></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {tasks.length === 0 && <div className="truvi-dashboard-empty truvi-dashboard-empty--compact"><span><ListChecks size={20}/></span><strong>No tasks assigned yet</strong><p>New work assigned to you will appear in this list.</p></div>}
+                    </div>
+                    <div className="truvi-dashboard-panel-footer"><span>{tasks.length} task{tasks.length === 1 ? "" : "s"} in your workspace</span><button type="button" onClick={() => setTab("tasks")}>View all tasks <ArrowRight size={14} aria-hidden="true"/></button></div>
+                  </Panel>
+
+                  <Panel title="Today's attendance" note="Check-in and check-out times are recorded by the server using the Asia/Kolkata work date.">
+                    <div className="truvi-dashboard-attendance">
+                      <div className="truvi-dashboard-attendance__status">
+                        <span className="truvi-dashboard-attendance__icon"><CalendarCheck size={21}/></span>
+                        <div><strong>{todayAttendance?.status?.replaceAll("_", " ") || "Not checked in"}</strong><p>Today · {today}</p></div>
+                        <Badge value={todayAttendance?.status || "NOT_MARKED"}/>
+                      </div>
+                      <div className="truvi-dashboard-attendance__times">
+                        <div><span>Check in</span><strong>{todayAttendance?.checkInAt ? fmtDateTime(todayAttendance.checkInAt) : "—"}</strong></div>
+                        <div><span>Check out</span><strong>{todayAttendance?.checkOutAt ? fmtDateTime(todayAttendance.checkOutAt) : "—"}</strong></div>
+                        <div className="truvi-dashboard-attendance__actions">
+                          <button type="button" disabled={!!todayAttendance?.checkInAt || ["ON_LEAVE", "HOLIDAY"].includes(todayAttendance?.status || "")} onClick={() => void attendanceAction("check-in")}>Check in</button>
+                          <button type="button" disabled={!todayAttendance?.checkInAt || !!todayAttendance?.checkOutAt} onClick={() => void attendanceAction("check-out")}>Check out</button>
+                        </div>
+                      </div>
+                    </div>
+                  </Panel>
+                </div>
+
+                <aside className="truvi-dashboard-side-column">
+                  <Panel title="Things to do" note="Open work and upcoming deadlines.">
+                    <div className="truvi-dashboard-todo-list">
+                      {dashboardTodos.map((task) => (
+                        <button type="button" key={task._id} className="truvi-dashboard-todo" onClick={() => { setTab("tasks"); setSearchTarget("employee-task-" + task._id); }}>
+                          <span className="truvi-dashboard-todo__check"><ListChecks size={16}/></span>
+                          <span className="truvi-dashboard-todo__copy"><strong>{task.title}</strong><small>{task.deadlineAt ? "Due " + fmtDate(task.deadlineAt) : "No deadline set"}</small><span><Badge value={task.priority}/><Badge value={task.status}/></span></span>
+                          <ChevronRight size={15} aria-hidden="true"/>
+                        </button>
+                      ))}
+                      {dashboardTodos.length === 0 && <div className="truvi-dashboard-empty truvi-dashboard-empty--compact"><span><CheckCircle2 size={20}/></span><strong>You're all caught up</strong><p>There are no open tasks needing attention.</p></div>}
+                    </div>
+                    <div className="truvi-dashboard-panel-footer"><span>{pendingTasks.length} open</span><button type="button" onClick={() => setTab("tasks")}>View tasks <ArrowRight size={14} aria-hidden="true"/></button></div>
+                  </Panel>
+
+                  <Panel title="Employee profile" note="Your account at a glance.">
+                    <button type="button" className="truvi-dashboard-profile" onClick={() => setTab("profile")}>
+                      <span className="truvi-dashboard-profile__avatar">
+                        {currentUser?.avatarUrl ? <img src={currentUser.avatarUrl} alt=""/> : <span>{(employee?.name || currentUser?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+                      </span>
+                      <span className="truvi-dashboard-profile__identity"><strong>{employee?.name || currentUser?.name || "Employee"}</strong><small>{employee?.designation || "Employee"} · {employee?.department || "Team"}</small><span><i/> {employee?.status || "ACTIVE"}</span></span>
+                      <ChevronRight size={16} aria-hidden="true"/>
+                    </button>
+                    <div className="truvi-dashboard-profile-meta">
+                      <div><span>Employee ID</span><strong>{employee?.employeeCode || "—"}</strong></div>
+                      <div><span>Joining date</span><strong>{fmtDate(employee?.joiningDate)}</strong></div>
+                      <div><span>Reporting manager</span><strong>{employee?.reportingManagerId || "Not assigned"}</strong></div>
+                    </div>
+                    <div className="truvi-dashboard-panel-footer"><span>Profile & personal details</span><button type="button" onClick={() => setTab("profile")}>View profile <ArrowRight size={14} aria-hidden="true"/></button></div>
+                  </Panel>
+
+                  <Panel title="Recent notifications" note="The latest updates sent to your account.">
+                    <div className="truvi-dashboard-notifications">
+                      {notices.slice(0, 4).map((notice) => {
+                        const visual = noticeVisual(notice.type);
+                        const Icon = visual.Icon;
+                        return <button type="button" id={"employee-notice-" + notice._id} key={notice._id} className={"truvi-dashboard-notification" + (notice.isRead ? " is-read" : " is-unread")} onClick={() => { void markRead(notice); setTab("notifications"); setSearchTarget("employee-notice-" + notice._id); }}>
+                          <span className={"truvi-dashboard-notification__icon " + visual.tone}><Icon size={16} aria-hidden="true"/></span>
+                          <span className="truvi-dashboard-notification__copy"><strong>{notice.title || "Truvi update"}</strong><small>{notice.message}</small><time>{fmtDateTime(notice.createdAt)}</time></span>
+                          {!notice.isRead && <i className="truvi-dashboard-notification__unread" aria-label="Unread"/>}
+                        </button>;
+                      })}
+                      {notices.length === 0 && <div className="truvi-dashboard-empty truvi-dashboard-empty--compact"><span><Bell size={20}/></span><strong>No notifications yet</strong><p>Updates from your workspace will appear here.</p></div>}
+                    </div>
+                    <div className="truvi-dashboard-panel-footer"><span>{notices.filter((notice) => !notice.isRead).length} unread</span><button type="button" onClick={() => setTab("notifications")}>All notifications <ArrowRight size={14} aria-hidden="true"/></button></div>
+                  </Panel>
+                </aside>
+              </div>
+            </div>}
         {tab==="tasks" && <div className="space-y-4">
           <div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-lg font-semibold">My tasks</h2><p className="mt-1 text-sm text-muted-foreground">Admin-assigned and personal tasks are labelled separately.</p></div><button onClick={()=>setShowTaskForm((v)=>!v)} className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{showTaskForm?"Close":"Create personal task"}</button></div>
           {showTaskForm&&<Panel title="Create a personal task"><form onSubmit={createPersonalTask} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"><Input label="Title" required value={taskForm.title} onChange={(v)=>setTaskForm((s)=>({...s,title:v}))}/><Input label="Description" value={taskForm.description} onChange={(v)=>setTaskForm((s)=>({...s,description:v}))}/><Select label="Priority" value={taskForm.priority} onChange={(v)=>setTaskForm((s)=>({...s,priority:v}))} options={["LOW","MEDIUM","HIGH","URGENT"].map((v)=>({value:v,label:v}))}/><Input label="Deadline" type="datetime-local" value={taskForm.deadlineAt} onChange={(v)=>setTaskForm((s)=>({...s,deadlineAt:v}))}/><Input label="Estimated duration (minutes)" type="number" value={taskForm.estimatedMinutes} onChange={(v)=>setTaskForm((s)=>({...s,estimatedMinutes:v}))}/><button disabled={busy} className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{busy?"Saving…":"Save personal task"}</button></form></Panel>}
-          <Panel title={`Task list · ${tasks.length}`}><div className="space-y-3">{tasks.map((t)=><article key={t._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{t.title}</h3><button onClick={()=>void openTaskActivity(t._id)} className="rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><Badge value={t.taskType}/><Badge value={t.priority}/></div>{t.description&&<p className="mt-2 text-sm text-muted-foreground">{t.description}</p>}<p className="mt-2 text-xs text-muted-foreground">Deadline: {fmtDateTime(t.deadlineAt)}</p>{t.completionNotes&&<p className="mt-1 text-xs text-muted-foreground">Completion note: {t.completionNotes}</p>}{t.assignees && t.assignees.length>1 && <p className="mt-1 text-xs text-muted-foreground">Shared with: {t.assignees.filter((a)=>a.employeeId!==employee?.id).map((a)=>a.name).join(", ") || "your team"}</p>}<div className="mt-3 flex flex-wrap gap-2">{(t.attachments||[]).map((a)=><span key={a._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,a)} className="text-xs underline">{a.originalFileName}</button>{a.uploadedByUserId===employee?.accountUserId&&<button aria-label={"Delete "+a.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,a)} className="px-1 text-xs text-red-300">×</button>}</span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></div><Badge value={t.status}/></div><div className="mt-3 flex flex-wrap gap-2">{t.status!=="COMPLETED"&&t.status!=="CANCELLED"&&<><button onClick={()=>void updateTask(t,"IN_PROGRESS")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Start / in progress</button><button onClick={()=>void updateTask(t,"ON_HOLD")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">On hold</button><button onClick={()=>void updateTask(t,"COMPLETED")} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Complete</button></>}</div></article>)}{tasks.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">You have no tasks assigned yet.</p>}</div></Panel>
+          <Panel title={`Task list · ${tasks.length}`}><div className="space-y-3">{tasks.map((t)=><article id={"employee-task-"+t._id} key={t._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{t.title}</h3><button onClick={()=>void openTaskActivity(t._id)} className="rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><Badge value={t.taskType}/><Badge value={t.priority}/></div>{t.description&&<p className="mt-2 text-sm text-muted-foreground">{t.description}</p>}<p className="mt-2 text-xs text-muted-foreground">Deadline: {fmtDateTime(t.deadlineAt)}</p>{t.completionNotes&&<p className="mt-1 text-xs text-muted-foreground">Completion note: {t.completionNotes}</p>}{t.assignees && t.assignees.length>1 && <p className="mt-1 text-xs text-muted-foreground">Shared with: {t.assignees.filter((a)=>a.employeeId!==employee?.id).map((a)=>a.name).join(", ") || "your team"}</p>}<div className="mt-3 flex flex-wrap gap-2">{(t.attachments||[]).map((a)=><span key={a._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,a)} className="text-xs underline">{a.originalFileName}</button>{a.uploadedByUserId===employee?.accountUserId&&<button aria-label={"Delete "+a.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,a)} className="px-1 text-xs text-red-300">×</button>}</span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></div><Badge value={t.status}/></div><div className="mt-3 flex flex-wrap gap-2">{t.status!=="COMPLETED"&&t.status!=="CANCELLED"&&<><button onClick={()=>void updateTask(t,"IN_PROGRESS")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Start / in progress</button><button onClick={()=>void updateTask(t,"ON_HOLD")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">On hold</button><button onClick={()=>void updateTask(t,"COMPLETED")} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Complete</button></>}</div></article>)}{tasks.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">You have no tasks assigned yet.</p>}</div></Panel>
         </div>}
 
         {taskActivityId && <Panel title={"Task history & comments · " + (tasks.find((task) => task._id === taskActivityId)?.title || "Task")} note="Activity is available only for tasks assigned to you or created in your own workspace.">
@@ -426,7 +705,7 @@ export default function EmployeeDashboardPage() {
             <label className="flex items-start gap-3 rounded-xl border border-white/10 p-3 text-sm sm:col-span-2 xl:col-span-3"><input className="mt-1" required type="checkbox" checked={leadForm.contactConsent} onChange={(e)=>setLeadForm((s)=>({...s,contactConsent:e.target.checked}))}/><span>I confirm the buyer has consented to share their contact information with Truvi for property enquiry and follow-up.</span></label>
             <button disabled={busy} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Submitting…":"Submit to central CRM"}</button>
           </form></Panel>}
-          <Panel title="Lead history"><div className="space-y-3">{leads.map((l)=><article key={l._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{l.clientName}</h3><p className="mt-1 text-xs text-muted-foreground">{l.clientPhone} · {projectName(l.projectId)} · {l.source}</p><p className="mt-1 text-xs text-muted-foreground">TRV-L-{String(l.leadNo||"").padStart(6,"0")} · Created {fmtDate(l.createdAt)}</p></div><div className="flex flex-wrap gap-2"><Badge value={l.stage}/><Badge value={l.leadTemperature||"UNRATED"}/></div></div><div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-xs text-muted-foreground">Update stage</label><select aria-label={`Stage for ${l.clientName}`} value={l.stage} onChange={(e)=>void updateLeadStage(l,e.target.value)} className="rounded-lg border border-white/10 bg-background px-2 py-1.5 text-xs">{["GENERATED","CONTACTED","INTERESTED","SITE_VISIT","NEGOTIATION","LOST"].map((v)=><option key={v}>{v}</option>)}</select><button onClick={()=>{setCallForm((s)=>({...s,leadId:l._id}));setTab("telecalling");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Log a call</button><button onClick={()=>{setVisitForm((s)=>({...s,leadId:l._id}));setTab("visits");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Propose visit</button></div><p className="mt-2 text-xs text-muted-foreground">Next follow-up: {fmtDateTime(l.nextFollowUpAt)}</p></article>)}{leads.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">No submitted or assigned leads yet.</p>}</div></Panel>
+          <Panel title="Lead history"><div className="space-y-3">{leads.map((l)=><article id={"employee-lead-"+l._id} key={l._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{l.clientName}</h3><p className="mt-1 text-xs text-muted-foreground">{l.clientPhone} · {projectName(l.projectId)} · {l.source}</p><p className="mt-1 text-xs text-muted-foreground">TRV-L-{String(l.leadNo||"").padStart(6,"0")} · Created {fmtDate(l.createdAt)}</p></div><div className="flex flex-wrap gap-2"><Badge value={l.stage}/><Badge value={l.leadTemperature||"UNRATED"}/></div></div><div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-xs text-muted-foreground">Update stage</label><select aria-label={`Stage for ${l.clientName}`} value={l.stage} onChange={(e)=>void updateLeadStage(l,e.target.value)} className="rounded-lg border border-white/10 bg-background px-2 py-1.5 text-xs">{["GENERATED","CONTACTED","INTERESTED","SITE_VISIT","NEGOTIATION","LOST"].map((v)=><option key={v}>{v}</option>)}</select><button onClick={()=>{setCallForm((s)=>({...s,leadId:l._id}));setTab("telecalling");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Log a call</button><button onClick={()=>{setVisitForm((s)=>({...s,leadId:l._id}));setTab("visits");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Propose visit</button></div><p className="mt-2 text-xs text-muted-foreground">Next follow-up: {fmtDateTime(l.nextFollowUpAt)}</p></article>)}{leads.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">No submitted or assigned leads yet.</p>}</div></Panel>
         </div>}
 
         {tab==="telecalling" && <div className="space-y-4">
@@ -501,7 +780,7 @@ export default function EmployeeDashboardPage() {
           <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Payroll month</th><th className="p-3">Gross</th><th className="p-3">Allowances</th><th className="p-3">Deductions</th><th className="p-3">Net payable</th><th className="p-3">Status</th><th className="p-3">Payment date / reference</th></tr></thead><tbody>{salaries.map((s)=><tr key={s._id} className="border-t border-white/10"><td className="p-3">{s.monthKey}</td><td className="p-3">{money(s.grossSalary)}</td><td className="p-3">{money(s.allowances)}</td><td className="p-3">{money(s.deductions)}</td><td className="p-3 font-semibold">{money(s.netPayable)}</td><td className="p-3"><Badge value={s.status}/></td><td className="p-3">{s.status==="PAID"?`${fmtDate(s.paymentDate)} · ${s.paymentReference||"—"}`:"—"}</td></tr>)}</tbody></table>{salaries.length===0&&<p className="p-6 text-sm text-muted-foreground">No salary record is available for your account. Contact Admin if you believe this is an error.</p>}</div>
         </Panel>}
 
-        {tab==="notifications" && <Panel title="Notifications" note="Personal updates for tasks, buyer leads, attendance, leave, site visits and payroll. Select an item to open its workspace and mark it read."><div className="space-y-2">{notices.map((n)=>{const {Icon,tone}=noticeVisual(n.type); return <button key={n._id} onClick={()=>openNotice(n)} className={`truvi-erm-notification flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${n.isRead?"is-read border-white/5":"is-unread border-primary/25 bg-primary/5"}`}><span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${tone}`}><Icon size={19} aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-start justify-between gap-2"><span className="font-semibold">{n.title||"Truvi notification"}</span><Badge value={n.isRead?"READ":"UNREAD"}/></span><span className="mt-1 block text-sm text-muted-foreground">{n.message}</span><span className="mt-2 block text-xs text-muted-foreground">{fmtDateTime(n.createdAt)}</span></span>{!n.isRead&&<span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-label="Unread"/>}</button>;})}{notices.length===0&&<div className="truvi-erm-empty py-10 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true"/><p className="font-semibold">You’re all caught up</p><p className="mt-1 text-sm text-muted-foreground">New Truvi notifications will appear here.</p></div>}</div></Panel>}
+        {tab==="notifications" && <Panel title="Notifications" note="Personal updates for tasks, buyer leads, attendance, leave, site visits and payroll. Select an item to open its workspace and mark it read."><div className="space-y-2">{notices.map((n)=>{const {Icon,tone}=noticeVisual(n.type); return <button id={"employee-notice-"+n._id} key={n._id} onClick={()=>openNotice(n)} className={`truvi-erm-notification flex w-full items-start gap-3 rounded-xl border p-4 text-left transition ${n.isRead?"is-read border-white/5":"is-unread border-primary/25 bg-primary/5"}`}><span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${tone}`}><Icon size={19} aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-start justify-between gap-2"><span className="font-semibold">{n.title||"Truvi notification"}</span><Badge value={n.isRead?"READ":"UNREAD"}/></span><span className="mt-1 block text-sm text-muted-foreground">{n.message}</span><span className="mt-2 block text-xs text-muted-foreground">{fmtDateTime(n.createdAt)}</span></span>{!n.isRead&&<span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-sky-400" aria-label="Unread"/>}</button>;})}{notices.length===0&&<div className="truvi-erm-empty py-10 text-center"><Bell className="mx-auto mb-3 h-8 w-8 text-muted-foreground" aria-hidden="true"/><p className="font-semibold">You’re all caught up</p><p className="mt-1 text-sm text-muted-foreground">New Truvi notifications will appear here.</p></div>}</div></Panel>}
           </div>
         </div>
       </div>
