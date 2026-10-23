@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -33,6 +33,7 @@ const tabItems: { id: Tab; label: string }[] = [
 
 export default function EmployeeDashboardPage() {
   const [tab, setTab] = useState<Tab>("home");
+  const [searchParams] = useSearchParams();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -86,6 +87,7 @@ export default function EmployeeDashboardPage() {
     finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, []);
+  useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
 
   const today = (() => { const ps = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(new Date()); const val = (k:string) => ps.find((p)=>p.type===k)?.value ?? ""; return `${val("year")}-${val("month")}-${val("day")}`; })();
   const todayAttendance = attendance.find((a)=>a.attendanceDate===today);
