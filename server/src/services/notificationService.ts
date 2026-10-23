@@ -106,6 +106,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   employee_task_assigned: "tasks",
   employee_task_reassigned: "tasks",
   employee_task_reminder: "tasks",
+  employee_leave_requested: "tasks",
+  employee_leave_decision: "tasks",
   daily_task: "tasks",
   task_completed: "tasks",
   meeting_reminder: "meetings",
