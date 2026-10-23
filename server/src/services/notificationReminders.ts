@@ -2,7 +2,7 @@
  * Scheduled reminder sweeps that turn time-based events into notifications —
  * the server-side cron the in-app bell / push / WhatsApp can't do on their own.
  *
- * Currently: lead follow-up reminders. Each pending follow-up that is due soon
+ * Currently: lead follow-up and employee task-deadline reminders. Each pending follow-up that is due soon
  * (or overdue) reminds the assigned CP once — deduped per follow-up via the
  * engine's dedupeKey, so it never nags repeatedly. Extensible: add meeting /
  * site-visit sweeps here the same way.
