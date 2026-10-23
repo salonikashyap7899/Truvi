@@ -14,7 +14,7 @@ import { notifyUser } from "./notificationService";
 import { shouldSendTaskDeadlineReminder } from "../lib/employeeTaskRules";
 import { sendWhatsAppCampaign } from "./whatsappService";
 
-/** Remind CPs about follow-ups due within the next 2 hours (or overdue). */
+/** Remind the follow-up owner about due follow-ups, including employee-owned leads. */
 export async function runFollowUpReminders(): Promise<{ scanned: number; sent: number }> {
   const db = getDb();
   const soon = new Date(Date.now() + 2 * 60 * 60 * 1000);
@@ -33,12 +33,13 @@ export async function runFollowUpReminders(): Promise<{ scanned: number; sent: n
   let sent = 0;
   for (const f of rows) {
     const [lead] = await db.select({ clientName: leads.clientName }).from(leads).where(eq(leads._id, f.leadId));
+    const [owner] = await db.select({ role: users.role }).from(users).where(eq(users._id, f.cpId)).limit(1);
     const verb = f.channel === "CALL" ? "Call" : f.channel === "MEETING" ? "Meet" : "Follow up with";
     const created = await notifyUser(String(f.cpId), {
       type: "lead_followup",
       title: "Follow-up due ⏰",
       message: `${verb} ${lead?.clientName ?? "your lead"}${f.note ? ` — ${f.note}` : ""}.`,
-      data: { href: "/crm/pipeline" },
+      data: { href: owner?.role === "EMPLOYEE" ? "/employee/dashboard?tab=leads" : "/crm/pipeline" },
       dedupeKey: `followup:${f.id}`, // remind once per follow-up
     });
     if (created.length) sent++;
