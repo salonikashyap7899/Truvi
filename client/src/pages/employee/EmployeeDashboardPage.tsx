@@ -3,9 +3,12 @@ import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
-type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "profile" | "salary" | "notifications";
+type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
-type Task = { _id: string; title: string; description?: string; taskType: string; priority: string; status: string; deadlineAt?: string | null; completionNotes?: string | null };
+type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
+type TaskAssignee = { employeeId: string; name: string; employeeCode?: string | null; status: string };
+type Task = { _id: string; title: string; description?: string; taskType: string; priority: string; status: string; taskStatus?: string; deadlineAt?: string | null; completionNotes?: string | null; assignees?: TaskAssignee[]; attachments?: TaskAttachment[] };
+type LeaveRequest = { _id: string; employeeId: string; leaveType: string; startDate: string; endDate: string; totalDays: number; reason: string; status: string; reviewNotes?: string | null; createdAt: string };
 type Lead = { _id: string; leadNo?: number; clientName: string; clientPhone: string; clientEmail?: string; projectId: string | { _id: string; name: string }; stage: string; source: string; leadTemperature?: string; nextFollowUpAt?: string | null; siteVisitStatus?: string; budgetRange?: string; createdAt: string };
 type Project = { _id: string; name: string; city?: string; location?: string };
 type SiteVisit = { _id: string; leadId?: string; projectId: string | { _id: string; name: string }; projectName?: string; clientName?: string; scheduledAt: string; status: string; reportNotes?: string };
@@ -25,7 +28,7 @@ function Select({ label, value, onChange, options, required = false }: { label: 
 const tabItems: { id: Tab; label: string }[] = [
   { id:"home", label:"Overview" }, { id:"tasks", label:"My tasks" }, { id:"leads", label:"My leads" },
   { id:"telecalling", label:"Telecalling" }, { id:"visits", label:"Site visits" }, { id:"attendance", label:"Attendance" },
-  { id:"profile", label:"My profile" }, { id:"salary", label:"My salary" }, { id:"notifications", label:"Notifications" },
+  { id:"leave", label:"Leave requests" }, { id:"profile", label:"My profile" }, { id:"salary", label:"My salary" }, { id:"notifications", label:"Notifications" },
 ];
 
 export default function EmployeeDashboardPage() {
@@ -36,6 +39,7 @@ export default function EmployeeDashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +57,7 @@ export default function EmployeeDashboardPage() {
   const [callForm, setCallForm] = useState({ leadId:"", outcome:"CONNECTED", notes:"", nextFollowUpAt:"", leadTemperature:"WARM" });
   const [followupForm, setFollowupForm] = useState({ leadId:"", dueAt:"", channel:"CALL", note:"" });
   const [visitForm, setVisitForm] = useState({ leadId:"", scheduledAt:"", timeSlot:"", notes:"" });
+  const [leaveForm, setLeaveForm] = useState({ leaveType:"CASUAL", startDate:new Date(Date.now()+19800000).toISOString().slice(0,10), endDate:new Date(Date.now()+19800000).toISOString().slice(0,10), reason:"" });
 
   async function load() {
     setLoading(true);
@@ -60,7 +65,7 @@ export default function EmployeeDashboardPage() {
       const results = await Promise.allSettled([
         api.get("/employees/me/overview"), api.get("/employees/tasks"), api.get("/employees/leads"),
         api.get("/projects"), api.get("/employees/site-visits"), api.get("/employees/attendance"),
-        api.get("/employees/salaries"), api.get("/notifications"),
+        api.get("/employees/salaries"), api.get("/notifications"), api.get("/employees/leave-requests"),
       ]);
       const assign = <T,>(index: number, fn: (value: any) => void) => { const r = results[index]; if (r.status === "fulfilled") fn(r.value.data as T); };
       assign(0,(d)=>{ setEmployee(d.employee); setCallCount(d.callsLoggedToday ?? 0); });
@@ -71,6 +76,7 @@ export default function EmployeeDashboardPage() {
       assign(5,(d)=>setAttendance(d.attendance ?? []));
       assign(6,(d)=>setSalaries(d.salaries ?? []));
       assign(7,(d)=>setNotices(d.notifications ?? []));
+      assign(8,(d)=>setLeaveRequests(d.leaveRequests ?? []));
       const firstError = results.find((r) => r.status === "rejected");
       if (firstError?.status === "rejected") {
         const status = firstError.reason?.response?.status;
@@ -153,6 +159,44 @@ export default function EmployeeDashboardPage() {
   async function attendanceAction(action: "check-in"|"check-out") {
     try { const res=await api.post(`/employees/attendance/${action}`,{}); toast.success(action==="check-in"?"Checked in successfully.":"Checked out successfully."); setAttendance((old)=>[res.data.attendance,...old.filter((x)=>x._id!==res.data.attendance._id)]); await load(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Attendance could not be updated."); }
+  }
+  async function submitLeaveRequest(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.post("/employees/leave-requests", leaveForm);
+      toast.success("Leave request submitted for Admin review.");
+      setLeaveForm({ leaveType:"CASUAL", startDate:today, endDate:today, reason:"" });
+      await load();
+      setTab("leave");
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit leave request."); }
+    finally { setBusy(false); }
+  }
+  async function cancelLeaveRequest(request: LeaveRequest) {
+    if (!window.confirm("Cancel your pending leave request from " + request.startDate + " to " + request.endDate + "?")) return;
+    try {
+      await api.patch("/employees/leave-requests/" + request._id, { status:"CANCELLED" });
+      toast.success("Leave request cancelled.");
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not cancel leave request."); }
+  }
+  async function uploadTaskAttachment(taskId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      await api.post("/employees/tasks/" + taskId + "/attachments", form, { headers: { "Content-Type":"multipart/form-data" } });
+      toast.success("Task attachment uploaded privately.");
+      await load();
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not upload attachment."); }
+  }
+  async function downloadTaskAttachment(taskId: string, attachment: TaskAttachment) {
+    try {
+      const response = await api.get("/employees/tasks/" + taskId + "/attachments/" + attachment._id, { responseType:"blob" });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type:attachment.mimeType }));
+      const link = document.createElement("a");
+      link.href = url; link.download = attachment.originalFileName;
+      document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not download attachment."); }
   }
   async function markRead(n: Notice) {
     if (n.isRead) return;
