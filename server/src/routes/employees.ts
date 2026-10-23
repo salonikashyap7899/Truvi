@@ -3,7 +3,7 @@ import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import {
-  and, desc, eq, gte, inArray, isNull, lt, or, sql,
+  and, desc, eq, gte, inArray, isNull, like, lt, or, sql,
 } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
@@ -16,6 +16,7 @@ import { isValidId } from "../lib/ids";
 import { sendEmail } from "../services/emailService";
 import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
+import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
 
@@ -968,6 +969,96 @@ router.patch("/attendance/:id", requireRole("ADMIN"), async (req: AuthedRequest,
     }).where(eq(employeeAttendance._id, before._id)).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.attendance.correct", resourceType: "attendance", resourceId: String(req.params.id), metadata: { before: { status: before.status, checkInAt: before.checkInAt?.toISOString() ?? null, checkOutAt: before.checkOutAt?.toISOString() ?? null }, after: { status: row.status, checkInAt: row.checkInAt?.toISOString() ?? null, checkOutAt: row.checkOutAt?.toISOString() ?? null }, reason: d.correctionReason } });
     return res.json({ attendance: row });
+  } catch (err) { next(err); }
+});
+
+// --------------------------------------------------------- Audit / activity
+router.get("/audit-logs", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
+  try {
+    const db = getDb();
+    const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
+    let employeeResourceIds: string[] = [];
+    let metadataEmployeeId: string | null = null;
+    if (employeeId) {
+      if (!isValidId(employeeId)) return res.status(400).json({ error: "Invalid employee ID." });
+      const [emp] = await db.select().from(employees).where(eq(employees._id, employeeId)).limit(1);
+      if (!emp) return res.status(404).json({ error: "Employee not found." });
+      metadataEmployeeId = String(emp._id);
+      employeeResourceIds = [String(emp._id)];
+      if (emp.accountUserId) employeeResourceIds.push(String(emp.accountUserId));
+      const [tasks, attendanceRows, salaries, visits, relatedLeads] = await Promise.all([
+        db.select({ id: employeeTasks._id }).from(employeeTasks).where(eq(employeeTasks.employeeId, emp._id)),
+        db.select({ id: employeeAttendance._id }).from(employeeAttendance).where(eq(employeeAttendance.employeeId, emp._id)),
+        db.select({ id: employeeSalaryRecords._id }).from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, emp._id)),
+        emp.accountUserId ? db.select({ id: siteVisits._id }).from(siteVisits).where(eq(siteVisits.responsibleUserId, emp.accountUserId)) : Promise.resolve([]),
+        emp.accountUserId ? db.select({ id: leads._id }).from(leads).where(or(eq(leads.submittedById, emp.accountUserId), eq(leads.assignedToId, emp.accountUserId))) : Promise.resolve([]),
+      ]);
+      employeeResourceIds.push(...tasks.map((r) => String(r.id)), ...attendanceRows.map((r) => String(r.id)), ...salaries.map((r) => String(r.id)), ...visits.map((r) => String(r.id)), ...relatedLeads.map((r) => String(r.id)));
+    }
+    const conditions = [like(auditLogs.action, "employee.%")];
+    if (metadataEmployeeId) {
+      conditions.push(or(inArray(auditLogs.resourceId, employeeResourceIds), sql`${auditLogs.metadata}->>'employeeId' = ${metadataEmployeeId}`)!);
+    }
+    const parsedLimit = typeof req.query.limit === "string" ? Number(req.query.limit) : 100;
+    const limit = Number.isInteger(parsedLimit) ? Math.min(250, Math.max(1, parsedLimit)) : 100;
+    const rows = await db.select({ log: auditLogs, actorName: users.name, actorEmail: users.email })
+      .from(auditLogs).leftJoin(users, eq(auditLogs.userId, users._id))
+      .where(and(...conditions)).orderBy(desc(auditLogs.createdAt)).limit(limit);
+    return res.json({ auditLogs: rows.map((r) => ({ ...r.log, actorName: r.actorName, actorEmail: r.actorEmail })) });
+  } catch (err) { next(err); }
+});
+
+router.get("/performance", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
+  try {
+    const db = getDb();
+    const fromDate = typeof req.query.from === "string" ? parseDate(req.query.from) : null;
+    const toDate = typeof req.query.to === "string" ? parseDate(req.query.to) : null;
+    if ((req.query.from && !fromDate) || (req.query.to && !toDate)) return res.status(400).json({ error: "Invalid date filter." });
+    if (fromDate && toDate && fromDate > toDate) return res.status(400).json({ error: "Start date must be before end date." });
+    const department = typeof req.query.department === "string" ? req.query.department : "";
+    const employeeFilter = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
+    const [employeeRows, taskRows, leadRows, callRows, visitRows, attendanceRows] = await Promise.all([
+      db.select().from(employees).orderBy(employees.name),
+      db.select().from(employeeTasks),
+      db.select().from(leads),
+      db.select().from(leadActivities).where(eq(leadActivities.type, "CALL")),
+      db.select().from(siteVisits),
+      db.select().from(employeeAttendance),
+    ]);
+    const inRange = (date: Date | null | undefined) => !!date && (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+    const rows = employeeRows.filter((e) =>
+      (!department || e.department === department) && (!employeeFilter || String(e._id) === employeeFilter)
+    ).map((emp) => {
+      const userId = emp.accountUserId ? String(emp.accountUserId) : "";
+      const taskItems = taskRows.filter((t) => String(t.employeeId) === String(emp._id));
+      const myLeads = leadRows.filter((l) => userId && (String(l.submittedById) === userId || String(l.assignedToId) === userId));
+      const calls = callRows.filter((c) => userId && String(c.actorUserId ?? "") === userId && inRange(c.createdAt) && myLeads.some((l) => String(l._id) === String(c.leadId)));
+      const visits = visitRows.filter((v) => userId && String(v.responsibleUserId ?? "") === userId && inRange(v.scheduledAt));
+      const attendance = attendanceRows.filter((a) => String(a.employeeId) === String(emp._id) && (!fromDate || a.attendanceDate >= dateInIndia(fromDate)) && (!toDate || a.attendanceDate <= dateInIndia(toDate)));
+      const submitted = myLeads.filter((l) => String(l.submittedById) === userId && inRange(l.createdAt));
+      const completedTasks = taskItems.filter((t) => t.status === "COMPLETED" && inRange(t.completedAt ?? t.updatedAt));
+      const overdueTasks = taskItems.filter((t) => t.deadlineAt && t.deadlineAt < new Date() && !["COMPLETED", "CANCELLED"].includes(t.status) && inRange(t.createdAt));
+      return {
+        employeeId: String(emp._id), employeeCode: emp.employeeCode, name: emp.name,
+        department: emp.department, designation: emp.title, recruitmentSource: emp.recruitmentSource,
+        status: emp.status, accountLinked: !!emp.accountUserId,
+        tasksCompleted: completedTasks.length, tasksOverdue: overdueTasks.length,
+        tasksOpen: taskItems.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status)).length,
+        leadsSubmitted: submitted.length, leadsAssigned: myLeads.filter((l) => String(l.assignedToId) === userId && inRange(l.createdAt)).length,
+        callsLogged: calls.length, siteVisitsScheduled: visits.length,
+        siteVisitsCompleted: visits.filter((v) => v.status === "COMPLETED").length,
+        attendancePresentDays: attendance.filter((a) => a.status === "PRESENT").length,
+      };
+    });
+    return res.json({ metrics: rows, definitions: {
+      tasksCompleted: "Tasks marked completed during the selected date range, using the completion/update timestamp.",
+      tasksOverdue: "Open tasks past their deadline at the time this report is generated; filtered by task creation date.",
+      leadsSubmitted: "Central CRM leads submitted by the employee in the date range.",
+      leadsAssigned: "Central CRM leads assigned to the employee in the date range.",
+      callsLogged: "Call attempts recorded in the lead activity timeline, not calls placed or successfully connected by Truvi.",
+      siteVisitsCompleted: "Assigned site visits marked COMPLETED in the selected schedule-date range.",
+      attendancePresentDays: "Attendance dates explicitly marked PRESENT; unmarked dates are not counted as absent.",
+    } });
   } catch (err) { next(err); }
 });
 
