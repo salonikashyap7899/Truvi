@@ -395,7 +395,7 @@ export default function AdminEmployeeManagementPage() {
       </nav>
 
       {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading live company records…</div>}
-      {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some sections need attention</p><p className="mt-1">The rest of Employee Management remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void reload()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Retry failed sections</button></div>}
+      {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some sections need attention</p><p className="mt-1">The rest of Employee Management remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void reload()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Retry data</button></div>}
 
       {tab === "overview" && summary && <>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
