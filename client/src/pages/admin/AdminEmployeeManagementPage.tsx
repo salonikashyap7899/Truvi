@@ -336,17 +336,33 @@ export default function AdminEmployeeManagementPage() {
       {tab === "tasks" && <div className="space-y-4">
         <Panel title="Assign a task" sub="Assigned tasks are distinct from employees' personal tasks.">
           <form onSubmit={assignTask} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <SelectField label="Employee" required value={taskForm.employeeId} onChange={(v) => setTaskForm((s) => ({ ...s, employeeId: v }))} options={[{value:"",label:"Choose employee"}, ...employees.filter((e)=>e.status!=="INACTIVE" && !!e.accountUserId).map((e)=>({value:e.id,label:`${e.name} · ${e.department}`}))]}/>
+            <div className="space-y-2 rounded-xl border border-white/10 p-3 sm:col-span-2 xl:col-span-3">
+              <p className="text-sm font-medium">Assign to employees <span className="text-muted-foreground">({taskForm.employeeIds.length} selected)</span></p>
+              <div className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
+                {employees.filter((employee) => employee.status !== "INACTIVE" && !!employee.accountUserId).map((employee) => (
+                  <label key={employee.id} className="flex items-center gap-2 rounded-lg border border-white/5 px-3 py-2 text-sm">
+                    <input type="checkbox" checked={taskForm.employeeIds.includes(employee.id)} onChange={(event) => setTaskForm((current) => {
+                      const employeeIds = event.target.checked
+                        ? Array.from(new Set([...current.employeeIds, employee.id]))
+                        : current.employeeIds.filter((id) => id !== employee.id);
+                      return { ...current, employeeIds, employeeId: employeeIds[0] || "" };
+                    })}/>
+                    <span>{employee.name} · {employee.department}</span>
+                  </label>
+                ))}
+              </div>
+              {!taskForm.employeeIds.length && <p className="text-xs text-amber-300">Select at least one employee before assigning.</p>}
+            </div>
             <Field label="Task title" required value={taskForm.title} onChange={(v) => setTaskForm((s) => ({ ...s, title: v }))}/>
             <SelectField label="Priority" value={taskForm.priority} onChange={(v) => setTaskForm((s) => ({ ...s, priority: v }))} options={["LOW","MEDIUM","HIGH","URGENT"].map((v)=>({value:v,label:v}))}/>
             <Field label="Deadline" type="datetime-local" value={taskForm.deadlineAt} onChange={(v) => setTaskForm((s) => ({ ...s, deadlineAt: v }))}/>
             <Field label="Category" value={taskForm.category} onChange={(v) => setTaskForm((s) => ({ ...s, category: v }))}/>
             <Field label="Description" value={taskForm.description} onChange={(v) => setTaskForm((s) => ({ ...s, description: v }))}/>
-            <button disabled={busy} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Assigning…" : "Assign task"}</button>
+            <button disabled={busy || taskForm.employeeIds.length === 0} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Assigning…" : "Assign task"}</button>
           </form>
         </Panel>
         <Panel title="Company task board" sub="Filterable task lifecycle and deadlines">
-          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p></td><td className="p-3">{employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><button key={attachment._id} onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="rounded-lg border border-white/10 px-2 py-1 text-xs underline">{attachment.originalFileName}</button>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
         </Panel>
       </div>}
 
@@ -393,6 +409,22 @@ export default function AdminEmployeeManagementPage() {
           <Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Open all system audit logs</Link>
         </div>
         <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Timestamp</th><th className="p-3">Action</th><th className="p-3">Actor</th><th className="p-3">Resource</th><th className="p-3">Details</th></tr></thead><tbody>{auditLogs.map((a)=><tr key={a._id} className="border-t border-white/10 align-top"><td className="whitespace-nowrap p-3">{dt(a.createdAt)}</td><td className="p-3"><span className="font-medium">{a.action}</span></td><td className="p-3">{a.actorName||"System"}<p className="mt-1 text-xs text-muted-foreground">{a.actorEmail}</p></td><td className="p-3">{a.resourceType||"—"}<p className="mt-1 max-w-[180px] break-all text-xs text-muted-foreground">{a.resourceId}</p></td><td className="max-w-[300px] p-3"><pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{JSON.stringify(a.metadata||{},null,2)}</pre></td></tr>)}</tbody></table>{auditLogs.length===0&&<p className="p-6 text-sm text-muted-foreground">No employee-management audit events match this filter.</p>}</div>
+      </Panel>}
+
+      {tab === "leave" && <Panel title="Employee leave requests" sub="Approve or reject pending requests. Approval records ON_LEAVE days in attendance; conflicting check-ins must be resolved first.">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Type / dates</th><th className="p-3">Days</th><th className="p-3">Reason</th><th className="p-3">Status / review</th><th className="p-3">Actions</th></tr></thead>
+            <tbody>{leaveRequests.map((request)=><tr key={request._id} className="border-t border-white/10 align-top">
+              <td className="p-3"><b>{request.employeeName || employees.find((e)=>e.id===request.employeeId)?.name || "Employee"}</b><p className="mt-1 text-xs text-muted-foreground">{request.employeeCode || request.department}</p></td>
+              <td className="p-3">{request.leaveType.replaceAll("_"," ")}<p className="mt-1 text-xs text-muted-foreground">{request.startDate} → {request.endDate}</p></td>
+              <td className="p-3">{request.totalDays}</td><td className="max-w-[280px] whitespace-pre-wrap p-3">{request.reason}</td>
+              <td className="p-3"><Status value={request.status}/>{request.reviewNotes && <p className="mt-1 max-w-[240px] text-xs text-muted-foreground">{request.reviewNotes}</p>}</td>
+              <td className="p-3">{request.status === "PENDING" ? <div className="flex flex-wrap gap-2"><button onClick={()=>void reviewLeave(request,"APPROVED")} className="rounded-lg border border-emerald-500/30 px-2.5 py-1.5 text-xs text-emerald-300">Approve</button><button onClick={()=>void reviewLeave(request,"REJECTED")} className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300">Reject</button></div> : "—"}</td>
+            </tr>)}</tbody>
+          </table>
+          {leaveRequests.length===0 && <p className="p-6 text-center text-sm text-muted-foreground">No employee leave requests have been submitted.</p>}
+        </div>
       </Panel>}
 
       {tab === "salary" && <div className="space-y-4">
