@@ -457,8 +457,8 @@ export default function App() {
 
         {/* 404 — catch-all, must stay last */}
         <Route path="*" element={<NotFoundPage />} />
-      </EmployeePortalBoundary>
       </Routes>
+      </EmployeePortalBoundary>
       </Suspense>
       </PageTransition>
     </BrowserRouter>
