@@ -64,7 +64,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
 
   // Ambassadors get a focused field-agent workspace — no assistant. The
   // full-page chat already is the assistant, so no pop-up on top of it.
-  if (role === "AMBASSADOR" || pathname === "/ask-truvi") return null;
+  if (role === "AMBASSADOR" || role === "EMPLOYEE" || pathname.startsWith("/employee/") || pathname === "/ask-truvi") return null;
 
   function openFullPage() {
     setOpen(false);

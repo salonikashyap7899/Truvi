@@ -141,9 +141,10 @@ function RouteFallback() {
 
 function FloatingAssistants() {
   const { pathname } = useLocation();
+  // Employee OS is a focused workspace: no public-page assistant launcher.
   // The Founder Dashboard ships its own Copilot; the Admin OS dashboard uses
   // the same full-screen shell — suppress the global FABs on both.
-  if (pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
+  if (pathname.startsWith("/employee/") || pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
       {/* One assistant pop-up with two AIs (Ask Truvi + Copilot). The app's
@@ -207,6 +208,22 @@ function PageTransition({ children }: { children: ReactNode }) {
       {children}
     </motion.div>
   );
+}
+
+/**
+ * Employees have a deliberately limited frontend route surface: their own
+ * workspace and the company About page. Other roles retain existing routing.
+ * ProtectedRoute and server authorization continue to enforce role access.
+ */
+function EmployeePortalBoundary({ children }: { children: ReactNode }) {
+  const user = useAuthStore((state) => state.user);
+  const { pathname } = useLocation();
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  const employeeAllowedPaths = normalizedPath === "/employee/dashboard" || normalizedPath === "/about";
+  if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
+    return <Navigate to="/employee/dashboard" replace />;
+  }
+  return <>{children}</>;
 }
 
 /** Standalone /welcome route so the tour can be previewed any time (web too). */
@@ -304,6 +321,7 @@ export default function App() {
       <GlobalNav />
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
+      <EmployeePortalBoundary>
       <Routes>
         {/* Public marketing pages */}
         <Route path="/" element={<LandingPage />} />
@@ -440,6 +458,7 @@ export default function App() {
         {/* 404 — catch-all, must stay last */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </EmployeePortalBoundary>
       </Suspense>
       </PageTransition>
     </BrowserRouter>
