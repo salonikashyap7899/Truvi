@@ -254,7 +254,7 @@ router.get("/overview", requireRole("ADMIN"), async (req: AuthedRequest, res, ne
     const db = getDb();
     const [empRows, tasks, leadRows, visits, attendance, callRows, inviteRows, accountRows] = await Promise.all([
       db.select().from(employees),
-      db.select({ id: employeeTasks._id, employeeId: employeeTasks.employeeId, status: employeeTasks.status, deadlineAt: employeeTasks.deadlineAt, createdAt: employeeTasks.createdAt }).from(employeeTasks),
+      db.select({ id: employeeTasks._id, employeeId: employeeTasks.employeeId, taskType: employeeTasks.taskType, status: employeeTasks.status, deadlineAt: employeeTasks.deadlineAt, createdAt: employeeTasks.createdAt }).from(employeeTasks),
       db.select({ id: leads._id, submittedById: leads.submittedById, assignedToId: leads.assignedToId, leadTemperature: leads.leadTemperature, createdAt: leads.createdAt }).from(leads),
       db.select({ id: siteVisits._id, scheduledAt: siteVisits.scheduledAt, status: siteVisits.status, responsibleUserId: siteVisits.responsibleUserId }).from(siteVisits),
       db.select().from(employeeAttendance).where(eq(employeeAttendance.attendanceDate, dateInIndia())),
@@ -271,6 +271,7 @@ router.get("/overview", requireRole("ADMIN"), async (req: AuthedRequest, res, ne
     const activeAccounts = empRows.filter((e) => e.accountUserId && e.status !== "INACTIVE" && accountById.get(String(e.accountUserId)) && !accountById.get(String(e.accountUserId))!.disabled);
     const submitted = leadRows.filter((l) => employeeIds.has(String(l.submittedById)));
     const assigned = leadRows.filter((l) => employeeIds.has(String(l.assignedToId)));
+    const relatedLeads = new Map([...submitted, ...assigned].map((lead) => [String(lead.id), lead]));
     res.json({
       totalEmployees: empRows.length,
       activeEmployees: active.length,
@@ -285,9 +286,9 @@ router.get("/overview", requireRole("ADMIN"), async (req: AuthedRequest, res, ne
       overdueTasks: tasks.filter((t) => t.deadlineAt && t.deadlineAt < new Date() && !["COMPLETED", "CANCELLED"].includes(t.status)).length,
       totalLeadsSubmitted: submitted.length,
       assignedLeads: assigned.length,
-      hotLeads: [...submitted, ...assigned].filter((l) => l.leadTemperature === "HOT").length,
-      warmLeads: [...submitted, ...assigned].filter((l) => l.leadTemperature === "WARM").length,
-      coldLeads: [...submitted, ...assigned].filter((l) => l.leadTemperature === "COLD").length,
+      hotLeads: [...relatedLeads.values()].filter((l) => l.leadTemperature === "HOT").length,
+      warmLeads: [...relatedLeads.values()].filter((l) => l.leadTemperature === "WARM").length,
+      coldLeads: [...relatedLeads.values()].filter((l) => l.leadTemperature === "COLD").length,
       upcomingSiteVisits: visits.filter((v) => employeeIds.has(String(v.responsibleUserId)) && v.scheduledAt >= new Date() && !["CANCELLED", "COMPLETED"].includes(v.status)).length,
       callsCompletedToday: callRows.filter((c) => c.actorUserId && employeeIds.has(String(c.actorUserId)) && c.type === "CALL" && c.createdAt >= start && c.createdAt < end).length,
       attendanceSummary: {
