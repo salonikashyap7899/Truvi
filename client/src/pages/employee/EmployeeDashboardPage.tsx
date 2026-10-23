@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, Trash2, UserRound, Users, Wallet } from "lucide-react";
+import { Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleHelp, CircleDollarSign, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuthStore } from "@/store/authStore";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
@@ -28,7 +29,7 @@ const fmtDate = (s?: string | null) => s ? new Date(s).toLocaleDateString("en-IN
 const fmtDateTime = (s?: string | null) => s ? new Date(s).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 const badgeClass = (s: string) => ["COMPLETED","ACTIVE","PRESENT","CONFIRMED","PAID","APPROVED"].includes(s) ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" : ["OVERDUE","ABSENT","INACTIVE","CANCELLED","LOST","ON_HOLD"].includes(s) ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-amber-500/20 bg-amber-500/10 text-amber-200";
 function Badge({ value }: { value: string }) { return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${badgeClass(value)}`}>{value.replaceAll("_"," ")}</span>; }
-function Kpi({ label, value, note }: { label: string; value: string | number; note?: string }) { return <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p>{note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}</div>; }
+function Kpi({ label, value, note, icon: Icon = LayoutDashboard, tone = "blue" }: { label: string; value: string | number; note?: string; icon?: LucideIcon; tone?: "blue" | "violet" | "cyan" | "amber" | "green" }) { return <div className="truvi-dashboard-kpi"><div className="truvi-dashboard-kpi__top"><p>{label}</p><span className={`truvi-dashboard-kpi__icon is-${tone}`}><Icon size={17} aria-hidden="true"/></span></div><p className="truvi-dashboard-kpi__value">{value}</p>{note && <p className="truvi-dashboard-kpi__note">{note}</p>}</div>; }
 function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) { return <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5"><div className="mb-4"><h2 className="font-semibold">{title}</h2>{note && <p className="mt-1 text-xs leading-5 text-muted-foreground">{note}</p>}</div>{children}</section>; }
 function Input({ label, value, onChange, type = "text", required = false, placeholder = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input type={type} required={required} value={value} placeholder={placeholder} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary"/></label>; }
 function Select({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; required?: boolean }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
@@ -43,6 +44,15 @@ const tabIcons = {
   visits: MapPin, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
   salary: Wallet, notifications: Bell,
 } as const;
+
+const navigationGroups: { label: string; items: Tab[] }[] = [
+  { label: "Workspace", items: ["home", "tasks"] },
+  { label: "Sales & field", items: ["leads", "telecalling", "visits"] },
+  { label: "People & time", items: ["attendance", "leave"] },
+  { label: "Account", items: ["profile", "salary", "notifications"] },
+];
+
+type QuickSearchItem = { id: string; kind: string; title: string; detail: string; tab: Tab; icon: LucideIcon };
 
 function noticeVisual(type?: string): { Icon: LucideIcon; tone: string } {
   const key = (type ?? "").toLowerCase();
