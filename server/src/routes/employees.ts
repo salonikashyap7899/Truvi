@@ -378,6 +378,49 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
   } catch (err) { next(err); }
 });
 
+router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
+  try {
+    if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
+    const parsed = z.object({
+      officialEmail: z.email().transform((v) => v.trim().toLowerCase()),
+      phone: z.string().trim().max(30).optional().default(""),
+      employeeCode: z.string().trim().min(2).max(40).optional(),
+    }).safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Enter a valid official email and employee details." });
+    const db = getDb();
+    const [employee] = await db.select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
+    if (!employee) return res.status(404).json({ error: "Employee not found." });
+    if (employee.accountUserId) return res.status(409).json({ error: "This employee already has a linked account." });
+    if (employee.status === "INACTIVE") return res.status(409).json({ error: "Reactivate the employee profile before creating an account." });
+    if (parsed.data.phone && !/^[+\d\s()-]{10,20}$/.test(parsed.data.phone)) return res.status(400).json({ error: "Enter a valid phone number." });
+    const [existingAccount] = await db.select({ id: users._id }).from(users).where(eq(users.email, parsed.data.officialEmail)).limit(1);
+    if (existingAccount) return res.status(409).json({ error: "An account already exists for this official email." });
+    const passwordHash = await bcrypt.hash(randomBytes(48).toString("hex"), 12);
+    const code = parsed.data.employeeCode || employee.employeeCode || `TRV-EMP-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+    const phone = parsed.data.phone || employee.phone || null;
+    const linked = await db.transaction(async (tx) => {
+      const [account] = await tx.insert(users).values({
+        name: employee.name, email: parsed.data.officialEmail, password: passwordHash,
+        role: "EMPLOYEE", approvalStatus: "APPROVED", disabled: true, phone,
+        emailVerified: false, phoneVerified: false,
+      }).returning({ id: users._id });
+      const [updated] = await tx.update(employees).set({
+        accountUserId: account._id, employeeCode: code, officialEmail: parsed.data.officialEmail,
+        phone, permissions: employee.permissions?.length ? employee.permissions : [...DEFAULT_EMPLOYEE_PERMISSIONS],
+      }).where(and(eq(employees._id, employee._id), isNull(employees.accountUserId))).returning();
+      if (!updated) throw new Error("The employee profile was linked concurrently. Refresh and try again.");
+      return { accountId: String(account.id), employee: updated };
+    });
+    const invite = await issueInvite(String(linked.employee._id), req.user!.userId).catch(() => ({ delivered: false, expiresAt: null }));
+    await logAudit({ userId: req.user!.userId, action: "employee.account.create", resourceType: "employee", resourceId: String(linked.employee._id), metadata: { employeeCode: code, inviteDelivered: invite.delivered, linkedExistingProfile: true } });
+    return res.status(201).json({
+      employee: employeePublicShape(linked.employee, { email: parsed.data.officialEmail, disabled: true, emailVerified: false, phoneVerified: false }),
+      inviteDelivered: invite.delivered,
+      inviteMessage: invite.delivered ? "Existing employee profile linked and activation invitation sent." : "Employee profile linked to a disabled account, but the invitation email could not be delivered. Configure SMTP, then resend the invitation.",
+    });
+  } catch (err) { next(err); }
+});
+
 router.post("/:id/invite", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
     if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
