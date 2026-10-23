@@ -697,58 +697,151 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
 
 router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
   try {
-    if (!isValidId(String(req.params.id))) return res.status(404).json({ error: "Task not found." });
+    const taskId = String(req.params.id);
+    if (!isValidId(taskId)) return res.status(404).json({ error: "Task not found." });
     const parsed = taskPatchSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Check the task fields.", issues: parsed.error.flatten() });
     const db = getDb();
-    const [before] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, String(req.params.id))).limit(1);
+    const [before] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
     if (!before) return res.status(404).json({ error: "Task not found." });
     const admin = req.user!.role === "ADMIN";
     if (!admin && req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
-    let emp = null;
+    let emp: typeof employees.$inferSelect | null = null;
     if (!admin) {
       emp = await needEmployee(req, res);
       if (!emp) return;
-      if (String(before.employeeId) !== String(emp._id)) return res.status(404).json({ error: "Task not found." });
+      if (!(await canEmployeeAccessTask(before, emp))) return res.status(404).json({ error: "Task not found." });
       if (before.taskType === "ASSIGNED") {
         const allowedKeys = Object.keys(parsed.data).filter((k) => !["status", "completionNotes", "reason"].includes(k));
         if (allowedKeys.length) return res.status(403).json({ error: "Assigned task details can only be changed by an administrator." });
-        if (parsed.data.status && !hasPermission(emp.permissions, parsed.data.status === "COMPLETED" ? "task.complete.own" : "task.update.own")) return res.status(403).json({ error: "Task update is not enabled for this account." });
-      } else if (!hasPermission(emp.permissions, "task.update.own")) return res.status(403).json({ error: "Personal task editing is not enabled for this account." });
+        if (parsed.data.status && ["CANCELLED", "ASSIGNED"].includes(parsed.data.status)) {
+          return res.status(403).json({ error: "Only an administrator can cancel or reset an assigned task." });
+        }
+        if (parsed.data.status && !hasPermission(emp.permissions, parsed.data.status === "COMPLETED" ? "task.complete.own" : "task.update.own")) {
+          return res.status(403).json({ error: "Task update is not enabled for this account." });
+        }
+      } else if (!hasPermission(emp.permissions, "task.update.own")) {
+        return res.status(403).json({ error: "Personal task editing is not enabled for this account." });
+      }
     }
     const d = parsed.data;
     const patch: Partial<typeof employeeTasks.$inferInsert> = { updatedAt: new Date() };
-    if (d.title !== undefined) patch.title = d.title;
-    if (d.description !== undefined) patch.description = d.description;
-    if (d.category !== undefined) patch.category = d.category;
+    if (d.title !== undefined && admin) patch.title = d.title;
+    if (d.description !== undefined && admin) patch.description = d.description;
+    if (d.category !== undefined && admin) patch.category = d.category;
     if (d.priority !== undefined && admin) patch.priority = d.priority;
-    if (d.status !== undefined) patch.status = d.status;
     if (d.startAt !== undefined && admin) patch.startAt = parseDate(d.startAt);
-    if (d.deadlineAt !== undefined) patch.deadlineAt = parseDate(d.deadlineAt);
-    if (d.estimatedMinutes !== undefined) patch.estimatedMinutes = d.estimatedMinutes;
+    if (d.deadlineAt !== undefined && admin) patch.deadlineAt = parseDate(d.deadlineAt);
+    if (d.estimatedMinutes !== undefined && admin) patch.estimatedMinutes = d.estimatedMinutes;
     if (d.completionNotes !== undefined) patch.completionNotes = d.completionNotes;
-    if (d.employeeId && admin) {
-      if (!isValidId(d.employeeId)) return res.status(400).json({ error: "Invalid employee ID." });
-      const [targetEmployee] = await db.select().from(employees).where(eq(employees._id, d.employeeId)).limit(1);
-      if (!targetEmployee || targetEmployee.status === "INACTIVE" || !targetEmployee.accountUserId) {
-        return res.status(409).json({ error: "Tasks can only be assigned to an active employee profile with a linked login account." });
+
+    let requestedEmployeeIds: string[] | null = null;
+    let newlyAssignedIds: string[] = [];
+    if (admin && (d.employeeIds !== undefined || d.employeeId !== undefined)) {
+      const requested = d.employeeIds?.length ? d.employeeIds : d.employeeId ? [d.employeeId] : [];
+      const targets = await activeLinkedEmployees(requested);
+      if (!targets) return res.status(400).json({ error: "Tasks can only be assigned to active employees with linked login accounts." });
+      requestedEmployeeIds = targets.map((target) => String(target._id));
+      patch.employeeId = targets[0]._id;
+      patch.taskType = "ASSIGNED";
+    }
+
+    if (admin && d.status !== undefined) {
+      patch.status = d.status;
+      patch.completedAt = d.status === "COMPLETED" ? new Date() : null;
+    } else if (!admin && before.taskType === "PERSONAL" && d.status !== undefined) {
+      patch.status = d.status;
+      patch.completedAt = d.status === "COMPLETED" ? new Date() : null;
+    }
+
+    let updated: typeof employeeTasks.$inferSelect = before;
+    await db.transaction(async (tx) => {
+      if (requestedEmployeeIds) {
+        const existing = await tx.select().from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, before._id));
+        const oldIds = new Set(existing.map((row) => String(row.employeeId)));
+        const nextIds = new Set(requestedEmployeeIds!);
+        const removedIds = Array.from(oldIds).filter((id) => !nextIds.has(id));
+        newlyAssignedIds = Array.from(nextIds).filter((id) => !oldIds.has(id));
+        if (removedIds.length) {
+          await tx.delete(employeeTaskAssignments).where(and(
+            eq(employeeTaskAssignments.taskId, before._id),
+            inArray(employeeTaskAssignments.employeeId, removedIds),
+          ));
+        }
+        if (newlyAssignedIds.length) {
+          await tx.insert(employeeTaskAssignments).values(newlyAssignedIds.map((employeeId) => ({
+            taskId: before._id, employeeId, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const,
+          })));
+        }
       }
-      patch.employeeId = String(targetEmployee._id);
-    }
-    if (d.status === "COMPLETED") patch.completedAt = new Date();
-    const [updated] = await db.update(employeeTasks).set(patch).where(eq(employeeTasks._id, before._id)).returning();
-    await db.insert(employeeTaskHistory).values({
-      taskId: before._id, actorUserId: req.user!.userId, action: d.status === "COMPLETED" ? "COMPLETED" : d.deadlineAt !== undefined && d.deadlineAt !== before.deadlineAt?.toISOString() ? "DEADLINE_UPDATED" : "UPDATED",
-      beforeValue: { status: before.status, priority: before.priority, deadlineAt: before.deadlineAt?.toISOString() ?? null, employeeId: String(before.employeeId) },
-      afterValue: { status: updated.status, priority: updated.priority, deadlineAt: updated.deadlineAt?.toISOString() ?? null, employeeId: String(updated.employeeId) },
-      reason: d.reason || null,
+
+      if (admin && d.status !== undefined && before.taskType === "ASSIGNED") {
+        await tx.update(employeeTaskAssignments).set({
+          status: d.status,
+          completedAt: d.status === "COMPLETED" ? new Date() : null,
+          updatedAt: new Date(),
+        }).where(eq(employeeTaskAssignments.taskId, before._id));
+      } else if (!admin && before.taskType === "ASSIGNED" && d.status !== undefined) {
+        const [assignment] = await tx.select().from(employeeTaskAssignments).where(and(
+          eq(employeeTaskAssignments.taskId, before._id),
+          eq(employeeTaskAssignments.employeeId, emp!._id),
+        )).limit(1);
+        if (assignment) {
+          await tx.update(employeeTaskAssignments).set({
+            status: d.status,
+            completedAt: d.status === "COMPLETED" ? new Date() : null,
+            updatedAt: new Date(),
+          }).where(eq(employeeTaskAssignments._id, assignment._id));
+        } else {
+          await tx.insert(employeeTaskAssignments).values({
+            taskId: before._id, employeeId: emp!._id, assignedByUserId: before.assignedByUserId,
+            status: d.status, completedAt: d.status === "COMPLETED" ? new Date() : null,
+          });
+        }
+        const assignments = await tx.select().from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, before._id));
+        const allComplete = assignments.length > 0 && assignments.every((row) => row.status === "COMPLETED");
+        patch.status = allComplete ? "COMPLETED" : "IN_PROGRESS";
+        patch.completedAt = allComplete ? new Date() : null;
+      }
+
+      const [row] = await tx.update(employeeTasks).set(patch).where(eq(employeeTasks._id, before._id)).returning();
+      updated = row;
+      await tx.insert(employeeTaskHistory).values({
+        taskId: before._id,
+        actorUserId: req.user!.userId,
+        action: requestedEmployeeIds ? "ASSIGNEES_UPDATED" : d.status === "COMPLETED" ? "COMPLETED" : d.deadlineAt !== undefined ? "DEADLINE_UPDATED" : "UPDATED",
+        beforeValue: {
+          status: before.status, priority: before.priority,
+          deadlineAt: before.deadlineAt?.toISOString() ?? null,
+          employeeId: String(before.employeeId),
+        },
+        afterValue: {
+          status: row.status, priority: row.priority,
+          deadlineAt: row.deadlineAt?.toISOString() ?? null,
+          employeeId: String(row.employeeId),
+          employeeIds: requestedEmployeeIds ?? undefined,
+        },
+        reason: d.reason || null,
+      });
     });
-    if (admin && updated.employeeId !== before.employeeId) {
-      const [newEmp] = await db.select().from(employees).where(eq(employees._id, updated.employeeId)).limit(1);
-      if (newEmp?.accountUserId) await notifyUser(String(newEmp.accountUserId), "employee_task_reassigned", "Task reassigned", `A task was assigned to you: ${updated.title}`, req.user!.userId, "/employee/dashboard?tab=tasks");
+
+    if (newlyAssignedIds.length) {
+      const targets = await db.select().from(employees).where(inArray(employees._id, newlyAssignedIds));
+      for (const target of targets) {
+        if (target.accountUserId) await notifyUser(
+          String(target.accountUserId), "employee_task_assigned", "Task assigned",
+          "You have a task: " + updated.title, req.user!.userId, "/employee/dashboard?tab=tasks",
+        );
+      }
     }
-    await logAudit({ userId: req.user!.userId, action: "employee.task.update", resourceType: "employee_task", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
-    return res.json({ task: updated });
+    await logAudit({
+      userId: req.user!.userId,
+      action: requestedEmployeeIds ? "employee.task.reassign" : "employee.task.update",
+      resourceType: "employee_task", resourceId: taskId,
+      metadata: { changedFields: Object.keys(d), employeeIds: requestedEmployeeIds ?? undefined },
+    });
+    const [result] = await shapeEmployeeTasks([updated], emp ? String(emp._id) : undefined);
+    return res.json({ task: result });
   } catch (err) { next(err); }
 });
 
@@ -758,7 +851,7 @@ router.get("/tasks/:id/history", async (req: AuthedRequest, res, next) => {
     if (!task) return res.status(404).json({ error: "Task not found." });
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res); if (!emp) return;
-      if (String(task.employeeId) !== String(emp._id)) return res.status(404).json({ error: "Task not found." });
+      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) return res.status(404).json({ error: "Task not found." });
     }
     const [history, comments] = await Promise.all([
       getDb().select().from(employeeTaskHistory).where(eq(employeeTaskHistory.taskId, task._id)).orderBy(desc(employeeTaskHistory.createdAt)),
@@ -775,7 +868,7 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res, next) => {
     if (!task) return res.status(404).json({ error: "Task not found." });
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res); if (!emp) return;
-      if (String(task.employeeId) !== String(emp._id)) return res.status(404).json({ error: "Task not found." });
+      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) return res.status(404).json({ error: "Task not found." });
     }
     const [comment] = await getDb().insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: body.data.body }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: String(req.params.id) });
