@@ -8,7 +8,6 @@ import {
 import { InstagramIcon, LinkedInIcon, WhatsAppIcon } from "@/components/icons/SocialIcons";
 import { INSTAGRAM_URL, LINKEDIN_URL, WHATSAPP_CHANNEL_URL } from "@/lib/social";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
-import { useAuthStore } from "@/store/authStore";
 import { SiteNav } from "@/components/SiteNav";
 
 /* ── Palette: blue replaces gold everywhere ─────────────────────────────── */
@@ -177,7 +176,6 @@ function HeroParallax({ children }: { children: ReactNode }) {
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 export default function AboutPage() {
   const [showQRCode, setShowQRCode] = useState(false);
-  const isEmployee = useAuthStore((state) => state.user?.role === "EMPLOYEE");
 
   useEffect(() => {
     document.title = "TRUVI — About Truvi Ventures";
@@ -198,20 +196,10 @@ export default function AboutPage() {
       />
 
       <main className="relative min-h-screen text-white">
-        {isEmployee ? (
-          <div className="relative z-30 px-5 pt-5 md:px-10">
-            <Link
-              to="/employee/dashboard"
-              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/15 bg-black/50 px-4 py-2 text-xs font-semibold text-white/90 backdrop-blur transition hover:border-blue-400/40 hover:bg-white/10"
-            >
-              <ArrowRight size={14} className="rotate-180" aria-hidden="true" />
-              Back to employee workspace
-            </Link>
-          </div>
-        ) : <SiteNav />}
+        <SiteNav />
 
         {/* ── 1 · HERO ── */}
-        <Section className={isEmployee ? "pt-6 md:pt-8" : "pt-32 md:pt-40"}>
+        <Section className="pt-32 md:pt-40">
           <HeroParallax>
             <Reveal>
               <div className="flex items-center justify-between gap-4">
