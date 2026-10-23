@@ -446,7 +446,7 @@ const listQuery = z.object({
   status: z.enum(LEAD_STATUSES).optional(),
   projectId: z.string().refine(isValidId).optional(),
   unitId: z.string().refine(isValidId).optional(),
-  role: z.enum(["BUYER", "CP", "AMBASSADOR", "DEVELOPER", "ADMIN"]).optional(),
+  role: z.enum(["BUYER", "CP", "AMBASSADOR", "DEVELOPER", "ADMIN", "EMPLOYEE"]).optional(),
   creatorId: z.string().refine(isValidId).optional(),
   visitFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   visitTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

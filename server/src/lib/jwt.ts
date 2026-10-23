@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 export interface TokenPayload {
   userId: string;
-  role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER";
+  role: "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE";
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
   onboardingVerified?: boolean;
   /** Channel Partners only: has the compulsory CP joining been completed?

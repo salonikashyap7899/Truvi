@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   employees,
@@ -12,6 +12,13 @@ import {
   investorUpdates,
   customerFeedback,
   users,
+  employeeInvites,
+  employeeTasks,
+  employeeTaskAssignments,
+  employeeAttendance,
+  employeeSalaryRecords,
+  leads,
+  siteVisits,
 } from "../db/schema";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 import { isFounderEmail } from "../config/env";
@@ -61,7 +68,7 @@ const zBool = z.preprocess((v) => {
 // --------------------------------------------------------------- aggregate
 router.get("/summary", async (_req, res) => {
   const db = getDb();
-  const [emps, campaigns, land, cap, rounds, updates, feedback] = await Promise.all([
+  const [emps, campaigns, land, cap, rounds, updates, feedback, employeeAccounts, invites, workTasks, taskAssignmentRows, attendanceRows, salaryRows, employeeLeadRows, employeeVisitRows] = await Promise.all([
     db.select().from(employees).orderBy(desc(employees.performanceScore)),
     db.select().from(marketingCampaigns).orderBy(desc(marketingCampaigns.createdAt)),
     db.select().from(landParcels).orderBy(desc(landParcels.createdAt)),
@@ -69,24 +76,62 @@ router.get("/summary", async (_req, res) => {
     db.select().from(fundraiseRounds).orderBy(desc(fundraiseRounds.createdAt)),
     db.select().from(investorUpdates).orderBy(desc(investorUpdates.createdAt)),
     db.select().from(customerFeedback).orderBy(desc(customerFeedback.createdAt)),
+    db.select().from(users).where(eq(users.role, "EMPLOYEE")),
+    db.select().from(employeeInvites),
+    db.select().from(employeeTasks),
+    db.select().from(employeeTaskAssignments),
+    db.select().from(employeeAttendance),
+    db.select().from(employeeSalaryRecords),
+    db.select().from(leads).where(eq(leads.creatorRole, "EMPLOYEE")),
+    db.select().from(siteVisits).where(sql`responsible_user_id IS NOT NULL`),
   ]);
 
   // ---- Team ----
   const activeEmps = emps.filter((e) => e.status === "ACTIVE");
+  const linkedEmployeeIds = new Set(emps.filter((e) => e.accountUserId).map((e) => String(e.accountUserId)));
+  const linkedAccountRows = employeeAccounts.filter((u) => linkedEmployeeIds.has(String(u._id)));
+  const enabledAccounts = linkedAccountRows.filter((u) => !u.disabled);
+  const activeProfileIds = new Set(emps.filter((e) => e.status !== "INACTIVE").map((e) => String(e._id)));
+  const pendingInvitations = new Set(invites.filter((i) => !i.usedAt && i.expiresAt > new Date() && activeProfileIds.has(String(i.employeeId))).map((i) => String(i.employeeId)));
+  const todayIST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const todayAttendance = attendanceRows.filter((a) => a.attendanceDate === todayIST);
+  const pendingTasks = workTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
+  const assignedTaskIds = new Set(taskAssignmentRows.map((row) => String(row.taskId)));
+  const openAssignments = taskAssignmentRows.filter((row) => !["COMPLETED", "CANCELLED"].includes(row.status));
+  const personalOrLegacyPending = pendingTasks.filter((task) => task.taskType === "PERSONAL" || !assignedTaskIds.has(String(task._id)));
+  const employeeTasksPending = openAssignments.length + personalOrLegacyPending.length;
+  const employeeTasksOverdue = openAssignments.filter((assignment) => {
+    const task = workTasks.find((row) => String(row._id) === String(assignment.taskId));
+    return !!task?.deadlineAt && task.deadlineAt < new Date();
+  }).length + personalOrLegacyPending.filter((task) => !!task.deadlineAt && task.deadlineAt < new Date()).length;
+  const employeeLeadIds = new Set(employeeLeadRows.filter((l) => linkedEmployeeIds.has(String(l.submittedById)) || linkedEmployeeIds.has(String(l.assignedToId))).map((l) => String(l._id)));
+  const now = new Date();
   const team = {
     total: emps.length,
     active: activeEmps.length,
-    presentToday: emps.filter((e) => e.presentToday && e.status !== "INACTIVE").length,
-    onLeave: emps.filter((e) => e.status === "ON_LEAVE").length,
-    tasksPending: emps.reduce((s, e) => s + e.tasksPending, 0),
+    presentToday: todayAttendance.filter((a) => a.status === "PRESENT").length + (emps.filter((e) => !e.accountUserId && e.presentToday && e.status !== "INACTIVE").length),
+    onLeave: todayAttendance.filter((a) => a.status === "ON_LEAVE").length + emps.filter((e) => !e.accountUserId && e.status === "ON_LEAVE").length,
+    tasksPending: employeeTasksPending + emps.filter((e) => !e.accountUserId).reduce((sum, e) => sum + e.tasksPending, 0),
     avgPerformance: emps.length ? Math.round(emps.reduce((s, e) => s + e.performanceScore, 0) / emps.length) : 0,
     monthlyPayroll: round(activeEmps.reduce((s, e) => s + e.monthlyCtc, 0)),
+    employeeAccounts: employeeAccounts.length,
+    activeEmployeeAccounts: enabledAccounts.length,
+    inactiveEmployeeAccounts: employeeAccounts.filter((u) => u.disabled).length,
+    pendingInvitations: pendingInvitations.size,
+    employeeTasksPending,
+    employeeTasksOverdue,
+    employeeLeadsSubmitted: employeeLeadIds.size,
+    employeeSiteVisits: employeeVisitRows.filter((v) => linkedEmployeeIds.has(String(v.responsibleUserId))).length,
+    employeeAttendanceMarkedToday: todayAttendance.length,
+    paidPayrollThisPeriod: round(salaryRows.filter((s) => s.status === "PAID").reduce((sum, s) => sum + s.netPayable, 0)),
+    byRecruitmentSource: Object.entries(emps.reduce<Record<string, number>>((acc, e) => { const source = e.recruitmentSource || "Other"; acc[source] = (acc[source] || 0) + 1; return acc; }, {})).map(([source, count]) => ({ source, count })),
     byDepartment: Object.entries(
       emps.reduce<Record<string, number>>((acc, e) => ((acc[e.department] = (acc[e.department] || 0) + 1), acc), {})
     ).map(([department, count]) => ({ department, count })),
     ranking: emps.slice(0, 8).map((e) => ({
       id: String(e._id), name: e.name, title: e.title, department: e.department,
-      status: e.status, performanceScore: e.performanceScore, tasksPending: e.tasksPending, presentToday: e.presentToday,
+      status: e.status, performanceScore: e.performanceScore, tasksPending: e.accountUserId ? openAssignments.filter((a) => String(a.employeeId) === String(e._id)).length + pendingTasks.filter((t) => String(t.employeeId) === String(e._id) && (t.taskType === "PERSONAL" || !assignedTaskIds.has(String(t._id)))).length : e.tasksPending,
+      presentToday: e.accountUserId ? todayAttendance.some((a) => String(a.employeeId) === String(e._id) && a.status === "PRESENT") : e.presentToday,
     })),
   };
 
@@ -206,6 +251,8 @@ router.post("/employees", async (req, res) => {
 });
 router.delete("/employees/:id", async (req, res) => {
   const db = getDb();
+  const [existing] = await db.select().from(employees).where(eq(employees._id, String(req.params.id))).limit(1);
+  if (existing?.accountUserId) return res.status(409).json({ error: "This employee has a login account and operational history. Deactivate the account from Employee Management instead so tasks, attendance, leads and payroll remain linked." });
   const [row] = await db.delete(employees).where(eq(employees._id, String(req.params.id))).returning();
   if (!row) return res.status(404).json({ error: "Not found" });
   res.json({ ok: true });

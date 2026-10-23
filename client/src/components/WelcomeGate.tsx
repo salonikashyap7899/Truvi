@@ -29,11 +29,7 @@ const ROLES: { id: GateRole; label: string; tagline: string; icon: React.ReactNo
   {
     id: "CP",
     label: "Channel Partner",
-<<<<<<< Updated upstream
     tagline: "Connect buyers with verified properties and grow your real estate business.",
-=======
-    tagline: "Connect buyers with verified properties and earn commissions.",
->>>>>>> Stashed changes
     icon: <Handshake size={18} />,
     accent: "from-emerald-500/25 to-emerald-900/10 border-emerald-400/30 hover:border-emerald-300/60",
   },
@@ -130,11 +126,7 @@ export default function WelcomeGate() {
               <div className="rounded-[23px] bg-[#0a0d14]/95 px-6 py-6 md:px-8">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center">
-<<<<<<< Updated upstream
                   <span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_32px_rgba(59,130,246,0.45)]">
-=======
-                  <span className="grid size-10 place-items-center">
->>>>>>> Stashed changes
                     <img src="/favicon-32.png" alt="Truvi" className="h-full w-full object-contain" />
                   </span>
                   <h1 className="mt-3 font-display text-xl font-medium leading-snug text-white md:text-[1.35rem]">

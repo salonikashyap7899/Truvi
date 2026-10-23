@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { toast } from "sonner";
@@ -8,6 +9,10 @@ import { Kpi, Panel, type Overview, type FinanceSummary } from "@/pages/dashboar
 interface TeamSummary {
   total: number; active: number; presentToday: number; onLeave: number; tasksPending: number;
   avgPerformance: number; monthlyPayroll: number;
+  employeeAccounts?: number; activeEmployeeAccounts?: number; inactiveEmployeeAccounts?: number; pendingInvitations?: number;
+  employeeTasksPending?: number; employeeTasksOverdue?: number; employeeLeadsSubmitted?: number; employeeSiteVisits?: number;
+  employeeAttendanceMarkedToday?: number; paidPayrollThisPeriod?: number;
+  byRecruitmentSource?: { source: string; count: number }[];
   byDepartment: { department: string; count: number }[];
   ranking: { id: string; name: string; title: string | null; department: string; status: string; performanceScore: number; tasksPending: number; presentToday: boolean }[];
 }
@@ -117,6 +122,7 @@ const statusBadge = (s: string) => {
 
 /* ================================================================= Team */
 export function TeamPage({ over }: { over?: Overview }) {
+  const navigate = useNavigate();
   const { data, loading, reload } = useSummary();
   if (loading || !data) return <Loading />;
   const t = data.team;
@@ -133,6 +139,25 @@ export function TeamPage({ over }: { over?: Overview }) {
         <Kpi icon="wallet" tone="blue" label="Monthly Payroll" value={formatCompactINR(t.monthlyPayroll)} />
         {st && <Kpi icon="refresh" tone={st.avgResponseHours === null ? "blue" : st.avgResponseHours <= 24 ? "green" : "amber"} label="Avg Response Time" value={st.avgResponseHours === null ? "—" : `${st.avgResponseHours}h`} foot={st.respondedCount ? `${st.respondedCount} leads worked` : "Lead → first contact"} />}
       </div>
+
+      <div className="kpi-grid">
+        <Kpi icon="users" tone="blue" label="Linked Employee Accounts" value={String(t.employeeAccounts ?? 0)} foot={`${t.activeEmployeeAccounts ?? 0} active`} />
+        <Kpi icon="shield" tone="green" label="Pending Invitations" value={String(t.pendingInvitations ?? 0)} foot="Activation links not yet used" />
+        <Kpi icon="target" tone={t.employeeTasksOverdue ? "amber" : "green"} label="Employee Tasks Overdue" value={String(t.employeeTasksOverdue ?? 0)} foot={`${t.employeeTasksPending ?? 0} open tasks`} />
+        <Kpi icon="chart" tone="blue" label="Employee Leads" value={String(t.employeeLeadsSubmitted ?? 0)} foot={`${t.employeeSiteVisits ?? 0} site visits`} />
+        <Kpi icon="wallet" tone="blue" label="Paid Salary Records" value={formatCompactINR(t.paidPayrollThisPeriod ?? 0)} foot="From recorded payroll statuses" />
+      </div>
+      <Panel title="Employee Management System" sub="Secure staff accounts, assigned tasks, central CRM leads, site visits, attendance and controlled payroll.">
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ fontSize: 13, color: "var(--ink-500)", maxWidth: 680 }}>
+            {t.employeeAccounts ?? 0} employee accounts are linked to {t.total} employee profiles. {t.inactiveEmployeeAccounts ?? 0} accounts are disabled and {t.pendingInvitations ?? 0} invitations are awaiting activation. Legacy employee records remain visible.
+          </div>
+          <button className="btn btn-primary" onClick={() => navigate("/admin/employees")}>Open Employee Management</button>
+        </div>
+        {(t.byRecruitmentSource?.length ?? 0) > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+          {t.byRecruitmentSource!.map((r) => <span key={r.source} className="badge">{r.source}: {r.count}</span>)}
+        </div>}
+      </Panel>
 
       {st && st.tracked && (
         <Panel title="Sales Leaderboard" sub="Live — reps ranked by conversions (leads assigned in the CRM)" icon="trophy" iconTone="amber">

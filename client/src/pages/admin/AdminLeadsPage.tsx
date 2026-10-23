@@ -200,6 +200,7 @@ export default function AdminLeadsPage() {
             <option value="BUYER">Buyer</option>
             <option value="CP">Channel Partner</option>
             <option value="AMBASSADOR">Ambassador</option>
+            <option value="EMPLOYEE">Employee</option>
           </select>
           <select aria-label="Added by" value={filters.creatorId} onChange={(e) => set({ creatorId: e.target.value })} className={sel}>
             <option value="">Anyone</option>

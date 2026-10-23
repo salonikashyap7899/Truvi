@@ -97,6 +97,7 @@ function timeAgo(iso: string): string {
 /** Sidebar links map to the admin panel's real workspaces (existing features). */
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Users", icon: "users", path: "/admin/users" },
+  { label: "Employee Management", icon: "users", path: "/admin/employees" },
   { label: "Listings", icon: "building", path: "/admin/listings" },
   { label: "Habitat", icon: "building", path: "/admin/habitat" },
   { label: "Truvi Scores", icon: "chart", path: "/admin/scores" },
