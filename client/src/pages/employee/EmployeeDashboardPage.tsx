@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Bell, Building2, CalendarCheck, CalendarClock, CalendarDays, CircleDollarSign, ClipboardList, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, ShieldAlert, UserRound, Users, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
+import { NotificationBell } from "@/components/NotificationBell";
 
 type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
@@ -144,13 +145,8 @@ export default function EmployeeDashboardPage() {
     if (!notice?._id || notificationIdsRef.current.has(notice._id)) return;
     notificationIdsRef.current.add(notice._id);
     setNotices((current) => [notice, ...current.filter((item) => item._id !== notice._id)].slice(0, 200));
-    if (!notice.isRead) {
-      const { Icon, tone } = noticeVisual(notice.type);
-      toast.info(notice.title || "New Truvi notification", {
-        description: notice.message,
-        icon: <Icon size={18} className={tone.split(" ")[0]} />,
-      });
-    }
+    // The shared NotificationBell owns the toast, preventing duplicate popups;
+    // this listener keeps the employee's Notifications tab and unread badge live.
   });
 
   const today = (() => { const ps = new Intl.DateTimeFormat("en-CA", { timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit" }).formatToParts(new Date()); const val = (k:string) => ps.find((p)=>p.type===k)?.value ?? ""; return `${val("year")}-${val("month")}-${val("day")}`; })();
@@ -317,7 +313,7 @@ export default function EmployeeDashboardPage() {
       <div className="mx-auto max-w-[1450px] space-y-6">
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Ventures · Employee Workspace</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Hello{employee?.name ? `, ${employee.name.split(" ")[0]}` : ""}</h1><p className="mt-2 text-sm text-muted-foreground">{new Date().toLocaleDateString("en-IN",{weekday:"long",day:"numeric",month:"long",year:"numeric",timeZone:"Asia/Kolkata"})} · {employee?.designation || "Employee"} · {employee?.department || "Team"}</p></div>
-          <div className="flex gap-2"><button onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Refresh</button><Link to="/login" className="rounded-xl border border-white/10 px-3 py-2 text-sm">Sign in help</Link></div>
+          <div className="flex items-center gap-2"><NotificationBell/><button type="button" onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Refresh</button><Link to="/login" className="rounded-xl border border-white/10 px-3 py-2 text-sm">Sign in help</Link></div>
         </header>
 
         <div className="truvi-erm-workspace">
