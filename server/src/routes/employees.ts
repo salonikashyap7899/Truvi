@@ -369,6 +369,8 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
     if (existing.length) return res.status(409).json({ error: "An account already exists for this official email." });
     const tempPasswordHash = await bcrypt.hash(randomBytes(48).toString("hex"), 12);
     const code = data.employeeCode || `TRV-EMP-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+    const [existingCode] = await db.select({ id: employees._id }).from(employees).where(eq(employees.employeeCode, code)).limit(1);
+    if (existingCode) return res.status(409).json({ error: "That employee ID is already in use." });
     const created = await db.transaction(async (tx) => {
       const [account] = await tx.insert(users).values({
         name: data.name, email: data.officialEmail, password: tempPasswordHash,
@@ -422,6 +424,8 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
     if (existingAccount) return res.status(409).json({ error: "An account already exists for this official email." });
     const passwordHash = await bcrypt.hash(randomBytes(48).toString("hex"), 12);
     const code = parsed.data.employeeCode || employee.employeeCode || `TRV-EMP-${new Date().getFullYear()}-${randomBytes(3).toString("hex").toUpperCase()}`;
+    const [existingCode] = await db.select({ id: employees._id }).from(employees).where(eq(employees.employeeCode, code)).limit(1);
+    if (existingCode && String(existingCode.id) !== String(employee._id)) return res.status(409).json({ error: "That employee ID is already in use." });
     const phone = parsed.data.phone || employee.phone || null;
     const linked = await db.transaction(async (tx) => {
       const [account] = await tx.insert(users).values({
