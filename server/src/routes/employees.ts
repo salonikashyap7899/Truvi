@@ -1209,6 +1209,17 @@ router.delete("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest,
       resourceType: "employee_task", resourceId: taskId,
       metadata: { attachmentId, fileName: attachment.originalFileName },
     });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_attachment_removed",
+        title: "Employee removed a task attachment",
+        message: actor.name + " removed " + attachment.originalFileName + " from task " + taskId + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-attachment-removed:" + attachmentId,
+      });
+    }
     return res.json({ ok: !!deleted });
   } catch (err) { next(err); }
 });
@@ -1808,6 +1819,16 @@ router.patch("/leave-requests/:id", async (req: AuthedRequest, res, next) => {
       resourceType: "employee_leave_request", resourceId: requestId,
       metadata: { employeeId: String(employee._id), startDate: updated.startDate, endDate: updated.endDate, reviewNotes: updated.reviewNotes },
     });
+    if (!admin && updated.status === "CANCELLED") {
+      await notifyActiveAdmins({
+        type: "employee_leave_cancelled",
+        title: "Employee cancelled a leave request",
+        message: employee.name + " cancelled their leave request for " + updated.startDate + " to " + updated.endDate + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=leave",
+        dedupeKey: "employee-leave-cancelled:" + requestId,
+      });
+    }
     return res.json({ leaveRequest: updated });
   } catch (err) { next(err); }
 });
