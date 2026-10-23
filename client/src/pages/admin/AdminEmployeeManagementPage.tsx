@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -66,6 +66,7 @@ const emptyEmployee = {
 
 export default function AdminEmployeeManagementPage() {
   const [tab, setTab] = useState<Tab>("overview");
+  const [searchParams] = useSearchParams();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -107,6 +108,7 @@ export default function AdminEmployeeManagementPage() {
     } finally { setLoading(false); }
   }
   useEffect(() => { void reload(); }, []);
+  useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabs.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
 
   const shownEmployees = useMemo(() => employees.filter((e) => {
     const q = query.toLowerCase().trim();
