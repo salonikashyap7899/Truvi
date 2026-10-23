@@ -29,8 +29,8 @@ The activation token is randomly generated and only its SHA-256 hash is stored. 
 ## Important operational constraints
 
 - Do not deploy to production until branch checks pass and the branch is reviewed.
-- Back up the PostgreSQL database and test startup migrations against a staging copy first.
-- SMTP is required for invitation delivery. Existing environment variable names are SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and optional SMTP_FROM. The client activation URL uses CLIENT_URL; otherwise it defaults to https://truviventures.com.
+- Back up the PostgreSQL database and test startup migrations against a staging copy first. Configure durable private storage for task attachments by setting PRIVATE_UPLOAD_DIR to a persistent disk/path on the host; the default local directory may be ephemeral on cloud hosts.
+- SMTP is required for invitation delivery. Existing environment variable names are SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and optional SMTP_FROM. The client activation URL uses CLIENT_URL; otherwise it defaults to https://truviventures.com. If an employee has a phone number on record, the existing login policy also requires phone OTP verification after email activation, so SMS delivery must be configured; leave phone blank during provisioning when the employee should activate by email only.
 - The employee login role is intentionally not available through public signup. Admins provision employee accounts.
 - Salary status changes do not initiate bank or UPI payouts. A record can be marked Paid only after approval and requires payment date and reference.
 - Call activity is manually logged by an employee. Truvi does not covertly place or record calls.
