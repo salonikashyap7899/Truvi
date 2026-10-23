@@ -99,7 +99,7 @@ export const uploadProfileImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB profile photos
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_PROFILE_IMAGE_MIME.has(file.mimetype)) {
-      return cb(new Error("Profile photos must be JPG, PNG or WEBP images."));
+      return cb(new Error("Unsupported file type. Profile photos must be JPG, PNG or WEBP images."));
     }
     cb(null, true);
   },
