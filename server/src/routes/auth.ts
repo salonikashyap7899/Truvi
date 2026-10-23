@@ -173,7 +173,7 @@ router.patch("/profile", authenticate, async (req: AuthedRequest, res) => {
   // Keep the employee directory's display name in sync with the employee's
   // own account profile. Contact changes have dedicated OTP-protected routes.
   if (updated.role === "EMPLOYEE" && typeof update.name === "string") {
-    await db.update(employees).set({ name: update.name, updatedAt: new Date() }).where(eq(employees.accountUserId, userId)).catch(() => []);
+    await db.update(employees).set({ name: update.name }).where(eq(employees.accountUserId, userId)).catch(() => []);
   }
   if (updated.role === "EMPLOYEE") {
     void notifyRole("ADMIN", {
@@ -269,7 +269,7 @@ router.post("/profile/verify-email-change", authenticate, ...otpVerifyLimiter, a
       authVersion: (user.authVersion ?? 0) + 1,
     }).where(eq(users._id, userId)).returning();
     if (!updated) return res.status(404).json({ error: "User not found." });
-    await getDb().update(employees).set({ officialEmail: targetEmail, updatedAt: new Date() }).where(eq(employees.accountUserId, userId)).catch(() => []);
+    await getDb().update(employees).set({ officialEmail: targetEmail }).where(eq(employees.accountUserId, userId)).catch(() => []);
     await clearOtpAttempts("email-change:" + userId);
     clearRefreshCookies(res);
     void notifyRole("ADMIN", {
@@ -355,7 +355,7 @@ router.post("/profile/verify-phone-change", authenticate, ...otpVerifyLimiter, a
     verification: nextVerification,
   }).where(eq(users._id, userId)).returning();
   if (!updated) return res.status(404).json({ error: "User not found." });
-  await getDb().update(employees).set({ phone: verification.pendingPhoneChange, updatedAt: new Date() }).where(eq(employees.accountUserId, userId)).catch(() => []);
+  await getDb().update(employees).set({ phone: verification.pendingPhoneChange }).where(eq(employees.accountUserId, userId)).catch(() => []);
   await clearOtpAttempts("phone-change:" + userId);
   void notifyRole("ADMIN", {
     type: "employee_contact_updated",
