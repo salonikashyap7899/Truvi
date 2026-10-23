@@ -17,6 +17,7 @@ import { sendEmail } from "../services/emailService";
 import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
+import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -41,13 +42,6 @@ const dateInIndia = (d = new Date()) => {
   return `${val("year")}-${val("month")}-${val("day")}`;
 };
 const thisMonth = (d = new Date()) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-function hasPermission(permissions: string[] | null | undefined, key: string) {
-  return Array.isArray(permissions) && permissions.includes(key);
-}
-function hasLeadScopePermission(permissions: string[] | null | undefined, lead: { submittedById: string | null; assignedToId: string | null }, userId: string, ownKey: string, assignedKey: string) {
-  return (String(lead.submittedById ?? "") === userId && hasPermission(permissions, ownKey)) ||
-    (String(lead.assignedToId ?? "") === userId && hasPermission(permissions, assignedKey));
-}
 function employeeLeadScope(permissions: string[] | null | undefined, userId: string) {
   const scopes = [];
   if (hasPermission(permissions, "lead.read.own")) scopes.push(eq(leads.submittedById, userId));
@@ -762,7 +756,7 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     if (!parsed.success) return res.status(400).json({ error: "Invalid lead update." });
     const emp = await needEmployee(req, res); if (!emp) return;
     const [lead] = await getDb().select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
-    if (!lead || !hasLeadScopePermission(emp.permissions, lead, req.user!.userId, "lead.update.own", "lead.update.assigned")) return res.status(404).json({ error: "Lead not found." });
+    if (!lead || !canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.update.own", "lead.update.assigned")) return res.status(404).json({ error: "Lead not found." });
     const d = parsed.data;
     const patch: Partial<typeof leads.$inferInsert> = { updatedAt: new Date() };
     if (d.stage) patch.stage = d.stage;
