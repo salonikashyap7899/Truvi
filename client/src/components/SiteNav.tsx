@@ -93,6 +93,13 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
         { label: "Inventory", to: "/inventory" },
         { label: "For Developers", hash: "#developer-intelligence" },
       ];
+    case "EMPLOYEE":
+      // Employee links are deliberately limited to their dashboard and About.
+      // Google Meet, Home and Logout remain in the account dropdown.
+      return [
+        dash("Dashboard"),
+        { label: "About", to: "/about" },
+      ];
     case "BUYER":
       return [
         dash("Dashboard"),
