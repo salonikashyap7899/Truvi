@@ -1494,7 +1494,7 @@ router.patch("/leave-requests/:id", async (req: AuthedRequest, res, next) => {
           gte(employeeAttendance.attendanceDate, before.startDate),
           lt(employeeAttendance.attendanceDate, dayAfterEnd.toISOString().slice(0, 10)),
         ));
-      if (existingAttendance.some((row) => row.checkInAt || row.status === "PRESENT" || row.status === "HALF_DAY")) {
+      if (existingAttendance.some((row) => row.checkInAt || row.checkOutAt || row.status === "PRESENT" || row.status === "HALF_DAY")) {
         return res.status(409).json({ error: "Attendance already records work on one or more requested days. Resolve that conflict before approving leave." });
       }
     }
