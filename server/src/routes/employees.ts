@@ -206,7 +206,7 @@ const salaryPatchSchema = z.object({
 });
 const roundMoney = (n: number) => Math.round(n * 100) / 100;
 
-function employeePublicShape(e: typeof employees.$inferSelect, account?: { email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean } | null) {
+function employeePublicShape(e: typeof employees.$inferSelect, account?: { email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean } | null, includeSalary = true) {
   return {
     id: String(e._id), accountUserId: e.accountUserId, employeeCode: e.employeeCode,
     name: e.name, officialEmail: e.officialEmail ?? account?.email ?? "",
@@ -214,8 +214,8 @@ function employeePublicShape(e: typeof employees.$inferSelect, account?: { email
     employmentType: e.employmentType, reportingManagerId: e.reportingManagerId,
     recruitmentSource: e.recruitmentSource ?? "Other", recruitmentCampaign: e.recruitmentCampaign ?? "",
     applicationDate: e.applicationDate, interviewDate: e.interviewDate, joiningDate: e.joinedAt,
-    status: e.status, monthlySalary: e.monthlyCtc, salaryDueDay: e.salaryDueDay,
-    salaryStartDate: e.salaryStartDate, notes: e.notes ?? "",
+    status: e.status, monthlySalary: includeSalary ? e.monthlyCtc : undefined, salaryDueDay: includeSalary ? e.salaryDueDay : undefined,
+    salaryStartDate: includeSalary ? e.salaryStartDate : undefined, notes: e.notes ?? "",
     permissions: e.permissions ?? [],
     accountStatus: !e.accountUserId ? "NO_ACCOUNT" : account?.disabled ? "INVITED_OR_DISABLED" : account?.emailVerified && account?.phoneVerified ? "ACTIVE" : "VERIFICATION_REQUIRED",
     createdAt: e.createdAt,
@@ -315,7 +315,7 @@ router.get("/me", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next)
     const emp = await needEmployee(req, res);
     if (!emp) return;
     const [account] = await getDb().select({ email: users.email, disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
-    return res.json({ employee: employeePublicShape(emp, account), userId: req.user!.userId });
+    return res.json({ employee: employeePublicShape(emp, account, hasPermission(emp.permissions, "salary.read.own")), userId: req.user!.userId });
   } catch (err) { next(err); }
 });
 
@@ -525,7 +525,7 @@ router.get("/me/overview", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     const todayAttendance = attendance.find((a) => a.attendanceDate === today) || null;
     const now = new Date();
     return res.json({
-      employee: employeePublicShape(emp),
+      employee: employeePublicShape(emp, null, hasPermission(emp.permissions, "salary.read.own")),
       today,
       tasks: {
         today: tasks.filter((t) => t.deadlineAt && dateInIndia(t.deadlineAt) === today),
@@ -808,7 +808,9 @@ router.get("/leads/:id/activities", async (req: AuthedRequest, res, next) => {
     } else if (req.user!.role !== "ADMIN") return res.status(403).json({ error: "Insufficient permissions." });
     const [activities, followUps] = await Promise.all([
       getDb().select().from(leadActivities).where(eq(leadActivities.leadId, lead._id)).orderBy(desc(leadActivities.createdAt)),
-      getDb().select().from(leadFollowUps).where(and(eq(leadFollowUps.leadId, lead._id), eq(leadFollowUps.cpId, req.user!.userId))).orderBy(desc(leadFollowUps.dueAt)),
+      req.user!.role === "ADMIN"
+        ? getDb().select().from(leadFollowUps).where(eq(leadFollowUps.leadId, lead._id)).orderBy(desc(leadFollowUps.dueAt))
+        : getDb().select().from(leadFollowUps).where(and(eq(leadFollowUps.leadId, lead._id), eq(leadFollowUps.cpId, req.user!.userId))).orderBy(desc(leadFollowUps.dueAt)),
     ]);
     return res.json({ activities, followUps });
   } catch (err) { next(err); }
