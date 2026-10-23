@@ -290,7 +290,7 @@ router.get("/overview", requireRole("ADMIN"), async (req: AuthedRequest, res, ne
       warmLeads: [...relatedLeads.values()].filter((l) => l.leadTemperature === "WARM").length,
       coldLeads: [...relatedLeads.values()].filter((l) => l.leadTemperature === "COLD").length,
       upcomingSiteVisits: visits.filter((v) => employeeIds.has(String(v.responsibleUserId)) && v.scheduledAt >= new Date() && !["CANCELLED", "COMPLETED"].includes(v.status)).length,
-      callsCompletedToday: callRows.filter((c) => c.actorUserId && employeeIds.has(String(c.actorUserId)) && c.type === "CALL" && c.createdAt >= start && c.createdAt < end).length,
+      callsLoggedToday: callRows.filter((c) => c.actorUserId && employeeIds.has(String(c.actorUserId)) && c.type === "CALL" && c.createdAt >= start && c.createdAt < end).length,
       attendanceSummary: {
         present: attendance.filter((a) => a.status === "PRESENT").length,
         absent: attendance.filter((a) => a.status === "ABSENT").length,
@@ -426,6 +426,8 @@ router.post("/:id/invite", requireRole("ADMIN"), async (req: AuthedRequest, res,
     if (!isValidId(req.params.id)) return res.status(404).json({ error: "Employee not found." });
     const emp = await getDb().select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
     if (!emp[0]?.accountUserId || emp[0].status === "INACTIVE") return res.status(400).json({ error: "Only employees with a linked, non-inactive account can be invited." });
+    const [account] = await getDb().select({ disabled: users.disabled, emailVerified: users.emailVerified }).from(users).where(eq(users._id, emp[0].accountUserId)).limit(1);
+    if (!account || !account.disabled || account.emailVerified) return res.status(409).json({ error: "This account has already completed email activation. Use the password-reset flow for access recovery." });
     const invite = await issueInvite(String(emp[0]._id), req.user!.userId);
     await logAudit({ userId: req.user!.userId, action: "employee.invite.resend", resourceType: "employee", resourceId: String(emp[0]._id), metadata: { delivered: invite.delivered } });
     return res.json({ delivered: invite.delivered, message: invite.delivered ? "Activation invitation sent." : "Email was not delivered. Check SMTP configuration and try again." });
@@ -441,9 +443,16 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
     const [before] = await db.select().from(employees).where(eq(employees._id, req.params.id)).limit(1);
     if (!before) return res.status(404).json({ error: "Employee not found." });
     const d = parsed.data;
+    if (d.officialEmail && d.officialEmail !== before.officialEmail && before.accountUserId) {
+      return res.status(400).json({ error: "Changing the email on a linked login requires the email-verification workflow. The current login email was not changed." });
+    }
     if (d.officialEmail && d.officialEmail !== before.officialEmail) {
       const [existing] = await db.select({ id: users._id }).from(users).where(eq(users.email, d.officialEmail)).limit(1);
       if (existing && String(existing.id) !== String(before.accountUserId)) return res.status(409).json({ error: "An account already exists for this email." });
+    }
+    if (d.employeeCode && d.employeeCode !== before.employeeCode) {
+      const [existingCode] = await db.select({ id: employees._id }).from(employees).where(eq(employees.employeeCode, d.employeeCode)).limit(1);
+      if (existingCode && String(existingCode.id) !== String(before._id)) return res.status(409).json({ error: "That employee ID is already in use." });
     }
     const patch: Partial<typeof employees.$inferInsert> = {};
     if (d.name !== undefined) patch.name = d.name;
@@ -474,14 +483,18 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
         userPatch.disabled = true;
         userPatch.authVersion = sql`auth_version + 1` as unknown as number;
       } else if (d.status === "ACTIVE" || d.status === "ON_LEAVE") {
-        // Reactivation never skips activation/verification: invite-only accounts remain disabled until activated.
+        // Re-enable only previously verified accounts; pending invitations must still be activated first.
         const [account] = await db.select({ disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified }).from(users).where(eq(users._id, before.accountUserId)).limit(1);
-        if (account && !account.disabled && account.emailVerified && account.phoneVerified) userPatch.disabled = false;
+        userPatch.disabled = !account?.emailVerified || !account?.phoneVerified;
+        if (account?.emailVerified && account?.phoneVerified) userPatch.authVersion = sql`auth_version + 1` as unknown as number;
       }
       if (Object.keys(userPatch).length) await db.update(users).set(userPatch).where(eq(users._id, before.accountUserId));
     }
     if (d.monthlySalary !== undefined && d.monthlySalary !== before.monthlyCtc) {
       await logAudit({ userId: req.user!.userId, action: "employee.salary.structure.update", resourceType: "employee", resourceId: req.params.id, metadata: { from: before.monthlyCtc, to: d.monthlySalary, reason: "Employee profile update" } });
+    }
+    if (d.permissions !== undefined && JSON.stringify(d.permissions) !== JSON.stringify(before.permissions ?? [])) {
+      await logAudit({ userId: req.user!.userId, action: "employee.permissions.update", resourceType: "employee", resourceId: req.params.id, metadata: { before: before.permissions ?? [], after: updated.permissions ?? [] } });
     }
     await logAudit({ userId: req.user!.userId, action: d.status === "INACTIVE" ? "employee.deactivate" : "employee.update", resourceType: "employee", resourceId: req.params.id, metadata: { changedFields: Object.keys(d) } });
     return res.json({ employee: employeePublicShape(updated) });
