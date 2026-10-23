@@ -13,6 +13,9 @@ type Employee = {
   salaryDueDay: number; notes?: string; permissions?: string[]; accountStatus?: string;
 };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
+type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
+type TaskComment = { _id: string; authorUserId: string; body: string; createdAt: string };
+type TaskActivity = { history: TaskHistoryItem[]; comments: TaskComment[] };
 type TaskAssignee = { employeeId: string; name: string; employeeCode?: string | null; status: string };
 type Task = { _id: string; employeeId: string; title: string; description?: string | null; taskType: string; priority: string; status: string; taskStatus?: string; deadlineAt?: string | null; createdAt: string; assignees?: TaskAssignee[]; assignedEmployeeIds?: string[]; attachments?: TaskAttachment[] };
 type LeaveRequest = { _id: string; employeeId: string; employeeName?: string; employeeCode?: string; department?: string; leaveType: string; startDate: string; endDate: string; totalDays: number; reason: string; status: string; reviewNotes?: string | null; createdAt: string };
@@ -70,6 +73,9 @@ export default function AdminEmployeeManagementPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
+  const [taskActivity, setTaskActivity] = useState<TaskActivity | null>(null);
+  const [taskCommentDraft, setTaskCommentDraft] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
@@ -178,6 +184,29 @@ export default function AdminEmployeeManagementPage() {
   async function updateTask(task: Task, status: string) {
     try { await api.patch(`/employees/tasks/${task._id}`, { status }); toast.success("Task updated."); await reload(); }
     catch (error: any) { toast.error(error?.response?.data?.error || "Could not update task."); }
+  }
+  async function openTaskActivity(taskId: string) {
+    if (taskActivityId === taskId) {
+      setTaskActivityId(null); setTaskActivity(null); setTaskCommentDraft("");
+      return;
+    }
+    setTaskActivityId(taskId);
+    setTaskActivity(null);
+    try {
+      const response = await api.get("/employees/tasks/" + taskId + "/history");
+      setTaskActivity(response.data);
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not load task history."); }
+  }
+  async function addTaskComment(e: FormEvent) {
+    e.preventDefault();
+    if (!taskActivityId || !taskCommentDraft.trim()) return;
+    try {
+      await api.post("/employees/tasks/" + taskActivityId + "/comments", { body: taskCommentDraft.trim() });
+      setTaskCommentDraft("");
+      const response = await api.get("/employees/tasks/" + taskActivityId + "/history");
+      setTaskActivity(response.data);
+      toast.success("Task comment added.");
+    } catch (error: any) { toast.error(error?.response?.data?.error || "Could not add task comment."); }
   }
   async function uploadTaskAttachment(taskId: string, file: File) {
     const form = new FormData();
@@ -383,8 +412,16 @@ export default function AdminEmployeeManagementPage() {
           </form>
         </Panel>
         <Panel title="Company task board" sub="Filterable task lifecycle and deadlines">
-          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><div className="flex flex-col items-start gap-2"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select>{t.taskType==="ASSIGNED"&&<button onClick={()=>startReassignTask(t)} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Edit assignees</button>}</div></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><button onClick={()=>void openTaskActivity(t._id)} className="ml-2 rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><div className="flex flex-col items-start gap-2"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select>{t.taskType==="ASSIGNED"&&<button onClick={()=>startReassignTask(t)} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Edit assignees</button>}</div></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
         </Panel>
+        {taskActivityId && <Panel title={"Task history & comments · " + (tasks.find((task) => task._id === taskActivityId)?.title || "Task")} sub="Each action is recorded by Truvi. Comments and history are visible only to the Admin and authorized task assignees.">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div><h3 className="mb-2 text-sm font-semibold">Comments</h3><div className="max-h-72 space-y-2 overflow-y-auto">{(taskActivity?.comments||[]).map((comment)=><div key={comment._id} className="rounded-xl border border-white/10 p-3"><p className="whitespace-pre-wrap text-sm">{comment.body}</p><p className="mt-2 text-xs text-muted-foreground">{comment.authorUserId} · {dt(comment.createdAt)}</p></div>)}{taskActivity && taskActivity.comments.length===0&&<p className="text-sm text-muted-foreground">No comments yet.</p>}</div>
+              <form onSubmit={addTaskComment} className="mt-3 flex gap-2"><input value={taskCommentDraft} onChange={(e)=>setTaskCommentDraft(e.target.value)} maxLength={3000} required placeholder="Add a task comment…" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-background px-3 py-2 text-sm"/><button className="rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground">Post</button></form>
+            </div>
+            <div><h3 className="mb-2 text-sm font-semibold">History</h3><div className="max-h-96 space-y-2 overflow-y-auto">{(taskActivity?.history||[]).map((entry)=><div key={entry._id} className="rounded-xl border border-white/10 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><b className="text-sm">{entry.action.replaceAll("_"," ")}</b><span className="text-xs text-muted-foreground">{dt(entry.createdAt)}</span></div><p className="mt-1 text-xs text-muted-foreground">Actor: {entry.actorUserId}</p>{entry.reason&&<p className="mt-1 text-xs">Reason: {entry.reason}</p>}{entry.afterValue&&<pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">{JSON.stringify(entry.afterValue,null,2)}</pre>}</div>)}{taskActivity && taskActivity.history.length===0&&<p className="text-sm text-muted-foreground">No history events are available.</p>}</div></div>
+          </div>
+        </Panel>}
         {reassignTaskId && <Panel title={"Update assignees · " + (tasks.find((task) => task._id === reassignTaskId)?.title || "Task")} sub="Choose one or more active employees with linked login accounts. Completed assignments remain completed for employees who stay assigned.">
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{employees.filter((employee) => employee.accountUserId && employee.status !== "INACTIVE").map((employee) => <label key={employee.id} className="flex items-center gap-2 rounded-lg border border-white/10 p-3 text-sm"><input type="checkbox" checked={reassignEmployeeIds.includes(employee.id)} onChange={(event) => setReassignEmployeeIds((current) => event.target.checked ? Array.from(new Set([...current, employee.id])) : current.filter((id) => id !== employee.id))}/><span>{employee.name} · {employee.department}</span></label>)}</div>
           <div className="mt-4 flex flex-wrap gap-2"><button disabled={busy || !reassignEmployeeIds.length} onClick={()=>void saveTaskAssignees()} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Saving…":"Save assignees"}</button><button onClick={()=>{setReassignTaskId(null);setReassignEmployeeIds([]);}} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Cancel</button></div>
