@@ -7,7 +7,7 @@
  * engine's dedupeKey, so it never nags repeatedly. Extensible: add meeting /
  * site-visit sweeps here the same way.
  */
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, inArray, lte } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { leadFollowUps, leads, users, projects, subscriptions, employees, employeeTasks, employeeTaskAssignments } from "../db/schema";
 import { notifyUser } from "./notificationService";
