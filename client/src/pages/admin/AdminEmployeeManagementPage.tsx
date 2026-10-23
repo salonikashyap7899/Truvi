@@ -48,10 +48,31 @@ function Status({ value }: { value: string }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${pill(value)}`}>{value.replaceAll("_", " ")}</span>;
 }
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>{sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}</div>;
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm transition duration-200 hover:border-primary/30 hover:bg-white/[0.05]">
+      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-primary/70 via-primary/20 to-transparent" />
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
+        <span aria-hidden="true" className="mt-1 size-2 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_rgba(124,92,255,0.22)]" />
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{value}</p>
+      {sub && <p className="mt-1 text-xs leading-5 text-muted-foreground">{sub}</p>}
+    </div>
+  );
 }
 function Panel({ title, sub, children, action }: { title: string; sub?: string; children: ReactNode; action?: ReactNode }) {
-  return <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5"><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">{title}</h2>{sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}</div>{action}</div>{children}</section>;
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)] sm:p-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold tracking-tight">{title}</h2>
+          {sub && <p className="mt-1 text-xs leading-5 text-muted-foreground">{sub}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
 }
 function Field({ label, value, onChange, type = "text", required = false, placeholder = "", disabled = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string; disabled?: boolean }) {
   return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input disabled={disabled} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary disabled:opacity-60" type={type} required={required} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /></label>;
@@ -123,6 +144,14 @@ export default function AdminEmployeeManagementPage() {
     const match = !q || [e.name, e.officialEmail, e.employeeCode, e.department, e.designation, e.phone].some((v) => String(v ?? "").toLowerCase().includes(q));
     return match && (statusFilter === "ALL" || e.status === statusFilter);
   }), [employees, query, statusFilter]);
+
+  const attendanceMarked = summary
+    ? summary.attendanceSummary.present + summary.attendanceSummary.absent + summary.attendanceSummary.halfDay + summary.attendanceSummary.onLeave
+    : 0;
+  const attendanceRate = summary?.activeEmployees
+    ? Math.min(100, Math.round((attendanceMarked / summary.activeEmployees) * 100))
+    : 0;
+  const pendingLeaveCount = leaveRequests.filter((request) => request.status === "PENDING").length;
 
   function startEdit(e: Employee) {
     setEditing(e); setShowForm(true);
@@ -328,29 +357,131 @@ export default function AdminEmployeeManagementPage() {
       {loading && <div className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading live company records…</div>}
 
       {tab === "overview" && summary && <>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          <Kpi label="Total employee profiles" value={summary.totalEmployees} sub="Includes legacy HR records" />
-          <Kpi label="Active employees" value={summary.activeEmployees} />
-          <Kpi label="Active linked accounts" value={summary.activeAccounts} />
-          <Kpi label="Pending invitations" value={summary.pendingInvitations} />
-          <Kpi label="Employees on leave" value={summary.employeesOnLeave} />
-          <Kpi label="Tasks assigned today" value={summary.tasksAssignedToday} />
-          <Kpi label="Tasks completed today" value={summary.tasksCompletedToday} />
-          <Kpi label="Pending / overdue" value={`${summary.pendingTasks} / ${summary.overdueTasks}`} />
-          <Kpi label="Leads submitted" value={summary.totalLeadsSubmitted} sub={`${summary.assignedLeads} assigned`} />
-          <Kpi label="Calls logged today" value={summary.callsLoggedToday} />
-          <Kpi label="Upcoming site visits" value={summary.upcomingSiteVisits} />
-          <Kpi label="Attendance marked" value={summary.attendanceSummary.present + summary.attendanceSummary.absent + summary.attendanceSummary.halfDay + summary.attendanceSummary.onLeave} sub={`${summary.attendanceSummary.notMarked} active staff not yet marked`} />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi label="Employee profiles" value={summary.totalEmployees} sub={summary.activeEmployees + " active · " + summary.employeesOnLeave + " on leave"} />
+          <Kpi label="Active accounts" value={summary.activeAccounts} sub={summary.pendingInvitations + " invitations awaiting activation"} />
+          <Kpi label="Open tasks" value={summary.pendingTasks} sub={summary.overdueTasks + " overdue across the team"} />
+          <Kpi label="Attendance marked" value={attendanceMarked} sub={summary.attendanceSummary.notMarked + " active staff still to mark"} />
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="Lead temperature" sub="Employee submitted or assigned leads, deduplicated by lead record">
-            <div className="grid grid-cols-3 gap-3"><Kpi label="Hot" value={summary.hotLeads}/><Kpi label="Warm" value={summary.warmLeads}/><Kpi label="Cold" value={summary.coldLeads}/></div>
-          </Panel>
-          <Panel title="Attendance today" sub="Missing check-ins are not automatically treated as absence">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Kpi label="Present" value={summary.attendanceSummary.present}/><Kpi label="Absent" value={summary.attendanceSummary.absent}/><Kpi label="Half day" value={summary.attendanceSummary.halfDay}/><Kpi label="On leave" value={summary.attendanceSummary.onLeave}/></div>
-          </Panel>
-          <Panel title="Employees by department"><div className="space-y-3">{summary.byDepartment.length ? summary.byDepartment.map((r) => <div key={r.department} className="flex items-center justify-between gap-4 text-sm"><span>{r.department}</span><span className="font-semibold">{r.count}</span></div>) : <p className="text-sm text-muted-foreground">No employee records yet.</p>}</div></Panel>
-          <Panel title="Recruitment source" sub="Employee recruitment source is separate from buyer lead source"><div className="space-y-3">{summary.byRecruitmentSource.length ? summary.byRecruitmentSource.map((r) => <div key={r.source} className="flex items-center justify-between gap-4 text-sm"><span>{r.source}</span><span className="font-semibold">{r.count}</span></div>) : <p className="text-sm text-muted-foreground">No recruitment-source data yet.</p>}</div></Panel>
+
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.85fr)]">
+          <div className="min-w-0 space-y-4">
+            <Panel title="Workforce overview" sub="A live snapshot of departments and recruitment sources" action={<button onClick={() => setTab("reports")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">View reports</button>}>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="min-w-0">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">Employees by department</h3>
+                    <span className="text-xs text-muted-foreground">{summary.byDepartment.reduce((sum, row) => sum + row.count, 0)} staff</span>
+                  </div>
+                  <div className="space-y-4">
+                    {summary.byDepartment.length ? summary.byDepartment.slice(0, 6).map((row) => (
+                      <div key={row.department}>
+                        <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                          <span className="truncate text-muted-foreground">{row.department}</span><span className="font-semibold tabular-nums">{row.count}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                          <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary/50 transition-all" style={{ width: (row.count / Math.max(...summary.byDepartment.map((item) => item.count), 1) * 100) + "%" }} />
+                        </div>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">Department totals will appear when employee records are added.</p>}
+                  </div>
+                </div>
+                <div className="min-w-0 border-t border-white/10 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">Recruitment sources</h3>
+                    <span className="text-xs text-muted-foreground">Top sources</span>
+                  </div>
+                  <div className="space-y-4">
+                    {summary.byRecruitmentSource.length ? summary.byRecruitmentSource.slice(0, 6).map((row) => (
+                      <div key={row.source}>
+                        <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                          <span className="truncate text-muted-foreground">{row.source}</span><span className="font-semibold tabular-nums">{row.count}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400/90 to-emerald-400/40 transition-all" style={{ width: (row.count / Math.max(...summary.byRecruitmentSource.map((item) => item.count), 1) * 100) + "%" }} />
+                        </div>
+                      </div>
+                    )) : <p className="text-sm text-muted-foreground">Recruitment source data will appear as profiles are completed.</p>}
+                  </div>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="Employees list" sub="A quick view of the latest employee profiles" action={<button onClick={() => { setQuery(""); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">See all employees</button>}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[540px] text-left text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr><th className="pb-3 pr-3 font-medium">Employee</th><th className="pb-3 pr-3 font-medium">Department / role</th><th className="pb-3 pr-3 font-medium">Status</th><th className="pb-3 text-right font-medium">Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {employees.slice(0, 5).map((employee) => (
+                      <tr key={employee.id} className="border-t border-white/10 align-middle transition hover:bg-white/[0.02]">
+                        <td className="py-3 pr-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{employee.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                            <div className="min-w-0"><p className="truncate font-medium">{employee.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{employee.employeeCode || employee.officialEmail || "No employee ID"}</p></div>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3"><p className="font-medium">{employee.department || "Unassigned"}</p><p className="mt-0.5 text-xs text-muted-foreground">{employee.designation || "No designation"}</p></td>
+                        <td className="py-3 pr-3"><Status value={employee.status} /></td>
+                        <td className="py-3 text-right"><button onClick={() => { setQuery(employee.name); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition hover:border-primary/30 hover:text-primary">View</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {employees.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No employee profiles yet. Add an employee to get started.</p>}
+              </div>
+            </Panel>
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            <Panel title="Attendance today" sub="Check-ins and leave status across active staff" action={<button onClick={() => setTab("attendance")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">Manage</button>}>
+              <div className="flex items-end justify-between gap-4">
+                <div><p className="text-3xl font-semibold tracking-tight">{attendanceRate}%</p><p className="mt-1 text-xs text-muted-foreground">{attendanceMarked} marked · {summary.activeEmployees} active employees</p></div>
+                <div className="text-right"><p className="text-sm font-semibold tabular-nums">{summary.attendanceSummary.present}</p><p className="text-xs text-muted-foreground">Present</p></div>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-400 transition-all" style={{ width: attendanceRate + "%" }} />
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {[
+                  { label: "Present", value: summary.attendanceSummary.present, color: "text-emerald-300" },
+                  { label: "Absent", value: summary.attendanceSummary.absent, color: "text-red-300" },
+                  { label: "Half day", value: summary.attendanceSummary.halfDay, color: "text-amber-200" },
+                  { label: "On leave", value: summary.attendanceSummary.onLeave, color: "text-primary" },
+                ].map((item) => <div key={item.label} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5"><p className="text-xs text-muted-foreground">{item.label}</p><p className={"mt-1 text-lg font-semibold tabular-nums " + item.color}>{item.value}</p></div>)}
+              </div>
+            </Panel>
+
+            <Panel title="Things to do" sub="Items that may need an admin follow-up">
+              <div className="space-y-2">
+                <button onClick={() => { setTab("employees"); setQuery(""); setStatusFilter("ALL"); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left transition hover:border-primary/30 hover:bg-white/[0.04]">
+                  <span className="min-w-0"><span className="block text-sm font-medium">Pending invitations</span><span className="mt-1 block text-xs text-muted-foreground">Employee accounts awaiting activation</span></span><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">{summary.pendingInvitations}</span>
+                </button>
+                <button onClick={() => setTab("tasks")} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left transition hover:border-primary/30 hover:bg-white/[0.04]">
+                  <span className="min-w-0"><span className="block text-sm font-medium">Overdue tasks</span><span className="mt-1 block text-xs text-muted-foreground">Review deadlines and update assignees</span></span><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-red-500/10 text-sm font-semibold text-red-300">{summary.overdueTasks}</span>
+                </button>
+                <button onClick={() => setTab("leave")} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left transition hover:border-primary/30 hover:bg-white/[0.04]">
+                  <span className="min-w-0"><span className="block text-sm font-medium">Leave requests</span><span className="mt-1 block text-xs text-muted-foreground">Requests waiting for review</span></span><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-sm font-semibold text-amber-200">{pendingLeaveCount}</span>
+                </button>
+                <button onClick={() => setTab("attendance")} className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left transition hover:border-primary/30 hover:bg-white/[0.04]">
+                  <span className="min-w-0"><span className="block text-sm font-medium">Attendance not marked</span><span className="mt-1 block text-xs text-muted-foreground">Active staff still to check in</span></span><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-sm font-semibold">{summary.attendanceSummary.notMarked}</span>
+                </button>
+              </div>
+            </Panel>
+
+            <Panel title="Upcoming work" sub="Open tasks with the nearest deadlines" action={<button onClick={() => setTab("tasks")} className="text-xs font-medium text-primary hover:underline">View task board</button>}>
+              <div className="space-y-3">
+                {tasks.filter((task) => !["COMPLETED", "CANCELLED"].includes(task.status)).sort((a, b) => new Date(a.deadlineAt || "9999-12-31").getTime() - new Date(b.deadlineAt || "9999-12-31").getTime()).slice(0, 4).map((task) => (
+                  <div key={task._id} className="flex items-start justify-between gap-3 border-b border-white/10 pb-3 last:border-0 last:pb-0">
+                    <div className="min-w-0"><p className="break-words text-sm font-medium">{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{task.deadlineAt ? dt(task.deadlineAt) : "No deadline set"}</p><p className="mt-1 text-[11px] text-muted-foreground">{task.assignees?.map((assignee) => assignee.name).join(", ") || employees.find((employee) => employee.id === task.employeeId)?.name || "No assignee listed"}</p></div>
+                    <Status value={task.status} />
+                  </div>
+                ))}
+                {tasks.filter((task) => !["COMPLETED", "CANCELLED"].includes(task.status)).length === 0 && <p className="text-sm text-muted-foreground">No open tasks. You're all caught up.</p>}
+              </div>
+            </Panel>
+          </div>
         </div>
       </>}
 
