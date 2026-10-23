@@ -85,7 +85,7 @@ const emptyEmployee = {
   name: "", employeeCode: "", officialEmail: "", phone: "", department: "Sales", designation: "Sales Executive",
   employmentType: "FULL_TIME", reportingManagerId: "", joiningDate: new Date().toISOString().slice(0, 10),
   recruitmentSource: "Company Website", recruitmentCampaign: "", applicationDate: "", interviewDate: "",
-  status: "ACTIVE", monthlySalary: "0", salaryDueDay: "1", notes: "",
+  status: "ACTIVE", monthlySalary: "0", salaryDueDay: "1", notes: "", permissions: "",
 };
 
 export default function AdminEmployeeManagementPage() {
@@ -166,13 +166,15 @@ export default function AdminEmployeeManagementPage() {
   }
   async function saveEmployee(e: FormEvent) {
     e.preventDefault(); setBusy(true);
+    const employeeCode = String(employeeForm.employeeCode ?? "").trim();
+    const permissionInput = String(employeeForm.permissions ?? "").trim();
     const payload = {
       ...employeeForm,
       // Empty Employee ID means let the server generate a unique code. Sending
       // "" fails the server schema's optional, non-empty employeeCode validation.
-      employeeCode: employeeForm.employeeCode.trim() || undefined,
+      employeeCode: employeeCode || undefined,
       monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
-      permissions: employeeForm.permissions.trim() ? employeeForm.permissions.split(",").map((p) => p.trim()).filter(Boolean) : editing ? [] : undefined,
+      permissions: permissionInput ? permissionInput.split(",").map((p) => p.trim()).filter(Boolean) : editing ? [] : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
       interviewDate: employeeForm.interviewDate || null,
