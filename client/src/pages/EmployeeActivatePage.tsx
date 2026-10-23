@@ -35,7 +35,7 @@ export default function EmployeeActivatePage() {
           <h1 className="mt-2 text-2xl font-semibold">{complete ? "Account activated" : "Activate your employee account"}</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {complete
-              ? "Your password has been set. Sign in using your official email address."
+              ? "Your password has been set. Sign in using your official email address. If a phone number was recorded, complete the phone verification prompt at first login."
               : "Choose a strong password to finish setting up your secure employee account."}
           </p>
         </div>
