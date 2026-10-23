@@ -41,6 +41,8 @@ export function dashboardPath(user: Pick<User, "role" | "email" | "isFounder">):
       const isFounder = user.isFounder === true || FOUNDER_EMAILS.has(user.email?.toLowerCase() ?? "");
       return isFounder ? "/founder/dashboard" : "/admin/dashboard";
     }
+    case "EMPLOYEE":
+      return "/employee/dashboard";
     case "DEVELOPER":
       return "/developer/dashboard";
     case "AMBASSADOR":
@@ -61,6 +63,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   BUYER: "Buyer",
   AMBASSADOR: "Ambassador",
   VERIFIER: "Verifier",
+  EMPLOYEE: "Employee",
 };
 
 export function roleLabel(role: Role): string {
