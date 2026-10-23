@@ -167,7 +167,11 @@ export default function AdminEmployeeManagementPage() {
   async function saveEmployee(e: FormEvent) {
     e.preventDefault(); setBusy(true);
     const payload = {
-      ...employeeForm, monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
+      ...employeeForm,
+      // Empty Employee ID means let the server generate a unique code. Sending
+      // "" fails the server schema's optional, non-empty employeeCode validation.
+      employeeCode: employeeForm.employeeCode.trim() || undefined,
+      monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
       permissions: employeeForm.permissions.trim() ? employeeForm.permissions.split(",").map((p) => p.trim()).filter(Boolean) : editing ? [] : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
@@ -188,7 +192,10 @@ export default function AdminEmployeeManagementPage() {
       // keep the submit button stuck on “Saving…” after the save succeeded.
       void reload();
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Could not save employee.");
+      const response = error?.response?.data;
+      const fieldErrors = response?.issues?.fieldErrors as Record<string, string[]> | undefined;
+      const firstFieldError = fieldErrors ? Object.values(fieldErrors).flat().find(Boolean) : undefined;
+      toast.error(firstFieldError ? `Check employee details: ${firstFieldError}` : response?.error || "Could not save employee.");
     } finally { setBusy(false); }
   }
   async function createAccount(emp: Employee) {
