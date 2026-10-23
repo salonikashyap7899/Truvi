@@ -633,7 +633,14 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
     if (d.deadlineAt !== undefined) patch.deadlineAt = parseDate(d.deadlineAt);
     if (d.estimatedMinutes !== undefined) patch.estimatedMinutes = d.estimatedMinutes;
     if (d.completionNotes !== undefined) patch.completionNotes = d.completionNotes;
-    if (d.employeeId && admin && isValidId(d.employeeId)) patch.employeeId = d.employeeId;
+    if (d.employeeId && admin) {
+      if (!isValidId(d.employeeId)) return res.status(400).json({ error: "Invalid employee ID." });
+      const [targetEmployee] = await db.select().from(employees).where(eq(employees._id, d.employeeId)).limit(1);
+      if (!targetEmployee || targetEmployee.status === "INACTIVE" || !targetEmployee.accountUserId) {
+        return res.status(409).json({ error: "Tasks can only be assigned to an active employee profile with a linked login account." });
+      }
+      patch.employeeId = String(targetEmployee._id);
+    }
     if (d.status === "COMPLETED") patch.completedAt = new Date();
     const [updated] = await db.update(employeeTasks).set(patch).where(eq(employeeTasks._id, before._id)).returning();
     await db.insert(employeeTaskHistory).values({
@@ -1077,7 +1084,13 @@ router.get("/salaries", async (req: AuthedRequest, res, next) => {
     const emp = await needEmployee(req, res); if (!emp) return;
     if (!hasPermission(emp.permissions, "salary.read.own")) return res.status(403).json({ error: "Salary access is not enabled." });
     const rows = await db.select().from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, emp._id)).orderBy(desc(employeeSalaryRecords.monthKey)).limit(36);
-    return res.json({ salaries: rows });
+    return res.json({ salaries: rows.map((r) => ({
+      id: String(r._id), employeeId: String(r.employeeId), monthKey: r.monthKey,
+      grossSalary: r.grossSalary, allowances: r.allowances, deductions: r.deductions,
+      netPayable: r.netPayable, status: r.status,
+      paymentDate: r.status === "PAID" ? r.paymentDate : null,
+      paymentReference: r.status === "PAID" ? r.paymentReference : null,
+    })) });
   } catch (err) { next(err); }
 });
 router.post("/salaries", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
@@ -1107,6 +1120,7 @@ router.patch("/salaries/:id", requireRole("ADMIN"), async (req: AuthedRequest, r
     const db = getDb(), d = parsed.data;
     const [before] = await db.select().from(employeeSalaryRecords).where(eq(employeeSalaryRecords._id, String(req.params.id))).limit(1);
     if (!before) return res.status(404).json({ error: "Salary record not found." });
+    if (before.status === "PAID") return res.status(409).json({ error: "Paid payroll records are immutable. Record any required adjustment as a separately approved adjustment or correction." });
     const patch: Partial<typeof employeeSalaryRecords.$inferInsert> = { updatedAt: new Date() };
     const gross = d.grossSalary ?? before.grossSalary, allowances = d.allowances ?? before.allowances, deductions = d.deductions ?? before.deductions;
     if (roundMoney(gross + allowances - deductions) < 0) return res.status(400).json({ error: "Deductions cannot exceed gross salary plus allowances." });
