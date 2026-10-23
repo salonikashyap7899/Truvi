@@ -2625,37 +2625,6 @@
 }
 
 
-/* Employee-only link to the company About page when the public navbar is hidden. */
-.truvi-employee-about-link {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  gap: 10px;
-  margin: 9px 12px 12px;
-  border: 1px solid rgba(126, 153, 198, .16);
-  border-radius: 11px;
-  padding: 0 12px;
-  color: #b7c7e3;
-  background: rgba(255, 255, 255, .025);
-  font-size: 11px;
-  font-weight: 650;
-  transition: border-color .18s ease, background .18s ease, color .18s ease;
-}
-
-.truvi-employee-about-link span {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.truvi-employee-about-link:hover,
-.truvi-employee-about-link:focus-visible {
-  border-color: rgba(111, 140, 255, .42);
-  color: #f0f4ff;
-  background: rgba(111, 140, 255, .09);
-  outline: none;
-}
-
-
 /* Fix HRMS profile form fields: labels and controls must stack, never sit
    inline next to each other. The form's Tailwind utility classes alone do not
    make its inline label children stack vertically. */
