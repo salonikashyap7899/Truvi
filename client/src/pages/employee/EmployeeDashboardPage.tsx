@@ -186,7 +186,7 @@ export default function EmployeeDashboardPage() {
     const form = new FormData();
     form.append("file", file);
     try {
-      await api.post("/employees/tasks/" + taskId + "/attachments", form, { headers: { "Content-Type":"multipart/form-data" } });
+      await api.post("/employees/tasks/" + taskId + "/attachments", form);
       toast.success("Task attachment uploaded privately.");
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not upload attachment."); }
