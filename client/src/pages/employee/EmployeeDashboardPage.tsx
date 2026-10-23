@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleHelp, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -584,6 +584,12 @@ export default function EmployeeDashboardPage() {
             ))}
           </nav>
 
+          <Link to="/about" className="truvi-employee-about-link" aria-label="About Truvi Ventures">
+            <Info size={16} aria-hidden="true" />
+            <span>Company About</span>
+            <ArrowRight size={14} aria-hidden="true" />
+          </Link>
+
           <button type="button" className="truvi-employee-sidebar-profile" onClick={() => setTab("profile")} title="Open my profile">
             <span className="truvi-employee-sidebar-profile__avatar">
               {currentUser?.avatarUrl
@@ -645,7 +651,7 @@ export default function EmployeeDashboardPage() {
               <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
                 <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
               </button>
-              <Link to="/login" className="truvi-employee-icon-button" aria-label="Sign in help" title="Sign in help"><CircleHelp size={17} aria-hidden="true"/></Link>
+              <Link to="/about" className="truvi-employee-icon-button" aria-label="Company About" title="About Truvi Ventures"><Info size={17} aria-hidden="true"/></Link>
               <button type="button" className="truvi-employee-topbar-user" onClick={() => setTab("profile")} aria-label="Open my profile">
                 <span className="truvi-employee-topbar-user__avatar">
                   {currentUser?.avatarUrl
