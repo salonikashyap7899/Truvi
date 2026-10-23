@@ -72,6 +72,25 @@ async function needEmployee(req: AuthedRequest, res: import("express").Response)
 async function notifyUser(userId: string, type: string, title: string, message: string, actorUserId: string, href: string) {
   await createNotifications([userId], { type, title, message, actorUserId, data: { href }, priority: "normal" }).catch(() => []);
 }
+
+async function notifyActiveAdmins(input: { type: string; title: string; message: string; actorUserId: string; href: string; dedupeKey?: string }) {
+  try {
+    const admins = await getDb().select({ id: users._id }).from(users)
+      .where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+    await createNotifications(admins.map((row) => String(row.id)), {
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      actorUserId: input.actorUserId,
+      data: { href: input.href },
+      priority: "normal",
+      ...(input.dedupeKey ? { dedupeKey: input.dedupeKey } : {}),
+    });
+  } catch (error) {
+    // Notifications must never make a successful attendance/task write fail.
+    console.error("Could not deliver employee activity notification:", error);
+  }
+}
 async function issueInvite(employeeId: string, actorUserId: string) {
   const db = getDb();
   const [employee] = await db.select().from(employees).where(eq(employees._id, employeeId)).limit(1);
@@ -239,11 +258,22 @@ const salaryPatchSchema = z.object({
 });
 const roundMoney = (n: number) => Math.round(n * 100) / 100;
 
-function employeePublicShape(e: typeof employees.$inferSelect, account?: { email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean } | null, includeSalary = true) {
+function employeePublicShape(
+  e: typeof employees.$inferSelect,
+  account?: {
+    email: string; disabled: boolean; emailVerified: boolean; phoneVerified: boolean;
+    phone?: string | null; avatarUrl?: string | null; bio?: string | null;
+    createdAt?: Date | null; lastActiveAt?: Date | null;
+  } | null,
+  includeSalary = true,
+) {
   return {
     id: String(e._id), accountUserId: e.accountUserId, employeeCode: e.employeeCode,
     name: e.name, officialEmail: e.officialEmail ?? account?.email ?? "",
-    phone: e.phone ?? "", department: e.department, designation: e.title ?? "",
+    phone: e.phone ?? account?.phone ?? "", avatarUrl: account?.avatarUrl ?? null, bio: account?.bio ?? null,
+    emailVerified: account?.emailVerified ?? false, phoneVerified: account?.phoneVerified ?? false,
+    accountCreatedAt: account?.createdAt ?? null, lastActiveAt: account?.lastActiveAt ?? null,
+    department: e.department, designation: e.title ?? "",
     employmentType: e.employmentType, reportingManagerId: e.reportingManagerId,
     recruitmentSource: e.recruitmentSource ?? "Other", recruitmentCampaign: e.recruitmentCampaign ?? "",
     applicationDate: e.applicationDate, interviewDate: e.interviewDate, joiningDate: e.joinedAt,
@@ -364,10 +394,118 @@ router.get("/", requireRole("ADMIN"), async (req, res, next) => {
     if (department) conditions.push(eq(employees.department, department));
     if (source) conditions.push(eq(employees.recruitmentSource, source));
     if (q) conditions.push(or(sql`${employees.name} ILIKE ${"%" + q + "%"}`, sql`${employees.officialEmail} ILIKE ${"%" + q + "%"}`, sql`${employees.employeeCode} ILIKE ${"%" + q + "%"}`)!);
-    const rows = await db.select({ employee: employees, email: users.email, disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified })
+    const rows = await db.select({
+      employee: employees, email: users.email, accountPhone: users.phone, avatarUrl: users.avatarUrl, bio: users.bio,
+      accountCreatedAt: users.createdAt, lastActiveAt: users.lastActiveAt,
+      disabled: users.disabled, emailVerified: users.emailVerified, phoneVerified: users.phoneVerified,
+    })
       .from(employees).leftJoin(users, eq(employees.accountUserId, users._id))
       .where(conditions.length ? and(...conditions) : undefined).orderBy(desc(employees.createdAt));
-    return res.json({ employees: rows.map((r) => employeePublicShape(r.employee, r.email ? { email: r.email, disabled: !!r.disabled, emailVerified: !!r.emailVerified, phoneVerified: !!r.phoneVerified } : null)) });
+    return res.json({ employees: rows.map((r) => employeePublicShape(r.employee, r.email ? {
+      email: r.email, phone: r.accountPhone, avatarUrl: r.avatarUrl, bio: r.bio,
+      createdAt: r.accountCreatedAt, lastActiveAt: r.lastActiveAt,
+      disabled: !!r.disabled, emailVerified: !!r.emailVerified, phoneVerified: !!r.phoneVerified,
+    } : null)) });
+  } catch (err) { next(err); }
+});
+
+// Full safe employee profile for authorized administrators. Account credentials,
+// OTP material, password hashes and auth-version fields are deliberately omitted.
+router.get("/:id/profile", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => {
+  try {
+    const employeeId = String(req.params.id);
+    if (!isValidId(employeeId)) return res.status(404).json({ error: "Employee not found." });
+    const db = getDb();
+    const [row] = await db.select({
+      employee: employees,
+      accountId: users._id,
+      accountName: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+      emailVerified: users.emailVerified,
+      phoneVerified: users.phoneVerified,
+      disabled: users.disabled,
+      accountCreatedAt: users.createdAt,
+      lastActiveAt: users.lastActiveAt,
+    }).from(employees).leftJoin(users, eq(employees.accountUserId, users._id))
+      .where(eq(employees._id, employeeId)).limit(1);
+    if (!row) return res.status(404).json({ error: "Employee not found." });
+
+    const userId = row.accountId ? String(row.accountId) : null;
+    const [taskRows, attendanceRows, leaveRows, salaryRows, leadRows, visitRows] = await Promise.all([
+      db.select({
+        id: employeeTasks._id, title: employeeTasks.title, priority: employeeTasks.priority,
+        status: employeeTasks.status, taskType: employeeTasks.taskType,
+        deadlineAt: employeeTasks.deadlineAt, createdAt: employeeTasks.createdAt,
+      }).from(employeeTasks).where(eq(employeeTasks.employeeId, row.employee._id))
+        .orderBy(desc(employeeTasks.createdAt)).limit(12),
+      db.select({
+        id: employeeAttendance._id, attendanceDate: employeeAttendance.attendanceDate,
+        status: employeeAttendance.status, checkInAt: employeeAttendance.checkInAt,
+        checkOutAt: employeeAttendance.checkOutAt, workingMinutes: employeeAttendance.workingMinutes,
+      }).from(employeeAttendance).where(eq(employeeAttendance.employeeId, row.employee._id))
+        .orderBy(desc(employeeAttendance.attendanceDate)).limit(10),
+      db.select({
+        id: employeeLeaveRequests._id, leaveType: employeeLeaveRequests.leaveType,
+        startDate: employeeLeaveRequests.startDate, endDate: employeeLeaveRequests.endDate,
+        totalDays: employeeLeaveRequests.totalDays, status: employeeLeaveRequests.status,
+        reason: employeeLeaveRequests.reason, createdAt: employeeLeaveRequests.createdAt,
+      }).from(employeeLeaveRequests).where(eq(employeeLeaveRequests.employeeId, row.employee._id))
+        .orderBy(desc(employeeLeaveRequests.createdAt)).limit(10),
+      db.select({
+        id: employeeSalaryRecords._id, monthKey: employeeSalaryRecords.monthKey,
+        grossSalary: employeeSalaryRecords.grossSalary, allowances: employeeSalaryRecords.allowances,
+        deductions: employeeSalaryRecords.deductions, netPayable: employeeSalaryRecords.netPayable,
+        status: employeeSalaryRecords.status, paymentDate: employeeSalaryRecords.paymentDate,
+        paymentReference: employeeSalaryRecords.paymentReference,
+      }).from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, row.employee._id))
+        .orderBy(desc(employeeSalaryRecords.monthKey)).limit(12),
+      userId ? db.select({
+        id: leads._id, clientName: leads.clientName, clientPhone: leads.clientPhone,
+        stage: leads.stage, leadTemperature: leads.leadTemperature, createdAt: leads.createdAt,
+      }).from(leads).where(or(eq(leads.submittedById, userId), eq(leads.assignedToId, userId))!)
+        .orderBy(desc(leads.createdAt)).limit(12) : Promise.resolve([]),
+      userId ? db.select({
+        id: siteVisits._id, scheduledAt: siteVisits.scheduledAt, status: siteVisits.status,
+        projectId: siteVisits.projectId, leadId: siteVisits.leadId,
+      }).from(siteVisits).where(eq(siteVisits.responsibleUserId, userId))
+        .orderBy(desc(siteVisits.scheduledAt)).limit(10) : Promise.resolve([]),
+    ]);
+
+    const account = userId ? {
+      id: userId,
+      name: row.accountName,
+      email: row.email,
+      phone: row.phone,
+      role: row.role,
+      avatarUrl: row.avatarUrl,
+      bio: row.bio,
+      emailVerified: !!row.emailVerified,
+      phoneVerified: !!row.phoneVerified,
+      disabled: !!row.disabled,
+      createdAt: row.accountCreatedAt,
+      lastActiveAt: row.lastActiveAt,
+    } : null;
+
+    return res.json({
+      employee: employeePublicShape(row.employee, row.email ? {
+        email: row.email, phone: row.phone, avatarUrl: row.avatarUrl, bio: row.bio,
+        createdAt: row.accountCreatedAt, lastActiveAt: row.lastActiveAt,
+        disabled: !!row.disabled, emailVerified: !!row.emailVerified, phoneVerified: !!row.phoneVerified,
+      } : null),
+      account,
+      activity: {
+        tasks: taskRows,
+        attendance: attendanceRows,
+        leaveRequests: leaveRows,
+        salaryRecords: salaryRows,
+        buyerLeads: leadRows,
+        siteVisits: visitRows,
+      },
+    });
   } catch (err) { next(err); }
 });
 
@@ -711,6 +849,14 @@ router.post("/tasks", async (req: AuthedRequest, res, next) => {
       }
     }
     await logAudit({ userId: req.user!.userId, action: admin ? "employee.task.assign" : "employee.task.personal.create", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeIds: admin ? assignedEmployeeIds : [String(emp!._id)], priority: task.priority } });
+    if (!admin && emp) await notifyActiveAdmins({
+      type: "employee_task_created",
+      title: "Employee created a personal task",
+      message: emp.name + " created a task: " + task.title,
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=tasks",
+      dedupeKey: "employee-task-created:" + String(task._id),
+    });
     const [responseTask] = await shapeEmployeeTasks([task]);
     return res.status(201).json({ task: responseTask });
   } catch (err) { next(err); }
@@ -869,6 +1015,16 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
       resourceType: "employee_task", resourceId: taskId,
       metadata: { changedFields: Object.keys(d), employeeIds: requestedEmployeeIds ?? undefined },
     });
+    if (!admin && emp && updated.status !== before.status) {
+      await notifyActiveAdmins({
+        type: updated.status === "COMPLETED" ? "employee_task_completed" : "employee_task_status_updated",
+        title: updated.status === "COMPLETED" ? "Employee completed a task" : "Employee updated a task",
+        message: emp.name + " changed task \"" + updated.title + "\" to " + updated.status.replaceAll("_", " ").toLowerCase() + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-status:" + String(updated._id) + ":" + String(updated.status) + ":" + Math.floor(Date.now() / 60000),
+      });
+    }
     const [result] = await shapeEmployeeTasks([updated], emp ? String(emp._id) : undefined);
     return res.json({ task: result });
   } catch (err) { next(err); }
@@ -901,6 +1057,17 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res, next) => {
     }
     const [comment] = await getDb().insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: body.data.body }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.task.comment", resourceType: "employee_task", resourceId: String(req.params.id) });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_comment",
+        title: "Employee commented on a task",
+        message: actor.name + " commented on task: " + task.title,
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-comment:" + String(comment._id),
+      });
+    }
     return res.status(201).json({ comment });
   } catch (err) { next(err); }
 });
@@ -973,6 +1140,17 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
       resourceType: "employee_task", resourceId: taskId,
       metadata: { attachmentId: String(attachment._id), fileName: originalFileName, sizeBytes: file.size },
     });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_attachment",
+        title: "Employee added a task attachment",
+        message: actor.name + " attached " + originalFileName + " to task: " + task.title,
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-attachment:" + String(attachment._id),
+      });
+    }
     return res.status(201).json({ attachment: {
       _id: String(attachment._id), originalFileName, mimeType: verifiedMimeType,
       sizeBytes: file.size, uploadedByUserId: req.user!.userId, createdAt: attachment.createdAt,
@@ -1031,6 +1209,17 @@ router.delete("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest,
       resourceType: "employee_task", resourceId: taskId,
       metadata: { attachmentId, fileName: attachment.originalFileName },
     });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_task_attachment_removed",
+        title: "Employee removed a task attachment",
+        message: actor.name + " removed " + attachment.originalFileName + " from task " + taskId + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=tasks",
+        dedupeKey: "employee-task-attachment-removed:" + attachmentId,
+      });
+    }
     return res.json({ ok: !!deleted });
   } catch (err) { next(err); }
 });
@@ -1121,6 +1310,14 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     const [updated] = await getDb().update(leads).set(patch).where(eq(leads._id, lead._id)).returning();
     await getDb().insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "NOTE", content: d.followUpNotes || "Employee updated lead details", metadata: { changedFields: Object.keys(d) } });
     await logAudit({ userId: req.user!.userId, action: "employee.lead.update", resourceType: "lead", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
+    await notifyActiveAdmins({
+      type: "employee_lead_updated",
+      title: "Employee updated a buyer lead",
+      message: emp.name + " updated buyer lead " + lead.clientName + (d.stage ? " to " + d.stage.replaceAll("_", " ").toLowerCase() : "."),
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=leads",
+      dedupeKey: "employee-lead-update:" + String(lead._id) + ":" + Math.floor(Date.now() / 60000),
+    });
     return res.json({ lead: updated });
   } catch (err) { next(err); }
 });
@@ -1147,6 +1344,14 @@ router.post("/leads/:id/calls", requireRole("EMPLOYEE"), async (req: AuthedReque
       await db.update(leads).set({ lastContactAt: new Date(), ...(d.leadTemperature ? { leadTemperature: d.leadTemperature } : {}) }).where(eq(leads._id, lead._id));
     }
     await logAudit({ userId: req.user!.userId, action: "employee.call.log", resourceType: "lead", resourceId: String(lead._id), metadata: { employeeId: String(emp._id), outcome: d.outcome } });
+    await notifyActiveAdmins({
+      type: "employee_telecalling_activity",
+      title: "Employee logged a buyer call",
+      message: emp.name + " logged a call outcome for " + lead.clientName + ": " + d.outcome.replaceAll("_", " ").toLowerCase() + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=leads",
+      dedupeKey: "employee-call:" + String(activity._id),
+    });
     return res.status(201).json({ activity });
   } catch (err) { next(err); }
 });
@@ -1186,6 +1391,17 @@ router.post("/leads/:id/followups", async (req: AuthedRequest, res, next) => {
     await db.update(leads).set({ nextFollowUpAt: dueAt }).where(eq(leads._id, lead._id));
     await db.insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "FOLLOW_UP", content: `Follow-up scheduled for ${dueAt.toISOString()}`, metadata: { channel: parsed.data.channel } });
     await logAudit({ userId: req.user!.userId, action: "employee.lead.followup.create", resourceType: "lead", resourceId: String(lead._id), metadata: { dueAt: dueAt.toISOString(), channel: parsed.data.channel } });
+    if (req.user!.role === "EMPLOYEE") {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_lead_followup",
+        title: "Employee scheduled a buyer follow-up",
+        message: actor.name + " scheduled a " + parsed.data.channel.toLowerCase() + " follow-up for " + lead.clientName + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=leads",
+        dedupeKey: "employee-lead-followup:" + String(lead._id) + ":" + dueAt.toISOString(),
+      });
+    }
     return res.status(201).json({ followUp });
   } catch (err) { next(err); }
 });
@@ -1253,6 +1469,17 @@ router.patch("/site-visits/:id", async (req: AuthedRequest, res, next) => {
       await getDb().update(leads).set({ siteVisitStatus: map[d.data.status] }).where(eq(leads._id, visit.leadId));
     }
     await logAudit({ userId: req.user!.userId, action: "employee.sitevisit.update", resourceType: "site_visit", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d.data) } });
+    if (req.user!.role === "EMPLOYEE" && (d.data.status || d.data.scheduledAt)) {
+      const actor = await getEmployeeForUser(req.user!.userId);
+      if (actor) await notifyActiveAdmins({
+        type: "employee_site_visit_updated",
+        title: "Employee updated a site visit",
+        message: actor.name + " updated a site visit" + (d.data.status ? " to " + d.data.status.replaceAll("_", " ").toLowerCase() : " schedule") + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=visits",
+        dedupeKey: "employee-site-visit-update:" + String(visit._id) + ":" + Math.floor(Date.now() / 60000),
+      });
+    }
     return res.json({ siteVisit: updated });
   } catch (err) { next(err); }
 });
@@ -1287,6 +1514,14 @@ router.post("/attendance/check-in", requireRole("EMPLOYEE"), async (req: AuthedR
     if (existing) [row] = await db.update(employeeAttendance).set({ status: "PRESENT", checkInAt: now, checkOutAt: null, workingMinutes: null, updatedAt: now }).where(eq(employeeAttendance._id, existing._id)).returning();
     else [row] = await db.insert(employeeAttendance).values({ employeeId: emp._id, attendanceDate: day, status: "PRESENT", checkInAt: now, updatedAt: now }).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.attendance.checkin", resourceType: "attendance", resourceId: String(row._id), metadata: { date: day } });
+    await notifyActiveAdmins({
+      type: "employee_attendance_checkin",
+      title: "Employee checked in",
+      message: emp.name + " checked in for " + day + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=attendance",
+      dedupeKey: "employee-checkin:" + String(row._id) + ":" + req.user!.userId,
+    });
     return res.status(201).json({ attendance: row });
   } catch (err) { next(err); }
 });
@@ -1301,6 +1536,14 @@ router.post("/attendance/check-out", requireRole("EMPLOYEE"), async (req: Authed
     const minutes = Math.max(0, Math.round((now.getTime() - existing.checkInAt.getTime()) / 60000));
     const [row] = await db.update(employeeAttendance).set({ checkOutAt: now, workingMinutes: minutes, updatedAt: now }).where(eq(employeeAttendance._id, existing._id)).returning();
     await logAudit({ userId: req.user!.userId, action: "employee.attendance.checkout", resourceType: "attendance", resourceId: String(row._id), metadata: { date: day, workingMinutes: minutes } });
+    await notifyActiveAdmins({
+      type: "employee_attendance_checkout",
+      title: "Employee checked out",
+      message: emp.name + " checked out after " + Math.floor(minutes / 60) + "h " + (minutes % 60) + "m on " + day + ".",
+      actorUserId: req.user!.userId,
+      href: "/admin/employees?tab=attendance",
+      dedupeKey: "employee-checkout:" + String(row._id) + ":" + req.user!.userId,
+    });
     return res.json({ attendance: row });
   } catch (err) { next(err); }
 });
@@ -1576,6 +1819,16 @@ router.patch("/leave-requests/:id", async (req: AuthedRequest, res, next) => {
       resourceType: "employee_leave_request", resourceId: requestId,
       metadata: { employeeId: String(employee._id), startDate: updated.startDate, endDate: updated.endDate, reviewNotes: updated.reviewNotes },
     });
+    if (!admin && updated.status === "CANCELLED") {
+      await notifyActiveAdmins({
+        type: "employee_leave_cancelled",
+        title: "Employee cancelled a leave request",
+        message: employee.name + " cancelled their leave request for " + updated.startDate + " to " + updated.endDate + ".",
+        actorUserId: req.user!.userId,
+        href: "/admin/employees?tab=leave",
+        dedupeKey: "employee-leave-cancelled:" + requestId,
+      });
+    }
     return res.json({ leaveRequest: updated });
   } catch (err) { next(err); }
 });

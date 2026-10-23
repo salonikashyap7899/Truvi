@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, History, LayoutDashboard, ListChecks, RefreshCw, Users } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { useSocketEvent } from "@/lib/socket";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
@@ -12,6 +13,8 @@ type Employee = {
   recruitmentCampaign?: string; applicationDate?: string | null; interviewDate?: string | null;
   joiningDate?: string | null; status: "ACTIVE" | "ON_LEAVE" | "INACTIVE"; monthlySalary: number;
   salaryDueDay: number; notes?: string; permissions?: string[]; accountStatus?: string;
+  avatarUrl?: string | null; bio?: string | null; emailVerified?: boolean; phoneVerified?: boolean;
+  accountCreatedAt?: string | null; lastActiveAt?: string | null;
 };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
 type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
@@ -26,6 +29,22 @@ type Attendance = { _id: string; employeeId: string; attendanceDate: string; sta
 type Salary = { _id: string; employeeId: string; employeeName?: string; employeeCode?: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null };
 type PerformanceMetric = { employeeId: string; employeeCode?: string | null; name: string; department: string; designation?: string | null; recruitmentSource?: string | null; status: string; accountLinked: boolean; tasksCompleted: number; tasksOverdue: number; tasksOpen: number; leadsSubmitted: number; leadsAssigned: number; callsLogged: number; siteVisitsScheduled: number; siteVisitsCompleted: number; attendancePresentDays: number };
 type AuditRow = { _id: string; userId?: string | null; actorName?: string | null; actorEmail?: string | null; action: string; resourceType?: string | null; resourceId?: string | null; metadata?: Record<string, unknown>; createdAt: string };
+type EmployeeProfileData = {
+  employee: Employee;
+  account: {
+    id: string; name?: string | null; email?: string | null; phone?: string | null; role?: string;
+    avatarUrl?: string | null; bio?: string | null; emailVerified: boolean; phoneVerified: boolean;
+    disabled: boolean; createdAt?: string | null; lastActiveAt?: string | null;
+  } | null;
+  activity: {
+    tasks: Array<{ id: string; title: string; priority: string; status: string; taskType: string; deadlineAt?: string | null; createdAt: string }>;
+    attendance: Array<{ id: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null }>;
+    leaveRequests: Array<{ id: string; leaveType: string; startDate: string; endDate: string; totalDays: number; status: string; reason: string; createdAt: string }>;
+    salaryRecords: Array<{ id: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null }>;
+    buyerLeads: Array<{ id: string; clientName: string; clientPhone: string; stage: string; leadTemperature?: string | null; createdAt: string }>;
+    siteVisits: Array<{ id: string; scheduledAt: string; status: string; projectId: string; leadId?: string | null }>;
+  };
+};
 type Summary = {
   totalEmployees: number; activeEmployees: number; inactiveEmployees: number; employeesOnLeave: number;
   employeeAccounts: number; activeAccounts: number; pendingInvitations: number; tasksAssignedToday: number;
@@ -99,6 +118,8 @@ export default function AdminEmployeeManagementPage() {
   const [searchParams] = useSearchParams();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<EmployeeProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
   const [taskActivity, setTaskActivity] = useState<TaskActivity | null>(null);
@@ -167,6 +188,42 @@ export default function AdminEmployeeManagementPage() {
   useEffect(() => { void reload(); }, []);
   useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabs.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
 
+  async function openEmployeeProfile(employee: Employee) {
+    setProfileLoading(true);
+    setSelectedProfile({
+      employee,
+      account: employee.accountUserId ? {
+        id: employee.accountUserId, name: employee.name, email: employee.officialEmail, phone: employee.phone,
+        avatarUrl: employee.avatarUrl, bio: employee.bio, emailVerified: !!employee.emailVerified,
+        phoneVerified: !!employee.phoneVerified, disabled: employee.accountStatus === "INVITED_OR_DISABLED",
+        createdAt: employee.accountCreatedAt, lastActiveAt: employee.lastActiveAt,
+      } : null,
+      activity: { tasks: [], attendance: [], leaveRequests: [], salaryRecords: [], buyerLeads: [], siteVisits: [] },
+    });
+    try {
+      const response = await api.get(`/employees/${employee.id}/profile`);
+      setSelectedProfile(response.data as EmployeeProfileData);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not load the employee profile.");
+      setSelectedProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  useSocketEvent<{ type?: string; title?: string }>("notification:new", (notice) => {
+    // Employee work updates are persisted and emitted over the existing shared
+    // notification socket; reload this module so counts and recent activity
+    // update without requiring the administrator to refresh manually.
+    if (notice?.type?.startsWith("employee_")) {
+      void reload();
+      if (selectedProfile?.employee?.id) {
+        const current = employees.find((employee) => employee.id === selectedProfile.employee.id);
+        if (current) void openEmployeeProfile(current);
+      }
+    }
+  });
+
   const shownEmployees = useMemo(() => employees.filter((e) => {
     const q = query.toLowerCase().trim();
     const match = !q || [e.name, e.officialEmail, e.employeeCode, e.department, e.designation, e.phone].some((v) => String(v ?? "").toLowerCase().includes(q));
@@ -180,6 +237,11 @@ export default function AdminEmployeeManagementPage() {
     ? Math.min(100, Math.round((attendanceMarked / summary.activeEmployees) * 100))
     : 0;
   const pendingLeaveCount = leaveRequests.filter((request) => request.status === "PENDING").length;
+  const employeeActivity = useMemo(() => auditLogs
+    .filter((row) => row.action.toLowerCase().startsWith("employee.") || row.resourceType?.toLowerCase().startsWith("employee"))
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 8), [auditLogs]);
 
   function startEdit(e: Employee) {
     setEditing(e); setShowForm(true);
@@ -448,6 +510,31 @@ export default function AdminEmployeeManagementPage() {
               </div>
             </Panel>
 
+            <Panel title="Live employee activity" sub="Recent check-ins, task updates, lead activity and profile changes." action={<button type="button" onClick={() => setTab("activity")} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">View audit log</button>}>
+              <div className="truvi-admin-employee-activity">
+                {employeeActivity.map((row) => {
+                  const action = row.action.replace(/^employee\./i, "").replace(/[._]/g, " ");
+                  const isAttendance = row.action.toLowerCase().includes("attendance");
+                  const isSecurity = row.action.toLowerCase().includes("password") || row.action.toLowerCase().includes("contact");
+                  return <div key={row._id} className="truvi-admin-employee-activity__row">
+                    <span className={"truvi-admin-employee-activity__icon " + (isSecurity ? "is-security" : isAttendance ? "is-attendance" : "is-general")}>
+                      {isSecurity ? <ShieldCheck size={15} aria-hidden="true"/> : isAttendance ? <CalendarCheck size={15} aria-hidden="true"/> : <Users size={15} aria-hidden="true"/>}
+                    </span>
+                    <span className="truvi-admin-employee-activity__copy">
+                      <strong>{action.charAt(0).toUpperCase() + action.slice(1)}</strong>
+                      <small>{row.actorName || row.actorEmail || "Employee account"}{row.resourceType ? " · " + row.resourceType.replaceAll("_", " ") : ""}</small>
+                    </span>
+                    <time>{dt(row.createdAt)}</time>
+                  </div>;
+                })}
+                {employeeActivity.length === 0 && <div className="truvi-dashboard-empty truvi-dashboard-empty--compact">
+                  <span><Clock3 size={20} aria-hidden="true"/></span>
+                  <strong>No employee activity yet</strong>
+                  <p>Check-ins, task updates, lead activity and profile changes will appear here automatically.</p>
+                </div>}
+              </div>
+            </Panel>
+
             <Panel title="Employees list" sub="A quick view of the latest employee profiles" action={<button onClick={() => { setQuery(""); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition hover:border-primary/30 hover:bg-white/5">See all employees</button>}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[540px] text-left text-sm">
@@ -459,13 +546,13 @@ export default function AdminEmployeeManagementPage() {
                       <tr key={employee.id} className="border-t border-white/10 align-middle transition hover:bg-white/[0.02]">
                         <td className="py-3 pr-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <div className="grid size-9 shrink-0 place-items-center rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{employee.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                            <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{employee.avatarUrl ? <img src={employee.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{employee.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div>
                             <div className="min-w-0"><p className="truncate font-medium">{employee.name}</p><p className="mt-0.5 truncate text-xs text-muted-foreground">{employee.employeeCode || employee.officialEmail || "No employee ID"}</p></div>
                           </div>
                         </td>
                         <td className="py-3 pr-3"><p className="font-medium">{employee.department || "Unassigned"}</p><p className="mt-0.5 text-xs text-muted-foreground">{employee.designation || "No designation"}</p></td>
                         <td className="py-3 pr-3"><Status value={employee.status} /></td>
-                        <td className="py-3 text-right"><button onClick={() => { setQuery(employee.name); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition hover:border-primary/30 hover:text-primary">View</button></td>
+                        <td className="py-3 text-right"><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => void openEmployeeProfile(employee)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary transition hover:bg-primary/10">Full profile</button><button type="button" onClick={() => { setQuery(employee.name); setStatusFilter("ALL"); setTab("employees"); }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs transition hover:border-primary/30 hover:text-primary">Directory</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -552,7 +639,7 @@ export default function AdminEmployeeManagementPage() {
 
       {tab === "employees" && <Panel title="Employee directory" sub="Search by name, email, employee ID, department or phone" action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}>
         <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]"><input aria-label="Search employees" className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" placeholder="Search employees…" value={query} onChange={(e) => setQuery(e.target.value)}/><select className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><div className="flex min-w-0 items-start gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{e.avatarUrl ? <img src={e.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{e.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div><div className="min-w-0"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></div></div></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void openEmployeeProfile(e)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary">Full profile</button><button type="button" onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
       </Panel>}
 
       {tab === "tasks" && <div className="space-y-4">
@@ -678,6 +765,123 @@ export default function AdminEmployeeManagementPage() {
         </Panel>
         <p className="text-xs leading-5 text-muted-foreground">Marking a record paid requires a payment date and reference. Truvi does not execute a bank transfer or UPI payout.</p>
       </div>}
+
+      {selectedProfile && <div className="truvi-admin-profile-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedProfile(null); }}>
+        <section className="truvi-admin-profile-modal" role="dialog" aria-modal="true" aria-label={"Employee profile: " + selectedProfile.employee.name}>
+          <header className="truvi-admin-profile-modal__header">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="truvi-admin-profile-modal__avatar">
+                {(selectedProfile.account?.avatarUrl || selectedProfile.employee.avatarUrl)
+                  ? <img src={(selectedProfile.account?.avatarUrl || selectedProfile.employee.avatarUrl) as string} alt={selectedProfile.employee.name}/>
+                  : <span>{selectedProfile.employee.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}
+              </div>
+              <div className="min-w-0">
+                <p className="truvi-admin-profile-modal__eyebrow">EMPLOYEE PROFILE</p>
+                <h2>{selectedProfile.employee.name}</h2>
+                <p>{selectedProfile.employee.designation || "Employee"} · {selectedProfile.employee.department || "Department not assigned"}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Status value={selectedProfile.employee.status}/>
+                  <Status value={selectedProfile.employee.accountStatus || "UNKNOWN"}/>
+                </div>
+              </div>
+            </div>
+            <button type="button" className="truvi-admin-profile-modal__close" onClick={() => setSelectedProfile(null)} aria-label="Close employee profile"><X size={18}/></button>
+          </header>
+
+          {profileLoading && <div className="truvi-admin-profile-modal__loading" role="status"><RefreshCw size={16} className="animate-spin"/> Refreshing employee profile…</div>}
+
+          <div className="truvi-admin-profile-modal__body">
+            <section className="truvi-admin-profile-card">
+              <div className="truvi-admin-profile-card__title"><div><h3>Account & contact</h3><p>Employee-owned account details and verification state.</p></div><UserRound size={17}/></div>
+              <div className="truvi-admin-profile-details-grid">
+                <div><span className="inline-flex items-center gap-1"><Mail size={11} aria-hidden="true"/>Official email</span><strong className="break-all">{selectedProfile.account?.email || selectedProfile.employee.officialEmail || "—"}</strong><small className={selectedProfile.account?.emailVerified ? "is-good" : "is-pending"}>{selectedProfile.account?.emailVerified ? "Email verified" : "Email not verified"}</small></div>
+                <div><span className="inline-flex items-center gap-1"><Phone size={11} aria-hidden="true"/>Phone number</span><strong>{selectedProfile.account?.phone || selectedProfile.employee.phone || "—"}</strong><small className={selectedProfile.account?.phoneVerified ? "is-good" : "is-pending"}>{selectedProfile.account?.phoneVerified ? "Phone verified" : "Phone not verified"}</small></div>
+                <div><span>Account role</span><strong>{selectedProfile.account?.role || "EMPLOYEE"}</strong></div>
+                <div><span>Account status</span><strong>{selectedProfile.account?.disabled ? "Disabled / awaiting activation" : selectedProfile.account ? "Enabled" : "No linked account"}</strong></div>
+                <div><span>Account created</span><strong>{date(selectedProfile.account?.createdAt || null)}</strong></div>
+                <div><span>Last active</span><strong>{selectedProfile.account?.lastActiveAt ? dt(selectedProfile.account.lastActiveAt) : "No activity timestamp"}</strong></div>
+              </div>
+              {(selectedProfile.account?.bio || selectedProfile.employee.bio) && <div className="truvi-admin-profile-bio"><span>Profile bio</span><p>{selectedProfile.account?.bio || selectedProfile.employee.bio}</p></div>}
+            </section>
+
+            <section className="truvi-admin-profile-card">
+              <div className="truvi-admin-profile-card__title"><div><h3>Employment details</h3><p>HR details managed by authorised administrators.</p></div><ShieldCheck size={17}/></div>
+              <div className="truvi-admin-profile-details-grid">
+                <div><span>Employee ID</span><strong>{selectedProfile.employee.employeeCode || "—"}</strong></div>
+                <div><span>Joining date</span><strong>{date(selectedProfile.employee.joiningDate)}</strong></div>
+                <div><span>Department</span><strong>{selectedProfile.employee.department || "—"}</strong></div>
+                <div><span>Designation</span><strong>{selectedProfile.employee.designation || "—"}</strong></div>
+                <div><span>Employment type</span><strong>{(selectedProfile.employee.employmentType || "—").replaceAll("_", " ")}</strong></div>
+                <div><span>Reporting manager</span><strong>{selectedProfile.employee.reportingManagerId || "Not assigned"}</strong></div>
+                <div><span>Recruitment source</span><strong>{selectedProfile.employee.recruitmentSource || "—"}</strong></div>
+                <div><span>Recruitment campaign</span><strong>{selectedProfile.employee.recruitmentCampaign || "—"}</strong></div>
+                <div><span>Application date</span><strong>{date(selectedProfile.employee.applicationDate)}</strong></div>
+                <div><span>Interview date</span><strong>{date(selectedProfile.employee.interviewDate)}</strong></div>
+                <div><span>Monthly gross salary</span><strong>{money(selectedProfile.employee.monthlySalary)}</strong></div>
+                <div><span>Salary due day</span><strong>{selectedProfile.employee.salaryDueDay || "—"}</strong></div>
+              </div>
+              {selectedProfile.employee.notes && <div className="truvi-admin-profile-bio"><span>Admin notes</span><p>{selectedProfile.employee.notes}</p></div>}
+              <div className="truvi-admin-profile-permissions"><span>Assigned permissions</span><div>{(selectedProfile.employee.permissions || []).length ? selectedProfile.employee.permissions?.map((permission) => <code key={permission}>{permission}</code>) : <small>No explicit permissions recorded.</small>}</div></div>
+            </section>
+
+            <div className="truvi-admin-profile-activity-grid">
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Tasks</h3><p>Latest assigned and personal work.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.tasks.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.tasks.map((task) => <article key={task.id}><div><strong>{task.title}</strong><small>{task.taskType.replaceAll("_", " ")} · {task.deadlineAt ? "Due " + dt(task.deadlineAt) : "No deadline"}</small></div><Status value={task.status}/></article>)}
+                  {!selectedProfile.activity.tasks.length && <p className="truvi-admin-profile-empty">No tasks recorded.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Attendance</h3><p>Most recent attendance records.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.attendance.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.attendance.slice(0, 6).map((record) => <article key={record.id}><div><strong>{date(record.attendanceDate)}</strong><small>In: {record.checkInAt ? dt(record.checkInAt) : "—"} · Out: {record.checkOutAt ? dt(record.checkOutAt) : "—"}</small>{record.workingMinutes != null && <small>{Math.floor(record.workingMinutes / 60)}h {record.workingMinutes % 60}m recorded</small>}</div><Status value={record.status}/></article>)}
+                  {!selectedProfile.activity.attendance.length && <p className="truvi-admin-profile-empty">No attendance records.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Leave requests</h3><p>Submitted time-off history.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.leaveRequests.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.leaveRequests.slice(0, 6).map((request) => <article key={request.id}><div><strong>{request.leaveType.replaceAll("_", " ")} · {request.totalDays} day(s)</strong><small>{request.startDate} → {request.endDate}</small><small>{request.reason}</small></div><Status value={request.status}/></article>)}
+                  {!selectedProfile.activity.leaveRequests.length && <p className="truvi-admin-profile-empty">No leave requests.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Buyer leads</h3><p>Submitted or assigned CRM leads.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.buyerLeads.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.buyerLeads.slice(0, 6).map((lead) => <article key={lead.id}><div><strong>{lead.clientName}</strong><small>{lead.clientPhone} · {date(lead.createdAt)}</small></div><Status value={lead.stage}/></article>)}
+                  {!selectedProfile.activity.buyerLeads.length && <p className="truvi-admin-profile-empty">No related buyer leads.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Site visits</h3><p>Visits organised by this employee.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.siteVisits.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.siteVisits.slice(0, 6).map((visit) => <article key={visit.id}><div><strong>Site visit</strong><small>{dt(visit.scheduledAt)} · Project {visit.projectId}</small></div><Status value={visit.status}/></article>)}
+                  {!selectedProfile.activity.siteVisits.length && <p className="truvi-admin-profile-empty">No site visits recorded.</p>}
+                </div>
+              </section>
+
+              <section className="truvi-admin-profile-card">
+                <div className="truvi-admin-profile-card__title"><div><h3>Salary & payroll</h3><p>Recent payroll records.</p></div><span className="truvi-admin-profile-count">{selectedProfile.activity.salaryRecords.length}</span></div>
+                <div className="truvi-admin-profile-list">
+                  {selectedProfile.activity.salaryRecords.slice(0, 6).map((record) => <article key={record.id}><div><strong>{record.monthKey} · {money(record.netPayable)}</strong><small>Gross {money(record.grossSalary)} · Allowances {money(record.allowances)} · Deductions {money(record.deductions)}</small>{record.status === "PAID" && <small>Paid {date(record.paymentDate)} · {record.paymentReference || "No payment reference"}</small>}</div><Status value={record.status}/></article>)}
+                  {!selectedProfile.activity.salaryRecords.length && <p className="truvi-admin-profile-empty">No salary records.</p>}
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <footer className="truvi-admin-profile-modal__footer">
+            <span>Private HR information · Visible to authorised administrators only</span>
+            <button type="button" onClick={() => setSelectedProfile(null)}>Close profile</button>
+          </footer>
+        </section>
+      </div>}
+
     </div>
   );
 }

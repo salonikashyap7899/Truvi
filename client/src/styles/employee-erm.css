@@ -2002,3 +2002,624 @@
     max-width: 150px;
   }
 }
+
+
+/* Account self-service panels, scoped to the employee profile section. */
+.truvi-erm .truvi-profile-settings-card {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, .17);
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(150deg, rgba(18, 29, 46, .94), rgba(11, 19, 31, .98));
+}
+
+.truvi-erm .truvi-profile-settings-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.truvi-erm .truvi-profile-settings-card__heading h3 {
+  margin: 0;
+  color: #eef3ff;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.truvi-erm .truvi-profile-settings-card__heading p {
+  margin: 5px 0 0;
+  color: #8596b0;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.truvi-erm .truvi-profile-settings-card input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: 39px;
+  font-size: 12px;
+}
+
+.truvi-erm .truvi-profile-settings-card input[readonly] {
+  color: #8c9bb2 !important;
+  background: rgba(255,255,255,.02) !important;
+}
+
+.truvi-erm .truvi-profile-settings-card button[type="submit"],
+.truvi-erm .truvi-profile-settings-actions button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(111,140,255,.3);
+  border-radius: 9px;
+  padding: 8px 12px;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(74,105,218,.96), rgba(87,92,196,.92));
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.truvi-erm .truvi-profile-settings-card button[type="submit"]:disabled,
+.truvi-erm .truvi-profile-settings-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.truvi-erm .truvi-profile-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.truvi-erm .truvi-profile-settings-actions > span {
+  color: #7789a3;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.truvi-erm .truvi-profile-settings-actions button.is-secondary {
+  border-color: rgba(148,163,184,.2);
+  color: #c4cee0;
+  background: rgba(255,255,255,.035);
+}
+
+.truvi-erm .truvi-profile-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.truvi-erm .truvi-profile-settings-card--password {
+  grid-column: 1 / -1;
+}
+
+.truvi-erm .truvi-profile-verified {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.truvi-erm .truvi-profile-verified.is-verified {
+  border-color: rgba(52,211,153,.2);
+  color: #8cddbc;
+  background: rgba(16,185,129,.07);
+}
+
+.truvi-erm .truvi-profile-verified.is-pending {
+  border-color: rgba(251,191,36,.2);
+  color: #eac785;
+  background: rgba(251,191,36,.06);
+}
+
+.truvi-erm .truvi-profile-password-icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111,140,255,.2);
+  border-radius: 10px;
+  color: #adb7ff;
+  background: rgba(111,140,255,.08);
+}
+
+@media (max-width: 760px) {
+  .truvi-erm .truvi-profile-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .truvi-erm .truvi-profile-settings-card--password {
+    grid-column: auto;
+  }
+
+  .truvi-erm .truvi-profile-settings-card {
+    padding: 13px;
+  }
+}
+
+
+/* Admin Employee Management: live activity feed closes the unused overview
+   gap with real audit events, and the full profile modal remains responsive. */
+.truvi-admin-employee-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.truvi-admin-employee-activity__row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid rgba(148, 163, 184, .09);
+  padding: 10px 2px;
+}
+
+.truvi-admin-employee-activity__row:last-child {
+  border-bottom: 0;
+}
+
+.truvi-admin-employee-activity__icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111, 140, 255, .18);
+  border-radius: 10px;
+  color: #aeb8ff;
+  background: rgba(111, 140, 255, .08);
+}
+
+.truvi-admin-employee-activity__icon.is-attendance {
+  border-color: rgba(45, 212, 191, .18);
+  color: #81e0cf;
+  background: rgba(20, 184, 166, .08);
+}
+
+.truvi-admin-employee-activity__icon.is-security {
+  border-color: rgba(251, 191, 36, .2);
+  color: #f1d08c;
+  background: rgba(245, 158, 11, .08);
+}
+
+.truvi-admin-employee-activity__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.truvi-admin-employee-activity__copy strong {
+  overflow: hidden;
+  color: #e5ecf9;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truvi-admin-employee-activity__copy small {
+  overflow: hidden;
+  color: #8092ad;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truvi-admin-employee-activity__row time {
+  flex: 0 0 auto;
+  color: #7486a0;
+  font-size: 9px;
+  text-align: right;
+}
+
+.truvi-admin-profile-overlay {
+  position: fixed;
+  z-index: 140;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 20px;
+  background: rgba(2, 6, 15, .78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.truvi-admin-profile-modal {
+  display: flex;
+  width: min(1320px, 100%);
+  max-height: min(92dvh, 960px);
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(133, 150, 185, .25);
+  border-radius: 19px;
+  color: #e7edf9;
+  background:
+    radial-gradient(ellipse at 5% 0%, rgba(84, 96, 193, .12), transparent 32rem),
+    #0b1422;
+  box-shadow: 0 28px 100px rgba(0,0,0,.54);
+}
+
+.truvi-admin-profile-modal__header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(148,163,184,.15);
+  padding: 20px 23px;
+  background: rgba(12, 20, 33, .94);
+}
+
+.truvi-admin-profile-modal__avatar {
+  display: flex;
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid rgba(132, 133, 255, .48);
+  border-radius: 18px;
+  color: white;
+  background: linear-gradient(140deg, #5269d8, #7b4fc4);
+  box-shadow: 0 0 0 5px rgba(111,140,255,.07);
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.truvi-admin-profile-modal__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.truvi-admin-profile-modal__eyebrow {
+  margin: 0 0 5px;
+  color: #8c9cff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+.truvi-admin-profile-modal__header h2 {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #f3f6ff;
+  font-size: 21px;
+  font-weight: 760;
+  letter-spacing: -.025em;
+}
+
+.truvi-admin-profile-modal__header p:not(.truvi-admin-profile-modal__eyebrow) {
+  margin: 5px 0 0;
+  color: #96a6bf;
+  font-size: 11px;
+}
+
+.truvi-admin-profile-modal__close {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 10px;
+  color: #a6b5cb;
+  background: rgba(255,255,255,.025);
+}
+
+.truvi-admin-profile-modal__close:hover {
+  border-color: rgba(111,140,255,.4);
+  color: #fff;
+  background: rgba(111,140,255,.08);
+}
+
+.truvi-admin-profile-modal__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(148,163,184,.12);
+  padding: 9px 22px;
+  color: #9eacd0;
+  background: rgba(111,140,255,.06);
+  font-size: 10px;
+}
+
+.truvi-admin-profile-modal__body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #344761 transparent;
+  padding: 18px 20px 23px;
+}
+
+.truvi-admin-profile-card {
+  min-width: 0;
+  border: 1px solid rgba(148,163,184,.15);
+  border-radius: 14px;
+  padding: 15px;
+  background: linear-gradient(150deg, rgba(17,29,47,.9), rgba(11,19,31,.93));
+}
+
+.truvi-admin-profile-card + .truvi-admin-profile-card {
+  margin-top: 14px;
+}
+
+.truvi-admin-profile-card__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: #9daaff;
+}
+
+.truvi-admin-profile-card__title h3 {
+  margin: 0;
+  color: #edf2ff;
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.truvi-admin-profile-card__title p {
+  margin: 4px 0 0;
+  color: #8293ad;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.truvi-admin-profile-details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 12px;
+}
+
+.truvi-admin-profile-details-grid > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid rgba(148,163,184,.09);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255,255,255,.012);
+}
+
+.truvi-admin-profile-details-grid > div > span,
+.truvi-admin-profile-bio > span,
+.truvi-admin-profile-permissions > span {
+  color: #788aa5;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.truvi-admin-profile-details-grid > div > strong {
+  overflow-wrap: anywhere;
+  color: #dde6f4;
+  font-size: 10px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.truvi-admin-profile-details-grid small {
+  font-size: 9px;
+}
+
+.truvi-admin-profile-details-grid small.is-good { color: #7edbb5; }
+.truvi-admin-profile-details-grid small.is-pending { color: #e7bf79; }
+
+.truvi-admin-profile-bio {
+  margin-top: 13px;
+  border-top: 1px solid rgba(148,163,184,.1);
+  padding-top: 12px;
+}
+
+.truvi-admin-profile-bio p {
+  margin: 6px 0 0;
+  color: #bfccde;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.truvi-admin-profile-permissions {
+  margin-top: 14px;
+  border-top: 1px solid rgba(148,163,184,.1);
+  padding-top: 12px;
+}
+
+.truvi-admin-profile-permissions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.truvi-admin-profile-permissions code {
+  border: 1px solid rgba(111,140,255,.2);
+  border-radius: 7px;
+  padding: 5px 7px;
+  color: #b7c2ff;
+  background: rgba(111,140,255,.06);
+  font-size: 9px;
+}
+
+.truvi-admin-profile-permissions small {
+  color: #8293ad;
+  font-size: 10px;
+}
+
+.truvi-admin-profile-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.truvi-admin-profile-count {
+  display: inline-flex;
+  min-width: 27px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(111,140,255,.22);
+  border-radius: 8px;
+  color: #b8c2ff;
+  background: rgba(111,140,255,.08);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.truvi-admin-profile-list {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.truvi-admin-profile-list > article {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(148,163,184,.09);
+  padding: 10px 0;
+}
+
+.truvi-admin-profile-list > article:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.truvi-admin-profile-list > article > div {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.truvi-admin-profile-list > article strong {
+  color: #dfe8f8;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.truvi-admin-profile-list > article small {
+  color: #8293ad;
+  font-size: 9px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.truvi-admin-profile-empty {
+  margin: 0;
+  border: 1px dashed rgba(148,163,184,.13);
+  border-radius: 9px;
+  padding: 16px 10px;
+  color: #8192ab;
+  font-size: 10px;
+  text-align: center;
+}
+
+.truvi-admin-profile-modal__footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid rgba(148,163,184,.14);
+  padding: 12px 20px;
+  background: rgba(12,20,33,.97);
+}
+
+.truvi-admin-profile-modal__footer > span {
+  color: #7f90a9;
+  font-size: 9px;
+}
+
+.truvi-admin-profile-modal__footer button {
+  min-height: 34px;
+  border: 1px solid rgba(148,163,184,.19);
+  border-radius: 9px;
+  padding: 7px 12px;
+  color: #d8e2f2;
+  background: rgba(255,255,255,.03);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+@media (max-width: 780px) {
+  .truvi-admin-profile-overlay {
+    align-items: stretch;
+    padding: 8px;
+  }
+  .truvi-admin-profile-modal {
+    max-height: calc(100dvh - 16px);
+    border-radius: 14px;
+  }
+  .truvi-admin-profile-modal__header {
+    padding: 14px;
+  }
+  .truvi-admin-profile-modal__avatar {
+    width: 54px;
+    height: 54px;
+    flex-basis: 54px;
+    border-radius: 14px;
+    font-size: 15px;
+  }
+  .truvi-admin-profile-modal__header h2 {
+    font-size: 17px;
+  }
+  .truvi-admin-profile-modal__body {
+    padding: 12px;
+  }
+  .truvi-admin-profile-details-grid,
+  .truvi-admin-profile-activity-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .truvi-admin-profile-details-grid,
+  .truvi-admin-profile-activity-grid {
+    grid-template-columns: minmax(0,1fr);
+  }
+  .truvi-admin-profile-modal__header > .flex {
+    gap: 10px;
+  }
+  .truvi-admin-profile-modal__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
