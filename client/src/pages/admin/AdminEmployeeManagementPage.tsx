@@ -122,7 +122,8 @@ export default function AdminEmployeeManagementPage() {
     };
     try {
       if (editing) {
-        const { officialEmail: _email, ...editable } = payload;
+        const editable: Record<string, unknown> = { ...payload };
+        delete editable.officialEmail;
         await api.patch(`/employees/${editing.id}`, editable);
         toast.success("Employee profile updated.");
       } else {
