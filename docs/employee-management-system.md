@@ -8,8 +8,8 @@ Employee login accounts use the existing users model with role EMPLOYEE. An empl
 
 ## Implemented surfaces
 
-- Admin: /admin/employees — employee directory, account creation/linking and activation invitations, recruitment data, per-employee permissions, live overview, task assignment and task history/comments, central lead visibility, site visits, attendance correction, salary records/status, performance reports, and employee audit history.
-- Employee: /employee/dashboard — personal overview, own/assigned tasks, lead submission and history, call outcome and follow-up logging, proposed site visits, check-in/out and attendance history, own profile, own permitted salary records, and notifications.
+- Admin: /admin/employees — employee directory, account creation/linking and activation invitations, recruitment data, per-employee permissions, live overview, multi-employee task assignment, task history/comments/private attachments, central lead visibility, site visits, attendance correction, leave approvals, salary records/status, performance reports, and employee audit history.
+- Employee: /employee/dashboard — personal overview, own/assigned tasks, private task attachments, lead submission and history, call outcome and follow-up logging, proposed site visits, check-in/out and attendance history, leave requests/cancellation, own profile, own permitted salary records, and notifications.
 - Activation: /employee/activate?token=... — single-use invitation and password setup.
 - Central CRM: the existing Admin Leads view now offers an Employee source filter for leads submitted by staff.
 - Founder Dashboard: the existing Team module now shows linked employee account and employee activity summaries and links into the Admin EMS workspace.
@@ -40,7 +40,7 @@ The activation token is randomly generated and only its SHA-256 hash is stored. 
 
 ## Validation
 
-The repository's GitHub Actions workflow runs server typecheck, client production build, server tests, dependency audits, and CodeQL. Only report success after reviewing the workflow for the final branch head. This document intentionally does not claim production readiness or deployment.
+The GitHub Actions workflow runs server typecheck, client production build, server tests, dependency audits, and CodeQL. Leave-date validation/overlap and employee lead-access unit tests are included. Production database migration, SMTP delivery, and browser-level user journeys still require a staging environment and configured credentials.
 
 ## Safe deployment / rollback checklist
 
