@@ -5,7 +5,7 @@ import { randomBytes, createHash } from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import {
-  and, desc, eq, gte, inArray, isNull, like, lt, notInArray, or, sql,
+  and, desc, eq, gte, inArray, isNull, like, lt, or, sql,
 } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
@@ -1243,6 +1243,7 @@ router.post("/attendance/check-in", requireRole("EMPLOYEE"), async (req: AuthedR
     if (!hasPermission(emp.permissions, "attendance.checkin")) return res.status(403).json({ error: "Check-in is not enabled." });
     const db = getDb(), day = dateInIndia(), now = new Date();
     const [existing] = await db.select().from(employeeAttendance).where(and(eq(employeeAttendance.employeeId, emp._id), eq(employeeAttendance.attendanceDate, day))).limit(1);
+    if (existing?.status === "ON_LEAVE" || existing?.status === "HOLIDAY") return res.status(409).json({ error: "Attendance is marked as approved leave or holiday for today." });
     if (existing?.checkInAt) return res.status(409).json({ error: "Today's attendance has already been checked in." });
     let row;
     if (existing) [row] = await db.update(employeeAttendance).set({ status: "PRESENT", checkInAt: now, checkOutAt: null, workingMinutes: null, updatedAt: now }).where(eq(employeeAttendance._id, existing._id)).returning();
