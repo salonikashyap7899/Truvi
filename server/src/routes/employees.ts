@@ -1085,7 +1085,7 @@ router.get("/salaries", async (req: AuthedRequest, res, next) => {
     if (!hasPermission(emp.permissions, "salary.read.own")) return res.status(403).json({ error: "Salary access is not enabled." });
     const rows = await db.select().from(employeeSalaryRecords).where(eq(employeeSalaryRecords.employeeId, emp._id)).orderBy(desc(employeeSalaryRecords.monthKey)).limit(36);
     return res.json({ salaries: rows.map((r) => ({
-      id: String(r._id), employeeId: String(r.employeeId), monthKey: r.monthKey,
+      _id: String(r._id), employeeId: String(r.employeeId), monthKey: r.monthKey,
       grossSalary: r.grossSalary, allowances: r.allowances, deductions: r.deductions,
       netPayable: r.netPayable, status: r.status,
       paymentDate: r.status === "PAID" ? r.paymentDate : null,
