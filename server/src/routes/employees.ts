@@ -376,7 +376,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
     const parsed = employeeCreateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
     const data = parsed.data;
-    if (data.phone && !/^[+\d\s()-]{10,20}$/.test(data.phone)) return res.status(400).json({ error: "Enter a valid phone number." });
+    if (!isValidEmployeePhone(data.phone)) return res.status(400).json({ error: "Enter a valid phone number containing 10–15 digits." });
     if (data.reportingManagerId && !isValidId(data.reportingManagerId)) return res.status(400).json({ error: "Reporting manager is invalid." });
     const db = getDb();
     const existing = await db.select({ id: users._id }).from(users).where(eq(users.email, data.officialEmail)).limit(1);
@@ -433,7 +433,8 @@ router.post("/:id/account", requireRole("ADMIN"), async (req: AuthedRequest, res
     if (!employee) return res.status(404).json({ error: "Employee not found." });
     if (employee.accountUserId) return res.status(409).json({ error: "This employee already has a linked account." });
     if (employee.status === "INACTIVE") return res.status(409).json({ error: "Reactivate the employee profile before creating an account." });
-    if (parsed.data.phone && !/^[+\d\s()-]{10,20}$/.test(parsed.data.phone)) return res.status(400).json({ error: "Enter a valid phone number." });
+    const phone = parsed.data.phone.trim() || employee.phone?.trim() || "";
+    if (!isValidEmployeePhone(phone)) return res.status(400).json({ error: "A valid phone number is required before creating an employee account." });
     const [existingAccount] = await db.select({ id: users._id }).from(users).where(eq(users.email, parsed.data.officialEmail)).limit(1);
     if (existingAccount) return res.status(409).json({ error: "An account already exists for this official email." });
     const passwordHash = await bcrypt.hash(randomBytes(48).toString("hex"), 12);
