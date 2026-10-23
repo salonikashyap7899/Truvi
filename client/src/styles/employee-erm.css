@@ -1,0 +1,338 @@
+/* Scoped ERP / HRMS styling for Truvi's Admin and Employee workspaces.
+   Keep the marketing site and all other role dashboards unchanged. */
+.truvi-erm {
+  --erm-panel: #0d1522;
+  --erm-panel-raised: #121d2d;
+  --erm-border: rgba(148, 163, 184, 0.18);
+  --erm-muted: #9baac0;
+  --erm-accent: #6f8cff;
+  color: #e8eef8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  font-feature-settings: "cv11", "ss01";
+}
+
+.truvi-erm :where(h1, h2, h3, h4, p, span, label, button, input, select, textarea, td, th, time) {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.truvi-erm h1 {
+  color: #f4f7fc;
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.truvi-erm h2 {
+  color: #edf3fb;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.truvi-erm .text-muted-foreground {
+  color: var(--erm-muted) !important;
+}
+
+.truvi-erm-employee {
+  background:
+    radial-gradient(ellipse at 60% 0%, rgba(57, 87, 163, 0.14), transparent 38rem),
+    linear-gradient(180deg, #080e18 0%, #090f19 52%, #080d16 100%) !important;
+}
+
+.truvi-erm section {
+  min-width: 0;
+  background: linear-gradient(155deg, rgba(19, 29, 45, 0.96), rgba(12, 20, 32, 0.98)) !important;
+  border-color: var(--erm-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+}
+
+.truvi-erm section > div:first-child h2 {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.truvi-erm article {
+  border-color: rgba(148, 163, 184, 0.16) !important;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.truvi-erm article:hover {
+  border-color: rgba(111, 140, 255, 0.32) !important;
+}
+
+.truvi-erm input:not([type="checkbox"]):not([type="radio"]),
+.truvi-erm select,
+.truvi-erm textarea {
+  min-height: 40px;
+  color: #e8eef8 !important;
+  background-color: #09111d !important;
+  border: 1px solid rgba(148, 163, 184, 0.24) !important;
+  border-radius: 10px !important;
+  font: inherit;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+.truvi-erm textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.truvi-erm input::placeholder,
+.truvi-erm textarea::placeholder {
+  color: #72839b;
+  opacity: 1;
+}
+
+.truvi-erm input:focus-visible,
+.truvi-erm select:focus-visible,
+.truvi-erm textarea:focus-visible {
+  outline: 2px solid rgba(111, 140, 255, 0.78);
+  outline-offset: 1px;
+  border-color: rgba(111, 140, 255, 0.75) !important;
+}
+
+.truvi-erm button:not(:disabled) {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.truvi-erm button:focus-visible,
+.truvi-erm a:focus-visible {
+  outline: 2px solid rgba(111, 140, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.truvi-erm button:disabled {
+  cursor: not-allowed;
+}
+
+.truvi-erm .truvi-erm-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--erm-border) !important;
+  border-radius: 14px;
+  background: rgba(13, 21, 34, 0.82);
+  scrollbar-width: thin;
+  scrollbar-color: #34445f transparent;
+}
+
+.truvi-erm .truvi-erm-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #a9b7ca;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.truvi-erm .truvi-erm-tabs button:hover:not(:disabled) {
+  color: #f3f6ff;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.truvi-erm .truvi-erm-tabs button[aria-current="page"] {
+  color: #ffffff !important;
+  border-color: rgba(111, 140, 255, 0.28) !important;
+  background: linear-gradient(135deg, rgba(74, 105, 218, 0.96), rgba(87, 92, 196, 0.92)) !important;
+  box-shadow: 0 4px 14px rgba(45, 67, 159, 0.2);
+}
+
+.truvi-erm-workspace {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.truvi-erm-workspace-content {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 18px;
+}
+
+.truvi-erm .truvi-employee-nav {
+  position: sticky;
+  top: 6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  overflow: visible;
+}
+
+.truvi-erm .truvi-employee-nav button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.truvi-erm-count {
+  display: inline-flex;
+  min-width: 21px;
+  height: 21px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 6px;
+  border: 1px solid rgba(251, 113, 133, 0.24);
+  border-radius: 999px;
+  color: #fecdd3;
+  background: rgba(225, 29, 72, 0.16);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.truvi-erm .truvi-erm-load-warning {
+  border-color: rgba(251, 191, 36, 0.28) !important;
+  color: #f1d9a4;
+  background: rgba(146, 91, 7, 0.12);
+}
+
+.truvi-erm .truvi-erm-load-warning p + p {
+  color: #b9c2d2;
+}
+
+.truvi-erm .truvi-erm-load-warning button {
+  border-color: rgba(251, 191, 36, 0.32) !important;
+  color: #f7e4bd;
+  background: rgba(146, 91, 7, 0.14);
+}
+
+.truvi-erm table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.truvi-erm thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  color: #a9b7ca;
+  background: #111b2a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.truvi-erm tbody td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+  color: #d9e2ef;
+  vertical-align: top;
+}
+
+.truvi-erm tbody tr:hover td {
+  background: rgba(111, 140, 255, 0.045);
+}
+
+.truvi-erm tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.truvi-erm .truvi-erm-notification {
+  align-items: flex-start;
+  border-radius: 13px !important;
+  background: rgba(14, 23, 37, 0.72);
+}
+
+.truvi-erm .truvi-erm-notification:hover {
+  border-color: rgba(111, 140, 255, 0.42) !important;
+  background: rgba(24, 36, 57, 0.9);
+}
+
+.truvi-erm .truvi-erm-notification.is-read {
+  opacity: 0.82;
+}
+
+.truvi-erm .truvi-erm-notification.is-unread {
+  border-color: rgba(111, 140, 255, 0.33) !important;
+  background: rgba(50, 73, 143, 0.13);
+}
+
+.truvi-erm .truvi-erm-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+@media (max-width: 1024px) {
+  .truvi-erm-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .truvi-erm .truvi-employee-nav {
+    position: static;
+    flex-direction: row;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .truvi-erm .truvi-employee-nav button {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .truvi-erm-workspace-content {
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .truvi-erm {
+    font-size: 13px;
+  }
+
+  .truvi-erm section {
+    border-radius: 13px !important;
+  }
+
+  .truvi-erm .truvi-erm-tabs {
+    padding: 5px;
+    border-radius: 12px;
+  }
+
+  .truvi-erm .truvi-erm-tabs button {
+    min-height: 38px;
+    gap: 7px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .truvi-erm .truvi-employee-nav button {
+    gap: 7px;
+  }
+
+  .truvi-erm tbody td {
+    padding: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .truvi-erm,
+  .truvi-erm * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
