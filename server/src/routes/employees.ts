@@ -934,9 +934,18 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
       }
     }
     const originalFileName = path.basename(file.originalname).replace(/[\r\n"]/g, "_").slice(0, 180) || "attachment";
+    const safeMimeTypes: Record<string, string> = {
+      ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+      ".png": "image/png", ".webp": "image/webp",
+    };
+    const verifiedMimeType = safeMimeTypes[ext];
+    if (!verifiedMimeType) {
+      cleanup();
+      return res.status(400).json({ error: "Only PDF, JPG, PNG, and WEBP attachments are allowed." });
+    }
     const [attachment] = await getDb().insert(employeeTaskAttachments).values({
       taskId, uploadedByUserId: req.user!.userId, storedFileName: file.filename,
-      originalFileName, mimeType: file.mimetype, sizeBytes: file.size,
+      originalFileName, mimeType: verifiedMimeType, sizeBytes: file.size,
     }).returning();
     await getDb().insert(employeeTaskHistory).values({
       taskId, actorUserId: req.user!.userId, action: "ATTACHMENT_ADDED",
@@ -948,7 +957,7 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
       metadata: { attachmentId: String(attachment._id), fileName: originalFileName, sizeBytes: file.size },
     });
     return res.status(201).json({ attachment: {
-      _id: String(attachment._id), originalFileName, mimeType: file.mimetype,
+      _id: String(attachment._id), originalFileName, mimeType: verifiedMimeType,
       sizeBytes: file.size, uploadedByUserId: req.user!.userId, createdAt: attachment.createdAt,
     } });
   } catch (err) { cleanup(); next(err); }
