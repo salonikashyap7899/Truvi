@@ -92,7 +92,9 @@ async function issueInvite(employeeId: string, actorUserId: string) {
 
 const employeeCreateSchema = z.object({
   name: z.string().trim().min(2).max(160),
-  employeeCode: z.string().trim().min(2).max(40).optional(),
+  employeeCode: z.string().trim().max(40).optional()
+    .refine((value) => !value || value.length >= 2, { message: "Employee ID must be at least 2 characters when provided." })
+    .transform((value) => value || undefined),
   officialEmail: z.email().transform((v) => v.trim().toLowerCase()),
   phone: z.string().trim().max(30).optional().default(""),
   department: z.string().trim().min(1).max(100),
