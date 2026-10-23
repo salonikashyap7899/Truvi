@@ -9,7 +9,7 @@
  */
 import { and, eq, lte } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { leadFollowUps, leads, users, projects, subscriptions } from "../db/schema";
+import { leadFollowUps, leads, users, projects, subscriptions, employees, employeeTasks, employeeTaskAssignments } from "../db/schema";
 import { notifyUser } from "./notificationService";
 import { sendWhatsAppCampaign } from "./whatsappService";
 
@@ -43,6 +43,55 @@ export async function runFollowUpReminders(): Promise<{ scanned: number; sent: n
     if (created.length) sent++;
   }
   return { scanned: rows.length, sent };
+}
+
+/**
+ * Deadline alerts for employee tasks. Sends a personal notification to each
+ * active assignee when a deadline is within the next 24 hours or overdue.
+ * A day + deadline key throttles each assignee to one reminder per day.
+ * Completed and cancelled tasks are excluded from subsequent sweeps.
+ */
+export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sent: number }> {
+  const db = getDb();
+  const now = new Date();
+  const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (kind: string) => parts.find((item) => item.type === kind)?.value ?? "";
+  const today = part("year") + "-" + part("month") + "-" + part("day");
+
+  const tasks = (await db.select().from(employeeTasks)
+    .where(lte(employeeTasks.deadlineAt, nextDay)))
+    .filter((task) => !!task.deadlineAt && !["COMPLETED", "CANCELLED"].includes(task.status));
+
+  let sent = 0;
+  for (const task of tasks) {
+    const assignments = await db.select({ employeeId: employeeTaskAssignments.employeeId })
+      .from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, task._id));
+    const targetIds = assignments.length ? assignments.map((row) => row.employeeId) : [task.employeeId];
+    const targets = await db.select({
+      employeeId: employees._id, name: employees.name, accountUserId: employees.accountUserId,
+      disabled: users.disabled,
+    }).from(employees).leftJoin(users, eq(employees.accountUserId, users._id))
+      .where(inArray(employees._id, targetIds));
+    const overdue = task.deadlineAt!.getTime() < now.getTime();
+    const deadlineLabel = task.deadlineAt!.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+    for (const target of targets) {
+      if (!target.accountUserId || target.disabled || !target.name) continue;
+      const created = await notifyUser(String(target.accountUserId), {
+        type: "employee_task_reminder",
+        title: overdue ? "Employee task overdue" : "Employee task due soon",
+        message: (overdue ? "Overdue: " : "Due soon: ") + task.title + " — deadline " + deadlineLabel + ".",
+        data: { href: "/employee/dashboard?tab=tasks", taskId: String(task._id) },
+        dedupeKey: "employee-task-deadline:" + String(task._id) + ":" + String(target.accountUserId) + ":" + task.deadlineAt!.toISOString() + ":" + today,
+      });
+      if (created.length) sent++;
+    }
+  }
+  return { scanned: tasks.length, sent };
 }
 
 /**
@@ -139,6 +188,12 @@ export function startNotificationReminderScheduler(): void {
       .then((r) => { if (r.sent > 0) console.log(`[reminders] follow-up reminders sent: ${r.sent}/${r.scanned}`); })
       .catch((err) => console.warn("[reminders] follow-up sweep failed:", err instanceof Error ? err.message : err));
   };
+  const runEmployeeTasks = () => {
+    runEmployeeTaskReminders()
+      .then((r) => { if (r.sent > 0) console.log("[reminders] employee task reminders sent: " + r.sent + "/" + r.scanned); })
+      .catch((err) => console.warn("[reminders] employee task sweep failed:", err instanceof Error ? err.message : err));
+  };
+
   const runRole = () => {
     runRoleCompletionReminders()
       .then((r) => { if (r.sent > 0) console.log(`[reminders] role-completion reminders sent: ${r.sent}`); })
@@ -147,6 +202,8 @@ export function startNotificationReminderScheduler(): void {
 
   setTimeout(runFollowUps, 90_000).unref(); // ~1.5 min after boot
   setInterval(runFollowUps, FIFTEEN_MIN).unref();
+  setTimeout(runEmployeeTasks, 120_000).unref();
+  setInterval(runEmployeeTasks, FIFTEEN_MIN).unref();
   setTimeout(runRole, 120_000).unref();      // ~2 min after boot
   setInterval(runRole, SIX_HOURS).unref();
 }
