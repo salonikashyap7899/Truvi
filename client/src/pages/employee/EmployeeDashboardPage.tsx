@@ -122,7 +122,7 @@ export default function EmployeeDashboardPage() {
         const list: Notice[] = d.notifications ?? [];
         list.forEach((notice) => notificationIdsRef.current.add(notice._id));
         setNotices((current) => {
-          const merged = new Map([...list, ...current].map((notice) => [notice._id, notice]));
+          const merged = new Map<string, Notice>([...list, ...current].map((notice) => [notice._id, notice] as const));
           return [...merged.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 200);
         });
       });
