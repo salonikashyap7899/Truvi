@@ -386,6 +386,53 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "employee_tasks_deadline_idx" ON "employee_tasks" ("deadline_at", "status")`,
     `CREATE INDEX IF NOT EXISTS "employee_tasks_project_idx" ON "employee_tasks" ("project_id")`,
     `CREATE INDEX IF NOT EXISTS "employee_tasks_lead_idx" ON "employee_tasks" ("lead_id")`,
+    `CREATE TABLE IF NOT EXISTS "employee_task_assignments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "task_id" uuid NOT NULL REFERENCES "employee_tasks"("id") ON DELETE CASCADE,
+       "employee_id" uuid NOT NULL REFERENCES "employees"("id"),
+       "assigned_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "status" text NOT NULL DEFAULT 'ASSIGNED',
+       "assigned_at" timestamptz NOT NULL DEFAULT now(),
+       "completed_at" timestamptz,
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT "employee_task_assignment_unique" UNIQUE ("task_id", "employee_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "employee_task_assignments_employee_status_idx" ON "employee_task_assignments" ("employee_id", "status")`,
+    `CREATE INDEX IF NOT EXISTS "employee_task_assignments_task_idx" ON "employee_task_assignments" ("task_id")`,
+    `INSERT INTO "employee_task_assignments" ("task_id", "employee_id", "assigned_by_user_id", "status", "assigned_at", "updated_at")
+       SELECT t."id", t."employee_id", t."assigned_by_user_id", t."status", t."created_at", t."updated_at"
+       FROM "employee_tasks" t
+       WHERE t."task_type" = 'ASSIGNED'
+       ON CONFLICT ("task_id", "employee_id") DO NOTHING`,
+    `CREATE TABLE IF NOT EXISTS "employee_task_attachments" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "task_id" uuid NOT NULL REFERENCES "employee_tasks"("id") ON DELETE CASCADE,
+       "uploaded_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "stored_file_name" text NOT NULL UNIQUE,
+       "original_file_name" text NOT NULL,
+       "mime_type" text NOT NULL,
+       "size_bytes" integer NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "employee_task_attachments_task_idx" ON "employee_task_attachments" ("task_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "employee_leave_requests" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "employee_id" uuid NOT NULL REFERENCES "employees"("id"),
+       "requested_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "leave_type" text NOT NULL DEFAULT 'CASUAL',
+       "start_date" text NOT NULL,
+       "end_date" text NOT NULL,
+       "total_days" integer NOT NULL,
+       "reason" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'PENDING',
+       "reviewed_by_user_id" uuid REFERENCES "users"("id"),
+       "reviewed_at" timestamptz,
+       "review_notes" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "employee_leave_requests_employee_status_idx" ON "employee_leave_requests" ("employee_id", "status")`,
+    `CREATE INDEX IF NOT EXISTS "employee_leave_requests_dates_idx" ON "employee_leave_requests" ("start_date", "end_date")`,
     `CREATE TABLE IF NOT EXISTS "employee_task_history" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "task_id" uuid NOT NULL REFERENCES "employee_tasks"("id"),
