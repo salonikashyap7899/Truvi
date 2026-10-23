@@ -29,7 +29,7 @@ const ROLES: { id: GateRole; label: string; tagline: string; icon: React.ReactNo
   {
     id: "CP",
     label: "Channel Partner",
-    tagline: "Connect buyers with verified properties and grow your real estate business."
+    tagline: "Connect buyers with verified properties and grow your real estate business.",
     icon: <Handshake size={18} />,
     accent: "from-emerald-500/25 to-emerald-900/10 border-emerald-400/30 hover:border-emerald-300/60",
   },
