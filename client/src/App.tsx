@@ -427,6 +427,7 @@ export default function App() {
           <Route path="habitat" element={<ProtectedRoute roles={["ADMIN"]}><HabitatAdminPage /></ProtectedRoute>} />
         </Route>
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
+        <Route path="/employee/dashboard" element={<ProtectedRoute roles={["EMPLOYEE"]}><EmployeeDashboardPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />
