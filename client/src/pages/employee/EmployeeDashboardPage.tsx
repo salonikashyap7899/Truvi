@@ -79,6 +79,8 @@ export default function EmployeeDashboardPage() {
   const setAuthUser = useAuthStore((state) => state.setUser);
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
   const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskActivityId, setTaskActivityId] = useState<string | null>(null);
@@ -169,6 +171,36 @@ export default function EmployeeDashboardPage() {
   const pendingTasks = useMemo(()=>tasks.filter((t)=>!["COMPLETED","CANCELLED"].includes(t.status)),[tasks]);
   const overdueTasks = useMemo(()=>pendingTasks.filter((t)=>t.deadlineAt && new Date(t.deadlineAt)<new Date()),[pendingTasks]);
   const myHotLeads = leads.filter((l)=>l.leadTemperature==="HOT").length;
+  const salaryTrend = useMemo(() => [...salaries]
+    .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
+    .slice(-8)
+    .map((salary) => ({
+      month: salary.monthKey,
+      netPayable: Number(salary.netPayable) || 0,
+    })), [salaries]);
+  const dashboardTodos = useMemo(() => [...pendingTasks].sort((a, b) => {
+    if (!a.deadlineAt && !b.deadlineAt) return 0;
+    if (!a.deadlineAt) return 1;
+    if (!b.deadlineAt) return -1;
+    return new Date(a.deadlineAt).getTime() - new Date(b.deadlineAt).getTime();
+  }).slice(0, 4), [pendingTasks]);
+  const quickSearchResults = useMemo<QuickSearchItem[]>(() => {
+    const query = quickSearch.trim().toLowerCase();
+    if (!query) return [];
+    const taskItems: QuickSearchItem[] = tasks
+      .filter((task) => `${task.title} ${task.description ?? ""} ${task.status} ${task.priority}`.toLowerCase().includes(query))
+      .slice(0, 4)
+      .map((task) => ({ id: `employee-task-${task._id}`, kind: "Task", title: task.title, detail: `${task.status.replaceAll("_", " ")} · ${task.priority}`, tab: "tasks", icon: ListChecks }));
+    const leadItems: QuickSearchItem[] = leads
+      .filter((lead) => `${lead.clientName} ${lead.clientPhone} ${lead.clientEmail ?? ""} ${lead.stage}`.toLowerCase().includes(query))
+      .slice(0, 3)
+      .map((lead) => ({ id: `employee-lead-${lead._id}`, kind: "Buyer lead", title: lead.clientName, detail: `${lead.stage.replaceAll("_", " ")} · ${projectName(lead.projectId)}`, tab: "leads", icon: Users }));
+    const noticeItems: QuickSearchItem[] = notices
+      .filter((notice) => `${notice.title ?? ""} ${notice.message}`.toLowerCase().includes(query))
+      .slice(0, 2)
+      .map((notice) => ({ id: `employee-notice-${notice._id}`, kind: "Notification", title: notice.title || "Truvi notification", detail: notice.message, tab: "notifications", icon: Bell }));
+    return [...taskItems, ...leadItems, ...noticeItems].slice(0, 8);
+  }, [quickSearch, tasks, leads, notices, projects]);
   const projectName = (p: Lead["projectId"]) => typeof p === "string" ? projects.find((x)=>x._id===p)?.name ?? "Project" : p.name;
 
   async function createPersonalTask(e: FormEvent) {
