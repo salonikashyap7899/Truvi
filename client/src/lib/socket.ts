@@ -4,13 +4,18 @@ import { API_BASE } from "./api";
 import { useAuthStore } from "@/store/authStore";
 
 let socketInstance: Socket | null = null;
+let socketToken: string | null = null;
 
 export function getSocket(): Socket | null {
   const token = useAuthStore.getState().accessToken;
   if (!token) return null;
 
-  if (!socketInstance || !socketInstance.connected) {
+  // Keep one shared connection while Socket.IO is connecting or reconnecting.
+  // Replacing it merely because `.connected` is temporarily false can strand
+  // another component's event listener on the old socket during page startup.
+  if (!socketInstance || socketToken !== token) {
     socketInstance?.disconnect();
+    socketToken = token;
     socketInstance = io(API_BASE, { auth: { token }, transports: ["websocket"] });
   }
   return socketInstance;
@@ -19,6 +24,7 @@ export function getSocket(): Socket | null {
 export function disconnectSocket() {
   socketInstance?.disconnect();
   socketInstance = null;
+  socketToken = null;
 }
 
 /**
