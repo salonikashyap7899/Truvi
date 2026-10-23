@@ -80,7 +80,10 @@ export function NotificationBell() {
       .then((res) => {
         const list: Notification[] = res.data.notifications ?? [];
         list.forEach((n) => seenNotificationIds.current.add(n._id));
-        setNotifications(list);
+        setNotifications((current) => {
+          const merged = new Map<string, Notification>([...list, ...current].map((item) => [item._id, item] as const));
+          return [...merged.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 200);
+        });
         // Pop up notifications that arrived while we were offline — e.g. the
         // welcome + onboarding notifications created at signup, BEFORE this
         // user's socket connected (so the real-time emit was missed). Only
