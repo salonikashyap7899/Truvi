@@ -1306,6 +1306,55 @@ export const employeeTaskComments = pgTable("employee_task_comments", {
 }, (t) => [index("employee_task_comments_task_idx").on(t.taskId, t.createdAt)]);
 export type IEmployeeTaskComment = typeof employeeTaskComments.$inferSelect;
 
+export const employeeTaskAssignments = pgTable("employee_task_assignments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("employee_task_assignment_unique").on(t.taskId, t.employeeId),
+  index("employee_task_assignments_employee_status_idx").on(t.employeeId, t.status),
+  index("employee_task_assignments_task_idx").on(t.taskId),
+]);
+export type IEmployeeTaskAssignment = typeof employeeTaskAssignments.$inferSelect;
+
+export const employeeTaskAttachments = pgTable("employee_task_attachments", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
+  uploadedByUserId: uuid("uploaded_by_user_id").notNull().references(() => users._id),
+  storedFileName: text("stored_file_name").notNull().unique(),
+  originalFileName: text("original_file_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("employee_task_attachments_task_idx").on(t.taskId, t.createdAt)]);
+export type IEmployeeTaskAttachment = typeof employeeTaskAttachments.$inferSelect;
+
+export const employeeLeaveRequests = pgTable("employee_leave_requests", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  requestedByUserId: uuid("requested_by_user_id").notNull().references(() => users._id),
+  leaveType: text("leave_type").$type<"ANNUAL" | "SICK" | "CASUAL" | "UNPAID" | "OTHER">().notNull().default("CASUAL"),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  totalDays: integer("total_days").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").$type<"PENDING" | "APPROVED" | "REJECTED" | "CANCELLED">().notNull().default("PENDING"),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users._id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+  reviewNotes: text("review_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index("employee_leave_requests_employee_status_idx").on(t.employeeId, t.status),
+  index("employee_leave_requests_dates_idx").on(t.startDate, t.endDate),
+]);
+export type IEmployeeLeaveRequest = typeof employeeLeaveRequests.$inferSelect;
+
 export const employeeAttendance = pgTable("employee_attendance", {
   _id: uuid("id").defaultRandom().primaryKey(),
   employeeId: uuid("employee_id").notNull().references(() => employees._id),
