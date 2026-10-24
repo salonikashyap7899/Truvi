@@ -69,9 +69,9 @@ export function maskPan(pan: string): string {
  */
 export function isHostedKycConfigured(role?: string): boolean {
   const workflowId = role
-    ? process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}"]?.trim() || process.env.IDFY_KYC_WORKFLOW_ID?.trim()
+    ? process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}`]?.trim() || process.env.IDFY_KYC_WORKFLOW_ID?.trim()
     : process.env.IDFY_KYC_WORKFLOW_ID?.trim() ||
-      ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"].some((r) => Boolean(process.env[`IDFY_KYC_WORKFLOW_ID_${r}"]?.trim()));
+      ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"].some((r) => Boolean(process.env[`IDFY_KYC_WORKFLOW_ID_${r}`]?.trim()));
   return Boolean(
     process.env.IDFY_KYC_API_KEY?.trim() &&
     process.env.IDFY_KYC_ACCOUNT_ID?.trim() &&
@@ -107,9 +107,13 @@ function idfyHeaders(): Record<string, string> {
 }
 
 async function idfyRequest(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
+  const headers = new Headers(idfyHeaders());
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  }
   const response = await fetch(`https://api.kyc.idfy.com${path}`, {
     ...init,
-    headers: { ...idfyHeaders(), ...(init?.headers ?? {}) },
+    headers,
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
