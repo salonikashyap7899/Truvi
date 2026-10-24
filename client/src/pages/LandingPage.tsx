@@ -855,8 +855,19 @@ function LiveProjectsShowcase() {
 
 export default function LandingPage() {
   const mounted = useMounted();
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  );
   const showcase = useShowcase();
   const { hash } = useLocation();
+
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!query) return;
+    const update = () => setPrefersReducedMotion(query.matches);
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
   // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
   // except Admin/Founder (who have full oversight and don't refer).
   const bannerUser = useAuthStore((s) => s.user);
@@ -896,7 +907,7 @@ export default function LandingPage() {
       <CursorGlow />
       <SiteNav />
 
-      <Suspense fallback={null}>{mounted ? <CityCanvas /> : null}</Suspense>
+      <Suspense fallback={null}>{mounted && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical

@@ -5,6 +5,7 @@ import { CpHubNav } from "@/components/CpHubNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import { api } from "@/lib/api";
+import { loadRazorpay } from "@/lib/razorpay";
 import { formatINR, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Filter, Flame, ShieldCheck, Snowflake, Star, Plus, X, Loader2 } from "lucide-react";
@@ -116,6 +117,15 @@ export default function MarketplacePage() {
         await api.post("/marketplace/confirm", { leadType });
         toast.success("Lead purchased and assigned to you! (simulated payment — no live Razorpay keys configured)");
         setLoading(null);
+        return;
+      }
+
+      // Load the checkout SDK only when a real, configured payment is needed.
+      // This keeps the SDK off the initial website load while preserving the
+      // existing simulated-payment path and live checkout behaviour.
+      const ready = await loadRazorpay();
+      if (!ready) {
+        toast.error("Couldn't load the payment window. Check your connection and retry.");
         return;
       }
 

@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 import { IS_TOUCH } from "@/lib/device";
@@ -178,6 +178,52 @@ function SlowOrbit() {
   return null;
 }
 
+// The background is decorative, so don't redraw it at the display's full
+// refresh rate. Rendering on demand at 24 fps leaves more CPU/GPU headroom for
+// dashboards, scrolling and form interactions, and fully pauses while hidden.
+function ThrottledFrames({ fps = 24 }: { fps?: number }) {
+  const invalidate = useThree((state) => state.invalidate);
+
+  useEffect(() => {
+    let frame = 0;
+    let lastFrameAt = 0;
+    const interval = 1000 / fps;
+
+    const tick = (now: number) => {
+      frame = 0;
+      if (document.hidden) return;
+      if (now - lastFrameAt >= interval) {
+        lastFrameAt = now;
+        invalidate();
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (frame) window.cancelAnimationFrame(frame);
+        frame = 0;
+        return;
+      }
+      invalidate();
+      if (!frame) frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [fps, invalidate]);
+
+  return null;
+}
+
+const REDUCED_MOTION =
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
 export function AmbientBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
@@ -187,13 +233,15 @@ export function AmbientBackground() {
           keep only the dark gradient below — the working screens stay buttery.
           The rich landing scene (CityCanvas) is untouched. Desktop keeps the
           full 3D backdrop. Devices without WebGL also just skip it. */}
-      {!IS_TOUCH && (
+      {!IS_TOUCH && !REDUCED_MOTION && (
         <SilentErrorBoundary>
           <Canvas
+            frameloop="demand"
             dpr={[1, 1.5]}
             gl={{ antialias: false, powerPreference: "high-performance" }}
             camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
           >
+            <ThrottledFrames fps={24} />
             <color attach="background" args={["#050608"]} />
             <fog attach="fog" args={["#050608", 34, 130]} />
             <ambientLight intensity={0.3} />
@@ -210,7 +258,7 @@ export function AmbientBackground() {
       )}
       {/* Phone fallback: a calm base wash so the page isn't pure black behind
           the gradient vignette. */}
-      {IS_TOUCH && (
+      {(IS_TOUCH || REDUCED_MOTION) && (
         <div
           className="absolute inset-0"
           style={{ background: "radial-gradient(ellipse at 50% 0%, #0b1220 0%, #050608 70%)" }}
