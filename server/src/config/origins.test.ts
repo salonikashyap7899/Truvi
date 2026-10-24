@@ -53,6 +53,17 @@ describe("getAllowedOrigins", () => {
     expect(origins).not.toContain("http://attacker.example");
   });
 
+  it("does not allow Capacitor native-app origins", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CLIENT_URL = "https://truviventures.com";
+    delete process.env.REPLIT_DOMAINS;
+    delete process.env.RENDER_EXTERNAL_URL;
+
+    const origins = getAllowedOrigins();
+    expect(origins).not.toContain("capacitor://localhost");
+    expect(origins).not.toContain("https://localhost");
+  });
+
   it("rejects plain HTTP website origins in production", () => {
     process.env.NODE_ENV = "production";
     process.env.CLIENT_URL = "http://attacker.example";
