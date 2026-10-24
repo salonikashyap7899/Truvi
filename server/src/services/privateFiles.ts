@@ -11,8 +11,7 @@ import { publicBaseUrl } from "./uploadService";
  * never cached by a browser or CDN: a file is reachable only through a
  * short-lived, HMAC-signed link the API issues to the document's owner or an
  * admin. Signed links (rather than a Bearer-token download) keep the existing
- * `<a href={doc.fileUrl}>` UI working unchanged on the web and inside the
- * Android app, where authenticated blob downloads are unreliable.
+ * `<a href={doc.fileUrl}>` UI working unchanged on the web.
  */
 export const PRIVATE_UPLOAD_DIR = process.env.PRIVATE_UPLOAD_DIR
   ? path.resolve(process.env.PRIVATE_UPLOAD_DIR)
