@@ -2414,8 +2414,8 @@ router.delete("/commissions/manual/:id", requireRole("ADMIN"), async (req: Authe
 // Tests go through the same in-app bell + Socket.io path used in production.
 
 // POST /api/admin/notifications/test — send a test notification to a user
-// (defaults to the calling admin). Flows through the bell, the real-time
-// socket toast, AND FCM push if configured.
+// (defaults to the calling admin). Flows through the notification bell
+// and the real-time Socket.io event.
 const testNotifSchema = z.object({
   userId: z.string().optional(),
   email: z.string().optional(),
