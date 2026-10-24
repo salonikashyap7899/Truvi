@@ -69,6 +69,12 @@ jobs:
         if: (github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit') || (github.event_name == 'push' && github.ref_name == 'fix/full-repo-payment-and-marketplace-audit')
         working-directory: truvi-tests
         run: npm audit fix --package-lock-only --no-fund
+      - name: Install browser QA dependencies
+        working-directory: truvi-tests
+        run: npm ci
+      - name: Smoke-test browser QA tooling imports
+        working-directory: truvi-tests
+        run: node --input-type=module -e "await import('lighthouse'); await import('puppeteer-core'); await import('chromium-bidi');"
       - name: Audit browser QA dependencies
         if: always()
         working-directory: truvi-tests
