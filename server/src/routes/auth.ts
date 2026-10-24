@@ -644,7 +644,12 @@ router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
           status.reviewerAction === "approved" || status.reviewerAction === "rejected";
         if (!finished) {
           const captureLink = await getHostedKycCaptureLink(existingProfileId);
-          return res.json({ captureLink, alreadyStarted: true });
+          return res.json({
+            captureLink,
+            alreadyStarted: true,
+            onboardingChecks: user.onboardingChecks ?? null,
+            onboardingVerified: user.onboardingVerified,
+          });
         }
       } catch {
         // An expired/invalid provider profile may need a fresh hosted journey.
@@ -671,7 +676,12 @@ router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
       .set({ onboardingChecks: checks, onboardingVerified: false, verification })
       .where(eq(users._id, user._id));
 
-    return res.json({ captureLink: providerSession.captureLink, alreadyStarted: false });
+    return res.json({
+      captureLink: providerSession.captureLink,
+      alreadyStarted: false,
+      onboardingChecks: checks,
+      onboardingVerified: false,
+    });
   } catch {
     // The provider may return identity data in its error body. Never echo or log
     // that body; the browser gets a generic retryable error only.
