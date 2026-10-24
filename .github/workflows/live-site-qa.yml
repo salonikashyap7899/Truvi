@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          browser="$(find "$HOME/.cache/ms-playwright" -type f \\( -path '*/chrome-linux/chrome' -o -path '*/chrome-linux64/chrome' \\) | sort | head -n 1)"
+          browser="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux/chrome' -print -o -type f -path '*/chrome-linux64/chrome' -print | sort | head -n 1)"
           if [ -z "$browser" ]; then
             echo "Playwright Chromium executable was not found."
             exit 1
