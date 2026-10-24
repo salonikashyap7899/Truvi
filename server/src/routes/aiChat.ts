@@ -6,9 +6,36 @@ import { retrieveContext } from "../services/askTruviService";
 
 const router = Router();
 
-// Model is configurable via env so it can be changed without a redeploy if the
-// account's available models change. Keep a sensible default.
-const AI_MODEL = process.env.ASK_AI_MODEL?.trim() || "gemini-2.5-flash";
+// Model is configurable via env so it can be changed without a redeploy.
+// Use Google's current Flash model by default; older models may be access-limited.
+const AI_FALLBACK_MODEL = "gemini-3.8-flash";
+const AI_MODEL = process.env.ASK_AI_MODEL?.trim() || AI_FALLBACK_MODEL;
+
+function isUnavailableGeminiModelError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as {
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+    message?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+  const statuses = [record.status, record.statusCode, record.code, record.$metadata?.httpStatusCode];
+  if (statuses.some((value) => value === 404 || value === "404" || value === "NOT_FOUND")) return true;
+  const message = error instanceof Error ? error.message : String(record.message ?? "");
+  return /model[^\n]{0,180}(?:not found|not available|does not exist|not supported|no longer available)|(?:not found|not available|does not exist|not supported)[^\n]{0,180}model/i.test(message);
+}
+
+/** Retry only model-availability failures; never hide authentication or quota errors. */
+async function generateWithModelFallback<T>(generate: (model: string) => Promise<T>): Promise<T> {
+  try {
+    return await generate(AI_MODEL);
+  } catch (error) {
+    if (AI_MODEL === AI_FALLBACK_MODEL || !isUnavailableGeminiModelError(error)) throw error;
+    console.warn(`[AskTruvi] Configured model "${AI_MODEL}" is unavailable; retrying with "${AI_FALLBACK_MODEL}".`);
+    return generate(AI_FALLBACK_MODEL);
+  }
+}
 
 /* ---------------- Sales Copilot modes ---------------- */
 
@@ -143,7 +170,7 @@ router.get("/health", authenticate, requireRole("ADMIN"), async (_req, res) => {
   } else {
     try {
       const client = new GoogleGenAI({ apiKey });
-      await client.models.generateContent({ model: AI_MODEL, contents: "ping" });
+      await generateWithModelFallback((model) => client.models.generateContent({ model, contents: "ping" }));
       body = {
         configured: true,
         ok: true,
@@ -208,11 +235,11 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
     const contextJson = boundedJson(propertyContext);
     if (contextJson) systemPrompt += `\n\nContext:\n${contextJson}`;
     try {
-      const response = await client.models.generateContent({
-        model: AI_MODEL,
+      const response = await generateWithModelFallback((model) => client.models.generateContent({
+        model,
         contents: `${systemPrompt}\n\nUser: ${message.trim()}`,
         config: { maxOutputTokens: 400 },
-      });
+      }));
       const reply = response.text?.trim() || "Sorry, I couldn't generate a response. Please try again.";
       return res.json({ reply });
     } catch (err: unknown) {
@@ -275,8 +302,8 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
       historyMessages.pop();
     }
 
-    const response = await client.models.generateContent({
-      model: AI_MODEL,
+    const response = await generateWithModelFallback((model) => client.models.generateContent({
+      model,
       contents: [
         ...historyMessages.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`),
         `User: ${message.trim()}`,
@@ -285,7 +312,7 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
         systemInstruction: `${ASK_TRUVI_SYSTEM}\n\n${dataBlock}`,
         maxOutputTokens: 1600,
       },
-    });
+    }));
 
     const raw = response.text ?? "";
     let parsed: {
