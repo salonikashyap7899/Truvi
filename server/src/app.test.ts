@@ -52,17 +52,26 @@ describe("createApp production hosting", () => {
     expect(unknownSpaRoute.headers.get("content-type")).toContain("text/html");
   });
 
-  it("blocks CP ambassadors until onboarding verification is complete", () => {
-    const middleware = requireRole("CP");
-    const req = { user: { role: "CP", approvalStatus: "APPROVED", onboardingVerified: false } } as Request;
-    const res = {
-      status: (code: number) => ({ json: (payload: unknown) => ({ code, payload }) }),
-    } as unknown as Response;
-    const next = vi.fn();
+  it("blocks customer and partner API access until KYC is verified", () => {
+    const roles = ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"] as const;
+    for (const role of roles) {
+      const middleware = requireRole(role);
+      const req = { user: { role, approvalStatus: "APPROVED", onboardingVerified: false } } as Request;
+      const res = {
+        status: (code: number) => ({ json: (payload: unknown) => ({ code, payload }) }),
+      } as unknown as Response;
+      const next = vi.fn();
 
-    const result = middleware(req, res, next as NextFunction);
+      const result = middleware(req, res, next as NextFunction);
 
-    expect(result).toEqual({ code: 403, payload: { error: "Complete onboarding verification to access project details" } });
-    expect(next).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        code: 403,
+        payload: {
+          error: "Complete onboarding verification (KYC) to access your dashboard",
+          code: "KYC_REQUIRED",
+        },
+      });
+      expect(next).not.toHaveBeenCalled();
+    }
   });
 });
