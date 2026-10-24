@@ -5,9 +5,10 @@
 function normalizedOrigin(value: string): string | null {
   const local = ["development", "test"].includes((process.env.NODE_ENV || "").trim().toLowerCase());
   try {
-    const candidate = /^(https?:\/\/|capacitor:\/\/)/i.test(value) ? value : "https://" + value;
+    // This service serves browser clients only; reject native Capacitor origins.
+    if (/^capacitor:\/\//i.test(value)) return null;
+    const candidate = /^https?:\/\//i.test(value) ? value : "https://" + value;
     const url = new URL(candidate);
-    if (url.protocol === "capacitor:") return url.host ? "capacitor://" + url.host : null;
     if (url.protocol === "https:") return url.origin;
     if (local && url.protocol === "http:") return url.origin;
     return null;
@@ -29,7 +30,7 @@ export function getAllowedOrigins(): string[] {
       if (url.protocol === "https:" && url.hostname === "truviventures.com") origins.add("https://www.truviventures.com");
       else if (url.protocol === "https:" && url.hostname === "www.truviventures.com") origins.add("https://truviventures.com");
     } catch {
-      // Non-HTTP schemes such as capacitor://localhost are handled above.
+      // Ignore malformed origin values.
     }
   };
 
@@ -41,9 +42,7 @@ export function getAllowedOrigins(): string[] {
   for (const domain of (process.env.REPLIT_DOMAINS || "").split(",")) if (domain.trim()) addOrigin(domain);
   if (process.env.RENDER_EXTERNAL_URL) addOrigin(process.env.RENDER_EXTERNAL_URL);
 
-  // Capacitor's bundled application origin; generic HTTP localhost is local-only.
-  origins.add("https://localhost");
-  origins.add("capacitor://localhost");
+  // Local browser origins are enabled only in development/test.
   if (local) {
     origins.add("http://localhost");
     origins.add("http://localhost:5173");
