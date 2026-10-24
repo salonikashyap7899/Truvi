@@ -180,13 +180,33 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
     let raf = 0;
     let last = 0;
     const interval = 1000 / fps;
+
     const loop = (t: number) => {
-      raf = requestAnimationFrame(loop);
+      raf = 0;
       if (document.hidden) return;
-      if (t - last >= interval) { last = t; invalidate(); }
+      if (t - last >= interval) {
+        last = t;
+        invalidate();
+      }
+      raf = window.requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (raf) window.cancelAnimationFrame(raf);
+        raf = 0;
+        return;
+      }
+      invalidate();
+      if (!raf) raf = window.requestAnimationFrame(loop);
+    };
+
+    raf = window.requestAnimationFrame(loop);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [invalidate, fps]);
   return null;
 }
