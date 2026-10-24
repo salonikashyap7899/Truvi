@@ -598,7 +598,7 @@ router.get("/kyc/provider-status", authenticate, (req: AuthedRequest, res) => {
   if (!KYC_DASHBOARD_ROLES.has(req.user!.role)) {
     return res.status(403).json({ error: "Identity verification is not available for this account type." });
   }
-  return res.json({ configured: isHostedKycConfigured() });
+  return res.json({ configured: isHostedKycConfigured(req.user!.role) });
 });
 
 router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
@@ -607,13 +607,27 @@ router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
   if (!KYC_DASHBOARD_ROLES.has(req.user!.role)) {
     return res.status(403).json({ error: "Identity verification is not available for this account type." });
   }
-  if (!isHostedKycConfigured()) {
+  if (!isHostedKycConfigured(req.user!.role)) {
     return res.status(503).json({ error: "Automatic identity verification is not configured yet. Please contact Truvi support." });
   }
 
   const user = await findUserById(userId);
   if (!user) return res.status(404).json({ error: "User not found" });
-  if (user.onboardingVerified) return res.json({ alreadyVerified: true, onboardingVerified: true });
+  if (user.onboardingVerified) {
+    const accessToken = signAccessToken({
+      userId: String(user._id),
+      role: user.role,
+      approvalStatus: user.approvalStatus,
+      onboardingVerified: true,
+      ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
+    });
+    return res.json({
+      alreadyVerified: true,
+      onboardingVerified: true,
+      accessToken,
+      user: sanitizeUserForClient(user),
+    });
+  }
 
   try {
     // Reuse an unfinished provider profile to avoid duplicate checks/charges
@@ -626,8 +640,8 @@ router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
     if (existingProfileId) {
       try {
         const status = await getHostedKycProfileStatus(existingProfileId);
-        const finished = status.status === "completed" || status.status === "approved" ||
-          status.status === "rejected" || status.reviewerAction === "approved" || status.reviewerAction === "rejected";
+        const finished = status.status === "approved" || status.status === "rejected" ||
+          status.reviewerAction === "approved" || status.reviewerAction === "rejected";
         if (!finished) {
           const captureLink = await getHostedKycCaptureLink(existingProfileId);
           return res.json({ captureLink, alreadyStarted: true });
@@ -637,7 +651,7 @@ router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
       }
     }
 
-    const providerSession = await createHostedKycSession(crypto.randomUUID());
+    const providerSession = await createHostedKycSession(crypto.randomUUID(), user.role);
     const checks: OnboardingChecks = {
       ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
       aadhaarVerified: false,
@@ -679,9 +693,9 @@ router.get("/kyc/status", authenticate, async (req: AuthedRequest, res) => {
     typeof user.verification.kycProviderProfileId === "string"
       ? user.verification.kycProviderProfileId
       : null;
-  if (!isHostedKycConfigured() || !profileId) {
+  if (!isHostedKycConfigured(req.user!.role) || !profileId) {
     return res.json({
-      configured: isHostedKycConfigured(),
+      configured: isHostedKycConfigured(req.user!.role),
       hasProviderSession: Boolean(profileId),
       onboardingVerified: user.onboardingVerified,
       onboardingChecks: user.onboardingChecks ?? null,
