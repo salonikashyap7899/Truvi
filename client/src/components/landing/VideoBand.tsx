@@ -98,7 +98,7 @@ export function VideoBand({
     return (
       <section ref={wrapRef} className="relative flex w-full flex-col items-center justify-center gap-7 px-6 py-14 sm:py-20">
         <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 shadow-[0_28px_90px_-24px_rgba(0,0,0,0.85)]" style={{ maxWidth }}>
-          <img src={poster} alt="" aria-hidden className="block h-auto w-full" />
+          <img src={poster} alt="" aria-hidden loading={loaded ? "eager" : "lazy"} decoding="async" className="block h-auto w-full" />
           {loaded && !reduced && (
             <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" poster={poster} muted={muted} loop playsInline autoPlay>
               {srcMp4 && <source src={srcMp4} type="video/mp4" />}
@@ -122,7 +122,7 @@ export function VideoBand({
   return (
     <section ref={wrapRef} className="relative w-full overflow-hidden" style={{ height }}>
       {/* Poster: instant paint + the fallback for browsers without AV1/webm. */}
-      <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" style={zoomStyle} />
+      <img src={poster} alt="" aria-hidden loading={loaded ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover" style={zoomStyle} />
       {loaded && !reduced && (
         <video
           ref={videoRef}
