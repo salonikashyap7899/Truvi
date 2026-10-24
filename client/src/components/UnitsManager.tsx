@@ -179,7 +179,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
             <Input type="number" min="1" value={areaSqft} onChange={(e) => setAreaSqft(e.target.value)} placeholder="1800" className={inputCls} />
           </div>
           <div>
-            <Label className="text-foreground/90">Plot size</Label>
+            <Label className="text-foreground/90">Plot size (optional)</Label>
             <Input value={plotSize} onChange={(e) => setPlotSize(e.target.value)} placeholder="30×40 ft / 200 sq.yd" className={inputCls} />
           </div>
           <div>

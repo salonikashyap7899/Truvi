@@ -82,6 +82,8 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
     .insert(units)
     .values({
       ...parsed.data,
+      // A unit can be listed without human-readable plot dimensions.
+      plotSize: parsed.data.plotSize?.trim() || null,
       priceHistory: [{ price: parsed.data.price, changedAt: new Date().toISOString() }],
     })
     .returning();

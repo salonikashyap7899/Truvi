@@ -361,7 +361,7 @@ export default function ProjectDetailPage() {
               <Input required type="number" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
-              <Label className="text-foreground/90">Plot size</Label>
+              <Label className="text-foreground/90">Plot size (optional)</Label>
               <Input placeholder="30×40 ft / 200 sq.yd" value={unitForm.plotSize} onChange={(e) => setUnitForm({ ...unitForm, plotSize: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
