@@ -353,11 +353,11 @@ export default function App() {
 
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
-        <Route path="/map" element={<Suspense fallback={null}><ProjectsMapPage /></Suspense>} />
+        <Route path="/map" element={<ProjectsMapPage />} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
         {/* Dedicated public project landing page (shareable, conversion-focused) */}
         <Route path="/projects/:id" element={<ProjectLandingPage />} />
-        <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
+        <Route path="/inventory/:id/3d" element={<ThreeDViewPage />} />
 
         {/* Marketing Dashboard — access-gated per-user (server enforces). */}
         <Route path="/marketing" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MarketingDashboardPage /></ProtectedRoute>} />
