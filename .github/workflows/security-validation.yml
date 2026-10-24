@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   automated-tests-and-dependency-audit:
@@ -20,8 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -31,34 +29,13 @@ jobs:
             package-lock.json
             server/package-lock.json
             client/package-lock.json
-      # Temporary remediation for PR #381 only. Update locks before npm ci.
-      # npm audit fix stays within the declared semver ranges; never use --force.
-      - name: Refresh root lockfile with compatible security fixes
-        if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
-        continue-on-error: true
-        run: npm audit fix --package-lock-only --no-fund
-      - name: Refresh backend lockfile with compatible security fixes
-        if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
-        continue-on-error: true
-        working-directory: server
-        run: npm audit fix --package-lock-only --no-fund
-      - name: Apply transitive dependency overrides to backend lockfile
-        if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
-        continue-on-error: true
-        working-directory: server
-        run: npm install --package-lock-only --no-fund
-      - name: Refresh frontend lockfile with compatible security fixes
-        if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
-        continue-on-error: true
-        working-directory: client
-        run: npm audit fix --package-lock-only --no-fund
       - name: Install server dependencies
         working-directory: server
         run: npm ci
       - name: Server TypeScript check
         working-directory: server
         run: npm run typecheck
-      - name: Smoke-test Drizzle Kit config loading with patched esbuild
+      - name: Smoke-test Drizzle Kit config loading
         working-directory: server
         run: npm run db:generate
       # The app-hosting test serves client/dist, so build it before running tests.
@@ -71,40 +48,17 @@ jobs:
       - name: Run all server tests
         working-directory: server
         run: npm test
+      - name: Audit root dependencies
+        if: always()
+        run: npm audit --audit-level=moderate
       - name: Audit server dependencies
         if: always()
         working-directory: server
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Audit client dependencies
         if: always()
         working-directory: client
-        run: npm audit --audit-level=high
-      - name: Strict server audit (moderate and above)
-        if: always()
-        working-directory: server
         run: npm audit --audit-level=moderate
-      - name: Strict client audit (moderate and above)
-        if: always()
-        working-directory: client
-        run: npm audit --audit-level=moderate
-      # The temporary dependency maintenance run commits lockfile results back
-      # to its own same-repository branch so the pull request shows the fixes.
-      - name: Commit refreshed security lockfiles
-        if: always() && github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json server/package-lock.json client/package-lock.json
-          if git diff --cached --quiet; then
-            echo "No lockfile changes to commit."
-            exit 0
-          fi
-          git commit -m "security: refresh patched dependency lockfiles"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_HEAD_REF}"
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
