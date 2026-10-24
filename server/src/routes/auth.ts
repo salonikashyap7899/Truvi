@@ -30,7 +30,7 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
 import { loginLimiter, otpSendLimiter, otpVerifyLimiter } from "../middleware/security";
 import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
-import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
+import { isValidPan, isValidAadhaar, maskPan, runProviderKyc, isHostedKycConfigured, createHostedKycSession, getHostedKycCaptureLink, getHostedKycProfileStatus } from "../services/kycService";
 import { emitNotification } from "../sockets";
 import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsappService";
 import { notifyUser, notifyRole } from "../services/notificationService";
@@ -588,6 +588,175 @@ router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: 
     onboardingChecks,
     onboardingVerified: onboardingVerified || user.onboardingVerified,
   });
+});
+
+// Hosted-provider KYC: the provider owns document capture, identity checks and
+// liveness. These endpoints never mark a user verified based on an upload alone.
+const KYC_DASHBOARD_ROLES = new Set(["BUYER", "CP", "DEVELOPER", "AMBASSADOR"]);
+
+router.get("/kyc/provider-status", authenticate, (req: AuthedRequest, res) => {
+  if (!KYC_DASHBOARD_ROLES.has(req.user!.role)) {
+    return res.status(403).json({ error: "Identity verification is not available for this account type." });
+  }
+  return res.json({ configured: isHostedKycConfigured() });
+});
+
+router.post("/kyc/start", authenticate, async (req: AuthedRequest, res) => {
+  const userId = req.user!.userId;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (!KYC_DASHBOARD_ROLES.has(req.user!.role)) {
+    return res.status(403).json({ error: "Identity verification is not available for this account type." });
+  }
+  if (!isHostedKycConfigured()) {
+    return res.status(503).json({ error: "Automatic identity verification is not configured yet. Please contact Truvi support." });
+  }
+
+  const user = await findUserById(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.onboardingVerified) return res.json({ alreadyVerified: true, onboardingVerified: true });
+
+  try {
+    // Reuse an unfinished provider profile to avoid duplicate checks/charges
+    // when a customer returns to continue an interrupted capture journey.
+    const existingProfileId =
+      user.verification?.kycProvider === "IDFY" &&
+      typeof user.verification.kycProviderProfileId === "string"
+        ? user.verification.kycProviderProfileId
+        : null;
+    if (existingProfileId) {
+      try {
+        const status = await getHostedKycProfileStatus(existingProfileId);
+        const finished = status.status === "completed" || status.status === "approved" ||
+          status.status === "rejected" || status.reviewerAction === "approved" || status.reviewerAction === "rejected";
+        if (!finished) {
+          const captureLink = await getHostedKycCaptureLink(existingProfileId);
+          return res.json({ captureLink, alreadyStarted: true });
+        }
+      } catch {
+        // An expired/invalid provider profile may need a fresh hosted journey.
+      }
+    }
+
+    const providerSession = await createHostedKycSession(crypto.randomUUID());
+    const checks: OnboardingChecks = {
+      ...(user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS),
+      aadhaarVerified: false,
+      panVerified: false,
+      kycStatus: "PENDING",
+      kycRejectionReason: null,
+    };
+    const verification: UserVerification = {
+      ...(user.verification ?? {}),
+      kycProvider: "IDFY",
+      kycProviderProfileId: providerSession.profileId,
+      kycProviderReferenceId: providerSession.referenceId,
+      kycProviderStartedAt: new Date().toISOString(),
+      kycSubmittedAt: new Date().toISOString(),
+    };
+    await getDb().update(users)
+      .set({ onboardingChecks: checks, onboardingVerified: false, verification })
+      .where(eq(users._id, user._id));
+
+    return res.json({ captureLink: providerSession.captureLink, alreadyStarted: false });
+  } catch {
+    // The provider may return identity data in its error body. Never echo or log
+    // that body; the browser gets a generic retryable error only.
+    return res.status(503).json({ error: "Automatic verification could not start. Please retry in a moment." });
+  }
+});
+
+router.get("/kyc/status", authenticate, async (req: AuthedRequest, res) => {
+  const userId = req.user!.userId;
+  if (!isValidId(userId)) return res.status(404).json({ error: "User not found" });
+  if (!KYC_DASHBOARD_ROLES.has(req.user!.role)) {
+    return res.status(403).json({ error: "Identity verification is not available for this account type." });
+  }
+  const user = await findUserById(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const profileId =
+    user.verification?.kycProvider === "IDFY" &&
+    typeof user.verification.kycProviderProfileId === "string"
+      ? user.verification.kycProviderProfileId
+      : null;
+  if (!isHostedKycConfigured() || !profileId) {
+    return res.json({
+      configured: isHostedKycConfigured(),
+      hasProviderSession: Boolean(profileId),
+      onboardingVerified: user.onboardingVerified,
+      onboardingChecks: user.onboardingChecks ?? null,
+    });
+  }
+
+  try {
+    const result = await getHostedKycProfileStatus(profileId);
+    const approved =
+      result.status === "approved" ||
+      (result.status === "completed" && result.reviewerAction === "approved") ||
+      result.reviewerAction === "approved";
+    const rejected = result.status === "rejected" || result.reviewerAction === "rejected";
+    let updatedChecks = user.onboardingChecks ?? DEFAULT_ONBOARDING_CHECKS;
+    let onboardingVerified = user.onboardingVerified;
+
+    if (approved || rejected) {
+      updatedChecks = {
+        ...updatedChecks,
+        emailVerified: user.emailVerified || (updatedChecks.emailVerified ?? false),
+        phoneVerified: user.phoneVerified || (updatedChecks.phoneVerified ?? false),
+        aadhaarVerified: approved,
+        // The configured IDfy workflow must verify every role-appropriate item.
+        // Truvi records this combined identity decision for its existing gate.
+        panVerified: approved,
+        kycStatus: approved ? "APPROVED" : "REJECTED",
+        kycRejectionReason: rejected
+          ? (result.statusDetail || "The identity provider could not verify this submission.")
+          : null,
+      };
+      onboardingVerified = isOnboardingComplete(updatedChecks);
+      const verification: UserVerification = {
+        ...(user.verification ?? {}),
+        ...(approved ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),
+      };
+      await getDb().update(users)
+        .set({ onboardingChecks: updatedChecks, onboardingVerified, verification })
+        .where(eq(users._id, user._id));
+
+      if (approved) {
+        // Refresh the role/verification claims immediately so protected API
+        // calls work in this tab without a logout or a manual page reload.
+        const accessToken = signAccessToken({
+          userId: String(user._id),
+          role: user.role,
+          approvalStatus: user.approvalStatus,
+          onboardingVerified,
+          ...(user.role === "CP" ? { cpJoined: !!user.cpJoinedAt } : {}),
+        });
+        return res.json({
+          configured: true,
+          hasProviderSession: true,
+          providerStatus: result.status,
+          onboardingVerified,
+          onboardingChecks: updatedChecks,
+          accessToken,
+          user: sanitizeUserForClient({ ...user, onboardingChecks: updatedChecks, onboardingVerified }),
+        });
+      }
+    }
+
+    return res.json({
+      configured: true,
+      hasProviderSession: true,
+      providerStatus: result.status,
+      providerDecision: approved ? "APPROVED" : rejected ? "REJECTED" : "PENDING",
+      providerMessage: rejected ? result.statusDetail : undefined,
+      onboardingVerified,
+      onboardingChecks: updatedChecks,
+    });
+  } catch {
+    // A temporary provider timeout must not clear the account's session or
+    // grant access. The UI silently retries this status check.
+    return res.status(503).json({ error: "Verification status is temporarily unavailable. Retrying shortly." });
+  }
 });
 
 // (The legacy POST /upload-aadhaar route was removed: no client called it, it
