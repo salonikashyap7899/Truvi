@@ -58,6 +58,9 @@ jobs:
       - name: Server TypeScript check
         working-directory: server
         run: npm run typecheck
+      - name: Smoke-test Drizzle Kit config loading with patched esbuild
+        working-directory: server
+        run: npm run db:generate
       # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
         working-directory: client
