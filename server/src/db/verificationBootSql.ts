@@ -18,6 +18,139 @@ export const VERIFICATION_BOOT_SQL: string[] = [
   `CREATE EXTENSION IF NOT EXISTS pg_trgm`,
   `CREATE EXTENSION IF NOT EXISTS vector`,
 
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "government_legal" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS government_legal_project_id_data_key_unique ON "government_legal" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS government_legal_project_id_verified_idx ON "government_legal" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "infrastructure" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS infrastructure_project_id_data_key_unique ON "infrastructure" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS infrastructure_project_id_verified_idx ON "infrastructure" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "location_intelligence" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS location_intelligence_project_id_data_key_unique ON "location_intelligence" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS location_intelligence_project_id_verified_idx ON "location_intelligence" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "market_intelligence" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS market_intelligence_project_id_data_key_unique ON "market_intelligence" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS market_intelligence_project_id_verified_idx ON "market_intelligence" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "environmental_data" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS environmental_data_project_id_data_key_unique ON "environmental_data" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS environmental_data_project_id_verified_idx ON "environmental_data" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "satellite_gis" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS satellite_gis_project_id_data_key_unique ON "satellite_gis" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS satellite_gis_project_id_verified_idx ON "satellite_gis" (project_id, verified)`,
+
+  // Additive self-healing for the optional RAG category table. These definitions mirror
+  // verificationSchema.ts; IF NOT EXISTS preserves existing rows on production.
+  `CREATE TABLE IF NOT EXISTS "community_intelligence" (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+     data_key text NOT NULL,
+     label text NOT NULL,
+     source_type text,
+     source_date timestamptz,
+     raw_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+     verified boolean NOT NULL DEFAULT false,
+     lat double precision,
+     lng double precision,
+     created_at timestamptz NOT NULL DEFAULT now(),
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS community_intelligence_project_id_data_key_unique ON "community_intelligence" (project_id, data_key)`,
+  `CREATE INDEX IF NOT EXISTS community_intelligence_project_id_verified_idx ON "community_intelligence" (project_id, verified)`,
+
   // RAG embedding store — pgvector column + cosine IVFFLAT index.
   `CREATE TABLE IF NOT EXISTS document_embeddings (
      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
