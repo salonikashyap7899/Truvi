@@ -1,0 +1,80 @@
+name: Live site read-only QA
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-site-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-read-only-qa:
+    name: Production browser, performance, accessibility and security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: truvi-tests/package-lock.json
+
+      - name: Install read-only QA suite
+        working-directory: truvi-tests
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        working-directory: truvi-tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Configure the same Chromium binary for Playwright and Lighthouse
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux/chrome' -print -o -type f -path '*/chrome-linux64/chrome' -print | sort | head -n 1)"
+          if [ -z "$browser" ]; then
+            echo "Playwright Chromium executable was not found."
+            exit 1
+          fi
+          echo "PLAYWRIGHT_EXECUTABLE_PATH=$browser" >> "$GITHUB_ENV"
+          echo "Using Chromium at: $browser"
+
+      - name: Run safe production test suite
+        working-directory: truvi-tests
+        run: npm run test:all
+        env:
+          TRUVI_BASE_URL: https://truviventures.com/
+          TRUVI_MAX_PAGES: "40"
+          TRUVI_MAX_DEPTH: "3"
+
+      - name: Summarize production QA findings
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f truvi-tests/REPORT.md ]; then
+            echo "The read-only QA suite did not produce REPORT.md."
+            exit 0
+          fi
+          sed -n '1,180p' truvi-tests/REPORT.md
+
+      - name: Upload read-only QA report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truvi-live-site-qa
+          if-no-files-found: warn
+          path: |
+            truvi-tests/REPORT.md
+            truvi-tests/results/*.json
+            truvi-tests/screenshots/**/*.png
