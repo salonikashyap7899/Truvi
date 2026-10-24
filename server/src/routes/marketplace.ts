@@ -9,6 +9,8 @@ import { LEAD_MARKETPLACE_PRICES } from "../config/constants";
 import {
   createOrder,
   fetchOrder,
+  fetchPayment,
+  matchesCapturedPayment,
   verifyPaymentSignature,
   isPaymentGatewayConfigured,
   simulatedPaymentsAllowed,
@@ -83,14 +85,17 @@ router.post("/confirm", requireRole("CP"), async (req: AuthedRequest, res) => {
     if (!verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)) {
       return res.status(400).json({ error: "Payment verification failed" });
     }
-    const order = await fetchOrder(razorpayOrderId);
-    if (
-      !order ||
-      order.notes.userId !== userId ||
-      order.notes.product !== `LEAD_${leadType}` ||
-      order.amount !== Math.round(price * 100)
-    ) {
-      return res.status(400).json({ error: "This payment doesn't match this purchase." });
+    const [order, payment] = await Promise.all([
+      fetchOrder(razorpayOrderId),
+      fetchPayment(razorpayPaymentId),
+    ]);
+    if (!matchesCapturedPayment(order, payment, {
+      orderId: razorpayOrderId,
+      paymentId: razorpayPaymentId,
+      amountPaise: Math.round(price * 100),
+      notes: { userId, product: `LEAD_${leadType}` },
+    })) {
+      return res.status(409).json({ error: "Razorpay has not confirmed a captured payment matching this purchase." });
     }
     paymentStatus = "PAID";
   }
