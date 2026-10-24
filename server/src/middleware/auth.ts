@@ -77,8 +77,17 @@ export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYE
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
-    if (req.user.role === "CP" && req.user.onboardingVerified !== true) {
-      return res.status(403).json({ error: "Complete onboarding verification to access project details" });
+    // Enforce KYC for customer/partner roles on protected API routes as well
+    // as in React routing. The KYC submission/status endpoints use authenticate
+    // without requireRole, so an unverified user can still complete verification.
+    if (
+      ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"].includes(req.user.role) &&
+      req.user.onboardingVerified !== true
+    ) {
+      return res.status(403).json({
+        error: "Complete onboarding verification (KYC) to access your dashboard",
+        code: "KYC_REQUIRED",
+      });
     }
     // Compulsory Channel Partner joining (after KYC). Only an explicit `false`
     // blocks, so sessions issued before this flag existed keep working.
