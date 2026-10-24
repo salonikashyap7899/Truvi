@@ -71,7 +71,11 @@ export function CpKycOnboarding() {
   // only after IDfy returns an explicit approved decision; once it does, the
   // refreshed access token immediately unlocks protected API calls in this tab.
   useEffect(() => {
-    if (user?.onboardingVerified || providerKycEnabled !== true) return;
+    if (
+      user?.onboardingVerified ||
+      providerKycEnabled !== true ||
+      user?.onboardingChecks?.kycStatus !== "PENDING"
+    ) return;
     let cancelled = false;
     const refresh = async () => {
       try {
@@ -100,7 +104,7 @@ export function CpKycOnboarding() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [user?.onboardingVerified, providerKycEnabled]);
+  }, [user?.onboardingVerified, user?.onboardingChecks?.kycStatus, providerKycEnabled]);
 
   // Legacy/manual-review fallback keeps its existing account-status refresh.
   useEffect(() => {
@@ -162,6 +166,14 @@ export function CpKycOnboarding() {
         throw new Error("The verification provider did not return a secure link.");
       }
       setProviderCaptureLink(link);
+      const currentUser = useAuthStore.getState().user ?? user;
+      if (currentUser) {
+        useAuthStore.getState().setUser({
+          ...currentUser,
+          onboardingVerified: res.data?.onboardingVerified ?? currentUser.onboardingVerified,
+          onboardingChecks: res.data?.onboardingChecks ?? currentUser.onboardingChecks,
+        });
+      }
       if (popup) {
         popup.location.href = link;
       } else {
