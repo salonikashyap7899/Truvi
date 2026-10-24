@@ -3,11 +3,10 @@ import { useEffect, useState } from "react";
 /**
  * Thin, non-blocking banner shown whenever the device loses its connection.
  *
- * With the Android app now bundled (served from the device, not the live
- * site), the UI shell keeps working offline — only data that needs the network
- * fails. This banner gives that an honest, visible signal instead of leaving
- * users staring at a screen whose data silently won't load. On the web it
- * behaves the same. Renders nothing while online.
+ * The app can keep its shell visible while offline, but data requests still
+ * need a network connection. This banner gives that an honest, visible signal
+ * instead of leaving users staring at a screen whose data silently won't load.
+ * Renders nothing while online.
  */
 export default function OfflineBanner() {
   const [online, setOnline] = useState(
