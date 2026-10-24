@@ -17,6 +17,39 @@ const RAG_TO_INTEL: Record<DataCategory, IntelCategoryKey> = {
 
 const CATEGORY_ENTRIES = Object.entries(CATEGORY_TABLES) as [DataCategory, (typeof CATEGORY_TABLES)[DataCategory]][];
 
+/** A missing optional verification table must not take the whole inventory API down. */
+const unavailableRagCategories = new Set<DataCategory>();
+
+/** PostgreSQL SQLSTATE 42P01 = undefined_table. Inspect wrapped causes too. */
+export function isUndefinedRagTableError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const record = current as { code?: unknown; cause?: unknown };
+    if (record.code === "42P01") return true;
+    current = record.cause;
+  }
+  return false;
+}
+
+async function queryOptionalRagCategory<T>(
+  category: DataCategory,
+  query: () => Promise<T>,
+): Promise<T | null> {
+  if (unavailableRagCategories.has(category)) return null;
+  try {
+    return await query();
+  } catch (error) {
+    if (!isUndefinedRagTableError(error)) throw error;
+    unavailableRagCategories.add(category);
+    console.warn(
+      `[ragIntel] Optional table "${category}" is missing; omitting its RAG data until the verification schema is available.`,
+    );
+    return null;
+  }
+}
+
 /**
  * Load every admin-uploaded data point for one project as intelligence items —
  * each carrying its real source and whether it's verified — grouped by intel
@@ -25,11 +58,11 @@ const CATEGORY_ENTRIES = Object.entries(CATEGORY_TABLES) as [DataCategory, (type
 export async function fetchRagItemsForProject(db: Db, projectId: string): Promise<RagInput> {
   const results = await Promise.all(
     CATEGORY_ENTRIES.map(async ([category, table]) => {
-      const rows = await db
+      const rows = await queryOptionalRagCategory(category, async () => await db
         .select({ label: table.label, sourceType: table.sourceType, verified: table.verified })
         .from(table)
-        .where(eq(table.projectId, projectId));
-      const items: IntelItem[] = rows.map((r) => ({
+        .where(eq(table.projectId, projectId)));
+      const items: IntelItem[] = (rows ?? []).map((r) => ({
         label: r.label,
         source: r.sourceType?.trim() || "Truvi ingested data",
         status: r.verified ? "VERIFIED" : "PENDING",
@@ -61,7 +94,7 @@ export async function fetchRagCountsForProjects(
 
   const results = await Promise.all(
     CATEGORY_ENTRIES.map(async ([category, table]) => {
-      const rows = await db
+      const rows = await queryOptionalRagCategory(category, async () => await db
         .select({
           projectId: table.projectId,
           verified: sql<number>`sum(case when ${table.verified} then 1 else 0 end)::int`,
@@ -69,8 +102,8 @@ export async function fetchRagCountsForProjects(
         })
         .from(table)
         .where(inArray(table.projectId, projectIds))
-        .groupBy(table.projectId);
-      return { key: RAG_TO_INTEL[category], rows };
+        .groupBy(table.projectId));
+      return { key: RAG_TO_INTEL[category], rows: rows ?? [] };
     }),
   );
   // Merge sequentially (several RAG tables can map to one intel category).
