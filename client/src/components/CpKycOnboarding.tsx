@@ -30,6 +30,9 @@ export function CpKycOnboarding() {
   const [submitting, setSubmitting] = useState(false);
   // Brief "verifying…" state shown for ~2s after submit before access unlocks.
   const [verifying, setVerifying] = useState(false);
+  const [providerKycEnabled, setProviderKycEnabled] = useState<boolean | null>(null);
+  const [startingProvider, setStartingProvider] = useState(false);
+  const [providerCaptureLink, setProviderCaptureLink] = useState<string | null>(null);
 
   // Live selfie capture
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -50,11 +53,58 @@ export function CpKycOnboarding() {
     if (cameraOn && stream && videoRef.current) videoRef.current.srcObject = stream;
   }, [cameraOn, stream]);
 
-  // While the account is still unverified (awaiting review or on this screen),
-  // poll the server so the workspace unlocks automatically the moment an admin
-  // approves — the client otherwise keeps a stale cached user until re-login.
+  // Discover whether a hosted automatic verification workflow is configured.
+  // The backend only reports configuration status; all provider credentials stay server-side.
   useEffect(() => {
-    if (user?.onboardingVerified) return;
+    let cancelled = false;
+    api.get("/auth/kyc/provider-status")
+      .then((res) => {
+        if (!cancelled) setProviderKycEnabled(res.data?.configured === true);
+      })
+      .catch(() => {
+        if (!cancelled) setProviderKycEnabled(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Check the provider while KYC is in progress. The server records an approval
+  // only after IDfy returns an explicit approved decision; once it does, the
+  // refreshed access token immediately unlocks protected API calls in this tab.
+  useEffect(() => {
+    if (user?.onboardingVerified || providerKycEnabled !== true) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const res = await api.get("/auth/kyc/status", { timeout: 15_000 });
+        const cur = useAuthStore.getState().user;
+        if (cancelled || !cur) return;
+        if (res.data?.accessToken && res.data?.user) {
+          useAuthStore.getState().setAuth(
+            { ...cur, ...res.data.user, onboardingVerified: res.data.onboardingVerified, onboardingChecks: res.data.onboardingChecks },
+            res.data.accessToken,
+          );
+        } else {
+          useAuthStore.getState().setUser({
+            ...cur,
+            onboardingVerified: res.data?.onboardingVerified ?? cur.onboardingVerified,
+            onboardingChecks: res.data?.onboardingChecks ?? cur.onboardingChecks,
+          });
+        }
+      } catch {
+        /* temporary network/provider issue — keep access locked and retry */
+      }
+    };
+    void refresh();
+    const id = setInterval(refresh, 6000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [user?.onboardingVerified, providerKycEnabled]);
+
+  // Legacy/manual-review fallback keeps its existing account-status refresh.
+  useEffect(() => {
+    if (user?.onboardingVerified || providerKycEnabled !== false) return;
     let cancelled = false;
     const refresh = async () => {
       try {
@@ -78,7 +128,53 @@ export function CpKycOnboarding() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [user?.onboardingVerified]);
+  }, [user?.onboardingVerified, providerKycEnabled]);
+
+  async function startAutomaticVerification() {
+    if (startingProvider) return;
+    // Open a tab during the click gesture so mobile browsers do not block the
+    // secure provider journey after the API request completes.
+    let popup: Window | null = null;
+    try {
+      popup = window.open("about:blank", "_blank");
+      if (popup) popup.opener = null;
+    } catch {
+      popup = null;
+    }
+    setStartingProvider(true);
+    try {
+      const res = await api.post("/auth/kyc/start");
+      if (res.data?.alreadyVerified && res.data?.accessToken && res.data?.user) {
+        popup?.close();
+        const cur = useAuthStore.getState().user ?? user;
+        if (cur) {
+          useAuthStore.getState().setAuth(
+            { ...cur, ...res.data.user, onboardingVerified: true },
+            res.data.accessToken,
+          );
+        }
+        toast.success("Your identity is already verified. Your dashboard is unlocking.");
+        return;
+      }
+      const link = res.data?.captureLink;
+      if (typeof link !== "string" || !link.startsWith("https://capture.")) {
+        popup?.close();
+        throw new Error("The verification provider did not return a secure link.");
+      }
+      setProviderCaptureLink(link);
+      if (popup) {
+        popup.location.href = link;
+      } else {
+        toast.message("Your secure verification journey is ready. Use the button below to open it.");
+      }
+      toast.success("Complete the secure identity check. Keep this Truvi tab open; access unlocks after verification passes.");
+    } catch (err: any) {
+      popup?.close();
+      toast.error(err?.response?.data?.error || err?.message || "Automatic verification could not start. Please try again.");
+    } finally {
+      setStartingProvider(false);
+    }
+  }
 
   async function startCamera() {
     // In-app browsers (WhatsApp / Instagram / Facebook) and non-HTTPS contexts
@@ -272,6 +368,84 @@ export function CpKycOnboarding() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Wait for provider configuration before showing a KYC path. If configured,
+  // use the provider's hosted capture and keep checking its decision in the background.
+  if (providerKycEnabled === null) {
+    return (
+      <Shell>
+        <div className="rounded-2xl border border-white/10 glass p-8 text-center">
+          <Loader2 size={24} className="mx-auto animate-spin text-[var(--trust)]" />
+          <p className="mt-3 text-sm text-muted-foreground">Preparing secure identity verification…</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (providerKycEnabled && !user?.onboardingVerified) {
+    return (
+      <Shell>
+        <div className="rounded-2xl border border-white/10 glass p-6 sm:p-8">
+          <div className="grid size-12 place-items-center rounded-2xl bg-[var(--trust)]/12 text-[var(--trust)] ring-1 ring-inset ring-[var(--trust)]/25">
+            <ShieldCheck size={22} />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold">Verify your identity securely</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Complete the secure identity check in the verification provider&apos;s page.
+            Truvi keeps your dashboard locked until the provider returns a successful result.
+          </p>
+          {status === "PENDING" && (
+            <p className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+              Verification is in progress. Continue the provider journey or leave this page open;
+              Truvi checks the result automatically.
+            </p>
+          )}
+          {status === "REJECTED" && (
+            <p className="mt-4 rounded-xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
+              Previous verification was not successful{rejectionReason ? ": " + rejectionReason : "."}
+              Start a new secure check after reviewing your details.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={startAutomaticVerification}
+            disabled={startingProvider}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[var(--trust)] to-[#2563eb] py-3 text-sm font-semibold text-white shadow-[0_10px_30px_-8px_rgba(59,130,246,0.7)] transition disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {startingProvider && <Loader2 size={15} className="animate-spin" />}
+            {startingProvider ? "Preparing verification…" : status === "PENDING" ? "Continue automatic verification" : "Start automatic verification"}
+          </button>
+          {providerCaptureLink && (
+            <a
+              href={providerCaptureLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex w-full items-center justify-center rounded-full border border-white/15 bg-white/5 py-3 text-sm font-medium text-white hover:bg-white/10"
+            >
+              Open secure verification
+            </a>
+          )}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Once the provider confirms your identity, Truvi updates your status automatically. An upload alone never counts as verification.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (!providerKycEnabled && (user?.role === "BUYER" || user?.role === "DEVELOPER")) {
+    return (
+      <Shell>
+        <div className="rounded-2xl border border-white/10 glass p-6 sm:p-8">
+          <ShieldCheck size={24} className="text-[var(--trust)]" />
+          <h1 className="mt-4 text-xl font-semibold">Identity verification setup required</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This account type requires identity verification before dashboard access. Automatic verification has not been configured for this account yet. Please contact Truvi support; access will remain protected until verification is available and completed.
+          </p>
+        </div>
+      </Shell>
+    );
   }
 
   // Just submitted — a short "verifying" beat before access unlocks.
