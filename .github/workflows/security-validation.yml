@@ -42,6 +42,11 @@ jobs:
         continue-on-error: true
         working-directory: server
         run: npm audit fix --package-lock-only --no-fund
+      - name: Apply transitive dependency overrides to backend lockfile
+        if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
+        continue-on-error: true
+        working-directory: server
+        run: npm install --package-lock-only --no-fund
       - name: Refresh frontend lockfile with compatible security fixes
         if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
         continue-on-error: true
@@ -71,6 +76,14 @@ jobs:
         if: always()
         working-directory: client
         run: npm audit --audit-level=high
+      - name: Strict server audit (moderate and above)
+        if: always()
+        working-directory: server
+        run: npm audit --audit-level=moderate
+      - name: Strict client audit (moderate and above)
+        if: always()
+        working-directory: client
+        run: npm audit --audit-level=moderate
       # The temporary dependency maintenance run commits lockfile results back
       # to its own same-repository branch so the pull request shows the fixes.
       - name: Commit refreshed security lockfiles
