@@ -5,6 +5,22 @@ import { PaymentsUnavailableError } from "../services/paymentService";
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   const requestId = String(res.locals.requestId || "unknown");
 
+  // Malformed JSON is a client request error (often a stale client or bot),
+  // not an application/server failure. Return a safe 400 response without
+  // logging parser stacks or the raw request body.
+  const parserError = err as { type?: unknown; status?: unknown; statusCode?: unknown };
+  if (
+    parserError?.type === "entity.parse.failed" ||
+    (err instanceof SyntaxError &&
+      (parserError.status === 400 || parserError.statusCode === 400) &&
+      "body" in parserError)
+  ) {
+    return res.status(400).json({
+      error: "Invalid JSON request body. Please send valid JSON and try again.",
+      requestId,
+    });
+  }
+
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(413).json({ error: "Each uploaded file must be 6 MB or smaller.", requestId });
