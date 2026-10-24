@@ -859,9 +859,10 @@ export const notificationPreferences = pgTable(
 );
 
 /**
- * Device push tokens (FCM) for phone-tray push notifications. One row per
- * device; a user can have several. The token is unique — re-registering the
- * same device updates its owner/timestamp rather than duplicating.
+ * Legacy native push-token records. Kept in the schema temporarily so automatic
+ * schema sync does not drop existing production data after switching to web-only.
+ * The web application no longer registers, reads, or sends to these tokens.
+ * Remove this table only in a separate, reviewed production data migration.
  */
 export const userPushTokens = pgTable(
   "user_push_tokens",
