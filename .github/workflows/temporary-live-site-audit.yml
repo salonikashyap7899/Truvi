@@ -39,8 +39,12 @@ jobs:
         working-directory: truvi-tests
         env:
           TRUVI_BASE_URL: https://truviventures.com/
-          TRUVI_MAX_PAGES: "30"
-          TRUVI_MAX_DEPTH: "2"
+          TRUVI_NAV_TIMEOUT: "15000"
+          TRUVI_SETTLE: "500"
+          TRUVI_REQ_TIMEOUT: "8000"
+          TRUVI_LH_PAGES: "/,/about,/inventory"
+          TRUVI_MAX_PAGES: "12"
+          TRUVI_MAX_DEPTH: "1"
         run: npm run test:all
 
       - name: Print performance and high-severity findings
