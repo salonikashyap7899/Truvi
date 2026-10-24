@@ -20,7 +20,7 @@ export default function AdminNotificationsPage() {
   async function sendTest() {
     setSendingTest(true);
     try {
-      const r = await api.post("/admin/notifications/test", {});
+      await api.post("/admin/notifications/test", {});
       toast.success("Test notification sent to your in-app bell.");
     } catch { toast.error("Failed to send test"); } finally { setSendingTest(false); }
   }
