@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: security-validation-${{ github.event.pull_request.head.ref || github.ref }}
+  group: security-validation-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -66,7 +66,7 @@ jobs:
         working-directory: client
         run: npm audit --audit-level=moderate
       - name: Refresh browser QA lockfile with compatible fixes
-        if: github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit'
+        if: (github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit') || (github.event_name == 'push' && github.ref_name == 'fix/full-repo-payment-and-marketplace-audit')
         working-directory: truvi-tests
         run: npm audit fix --package-lock-only --no-fund
       - name: Audit browser QA dependencies
@@ -74,7 +74,7 @@ jobs:
         working-directory: truvi-tests
         run: npm audit --audit-level=moderate
       - name: Commit refreshed browser QA lockfile
-        if: always() && github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' && github.event.pull_request.head.repo.full_name == github.repository
+        if: always() && ((github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref_name == 'fix/full-repo-payment-and-marketplace-audit'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -88,7 +88,7 @@ jobs:
             exit 0
           fi
           git commit -m "security: refresh browser QA dependency lockfile"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_HEAD_REF}"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF_NAME}"
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
