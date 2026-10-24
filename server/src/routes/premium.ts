@@ -8,6 +8,9 @@ import { zodMessage } from "../lib/validationError";
 import { CP_PREMIUM_MONTHLY_PRICE } from "../config/constants";
 import {
   createOrder,
+  fetchOrder,
+  fetchPayment,
+  matchesCapturedPayment,
   isPaymentGatewayConfigured,
   simulatedPaymentsAllowed,
   verifyPaymentSignature,
@@ -83,6 +86,21 @@ router.post("/subscribe", requireRole("CP"), async (req: AuthedRequest, res) => 
     }
     if (current.pendingPremiumOrderId !== razorpayOrderId) {
       return res.status(409).json({ error: "This payment has already been used or wasn't started from this account." });
+    }
+
+    // The checkout signature authenticates the callback; the provider records
+    // must also confirm a captured INR payment for this account's premium order.
+    const [order, payment] = await Promise.all([
+      fetchOrder(razorpayOrderId),
+      fetchPayment(razorpayPaymentId),
+    ]);
+    if (!matchesCapturedPayment(order, payment, {
+      orderId: razorpayOrderId,
+      paymentId: razorpayPaymentId,
+      amountPaise: Math.round(CP_PREMIUM_MONTHLY_PRICE * 100),
+      notes: { userId, product: "CP_PREMIUM" },
+    })) {
+      return res.status(409).json({ error: "Razorpay has not confirmed a captured payment matching this Premium plan." });
     }
   }
 
