@@ -456,10 +456,22 @@ export const refresh = async (req: Request, res: Response) => {
     // Keep the refresh cookie. Database/network incidents are temporary service
     // failures, not a user logout. The client treats 503 as recoverable and can
     // retry session restoration once the service is healthy.
-    console.error(
-      "[auth] Refresh session lookup temporarily failed:",
-      error instanceof Error ? error.message : "unknown error",
-    );
+    // Log only safe error metadata: Drizzle's message may contain SQL/parameters,
+    // so it must not be copied into production logs.
+    const rootError = error && typeof error === "object"
+      ? error as { name?: unknown; code?: unknown; cause?: unknown }
+      : undefined;
+    const causeError = rootError?.cause && typeof rootError.cause === "object"
+      ? rootError.cause as { name?: unknown; code?: unknown }
+      : undefined;
+    const safeString = (value: unknown): string | undefined =>
+      typeof value === "string" ? value.slice(0, 40) : undefined;
+    console.error("[auth] Refresh session lookup temporarily failed", JSON.stringify({
+      errorName: safeString(rootError?.name) ?? "UnknownError",
+      errorCode: safeString(rootError?.code),
+      causeName: safeString(causeError?.name),
+      causeCode: safeString(causeError?.code),
+    }));
     return res.status(503).json({ error: "Session service is temporarily unavailable. Please retry." });
   }
 
