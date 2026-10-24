@@ -350,12 +350,11 @@
 }
 
 
-/* Keep the employee workspace inside the viewport below Truvi's fixed global
-   navbar. Only the right-hand work area scrolls; the sidebar and greeting stay
-   in place as users move between long tables and forms. */
+/* The employee portal has no global navbar. Use the full viewport and let
+   only the right-hand work area scroll; the sidebar stays in place. */
 .truvi-erm-employee {
-  height: calc(100dvh - env(safe-area-inset-top, 0px) - 4.75rem);
-  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 4.75rem);
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 0 !important;
   overflow: hidden;
 }
@@ -521,8 +520,10 @@
    retained instead of copying the sample's white theme. */
 .truvi-erm-employee {
   width: 100%;
-  height: calc(100dvh - env(safe-area-inset-top, 0px) - 4.75rem);
-  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 4.75rem);
+  /* No global site navbar exists inside this shell, so use the full viewport.
+     Subtracting the navbar height here created the black strip at the bottom. */
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -2790,5 +2791,40 @@
     width: 100%;
     max-width: 100%;
     max-height: calc(100dvh - 16px);
+  }
+}
+
+
+/* The employee toolbar uses the same account menu as the public Home navbar. */
+.truvi-employee-account-menu {
+  position: relative;
+  z-index: 80;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.truvi-employee-account-menu > div {
+  min-width: 0;
+}
+
+.truvi-employee-account-menu button {
+  min-height: 39px;
+}
+
+.truvi-employee-account-menu [role="menu"] {
+  z-index: 100 !important;
+}
+
+@media (max-width: 860px) {
+  .truvi-employee-account-menu button {
+    max-width: 44px;
+    justify-content: center;
+    padding: 4px;
+  }
+
+  .truvi-employee-account-menu button > span:not(:first-child),
+  .truvi-employee-account-menu button > svg {
+    display: none;
   }
 }

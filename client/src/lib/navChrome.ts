@@ -37,6 +37,8 @@ export const InNavbarContext = createContext(false);
 export function hasOwnShell(pathname: string): boolean {
   return (
     pathname === "/welcome" ||
+    pathname === "/employee/dashboard" ||
+    pathname.startsWith("/employee/dashboard/") ||
     pathname.startsWith("/admin/") ||
     pathname === "/founder/dashboard" ||
     /^\/inventory\/[^/]+\/3d$/.test(pathname)

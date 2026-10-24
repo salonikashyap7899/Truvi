@@ -6,6 +6,7 @@ import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, Cale
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
+import UserMenu from "@/components/UserMenu";
 import { useAuthStore } from "@/store/authStore";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -645,15 +646,9 @@ export default function EmployeeDashboardPage() {
               <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
                 <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
               </button>
-              <button type="button" className="truvi-employee-topbar-user" onClick={() => setTab("profile")} aria-label="Open my profile">
-                <span className="truvi-employee-topbar-user__avatar">
-                  {currentUser?.avatarUrl
-                    ? <img src={currentUser.avatarUrl} alt="" />
-                    : <span>{(currentUser?.name || employee?.name || "Employee").trim().split(/\s+/).map((part) => part[0]).slice(0, 1).join("").toUpperCase()}</span>}
-                </span>
-                <span>{employee?.name || currentUser?.name || "My profile"}</span>
-                <ChevronRight size={14} aria-hidden="true" />
-              </button>
+              <div className="truvi-employee-account-menu">
+                <UserMenu />
+              </div>
             </div>
           </header>
 
