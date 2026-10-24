@@ -727,13 +727,23 @@ router.get("/kyc/status", authenticate, async (req: AuthedRequest, res) => {
           : null,
       };
       onboardingVerified = isOnboardingComplete(updatedChecks);
+      const needsVerifiedTimestamp = approved && !user.verification?.aadhaarVerifiedAt;
+      const stateChanged =
+        user.onboardingChecks?.kycStatus !== updatedChecks.kycStatus ||
+        user.onboardingChecks?.aadhaarVerified !== updatedChecks.aadhaarVerified ||
+        user.onboardingChecks?.panVerified !== updatedChecks.panVerified ||
+        user.onboardingVerified !== onboardingVerified;
       const verification: UserVerification = {
         ...(user.verification ?? {}),
-        ...(approved ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),
+        ...(needsVerifiedTimestamp ? { aadhaarVerifiedAt: new Date().toISOString() } : {}),
       };
-      await getDb().update(users)
-        .set({ onboardingChecks: updatedChecks, onboardingVerified, verification })
-        .where(eq(users._id, user._id));
+      // Status is polled every few seconds. Write only on a real state change,
+      // otherwise a rejected profile would cause identical DB writes forever.
+      if (stateChanged || needsVerifiedTimestamp) {
+        await getDb().update(users)
+          .set({ onboardingChecks: updatedChecks, onboardingVerified, verification })
+          .where(eq(users._id, user._id));
+      }
 
       if (approved) {
         // Refresh the role/verification claims immediately so protected API
