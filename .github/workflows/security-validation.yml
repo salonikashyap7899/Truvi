@@ -28,20 +28,15 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             server/package-lock.json
             client/package-lock.json
+      # Temporary remediation for PR #381 only. Update locks before npm ci.
+      # npm audit fix stays within the declared semver ranges; never use --force.
       - name: Refresh root lockfile with compatible security fixes
         if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
         continue-on-error: true
         run: npm audit fix --package-lock-only --no-fund
-      - name: Install server dependencies
-        working-directory: server
-        run: npm ci
-      - name: Server TypeScript check
-        working-directory: server
-        run: npm run typecheck
-      # Temporary remediation for PR #381 only. npm audit fix stays within
-      # current semver ranges; never use --force and never upgrade major APIs.
       - name: Refresh backend lockfile with compatible security fixes
         if: github.event_name == 'pull_request' && github.head_ref == 'security/dependency-audit-fix'
         continue-on-error: true
@@ -52,6 +47,12 @@ jobs:
         continue-on-error: true
         working-directory: client
         run: npm audit fix --package-lock-only --no-fund
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+      - name: Server TypeScript check
+        working-directory: server
+        run: npm run typecheck
       # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
         working-directory: client
