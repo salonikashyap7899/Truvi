@@ -147,7 +147,7 @@ function safeCaptureLink(value: unknown): string {
 /** Create a hosted KYC journey; the customer completes capture with IDfy. */
 export async function createHostedKycSession(referenceId: string, role: string): Promise<HostedKycSession> {
   const workflowId =
-    process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}"]?.trim() ||
+    process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}`]?.trim() ||
     process.env.IDFY_KYC_WORKFLOW_ID?.trim();
   if (!workflowId) throw new Error("Hosted KYC provider is not configured");
   const payload = await idfyRequest("/sync/profiles", {
