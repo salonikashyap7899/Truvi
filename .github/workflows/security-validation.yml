@@ -59,6 +59,10 @@ jobs:
         if: always()
         working-directory: client
         run: npm audit --audit-level=moderate
+      - name: Audit browser QA dependencies
+        if: always()
+        working-directory: truvi-tests
+        run: npm audit --audit-level=moderate
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
