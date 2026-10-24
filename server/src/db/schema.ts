@@ -198,6 +198,11 @@ export interface UserVerification {
   // so the admin UI knows which docs exist and how to render them.
   panNumberMasked?: string;
   kycSubmittedAt?: string | null; // ISO date string
+  // Hosted automated identity verification provider references (never expose provider IDs/links on user profiles).
+  kycProvider?: "IDFY" | null;
+  kycProviderProfileId?: string | null;
+  kycProviderReferenceId?: string | null;
+  kycProviderStartedAt?: string | null; // ISO date string
   kycFiles?: {
     aadhaar?: { mime: string };
     pan?: { mime: string };
