@@ -6,7 +6,7 @@ import { getDb } from "../config/db";
 import { projects, projectAssets, users, projectInvestmentTerms, projectInvestments, notifications } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
-import { createOrder, verifyPaymentSignature, isPaymentGatewayConfigured } from "../services/paymentService";
+import { createOrder, fetchOrder, fetchPayment, matchesCapturedPayment, verifyPaymentSignature, isPaymentGatewayConfigured } from "../services/paymentService";
 import { getEnv } from "../config/env";
 import { emitNotification } from "../sockets";
 
@@ -93,7 +93,12 @@ router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
     .returning();
 
   try {
-    const order = await createOrder(amount, inv._id);
+    const order = await createOrder(amount, inv._id, {
+      userId: req.user!.userId,
+      product: "PROJECT_INVESTMENT",
+      investmentId: inv._id,
+      projectId,
+    });
     await db.update(projectInvestments).set({ razorpayOrderId: order.id, updatedAt: new Date() }).where(eq(projectInvestments._id, inv._id));
     res.json({ orderId: order.id, amount: Math.round(amount * 100), currency: "INR", keyId: getEnv().razorpayKeyId, investmentId: inv._id });
   } catch (err: any) {
@@ -102,27 +107,86 @@ router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
   }
 });
 
-// POST /api/invest/verify — confirm a completed Razorpay payment.
-const verifySchema = z.object({ razorpay_order_id: z.string(), razorpay_payment_id: z.string(), razorpay_signature: z.string() });
+// POST /api/invest/verify — confirm a captured Razorpay payment.
+const verifySchema = z.object({
+  razorpay_order_id: z.string().min(1).max(200),
+  razorpay_payment_id: z.string().min(1).max(200),
+  razorpay_signature: z.string().regex(/^[0-9a-f]{64}$/i, "Invalid signature format"),
+});
 router.post("/verify", authenticate, async (req: AuthedRequest, res) => {
   const parsed = verifySchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error) });
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = parsed.data;
   if (!verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
     return res.status(400).json({ error: "Payment signature verification failed" });
   }
 
   const db = getDb();
-  const [inv] = await db.select().from(projectInvestments).where(eq(projectInvestments.razorpayOrderId, razorpay_order_id));
-  if (!inv) return res.status(404).json({ error: "Investment not found" });
-  if (inv.status !== "PAID") {
-    await db.update(projectInvestments).set({ status: "PAID", razorpayPaymentId: razorpay_payment_id, updatedAt: new Date() }).where(eq(projectInvestments._id, inv._id));
-    try {
-      const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
-      const rows = await db.insert(notifications).values(admins.map((a) => ({ userId: a._id, message: `New investment of ₹${(inv.amountPaise / 100).toLocaleString("en-IN")} received.` }))).returning();
-      rows.forEach((n) => emitNotification(String(n.userId), n));
-    } catch { /* non-fatal */ }
+  // Bind order lookup to the authenticated investor. Knowing another user's
+  // order ID/signature must not let this account read or mutate their investment.
+  const [inv] = await db.select().from(projectInvestments).where(and(
+    eq(projectInvestments.razorpayOrderId, razorpay_order_id),
+    eq(projectInvestments.investorId, req.user!.userId),
+  ));
+  if (!inv) return res.status(404).json({ error: "Investment not found for this account" });
+
+  if (inv.status === "PAID") {
+    if (inv.razorpayPaymentId !== razorpay_payment_id) {
+      return res.status(409).json({ error: "This investment was already paid with a different payment." });
+    }
+    return res.json({ ok: true, investmentId: inv._id, alreadyPaid: true });
   }
+  if (inv.status !== "CREATED") {
+    return res.status(409).json({ error: "This investment is no longer awaiting payment." });
+  }
+
+  const [order, payment] = await Promise.all([
+    fetchOrder(razorpay_order_id),
+    fetchPayment(razorpay_payment_id),
+  ]);
+  if (!matchesCapturedPayment(order, payment, {
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+    amountPaise: inv.amountPaise,
+    receipt: inv._id,
+  })) {
+    return res.status(409).json({ error: "Razorpay has not confirmed a captured payment matching this investment." });
+  }
+
+  // Compare-and-set makes concurrent callbacks idempotent and prevents cancelled
+  // or already-processed investments from being revived.
+  const [paid] = await db.update(projectInvestments)
+    .set({ status: "PAID", razorpayPaymentId: razorpay_payment_id, updatedAt: new Date() })
+    .where(and(
+      eq(projectInvestments._id, inv._id),
+      eq(projectInvestments.investorId, req.user!.userId),
+      eq(projectInvestments.status, "CREATED"),
+    ))
+    .returning({ _id: projectInvestments._id });
+
+  if (!paid) {
+    const [latest] = await db.select({
+      status: projectInvestments.status,
+      razorpayPaymentId: projectInvestments.razorpayPaymentId,
+    }).from(projectInvestments).where(and(
+      eq(projectInvestments._id, inv._id),
+      eq(projectInvestments.investorId, req.user!.userId),
+    ));
+    if (latest?.status === "PAID" && latest.razorpayPaymentId === razorpay_payment_id) {
+      return res.json({ ok: true, investmentId: inv._id, alreadyPaid: true });
+    }
+    return res.status(409).json({ error: "Investment state changed while verifying payment. Please refresh." });
+  }
+
+  try {
+    const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
+    const rows = await db.insert(notifications).values(admins.map((a) => ({
+      userId: a._id,
+      message: "New investment of ₹" + (inv.amountPaise / 100).toLocaleString("en-IN") + " received.",
+    }))).returning();
+    rows.forEach((n) => emitNotification(String(n.userId), n));
+  } catch { /* non-fatal: paid state is already persisted */ }
+
   res.json({ ok: true, investmentId: inv._id });
 });
 

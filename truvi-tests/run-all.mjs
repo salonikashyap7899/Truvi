@@ -52,6 +52,13 @@ async function main() {
   const r = generateReport();
   console.log(`\n📄 REPORT.md written → ${r.out}`);
   console.log(`   ${r.issues} issue(s): 🔴 ${r.counts.Critical} · 🟠 ${r.counts.High} · 🟡 ${r.counts.Medium} · 🔵 ${r.counts.Low}; ${r.passes} passed; ${r.errors} run-error(s).\n`);
+
+  // Make CI/automation notice the report outcome. Previously the suite wrote
+  // high-severity findings and network/browser errors but still exited 0.
+  if (r.issues > 0 || r.errors > 0) {
+    console.error("Production QA did not pass. Review REPORT.md before accepting this run.");
+    process.exitCode = 1;
+  }
 }
 
 main().catch((e) => {

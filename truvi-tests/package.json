@@ -16,7 +16,14 @@
     "test:security": "node tests/08-security-headers.mjs",
     "postinstall": "echo 'Next: run npx playwright install once to download the browser, then npm run test:all'"
   },
-  "keywords": ["playwright", "qa", "accessibility", "lighthouse", "security", "non-destructive"],
+  "keywords": [
+    "playwright",
+    "qa",
+    "accessibility",
+    "lighthouse",
+    "security",
+    "non-destructive"
+  ],
   "license": "ISC",
   "dependencies": {
     "@axe-core/playwright": "^4.12.1",
@@ -24,5 +31,11 @@
     "lighthouse": "^13.4.1",
     "linkinator": "^8.0.2",
     "playwright": "^1.62.0"
+  },
+  "overrides": {
+    "brace-expansion": "5.0.12",
+    "undici": "8.12.3",
+    "zod": "4.6.7",
+    "puppeteer-core": "25.16.0"
   }
 }

@@ -83,7 +83,7 @@ export default function MarketplacePage() {
         locality: p.location,
         hot: leadType !== "BASIC" && (seed + i) % 2 === 0,
         exclusive: leadType === "SITE_VISIT",
-        verified: p.isVerified || leadType !== "BASIC",
+        verified: Boolean(p.isVerified),
         leadType,
       }));
     });
@@ -137,13 +137,20 @@ export default function MarketplacePage() {
         name: "Truvi",
         description: `${leadType} lead purchase`,
         handler: async (response: any) => {
-          await api.post("/marketplace/confirm", {
-            leadType,
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
-          });
-          toast.success("Payment confirmed — lead assigned to you!");
+          try {
+            await api.post("/marketplace/confirm", {
+              leadType,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            toast.success("Payment confirmed — lead assigned to you!");
+          } catch (err: any) {
+            // Razorpay can report checkout success while our server refuses
+            // fulfillment (e.g. delayed capture or no inventory). Don't tell
+            // the buyer that the lead was assigned when confirmation failed.
+            toast.error(err?.response?.data?.error || "Payment completed, but lead assignment could not be confirmed. Please contact support before retrying.");
+          }
         },
       };
       const rzp = new (window as any).Razorpay(options);
