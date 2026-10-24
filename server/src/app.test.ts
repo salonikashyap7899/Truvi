@@ -40,6 +40,16 @@ describe("createApp production hosting", () => {
     expect(presentationResponse.status).toBe(200);
     expect(presentationResponse.headers.get("content-type")).toContain("text/html");
     expect(presentationBody).toContain("<div id=\"root\">");
+
+    const missingAssetResponse = await fetch(
+      `http://127.0.0.1:${address.port}/assets/__truvi_missing_chunk__.js`,
+    );
+    expect(missingAssetResponse.status).toBe(404);
+    expect(missingAssetResponse.headers.get("content-type") || "").not.toContain("text/html");
+
+    const unknownSpaRoute = await fetch(`http://127.0.0.1:${address.port}/this-route-does-not-exist`);
+    expect(unknownSpaRoute.status).toBe(200);
+    expect(unknownSpaRoute.headers.get("content-type")).toContain("text/html");
   });
 
   it("blocks CP ambassadors until onboarding verification is complete", () => {

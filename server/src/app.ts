@@ -309,7 +309,9 @@ export function createApp() {
         },
       }),
     );
-    app.get(/^\/(?!api|uploads|health).*/, (_req, res) => {
+    // Keep SPA navigation fallback away from missing API and file requests.
+    // A missing hashed JS/CSS file must be a 404, never index.html with status 200.
+    app.get(/^\/(?!(?:api|uploads|health|assets)(?:\/|$)|.*\.[^/]+$).*/, (_req, res) => {
       res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(clientDistDir, "index.html"));
     });
