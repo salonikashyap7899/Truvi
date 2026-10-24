@@ -2,15 +2,19 @@ name: Security validation
 
 on:
   push:
-    branches: [main, "security/**", "feat/**"]
+    branches: [main, "security/**", "feat/**", "fix/**"]
   pull_request:
     branches: [main]
   schedule:
     - cron: "23 3 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: security-validation-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   automated-tests-and-dependency-audit:
@@ -20,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -59,10 +65,30 @@ jobs:
         if: always()
         working-directory: client
         run: npm audit --audit-level=moderate
+      - name: Refresh browser QA lockfile with compatible fixes
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit'
+        working-directory: truvi-tests
+        run: npm audit fix --package-lock-only --no-fund
       - name: Audit browser QA dependencies
         if: always()
         working-directory: truvi-tests
         run: npm audit --audit-level=moderate
+      - name: Commit refreshed browser QA lockfile
+        if: always() && github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add truvi-tests/package-lock.json
+          if git diff --cached --quiet; then
+            echo "No browser QA lockfile changes to commit."
+            exit 0
+          fi
+          git commit -m "security: refresh browser QA dependency lockfile"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_HEAD_REF}"
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
