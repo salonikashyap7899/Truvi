@@ -1,0 +1,75 @@
+name: Temporary read-only production website audit
+
+on:
+  push:
+    branches:
+      - perf/website-smoothness-and-loading-fallbacks
+
+permissions:
+  contents: read
+
+concurrency:
+  group: truvi-live-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-site-audit:
+    name: Playwright, Lighthouse, responsive and security checks against production
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: truvi-tests/package-lock.json
+
+      - name: Install read-only QA suite
+        working-directory: truvi-tests
+        run: npm ci
+
+      - name: Install managed Chromium and OS dependencies
+        run: npx --prefix truvi-tests playwright install --with-deps chromium
+
+      - name: Run safe live production audit
+        working-directory: truvi-tests
+        env:
+          TRUVI_BASE_URL: https://truviventures.com/
+          TRUVI_MAX_PAGES: "30"
+          TRUVI_MAX_DEPTH: "2"
+        run: npm run test:all
+
+      - name: Print performance and high-severity findings
+        if: always()
+        working-directory: truvi-tests
+        shell: bash
+        run: |
+          set +e
+          if [ -f REPORT.md ]; then
+            grep -n -E "Generated:|Summary:|Lighthouse scores|Performance score|Largest Contentful Paint|Top 5 issues|\| (Critical|High|Medium)" REPORT.md | head -100
+            echo
+            echo "--- Lighthouse report ---"
+            grep -n -A10 -B2 "Performance / SEO" REPORT.md | head -90
+            echo
+            echo "--- All findings ---"
+            sed -n '/## All findings/,/## Passed/p' REPORT.md | head -180
+          else
+            echo "The production audit did not generate REPORT.md."
+            exit 0
+          fi
+
+      - name: Upload live audit report and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truvi-live-production-audit
+          path: |
+            truvi-tests/REPORT.md
+            truvi-tests/results/
+            truvi-tests/screenshots/
+          if-no-files-found: warn
+          retention-days: 7
