@@ -720,7 +720,7 @@ router.get("/kyc/status", authenticate, async (req: AuthedRequest, res) => {
         aadhaarVerified: approved,
         // The configured IDfy workflow must verify every role-appropriate item.
         // Truvi records this combined identity decision for its existing gate.
-        panVerified: approved,
+        panVerified: user.role === "AMBASSADOR" ? true : approved,
         kycStatus: approved ? "APPROVED" : "REJECTED",
         kycRejectionReason: rejected
           ? (result.statusDetail || "The identity provider could not verify this submission.")
