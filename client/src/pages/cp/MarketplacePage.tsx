@@ -5,6 +5,7 @@ import { CpHubNav } from "@/components/CpHubNav";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import { api } from "@/lib/api";
+import { loadRazorpay } from "@/lib/razorpay";
 import { formatINR, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Filter, Flame, ShieldCheck, Snowflake, Star, Plus, X, Loader2 } from "lucide-react";
@@ -116,6 +117,12 @@ export default function MarketplacePage() {
         await api.post("/marketplace/confirm", { leadType });
         toast.success("Lead purchased and assigned to you! (simulated payment — no live Razorpay keys configured)");
         setLoading(null);
+        return;
+      }
+
+      const checkoutReady = await loadRazorpay();
+      if (!checkoutReady) {
+        toast.error("Could not load Razorpay Checkout. Check your connection and try again.");
         return;
       }
 
