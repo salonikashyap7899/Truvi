@@ -67,11 +67,15 @@ export function maskPan(pan: string): string {
  * identity and liveness checks and return an explicit approved/rejected
  * decision; document upload or a syntactically valid number is never approval.
  */
-export function isHostedKycConfigured(): boolean {
+export function isHostedKycConfigured(role?: string): boolean {
+  const workflowId = role
+    ? process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}"]?.trim() || process.env.IDFY_KYC_WORKFLOW_ID?.trim()
+    : process.env.IDFY_KYC_WORKFLOW_ID?.trim() ||
+      ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"].some((r) => Boolean(process.env[`IDFY_KYC_WORKFLOW_ID_${r}"]?.trim()));
   return Boolean(
     process.env.IDFY_KYC_API_KEY?.trim() &&
     process.env.IDFY_KYC_ACCOUNT_ID?.trim() &&
-    process.env.IDFY_KYC_WORKFLOW_ID?.trim()
+    workflowId
   );
 }
 
@@ -92,7 +96,7 @@ export interface HostedKycProfileStatus {
 function idfyHeaders(): Record<string, string> {
   const apiKey = process.env.IDFY_KYC_API_KEY?.trim();
   const accountId = process.env.IDFY_KYC_ACCOUNT_ID?.trim();
-  if (!apiKey || !accountId || !process.env.IDFY_KYC_WORKFLOW_ID?.trim()) {
+  if (!apiKey || !accountId) {
     throw new Error("Hosted KYC provider is not configured");
   }
   return {
@@ -137,8 +141,10 @@ function safeCaptureLink(value: unknown): string {
 }
 
 /** Create a hosted KYC journey; the customer completes capture with IDfy. */
-export async function createHostedKycSession(referenceId: string): Promise<HostedKycSession> {
-  const workflowId = process.env.IDFY_KYC_WORKFLOW_ID?.trim();
+export async function createHostedKycSession(referenceId: string, role: string): Promise<HostedKycSession> {
+  const workflowId =
+    process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}"]?.trim() ||
+    process.env.IDFY_KYC_WORKFLOW_ID?.trim();
   if (!workflowId) throw new Error("Hosted KYC provider is not configured");
   const payload = await idfyRequest("/sync/profiles", {
     method: "POST",
