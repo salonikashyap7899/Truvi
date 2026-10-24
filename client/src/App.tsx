@@ -156,13 +156,27 @@ function FloatingAssistants() {
 
 function Ambience() {
   const { pathname } = useLocation();
-  // On touch devices the decorative WebGL city backdrop is expensive and
-  // CursorGlow requires a mouse. Skip both on touch screens so data-heavy pages
-  // load and scroll smoothly; desktop keeps the richer ambience.
-  if (IS_TOUCH) return null;
-  // The landing page renders its own richer CityCanvas scene; the Founder
-  // Dashboard uses its own light Founder-OS surface.
-  if (pathname === "/" || pathname.startsWith("/founder") || pathname.startsWith("/admin/")) return null;
+
+  // Keep decorative WebGL off touch screens and operational/data-heavy pages.
+  // Those pages prioritise input latency, scrolling, tables, maps and forms over
+  // an animated background. The richer CityCanvas remains exclusive to the
+  // landing page; lightweight public/informational pages retain the ambience.
+  const operationalRoute =
+    /^\/(admin|founder|employee|cp|developer|buyer|ambassador|habitat|crm|marketing|vault|inventory|map|projects)(\/|$)/.test(pathname) ||
+    [
+      "/help/meet",
+      "/login",
+      "/signup",
+      "/forgot-password",
+      "/verify-email",
+      "/employee/activate",
+      "/pricing",
+      "/payment-success",
+      "/payment-failed",
+    ].includes(pathname);
+
+  if (IS_TOUCH || pathname === "/" || operationalRoute) return null;
+
   return (
     <>
       <Suspense fallback={null}>
@@ -351,11 +365,11 @@ export default function App() {
 
         {/* Public inventory */}
         <Route path="/inventory" element={<InventoryPage />} />
-        <Route path="/map" element={<Suspense fallback={null}><ProjectsMapPage /></Suspense>} />
+        <Route path="/map" element={<Suspense fallback={<RouteFallback />}><ProjectsMapPage /></Suspense>} />
         <Route path="/inventory/:id/presentation" element={<ProjectPresentationPage />} />
         {/* Dedicated public project landing page (shareable, conversion-focused) */}
         <Route path="/projects/:id" element={<ProjectLandingPage />} />
-        <Route path="/inventory/:id/3d" element={<Suspense fallback={null}><ThreeDViewPage /></Suspense>} />
+        <Route path="/inventory/:id/3d" element={<Suspense fallback={<RouteFallback />}><ThreeDViewPage /></Suspense>} />
 
         {/* Marketing Dashboard — access-gated per-user (server enforces). */}
         <Route path="/marketing" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MarketingDashboardPage /></ProtectedRoute>} />
