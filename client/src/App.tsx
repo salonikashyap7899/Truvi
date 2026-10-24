@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Toaster } from "sonner";
+import ChunkLoadBoundary from "@/components/ChunkLoadBoundary";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import WelcomeGate from "@/components/WelcomeGate";
 import Onboarding from "@/components/Onboarding";
@@ -277,6 +278,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <ChunkLoadBoundary>
       <OfflineBanner />
       <Toaster
         position="top-center"
@@ -455,6 +457,7 @@ export default function App() {
       </EmployeePortalBoundary>
       </Suspense>
       </PageTransition>
+      </ChunkLoadBoundary>
     </BrowserRouter>
   );
 }
