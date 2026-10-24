@@ -26,6 +26,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             server/package-lock.json
             client/package-lock.json
       - name: Install server dependencies
@@ -34,6 +35,9 @@ jobs:
       - name: Server TypeScript check
         working-directory: server
         run: npm run typecheck
+      - name: Smoke-test Drizzle Kit config loading
+        working-directory: server
+        run: npm run db:generate
       # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
         working-directory: client
@@ -44,14 +48,17 @@ jobs:
       - name: Run all server tests
         working-directory: server
         run: npm test
+      - name: Audit root dependencies
+        if: always()
+        run: npm audit --audit-level=moderate
       - name: Audit server dependencies
         if: always()
         working-directory: server
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Audit client dependencies
         if: always()
         working-directory: client
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
