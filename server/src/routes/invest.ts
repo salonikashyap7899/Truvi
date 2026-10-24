@@ -182,7 +182,7 @@ router.post("/verify", authenticate, async (req: AuthedRequest, res) => {
     const admins = await db.select({ _id: users._id }).from(users).where(eq(users.role, "ADMIN"));
     const rows = await db.insert(notifications).values(admins.map((a) => ({
       userId: a._id,
-      message: "New investment received.",
+      message: "New investment of ₹" + (inv.amountPaise / 100).toLocaleString("en-IN") + " received.",
     }))).returning();
     rows.forEach((n) => emitNotification(String(n.userId), n));
   } catch { /* non-fatal: paid state is already persisted */ }
