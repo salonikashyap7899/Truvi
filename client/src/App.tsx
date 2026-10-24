@@ -147,10 +147,8 @@ function FloatingAssistants() {
   if (pathname.startsWith("/employee/") || pathname.startsWith("/founder") || pathname === "/admin/dashboard") return null;
   return (
     <>
-      {/* One assistant pop-up with two AIs (Ask Truvi + Copilot). The app's
-          bottom "Ask Truvi" tab / Menu open it via the open-ask-truvi and
-          open-copilot events; in the app the floating buttons are lifted above
-          the tab bar (see mobile-app.css). */}
+      {/* Shared assistant overlay for eligible web routes. */}
+
       <AskTruvi />
     </>
   );
@@ -158,11 +156,9 @@ function FloatingAssistants() {
 
 function Ambience() {
   const { pathname } = useLocation();
-  // On phones / the installed app the decorative WebGL city backdrop is pure
-  // cost — it pulls the heavy three.js chunk and runs a constant animation loop
-  // on data-heavy screens (Explore, dashboards), and CursorGlow needs a mouse
-  // that touch devices don't have. Skip both there so those screens load and
-  // scroll fast; desktop keeps the richer ambience.
+  // On touch devices the decorative WebGL city backdrop is expensive and
+  // CursorGlow requires a mouse. Skip both on touch screens so data-heavy pages
+  // load and scroll smoothly; desktop keeps the richer ambience.
   if (IS_TOUCH) return null;
   // The landing page renders its own richer CityCanvas scene; the Founder
   // Dashboard uses its own light Founder-OS surface.
@@ -180,10 +176,8 @@ function Ambience() {
 
 function PageTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  // On phones a 0.5s slide-up on every page (with all its content) reads as
-  // lag on each tap. There we use a quick opacity-only fade with no vertical
-  // travel, so navigation feels instant and native. Desktop keeps the richer
-  // motion.
+  // On touch screens a long slide-up animation can feel slow on each tap, so
+  // use a quick opacity-only fade. Desktop keeps the richer motion.
   // The admin OS is one persistent shell: keep it mounted while moving between
   // its modules (only its content area changes), instead of re-animating.
   const transitionKey = pathname.startsWith("/admin/") ? "/admin" : pathname;

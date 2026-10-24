@@ -7,7 +7,6 @@ import { getDb } from "../config/db";
 import { getSqlClient } from "../db/index";
 import {
   users,
-  userPushTokens,
   projects,
   units,
   leads,
@@ -49,7 +48,6 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
-import { isPushEnabled } from "../services/pushService";
 import { logAudit } from "../services/audit";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagCountsForProjects } from "../services/ragIntel";
@@ -2412,33 +2410,12 @@ router.delete("/commissions/manual/:id", requireRole("ADMIN"), async (req: Authe
   res.json({ ok: true, detail });
 });
 
-// ── Notification / push diagnostics & test tools ───────────────────────────
-// Lets a founder confirm the whole pipeline (bell + real-time + FCM push) is
-// working, and see whether FCM is configured and whether their own device has
-// registered a push token.
-
-// GET /api/admin/notifications/diagnostics — is push configured, and does this
-// admin have any registered device tokens?
-router.get("/notifications/diagnostics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
-  const db = getDb();
-  const myTokens = await db
-    .select({ token: userPushTokens.token, platform: userPushTokens.platform, updatedAt: userPushTokens.updatedAt })
-    .from(userPushTokens)
-    .where(eq(userPushTokens.userId, req.user!.userId));
-  const [{ total } = { total: 0 }] = await db
-    .select({ total: sql<number>`COUNT(*)::int` })
-    .from(userPushTokens);
-  res.json({
-    pushEnabled: isPushEnabled(),
-    myDeviceTokens: myTokens.length,
-    totalDeviceTokens: Number(total ?? 0),
-    myTokens: myTokens.map((t) => ({ platform: t.platform, updatedAt: t.updatedAt, tokenPreview: t.token.slice(0, 12) + "…" })),
-  });
-});
+// ── Web notification test and broadcast tools ──────────────────────────────
+// Tests go through the same in-app bell + Socket.io path used in production.
 
 // POST /api/admin/notifications/test — send a test notification to a user
-// (defaults to the calling admin). Flows through the bell, the real-time
-// socket toast, AND FCM push if configured.
+// (defaults to the calling admin). Flows through the notification bell
+// and the real-time Socket.io event.
 const testNotifSchema = z.object({
   userId: z.string().optional(),
   email: z.string().optional(),
@@ -2470,15 +2447,6 @@ router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedReque
     if (u) target = { _id: String(u._id), name: u.name, email: u.email };
   }
 
-  // How many devices does the target have registered? This is the key signal —
-  // 0 devices means FCM has nothing to push to (the user hasn't opened the
-  // installed app / granted notification permission on a device).
-  const [{ n } = { n: 0 }] = await db
-    .select({ n: sql<number>`COUNT(*)::int` })
-    .from(userPushTokens)
-    .where(eq(userPushTokens.userId, targetId));
-  const targetDeviceTokens = Number(n ?? 0);
-
   const rows = await notifyUser(targetId, {
     type: NotificationType.SYSTEM_ANNOUNCEMENT,
     title: parsed.data.title?.trim() || "Test notification 🔔",
@@ -2489,15 +2457,13 @@ router.post("/notifications/test", requireRole("ADMIN"), async (req: AuthedReque
   res.json({
     ok: true,
     delivered: rows.length,
-    pushEnabled: isPushEnabled(),
     targetName: target?.name ?? null,
     targetEmail: target?.email ?? null,
-    targetDeviceTokens,
   });
 });
 
 // POST /api/admin/notifications/broadcast — send an announcement to a role (or
-// everyone). Reaches the bell + real-time toast + FCM push for each recipient.
+// everyone). Reaches the notification bell and real-time Socket.io updates.
 const broadcastSchema = z.object({
   title: z.string().min(1),
   message: z.string().min(1),
@@ -2523,7 +2489,7 @@ router.post("/notifications/broadcast", requireRole("ADMIN"), async (req: Authed
     resourceType: "notification",
     metadata: { target, title: input.title, recipients: rows.length },
   });
-  res.json({ ok: true, recipients: rows.length, pushEnabled: isPushEnabled() });
+  res.json({ ok: true, recipients: rows.length });
 });
 
 export default router;

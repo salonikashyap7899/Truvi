@@ -1,8 +1,7 @@
 /**
- * Coarse pointer = phone / touch tablet (including the installed Capacitor
- * app). Computed once at module load. We use this to drop desktop-only eye
- * candy that costs GPU/CPU without being visible or useful on a phone —
- * keeping the app smooth and native-feeling on mobile.
+ * Coarse pointer indicates a phone or touch tablet. Computed once at module
+ * load and used to skip desktop-only visual effects that cost GPU/CPU without
+ * adding value on touch screens.
  *
  * Guarded for SSR / non-browser just in case; defaults to false (desktop).
  */

@@ -27,13 +27,8 @@ html, body, #root {
   background-color: var(--background);
 }
 
-/* Installed app: the WebView runs edge-to-edge under the status bar (clock,
-   battery, signal). Reserve that safe-area height at the very top so EVERY
-   page's content — dashboards, inventory, etc., not just the landing nav —
-   starts below the status bar instead of hiding behind it. Fixed headers keep
-   their own inset; this handles the normal-flow pages. In a browser, and once
-   the native app sets overlaysWebView:false, env() is 0 — so this adds space
-   only where it's actually needed and never double-pads. */
+/* Respect browser safe-area insets on notched devices. On ordinary browser
+   windows env() is zero, so this adds no extra space. */
 body {
   padding-top: env(safe-area-inset-top);
 }
