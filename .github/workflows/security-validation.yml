@@ -26,6 +26,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Do not leave the write-capable token in .git/config while executing
+          # package lifecycle scripts or other repository-controlled code.
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -98,9 +101,10 @@ jobs:
           fi
           git commit -m "security: refresh browser QA dependency lockfile"
           TARGET_REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          git fetch origin "refs/heads/${TARGET_REF}:refs/remotes/origin/${TARGET_REF}"
+          AUTH_REPO_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch "${AUTH_REPO_URL}" "refs/heads/${TARGET_REF}:refs/remotes/origin/${TARGET_REF}"
           git rebase "refs/remotes/origin/${TARGET_REF}"
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_REF}"
+          git push "${AUTH_REPO_URL}" "HEAD:refs/heads/${TARGET_REF}"
 
   codeql:
     name: CodeQL JavaScript and TypeScript analysis
