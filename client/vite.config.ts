@@ -5,7 +5,7 @@ import path from "path";
 
 /**
  * Heavy, feature-specific bundles (3D scenes, charts, maps) are only reached
- * through lazy routes/components, yet Rollup emits \`<link rel="modulepreload">\`
+ * through lazy routes/components, yet Rollup emits `<link rel="modulepreload">`
  * hints for the biggest async chunks — which makes the browser download ~1 MB+
  * of JS on first paint that the landing page never needs. Strip those hints so
  * these chunks load only when a 3D view, chart, or map actually renders.
@@ -57,7 +57,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5000,
-    // Keep Vite's default Host allow-list: \`allowedHosts: true\` disables
+    // Keep Vite's default Host allow-list: `allowedHosts: true` disables
     // DNS-rebinding protection when the development server is network-accessible.
     // For trusted remote previews, use Vite's documented
     // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS environment variable.
