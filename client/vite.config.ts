@@ -57,7 +57,10 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5000,
-    allowedHosts: true,
+    // Keep Vite's default Host allow-list: `allowedHosts: true` disables
+    // DNS-rebinding protection when the development server is network-accessible.
+    // For trusted remote previews, use Vite's documented
+    // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS environment variable.
     proxy: {
       "/api": { target: "http://localhost:5001", changeOrigin: true },
       "/uploads": { target: "http://localhost:5001", changeOrigin: true },
