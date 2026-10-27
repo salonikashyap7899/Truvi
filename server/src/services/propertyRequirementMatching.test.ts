@@ -65,6 +65,13 @@ describe("property requirement matching", () => {
     expect(locationMatches(requirement(), project())).toBe(true);
   });
 
+  it("rejects a nearby-looking locality that is only a partial word match", () => {
+    expect(locationMatches(
+      requirement({ city: "Noida", location: "Sector 5" }),
+      project({ city: "Noida", location: "Sector 50, Noida" }),
+    )).toBe(false);
+  });
+
   it("rejects a project in another city", () => {
     expect(locationMatches(requirement(), project({ city: "Delhi", location: "Sultanpur Road" }))).toBe(false);
   });
