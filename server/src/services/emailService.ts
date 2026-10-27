@@ -36,15 +36,33 @@ export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures
  * OTPs, recipients and message subjects are never written to logs. Throws when
  * SMTP is configured but delivery fails.
  */
-export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
+export type EmailDispatchResult =
+  | { status: "UNCONFIGURED"; messageId: null }
+  | { status: "SENT_TO_PROVIDER"; messageId: string | null };
+
+/**
+ * Generic SMTP confirms provider acceptance, not final mailbox delivery.
+ * Provider-specific delivery events must set the durable record to DELIVERED.
+ */
+export async function sendEmailWithStatus(
+  to: string,
+  subject: string,
+  html: string,
+  from: string = MAIL_FROM,
+): Promise<EmailDispatchResult> {
   if (!transporter) {
-    // Never log an OTP-bearing email subject, recipient, or message metadata.
-    // Callers receive false and can tell the user delivery is unavailable.
     console.warn("[email] Not delivered because SMTP is not configured.");
-    return false;
+    return { status: "UNCONFIGURED", messageId: null };
   }
-  await transporter.sendMail({ from, to, subject, html });
-  return true;
+  const info = await transporter.sendMail({ from, to, subject, html });
+  const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
+  if (acceptedCount === 0) throw new Error("SMTP did not accept the recipient");
+  return { status: "SENT_TO_PROVIDER", messageId: typeof info.messageId === "string" ? info.messageId : null };
+}
+
+export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
+  const result = await sendEmailWithStatus(to, subject, html, from);
+  return result.status === "SENT_TO_PROVIDER";
 }
 
 export async function sendApprovalEmail(to: string, name: string, approved: boolean): Promise<void> {
