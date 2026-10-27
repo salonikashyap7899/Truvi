@@ -55,6 +55,9 @@ export default function MediaCarousel({
       <div
         ref={trackRef}
         onScroll={onScroll}
+        role="region"
+        aria-label={`${alt} media carousel`}
+        tabIndex={0}
         className="flex h-full w-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{ scrollBehavior: "smooth" }}
       >
