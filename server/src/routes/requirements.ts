@@ -238,8 +238,12 @@ router.get("/board", async (req: AuthedRequest, res) => {
   const db = getDb();
   const { page, limit, offset } = pagination(req.query as Record<string, unknown>);
   const conditions = buildBoardFilters(req.query as Record<string, unknown>);
+  const employeeLeadPermission = req.user!.role === "EMPLOYEE"
+    ? await employeeCanCreateRequirement(req.user!.userId)
+    : null;
+  const canSubmit = req.user!.role !== "EMPLOYEE" || employeeLeadPermission === true;
   const canRespond = ["ADMIN", "DEVELOPER", "CP", "AMBASSADOR"].includes(req.user!.role)
-    || (req.user!.role === "EMPLOYEE" && await employeeCanCreateRequirement(req.user!.userId));
+    || (req.user!.role === "EMPLOYEE" && employeeLeadPermission === true);
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(propertyRequirements).where(and(...conditions));
   const rows = await db
     .select({
@@ -279,6 +283,7 @@ router.get("/board", async (req: AuthedRequest, res) => {
       publicSummary: sanitizePublicRequirementSummary(row.publicSummary),
       isOwn: String(submittedById) === req.user!.userId,
     })),
+    canSubmit,
     canRespond,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
