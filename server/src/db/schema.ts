@@ -633,6 +633,7 @@ export const propertyRequirementMatches = pgTable(
     emailAttempts: integer("email_attempts").notNull().default(0),
     emailLastError: text("email_last_error"),
     emailNextAttemptAt: timestamp("email_next_attempt_at", { withTimezone: true, mode: "date" }),
+    emailClaimedAt: timestamp("email_claimed_at", { withTimezone: true, mode: "date" }),
     emailProviderMessageId: text("email_provider_message_id"),
     emailDeliveredAt: timestamp("email_delivered_at", { withTimezone: true, mode: "date" }),
     inAppNotifiedAt: timestamp("in_app_notified_at", { withTimezone: true, mode: "date" }),
