@@ -7,8 +7,8 @@ import type { AuthedRequest } from "./auth";
  * Content Security Policy for pages served directly by Express (the VPS setup).
  * The same policy is configured in client/vercel.json for static-site hosting.
  * Keep the external script list limited to the integrations actually used by
- * Truvi: Razorpay Checkout and Google Maps/Places. The hash permits the static
- * Organization JSON-LD block in client/index.html without enabling inline JS.
+ * Truvi: Razorpay Checkout and Google Maps/Places. Organization JSON-LD is
+ * structured data, not executable JavaScript, so it needs no script hash.
  *
  * This policy must be exercised against staging before deployment because
  * payments, Maps/Places, uploaded media and the live API all depend on origins.
@@ -21,7 +21,6 @@ const SECURITY_CSP_DIRECTIVES = {
   formAction: ["'self'", "https:"],
   scriptSrc: [
     "'self'",
-    "'sha256-ftQqghVGUGCVsBPz9ckfLkDulk5FQdaUwUPHNQXnfs8='",
     "https://checkout.razorpay.com",
     "https://maps.googleapis.com",
     "https://maps.gstatic.com",
