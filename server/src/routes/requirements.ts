@@ -598,9 +598,11 @@ router.patch("/admin/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
     duplicateMarked: Boolean(updated.duplicateOfId),
     hasModerationNote: Boolean(updated.moderationNote),
   });
-  if (updated.status === "ACTIVE" && existing.status !== "ACTIVE") {
+  if (updated.status !== existing.status) {
+    // Recheck on every moderation status transition: activating finds matches,
+    // while closing/rejecting/spam invalidates old matches and pending emails.
     void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(updated._id) }).catch(() => {
-      console.warn("[property-matching] reactivated requirement match job could not be queued");
+      console.warn("[property-matching] requirement moderation match job could not be queued");
     });
   }
 
@@ -868,7 +870,9 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     toStatus: requirement.status,
   });
 
-  if (requirement.status === "ACTIVE") {
+  if (requirement.status === "ACTIVE" || requirement.status !== existing.status) {
+    // Re-evaluate changed criteria and also invalidate stored matches when the
+    // owner closes their requirement.
     void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(requirement._id) }).catch(() => {
       console.warn("[property-matching] requirement update matching job could not be queued");
     });
