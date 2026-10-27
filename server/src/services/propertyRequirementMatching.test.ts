@@ -82,6 +82,17 @@ describe("property requirement matching", () => {
     expect(matches[0].price).toBe(3_200_000);
   });
 
+  it("matches broad residential requirements to plots, apartments and villas", () => {
+    const broad = requirement({ propertyType: "RESIDENTIAL", minAreaSqft: null, maxAreaSqft: null });
+    const matches = matchingUnits(broad, project({ projectType: "RESIDENTIAL" }), [
+      unit(3_000_000, 900, "PLOTTED"),
+      unit(3_500_000, 900, "APARTMENT"),
+      unit(3_800_000, 900, "VILLA"),
+      unit(3_500_000, 900, "COMMERCIAL"),
+    ]);
+    expect(matches.map((item) => item.type).sort()).toEqual(["APARTMENT", "PLOTTED", "VILLA"]);
+  });
+
   it("supports a broad type preference while still checking location and budget", () => {
     const matches = matchingUnits(
       requirement({ propertyType: "ANY", minAreaSqft: null, maxAreaSqft: null }),
