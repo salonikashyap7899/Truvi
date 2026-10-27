@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import twilio from "twilio";
 
 const hasSmtpConfig = !!process.env.SMTP_HOST;
+const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
 
 const transporter = hasSmtpConfig
   ? nodemailer.createTransport({
@@ -31,7 +32,7 @@ export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures
 
 /** Whether the current process has a usable SMTP transport configured. */
 export function isEmailTransportConfigured(): boolean {
-  return transporter !== null;
+  return Boolean(resendApiKey || transporter !== null);
 }
 
 /**
@@ -55,8 +56,35 @@ export async function sendEmailWithStatus(
   html: string,
   from: string = MAIL_FROM,
 ): Promise<EmailDispatchResult> {
+  // Resend is optional. When its API key is present, use its signed delivery
+  // webhook support so delivery can be confirmed; never fall back to SMTP after
+  // a Resend API failure because that could send duplicate messages.
+  if (resendApiKey) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to: [to], subject, html }),
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => {
+      throw new Error("RESEND_REQUEST_FAILED");
+    });
+    if (!response.ok) {
+      // Keep provider response bodies out of logs/errors; they can contain
+      // recipient/provider diagnostics and aren't needed for retry decisions.
+      throw new Error(`RESEND_REJECTED_${response.status}`);
+    }
+    const payload = await response.json().catch(() => null) as { id?: unknown } | null;
+    if (!payload || typeof payload.id !== "string" || !payload.id.trim()) {
+      throw new Error("RESEND_MESSAGE_ID_MISSING");
+    }
+    return { status: "SENT_TO_PROVIDER", messageId: payload.id };
+  }
+
   if (!transporter) {
-    console.warn("[email] Not delivered because SMTP is not configured.");
+    console.warn("[email] Not delivered because no email provider is configured.");
     return { status: "UNCONFIGURED", messageId: null };
   }
   const info = await transporter.sendMail({ from, to, subject, html });
