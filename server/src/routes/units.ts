@@ -95,11 +95,11 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
     })
     .returning();
 
-  // New inventory: tell CPs and buyers there are fresh plots to explore. Deduped
-  // to once per project per day so adding many units at once doesn't spam. Only
-  // for live (approved) projects — pending ones aren't public yet.
-  try {
-    if (project.approvalStatus === "APPROVED") {
+  // New inventory: tell CPs and buyers there are fresh plots to explore. A
+  // generic notification-provider failure must never prevent requirement
+  // matching from being queued for the same newly added inventory.
+  if (project.approvalStatus === "APPROVED") {
+    try {
       const day = new Date().toISOString().slice(0, 10);
       await notifyRole(["CP", "BUYER"], {
         type: "new_property",
@@ -108,12 +108,10 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
         data: { href: `/inventory/${project._id}/presentation` },
         dedupeKey: `inventory:${project._id}:${day}`,
       });
-      void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
-        console.warn("[property-matching] inventory matching job could not be queued");
-      });
+    } catch {
+      /* generic inventory alert is non-fatal; matching is independent */
     }
-  } catch {
-    /* non-fatal */
+    queueProjectRequirementRecheck(String(project._id));
   }
 
   res.status(201).json({ unit });
