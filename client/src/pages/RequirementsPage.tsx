@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { Building2, Clock3, MapPin, Pencil, Plus, Search, X, CheckCircle2, IndianRupee, Ruler } from "lucide-react";
+import { Building2, Clock3, MapPin, Pencil, Plus, Search, X, CheckCircle2, IndianRupee, Ruler, MessageCircle, Send, Eye } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -37,6 +37,17 @@ interface PropertyRequirement {
   submittedByRole: string;
   status: RequirementStatus;
   createdAt: string;
+  isOwn?: boolean;
+}
+
+interface RequirementResponse {
+  id: string;
+  message: string;
+  status: "SENT" | "WITHDRAWN";
+  createdAt: string;
+  readAt: string | null;
+  responderName: string;
+  responderRole: string;
 }
 
 interface MatchRecord {
@@ -161,6 +172,13 @@ export default function RequirementsPage() {
   const [boardStatus, setBoardStatus] = useState("ACTIVE");
   const [boardPage, setBoardPage] = useState(1);
   const [boardPagination, setBoardPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 0 });
+  const [canRespondToRequirements, setCanRespondToRequirements] = useState(false);
+  const [respondingTo, setRespondingTo] = useState<{ id: string; title: string } | null>(null);
+  const [responseMessage, setResponseMessage] = useState("");
+  const [submittingResponse, setSubmittingResponse] = useState(false);
+  const [responsesByRequirement, setResponsesByRequirement] = useState<Record<string, RequirementResponse[]>>({});
+  const [viewResponsesFor, setViewResponsesFor] = useState<string | null>(null);
+  const [loadingResponsesFor, setLoadingResponsesFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -185,6 +203,7 @@ export default function RequirementsPage() {
       ]);
       setMine((mineRes.data.requirements ?? []) as PropertyRequirement[]);
       setBoard((boardRes.data.requirements ?? []) as Omit<PropertyRequirement, "details">[]);
+      setCanRespondToRequirements(boardRes.data.canRespond === true);
       setBoardPagination(boardRes.data.pagination ?? { page: 1, limit: 12, total: 0, totalPages: 0 });
       setMatches((matchesRes.data.matches ?? []) as MatchRecord[]);
     } catch (error: any) {
