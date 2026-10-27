@@ -52,6 +52,8 @@ When `RESEND_API_KEY` is configured, Resend is used **only for property-match re
 
 A property-match send uses Resend when `RESEND_API_KEY` is configured and otherwise uses SMTP. If a Resend request fails after selection, the worker does not fall back to SMTP, avoiding accidental duplicate sends. Remove `RESEND_API_KEY` to keep property-match mail on SMTP.
 
+**Retry/idempotency guarantee:** matching rows, queue jobs and in-app events are deduplicated in PostgreSQL. When Resend is selected, a stable provider idempotency key protects retries of the same message. SMTP transports do not expose the same idempotency contract through this integration; bounded retry and database claims reduce duplicates, but an ambiguous SMTP disconnect after provider acceptance cannot be guaranteed at-most-once. Use Resend when provider-level retry idempotency and delivery-event confirmation are required.
+
 ## Notification preferences
 
 Property recommendation in-app and email preferences are managed through the existing authenticated notification preference endpoints and the `/settings/notifications` screen. WhatsApp is presented as unavailable for property recommendations until a provider/event route is implemented and configured.
@@ -61,6 +63,24 @@ Property recommendation in-app and email preferences are managed through the exi
 The server applies additive, repeatable SQL for the new requirement, match, queue, response, event and delivery-event tables at boot. It does not drop or truncate existing records. The match worker runs inside the existing Node service; job claims and match uniqueness are persisted in PostgreSQL to make repeated processing safe.
 
 Do not run `drizzle-kit push` against production solely for this feature without reviewing the generated diff first. The startup reconciliation is the intended additive bootstrap for these tables.
+
+## VPS rollout after review
+
+Do not deploy this draft branch directly. After the PR is approved/merged, the latest-head checks are green, and a backup is verified:
+
+1. Open the VPS repository and inspect it without modifying files:
+   ```bash
+   cd /root/Truvi
+   git branch --show-current
+   git status --short --untracked-files=all
+   pm2 list
+   ```
+2. Stop if the branch is not `main`, the working tree is not clean, or the PM2 processes have not been identified. Do not use `git clean`, overwrite `.env`, or delete backup files to make the deploy proceed.
+3. The existing `bash deploy.sh` script validates a clean `main` checkout and incoming removals, then builds/restarts. **It currently runs `pm2 restart all`**, so use it only if every PM2 process on that VPS can safely be restarted as part of this Truvi deployment.
+4. If the VPS runs other PM2 applications, follow the same clean-checkout, fetch, incoming-diff review, and fast-forward checks in `deploy.sh`, but build the server/client and restart only the confirmed Truvi process shown by `pm2 list`. Do not copy an unreviewed shell block from chat over the existing deploy script.
+5. After restart, check the configured local API health URL (the deploy script uses `http://127.0.0.1:$PORT/health`), then verify the public website, authentication, navbar/profile, Buyer/CP/Developer/Ambassador dashboard links, noticeboard, notification bell, and project detail/enquiry flow.
+
+The application startup reconciler creates the feature's additive tables. Do not run `drizzle-kit push` in production for this feature without a separately reviewed schema diff; preserve the existing tables and data during rollback.
 
 ## Production safety and rollback
 
