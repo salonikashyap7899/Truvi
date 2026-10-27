@@ -661,11 +661,6 @@ export default function EmployeeDashboardPage() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {employee?.permissions?.includes("lead.create") && (
-                  <Link to="/requirements" className="inline-flex items-center gap-2 rounded-xl border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-sm font-medium text-teal-200 transition hover:bg-teal-400/15">
-                    <Users size={15} aria-hidden="true" /> Share lead requirement
-                  </Link>
-                )}
-                {employee?.permissions?.includes("lead.create") && (
                   <button
                     type="button"
                     onClick={() => navigate("/requirements")}
