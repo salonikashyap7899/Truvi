@@ -338,7 +338,6 @@ export default function RequirementsPage() {
       return;
     }
     setViewResponsesFor(requirementId);
-    if (responsesByRequirement[requirementId]) return;
     setLoadingResponsesFor(requirementId);
     try {
       const result = await api.get(`/requirements/mine/${requirementId}/responses`);
@@ -541,7 +540,7 @@ export default function RequirementsPage() {
                     <p className="text-xs text-teal-300">{item.requirementTitle}</p>
                     <h3 className="mt-1 font-medium">{item.project.name}</h3>
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin size={13} /> {item.project.location}, {item.project.city}</p>
-                    <Link to={`/inventory/${item.project._id}/presentation`} className="mt-3 inline-flex text-sm font-medium text-teal-300 hover:text-teal-200">View project →</Link>
+                    <Link to={`/inventory/${item.project._id}/presentation?requirementMatchId=${encodeURIComponent(item.match._id)}`} className="mt-3 inline-flex text-sm font-medium text-teal-300 hover:text-teal-200">View project →</Link>
                   </div>
                 ))}
               </div>
