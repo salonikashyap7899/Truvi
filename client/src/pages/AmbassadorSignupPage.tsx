@@ -94,22 +94,22 @@ export default function AmbassadorSignupPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
                 <div>
                   <Label>Full name</Label>
-                  <Input {...register("name")} placeholder="Priya Sharma" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
+                  <Input {...register("name")} required aria-invalid={Boolean(errors.name)} placeholder="Priya Sharma" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
                   {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name.message}</p>}
                 </div>
                 <div>
                   <Label>Email</Label>
-                  <Input type="email" {...register("email")} placeholder="you@example.com" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
+                  <Input type="email" {...register("email")} required aria-invalid={Boolean(errors.email)} placeholder="you@example.com" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
                   {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email.message}</p>}
                 </div>
                 <div>
                   <Label>Phone</Label>
-                  <Input {...register("phone")} placeholder="98765 43210" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
+                  <Input {...register("phone")} required aria-invalid={Boolean(errors.phone)} placeholder="98765 43210" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
                   {errors.phone && <p className="mt-1 text-xs text-red-400">{errors.phone.message}</p>}
                 </div>
                 <div>
                   <Label>Password</Label>
-                  <Input type="password" {...register("password")} placeholder="8+ chars, upper, lower, number, symbol" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
+                  <Input type="password" {...register("password")} required aria-invalid={Boolean(errors.password)} placeholder="8+ chars, upper, lower, number, symbol" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
                   {errors.password ? (
                     <p className="mt-1 text-xs text-red-400">{errors.password.message}</p>
                   ) : (

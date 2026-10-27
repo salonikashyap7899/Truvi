@@ -9,8 +9,8 @@
  */
 import { and, eq, inArray, lte } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { leadFollowUps, leads, users, projects, subscriptions, employees, employeeTasks, employeeTaskAssignments } from "../db/schema";
-import { notifyUser } from "./notificationService";
+import { ambassadorOsFollowUps, ambassadorOsTasks, leadFollowUps, leads, users, projects, subscriptions, employees, employeeTasks, employeeTaskAssignments } from "../db/schema";
+import { NotificationType, notifyUser } from "./notificationService";
 import { shouldSendTaskDeadlineReminder } from "../lib/employeeTaskRules";
 import { sendWhatsAppCampaign } from "./whatsappService";
 
@@ -94,6 +94,110 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
       });
       if (created.length) sent++;
     }
+  }
+  return { scanned: tasks.length, sent };
+}
+
+/**
+ * Remind Ambassadors about follow-ups created inside the Ambassador Operating
+ * System (these live in a separate table from the legacy CRM follow-up queue).
+ * Pending follow-ups are surfaced two hours before their due time and daily
+ * while overdue; status changes automatically stop future reminders.
+ */
+export async function runAmbassadorOsFollowUpReminders(): Promise<{ scanned: number; sent: number }> {
+  const db = getDb();
+  const now = new Date();
+  const soon = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  const dayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (kind: string) => dayParts.find((item) => item.type === kind)?.value ?? "";
+  const dayKey = part("year") + "-" + part("month") + "-" + part("day");
+  const rows = await db.select({
+    id: ambassadorOsFollowUps._id,
+    ambassadorId: ambassadorOsFollowUps.ambassadorId,
+    leadId: ambassadorOsFollowUps.leadId,
+    dueAt: ambassadorOsFollowUps.dueAt,
+    channel: ambassadorOsFollowUps.channel,
+    note: ambassadorOsFollowUps.note,
+  }).from(ambassadorOsFollowUps)
+    .where(and(eq(ambassadorOsFollowUps.status, "PENDING"), lte(ambassadorOsFollowUps.dueAt, soon)));
+
+  let sent = 0;
+  for (const followUp of rows) {
+    const [lead] = await db.select({ clientName: leads.clientName })
+      .from(leads).where(eq(leads._id, followUp.leadId)).limit(1);
+    const overdue = followUp.dueAt.getTime() < now.getTime();
+    const when = followUp.dueAt.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+    const action = followUp.channel === "CALL" ? "Call" :
+      followUp.channel === "MEETING" ? "Meet" :
+      followUp.channel === "EMAIL" ? "Email" : "WhatsApp";
+    const created = await notifyUser(String(followUp.ambassadorId), {
+      type: NotificationType.LEAD_FOLLOWUP,
+      title: overdue ? "Ambassador follow-up overdue" : "Ambassador follow-up due soon",
+      message: (overdue ? "Overdue: " : "Due soon: ") +
+        action + (lead?.clientName ? " with " + lead.clientName : " with your lead") +
+        " — " + when + ". " + followUp.note,
+      data: {
+        href: "/ambassador/operating-system",
+        followUpId: String(followUp.id),
+        dueAt: followUp.dueAt.toISOString(),
+      },
+      priority: overdue ? "high" : "normal",
+      dedupeKey: "ambassador-os-followup:" + String(followUp.id) + ":" + dayKey,
+    });
+    if (created.length) sent++;
+  }
+  return { scanned: rows.length, sent };
+}
+
+/**
+ * Remind active Ambassador accounts about their own open operating-system tasks.
+ * Notifications are deduped per task, due date and India-local day; approved,
+ * submitted and closed tasks no longer match the query.
+ */
+export async function runAmbassadorOsTaskDeadlineReminders(): Promise<{ scanned: number; sent: number }> {
+  const db = getDb();
+  const now = new Date();
+  const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const dayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (kind: string) => dayParts.find((item) => item.type === kind)?.value ?? "";
+  const dayKey = part("year") + "-" + part("month") + "-" + part("day");
+  const openStatuses = ["ASSIGNED", "ACCEPTED", "IN_PROGRESS", "REJECTED"] as const;
+  const tasks = await db.select({
+    id: ambassadorOsTasks._id,
+    title: ambassadorOsTasks.title,
+    assignedToId: ambassadorOsTasks.assignedToId,
+    dueAt: ambassadorOsTasks.dueAt,
+  }).from(ambassadorOsTasks)
+    .innerJoin(users, eq(ambassadorOsTasks.assignedToId, users._id))
+    .where(and(
+      lte(ambassadorOsTasks.dueAt, nextDay),
+      inArray(ambassadorOsTasks.status, [...openStatuses]),
+      eq(users.role, "AMBASSADOR"),
+      eq(users.disabled, false),
+    ));
+
+  let sent = 0;
+  for (const task of tasks) {
+    if (!task.dueAt) continue;
+    const overdue = task.dueAt.getTime() < now.getTime();
+    const deadlineLabel = task.dueAt.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+    });
+    const created = await notifyUser(String(task.assignedToId), {
+      type: NotificationType.AMBASSADOR_OS_TASK_REMINDER,
+      title: overdue ? "Ambassador task overdue" : "Ambassador task due soon",
+      message: (overdue ? "Overdue: " : "Due soon: ") + task.title + " — deadline " + deadlineLabel + ".",
+      data: { href: "/ambassador/operating-system", taskId: String(task.id), dueAt: task.dueAt.toISOString() },
+      priority: overdue ? "high" : "normal",
+      dedupeKey: "ambassador-os-task-deadline:" + String(task.id) + ":" + task.dueAt.toISOString() + ":" + dayKey,
+    });
+    if (created.length) sent++;
   }
   return { scanned: tasks.length, sent };
 }
@@ -198,6 +302,18 @@ export function startNotificationReminderScheduler(): void {
       .catch((err) => console.warn("[reminders] employee task sweep failed:", err instanceof Error ? err.message : err));
   };
 
+  const runAmbassadorOsFollowUps = () => {
+    runAmbassadorOsFollowUpReminders()
+      .then((r) => { if (r.sent > 0) console.log("[reminders] Ambassador OS follow-up reminders sent: " + r.sent + "/" + r.scanned); })
+      .catch((err) => console.warn("[reminders] Ambassador OS follow-up sweep failed:", err instanceof Error ? err.message : err));
+  };
+
+  const runAmbassadorOsTasks = () => {
+    runAmbassadorOsTaskDeadlineReminders()
+      .then((r) => { if (r.sent > 0) console.log("[reminders] Ambassador OS task reminders sent: " + r.sent + "/" + r.scanned); })
+      .catch((err) => console.warn("[reminders] Ambassador OS task sweep failed:", err instanceof Error ? err.message : err));
+  };
+
   const runRole = () => {
     runRoleCompletionReminders()
       .then((r) => { if (r.sent > 0) console.log(`[reminders] role-completion reminders sent: ${r.sent}`); })
@@ -208,6 +324,10 @@ export function startNotificationReminderScheduler(): void {
   setInterval(runFollowUps, FIFTEEN_MIN).unref();
   setTimeout(runEmployeeTasks, 120_000).unref();
   setInterval(runEmployeeTasks, FIFTEEN_MIN).unref();
+  setTimeout(runAmbassadorOsFollowUps, 90_000).unref();
+  setInterval(runAmbassadorOsFollowUps, FIFTEEN_MIN).unref();
+  setTimeout(runAmbassadorOsTasks, 120_000).unref();
+  setInterval(runAmbassadorOsTasks, FIFTEEN_MIN).unref();
   setTimeout(runRole, 120_000).unref();      // ~2 min after boot
   setInterval(runRole, SIX_HOURS).unref();
 }

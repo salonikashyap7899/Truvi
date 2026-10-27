@@ -278,6 +278,7 @@ export default function InventoryPage() {
             <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
               <SlidersHorizontal size={13} className="text-white/50" />
               <select
+                aria-label="Sort properties"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
@@ -303,6 +304,8 @@ export default function InventoryPage() {
               : "No properties match your search."}
           </p>
         ) : (
+          <>
+          <h2 className="sr-only">Property listings</h2>
           <div className="mx-auto mt-6 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {results.map((project) => (
               <ListingCard
@@ -318,6 +321,7 @@ export default function InventoryPage() {
               />
             ))}
           </div>
+          </>
         )}
       </main>
 

@@ -377,7 +377,7 @@ export default function ProjectPresentationPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 text-white md:p-10 pb-28">
+    <main className="min-h-screen overflow-x-clip p-6 text-white md:p-10 pb-28">
       {lightbox && (
         <Lightbox
           images={lightbox.images}
@@ -641,7 +641,12 @@ export default function ProjectPresentationPage() {
               {items.length > 1 && <span className="ml-1 text-[11px] font-normal text-white/40">swipe →</span>}
             </h2>
             {/* Horizontal, swipeable card carousel (was a static grid). */}
-            <div className="mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div
+              role="region"
+              aria-label={`${section.title} media gallery`}
+              tabIndex={0}
+              className="mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               {items.map((asset) => (
                 <div key={asset._id} className="w-64 shrink-0 snap-start sm:w-72">
                   {renderAsset(asset, sectionImages)}

@@ -303,10 +303,10 @@ export default function SignupPage() {
 
             <form onSubmit={handleSubmit(onSubmit)} className="mt-3 grid gap-2 sm:grid-cols-2">
                 <Field icon={<User size={16} />} label="Full name" error={errors.name?.message}>
-                  <Input {...register("name")} placeholder="e.g. Priya Sharma" className={FIELD_INPUT} />
+                  <Input {...register("name")} required aria-invalid={Boolean(errors.name)} placeholder="e.g. Priya Sharma" className={FIELD_INPUT} />
                 </Field>
                 <Field icon={<Mail size={16} />} label="Email" error={errors.email?.message}>
-                  <Input type="email" {...register("email")} placeholder="you@example.com" className={FIELD_INPUT} />
+                  <Input type="email" {...register("email")} required aria-invalid={Boolean(errors.email)} placeholder="you@example.com" className={FIELD_INPUT} />
                 </Field>
                 <Field
                   icon={<Phone size={16} />}
@@ -323,6 +323,8 @@ export default function SignupPage() {
                     />
                     <Input
                       {...register("phone")}
+                      required
+                      aria-invalid={Boolean(errors.phone)}
                       inputMode="tel"
                       placeholder={countryCode === "+91" ? "98765 43210" : "Mobile number"}
                       className={`${FIELD_INPUT} min-w-0 flex-1`}
@@ -335,11 +337,11 @@ export default function SignupPage() {
                   error={errors.password?.message}
                   hint={!errors.password ? "8+ chars · upper & lower case · number · symbol" : undefined}
                 >
-                  <PasswordInput {...register("password")} placeholder="Create a strong password" className={`${FIELD_INPUT} pr-9`} />
+                  <PasswordInput {...register("password")} required aria-invalid={Boolean(errors.password)} placeholder="Create a strong password" className={`${FIELD_INPUT} pr-9`} />
                 </Field>
                 {role === "DEVELOPER" && (
                   <Field icon={<Building2 size={16} />} label="Company name" error={errors.companyName?.message}>
-                    <Input {...register("companyName")} placeholder="Skyline Developers Pvt Ltd" className={FIELD_INPUT} />
+                    <Input {...register("companyName")} required aria-invalid={Boolean(errors.companyName)} placeholder="Skyline Developers Pvt Ltd" className={FIELD_INPUT} />
                   </Field>
                 )}
                 <Field
