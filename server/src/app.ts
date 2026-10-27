@@ -44,6 +44,7 @@ import { getEnv } from "./config/env";
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import buyerRoutes from "./routes/buyer";
+import requirementRoutes from "./routes/requirements";
 import projectRoutes from "./routes/projects";
 import unitRoutes from "./routes/units";
 import leadRoutes from "./routes/leads";
@@ -243,6 +244,7 @@ export function createApp() {
   app.use("/api", voucherRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/buyer", buyerRoutes);
+  app.use("/api/requirements", requirementRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/units", unitRoutes);
   app.use("/api/leads", leadManagementRoutes); // /from-inventory, /mine, /admin/* (before /:id)
