@@ -21,6 +21,7 @@ import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatch
 import { logAudit } from "../services/audit";
 import { isEmailTransportConfigured } from "../services/emailService";
 import { notifyUser, NotificationType } from "../services/notificationService";
+import { sanitizePublicRequirementSummary } from "../lib/requirementPrivacy";
 
 const router = Router();
 router.use(authenticate);
@@ -113,16 +114,6 @@ function validateBounds(values: {
 
 function displayType(value: string): string {
   return value === "ANY" ? "Property" : value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-/** Public summaries are a separate field; redact common contact patterns defensively. */
-function sanitizePublicSummary(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  const sanitized = value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[contact removed]")
-    .replace(/\+?\d[\d ()-]{7,}\d/g, "[contact removed]")
-    .trim();
-  return sanitized || null;
 }
 
 async function employeeCanCreateRequirement(userId: string): Promise<boolean> {
@@ -445,7 +436,7 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     purpose: data.purpose ?? null,
     timeline: data.timeline,
     details: data.details?.trim() || null,
-    publicSummary: sanitizePublicSummary(data.publicSummary),
+    publicSummary: sanitizePublicRequirementSummary(data.publicSummary),
     preferredContactMethod: data.preferredContactMethod,
     clientName: hasClientContact ? data.clientName?.trim() || null : null,
     clientPhone: hasClientContact ? data.clientPhone?.trim() || null : null,
