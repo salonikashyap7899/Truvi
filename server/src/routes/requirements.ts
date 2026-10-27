@@ -298,7 +298,7 @@ router.get("/matches", async (req: AuthedRequest, res) => {
         eq(projects.availabilityStatus, "AVAILABLE"),
       ),
     )
-    .where(eq(propertyRequirementMatches.matchStatus, "MATCHED"))
+    .where(inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]))
     .orderBy(desc(propertyRequirementMatches.createdAt))
     .limit(100);
 
