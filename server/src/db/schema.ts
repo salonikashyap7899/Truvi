@@ -596,6 +596,7 @@ export const propertyRequirements = pgTable(
     purpose: text("purpose"),
     timeline: text("timeline").notNull(),
     details: text("details"),
+    publicSummary: text("public_summary"),
     preferredContactMethod: text("preferred_contact_method").$type<"PHONE" | "EMAIL" | "WHATSAPP" | "IN_APP">().notNull().default("IN_APP"),
     clientName: text("client_name"),
     clientPhone: text("client_phone"),
