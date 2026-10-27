@@ -739,6 +739,8 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now(),
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "submission_key" text`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirements_submitter_submission_key_unique" ON "property_requirements" ("submitted_by_id", "submission_key")`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "requirement_kind" text NOT NULL DEFAULT 'BUYER'`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "visibility" text NOT NULL DEFAULT 'TRUVI'`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "preferred_contact_method" text NOT NULL DEFAULT 'IN_APP'`,
