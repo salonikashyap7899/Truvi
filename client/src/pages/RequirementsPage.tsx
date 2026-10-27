@@ -184,6 +184,7 @@ export default function RequirementsPage() {
   const [boardStatus, setBoardStatus] = useState("ACTIVE");
   const [boardPage, setBoardPage] = useState(1);
   const [boardPagination, setBoardPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 0 });
+  const [canSubmitRequirements, setCanSubmitRequirements] = useState(user?.role !== "EMPLOYEE");
   const [canRespondToRequirements, setCanRespondToRequirements] = useState(false);
   const [respondingTo, setRespondingTo] = useState<{ id: string; title: string } | null>(null);
   const [responseMessage, setResponseMessage] = useState("");
@@ -215,6 +216,7 @@ export default function RequirementsPage() {
       ]);
       setMine((mineRes.data.requirements ?? []) as PropertyRequirement[]);
       setBoard((boardRes.data.requirements ?? []) as Omit<PropertyRequirement, "details">[]);
+      setCanSubmitRequirements(boardRes.data.canSubmit === true);
       setCanRespondToRequirements(boardRes.data.canRespond === true);
       setBoardPagination(boardRes.data.pagination ?? { page: 1, limit: 12, total: 0, totalPages: 0 });
       setMatches((matchesRes.data.matches ?? []) as MatchRecord[]);
@@ -421,6 +423,7 @@ export default function RequirementsPage() {
               )}
             </div>
 
+            {canSubmitRequirements ? (
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm">
@@ -534,6 +537,11 @@ export default function RequirementsPage() {
                 <p className="text-xs text-muted-foreground">Your contact details are not displayed on the public noticeboard.</p>
               </div>
             </form>
+            ) : (
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 text-sm text-amber-100">
+                Requirement submission is not enabled for this employee account. Ask an administrator to grant the existing <code>lead.create</code> permission.
+              </div>
+            )}
           </div>
 
           <div className="space-y-5">
