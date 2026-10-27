@@ -190,7 +190,7 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
 
   return (
     <div
-      className="relative mt-4 h-64 w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0a0d14] sm:h-[420px] md:h-[520px] lg:h-[600px]"
+      className="relative mt-4 h-64 w-full min-w-0 max-w-full overflow-hidden rounded-3xl border border-white/10 bg-[#0a0d14] sm:h-[420px] md:h-[520px] lg:h-[600px]"
       onTouchStart={(e) => { touch.current = { x: e.touches[0].clientX, active: true }; paused.current = true; }}
       onTouchEnd={(e) => {
         if (touch.current.active) {
@@ -200,12 +200,12 @@ function HeroCarousel({ images, onOpen }: { images: ProjectAsset[]; onOpen: (img
         touch.current.active = false; paused.current = false;
       }}
     >
-      <div className="flex h-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${i * 100}%)` }}>
+      <div className="flex h-full w-full min-w-0 max-w-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${i * 100}%)` }}>
         {images.map((img, idx) => {
           // Only the current slide and its neighbours load; the rest wait.
           const near = Math.abs(idx - i) <= 1 || (i === 0 && idx === n - 1) || (i === n - 1 && idx === 0);
           return (
-            <button key={img._id} onClick={() => onOpen(img)} className="relative h-full w-full shrink-0 overflow-hidden" title="Click to view & zoom">
+            <button key={img._id} onClick={() => onOpen(img)} className="relative h-full w-full min-w-0 max-w-full shrink-0 overflow-hidden" title="Click to view & zoom">
               {near && (
                 <>
                   {/* Whole photo, never cropped or stretched; a soft blurred
