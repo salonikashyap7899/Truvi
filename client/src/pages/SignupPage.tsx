@@ -301,7 +301,7 @@ export default function SignupPage() {
               })}
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-3 grid gap-2 sm:grid-cols-2">
+            <form noValidate onSubmit={handleSubmit(onSubmit)} className="mt-3 grid gap-2 sm:grid-cols-2">
                 <Field icon={<User size={16} />} label="Full name" error={errors.name?.message}>
                   <Input {...register("name")} required aria-invalid={Boolean(errors.name)} placeholder="e.g. Priya Sharma" className={FIELD_INPUT} />
                 </Field>
