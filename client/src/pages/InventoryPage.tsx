@@ -276,8 +276,11 @@ export default function InventoryPage() {
               <span className="font-semibold text-white">{results.length}</span> propert{results.length !== 1 ? "ies" : "y"}
             </p>
             <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
-              <SlidersHorizontal size={13} className="text-white/50" />
+              <SlidersHorizontal size={13} aria-hidden="true" className="text-white/50" />
+              <span className="sr-only">Sort properties</span>
               <select
+                id="inventory-sort-select"
+                name="sort"
                 aria-label="Sort properties"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
@@ -498,7 +501,7 @@ function ListingCard({
         <Link to={`/inventory/${project._id}/presentation`} className="block">
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
+              <h2 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h2>
               {(() => {
                 const score = project.truviScore ?? project.trustScore;
                 if (typeof score !== "number") return null;

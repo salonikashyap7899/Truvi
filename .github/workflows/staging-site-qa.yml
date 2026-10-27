@@ -1,0 +1,97 @@
+name: Staging read-only QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_url:
+        description: "HTTPS staging or preview URL (production domains are blocked)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-site-qa
+  cancel-in-progress: true
+
+jobs:
+  staging-read-only-qa:
+    name: Browser, performance, accessibility and security checks on staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TRUVI_BASE_URL: ${{ inputs.staging_url }}
+      TRUVI_MAX_PAGES: "40"
+      TRUVI_MAX_DEPTH: "3"
+    steps:
+      - name: Reject production or non-HTTPS target
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const raw = process.env.TRUVI_BASE_URL?.trim();
+          let target;
+          try { target = new URL(raw); } catch { throw new Error("Enter a valid full staging URL, e.g. https://staging.example.com/"); }
+          if (target.protocol !== "https:") throw new Error("Staging QA requires HTTPS.");
+          const host = target.hostname.toLowerCase();
+          const productionHosts = new Set(["truviventures.com", "www.truviventures.com"]);
+          if (productionHosts.has(host)) throw new Error("Production host blocked. Enter a staging/preview URL, not truviventures.com.");
+          if (target.username || target.password) throw new Error("Credentials must not be embedded in the staging URL.");
+          console.log("Read-only QA target accepted:", target.origin);
+          NODE
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: truvi-tests/package-lock.json
+
+      - name: Install read-only QA suite
+        working-directory: truvi-tests
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        working-directory: truvi-tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Configure the same Chromium binary for Playwright and Lighthouse
+        shell: bash
+        run: |
+          set -euo pipefail
+          browser="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux/chrome' -print -o -type f -path '*/chrome-linux64/chrome' -print | sort | head -n 1)"
+          if [ -z "$browser" ]; then
+            echo "Playwright Chromium executable was not found."
+            exit 1
+          fi
+          echo "PLAYWRIGHT_EXECUTABLE_PATH=$browser" >> "$GITHUB_ENV"
+          echo "Using Chromium at: $browser"
+
+      - name: Run safe staging test suite
+        working-directory: truvi-tests
+        run: npm run test:all
+
+      - name: Summarize staging QA findings
+        if: always()
+        shell: bash
+        run: |
+          if [ ! -f truvi-tests/REPORT.md ]; then
+            echo "The read-only QA suite did not produce REPORT.md."
+            exit 0
+          fi
+          sed -n '1,180p' truvi-tests/REPORT.md
+
+      - name: Upload read-only staging QA report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truvi-staging-site-qa
+          if-no-files-found: warn
+          path: |
+            truvi-tests/REPORT.md
+            truvi-tests/results/*.json
+            truvi-tests/screenshots/**/*.png

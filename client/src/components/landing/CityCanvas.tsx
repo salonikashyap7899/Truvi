@@ -213,7 +213,7 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
 
 export function CityCanvas() {
   return (
-    <div className="pointer-events-none fixed inset-0 z-0">
+    <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
       {/* Decorative only — devices without WebGL just skip the scene */}
       <SilentErrorBoundary>
         <Canvas

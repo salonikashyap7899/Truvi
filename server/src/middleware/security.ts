@@ -4,12 +4,40 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { AuthedRequest } from "./auth";
 
 /**
- * Security headers. `crossOriginResourcePolicy` is relaxed so uploaded assets
- * served from /uploads remain embeddable by the SPA; everything else uses
- * helmet's secure defaults. CSP is left to the frontend host/CDN (Cloudflare).
+ * Content Security Policy for pages served directly by Express (the VPS setup).
+ * The same policy is configured in client/vercel.json for static-site hosting.
+ * Keep the external script list limited to the integrations actually used by
+ * Truvi: Razorpay Checkout and Google Maps/Places. Organization JSON-LD is
+ * structured data, not executable JavaScript, so it needs no script hash.
+ *
+ * This policy must be exercised against staging before deployment because
+ * payments, Maps/Places, uploaded media and the live API all depend on origins.
  */
+const SECURITY_CSP_DIRECTIVES = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'self'"],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'self'"],
+  formAction: ["'self'", "https:"],
+  scriptSrc: [
+    "'self'",
+    "https://checkout.razorpay.com",
+    "https://maps.googleapis.com",
+    "https://maps.gstatic.com",
+  ],
+  scriptSrcAttr: ["'none'"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+  imgSrc: ["'self'", "data:", "blob:", "https:"],
+  fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+  connectSrc: ["'self'", "https:", "wss:"],
+  frameSrc: ["'self'", "https://checkout.razorpay.com", "https://api.razorpay.com"],
+  mediaSrc: ["'self'", "data:", "blob:", "https:"],
+  workerSrc: ["'self'", "blob:"],
+  upgradeInsecureRequests: [],
+};
+
 export const securityHeaders = helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: { directives: SECURITY_CSP_DIRECTIVES },
   crossOriginResourcePolicy: { policy: "cross-origin" },
 });
 

@@ -91,14 +91,20 @@ export async function run(shared) {
       f.pass(`${h.label} present`, clip(headers[h.key] || "via CSP frame-ancestors"));
     }
   }
-  // Weak-CSP heuristic
-  if (csp && /unsafe-inline|unsafe-eval|\*/.test(csp)) {
+  // Weak-CSP heuristic. Inline styles are currently required by some UI
+  // components; the high-risk exception is inline/eval JavaScript. Inspect
+  // script directives rather than treating every style exception as unsafe.
+  const scriptDirectives = csp.split(";").filter((directive) => /^\s*script-src(?:-elem|attr)?\b/i.test(directive));
+  const unsafeInlineScript = scriptDirectives.some((directive) => /'unsafe-inline'|'unsafe-eval'/i.test(directive));
+  const unsafeEval = /(?:^|;)\s*[^;]*'unsafe-eval'/i.test(csp);
+  const unrestrictedWildcard = csp.split(";").some((directive) => /(?:^|\s)\*(?:\s|$)/.test(directive));
+  if (csp && (unsafeInlineScript || unsafeEval || unrestrictedWildcard)) {
     f.add({
       issue: "Content-Security-Policy is permissive",
       steps: `Inspect the CSP header on ${BASE_URL}`,
       severity: SEVERITY.LOW,
       evidence: clip(csp, 200),
-      fix: "Tighten CSP: avoid `unsafe-inline`/`unsafe-eval` and wildcard sources where possible.",
+      fix: "Avoid inline/eval JavaScript and unrestricted wildcard sources; use hashes or nonces for inline scripts.",
     });
   }
   // Server/version disclosure

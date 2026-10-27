@@ -14,10 +14,45 @@ const CityCanvas = lazy(() =>
   import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
 );
 
-function useMounted() {
-  const [m, setM] = useState(false);
-  useEffect(() => setM(true), []);
-  return m;
+/**
+ * The 3D city is decorative and expensive to download/initialize. Let the
+ * page's first paint and initial interactions settle before requesting it.
+ * Keep the existing reduced-motion opt-out at the render site below.
+ */
+function useDeferredBackground() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const idleWindow = window as IdleWindow;
+    let delayId: number | undefined;
+    let idleId: number | undefined;
+
+    const startDelay = () => {
+      // Avoid competing with first-paint/LCP work on the landing page.
+      delayId = window.setTimeout(() => {
+        if (idleWindow.requestIdleCallback) {
+          idleId = idleWindow.requestIdleCallback(() => setReady(true), { timeout: 3000 });
+        } else {
+          setReady(true);
+        }
+      }, 8000);
+    };
+
+    if (document.readyState === "complete") startDelay();
+    else window.addEventListener("load", startDelay, { once: true });
+
+    return () => {
+      window.removeEventListener("load", startDelay);
+      if (delayId !== undefined) window.clearTimeout(delayId);
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+    };
+  }, []);
+
+  return ready;
 }
 
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
@@ -854,7 +889,7 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
-  const mounted = useMounted();
+  const backgroundReady = useDeferredBackground();
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
   );
@@ -907,7 +942,7 @@ export default function LandingPage() {
       <CursorGlow />
       <SiteNav />
 
-      <Suspense fallback={null}>{mounted && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
+      <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
       <main id="main-content">
       {/* ---------- 1 · HERO ---------- */}

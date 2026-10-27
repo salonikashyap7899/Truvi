@@ -187,7 +187,7 @@ export default function TruviInvestPage() {
             <div key={s.n} className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <div className="flex items-center gap-3">
                 <span className="grid size-9 place-items-center rounded-xl bg-emerald-500/15 text-emerald-300">{s.icon}</span>
-                <span className="font-display text-2xl font-bold text-white/15">{s.n}</span>
+                <span className="font-display text-2xl font-bold text-white/65">{s.n}</span>
               </div>
               <p className="mt-3 font-semibold">{s.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">{s.desc}</p>
