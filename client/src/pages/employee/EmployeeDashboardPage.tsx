@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
@@ -660,6 +660,11 @@ export default function EmployeeDashboardPage() {
                 <p>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })} <span>·</span> {employee?.designation || "Employee"} <span>·</span> {employee?.department || "Team"}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
+                {employee?.permissions?.includes("lead.create") && (
+                  <Link to="/requirements" className="inline-flex items-center gap-2 rounded-xl border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-sm font-medium text-teal-200 transition hover:bg-teal-400/15">
+                    <Users size={15} aria-hidden="true" /> Share lead requirement
+                  </Link>
+                )}
                 {employee?.permissions?.includes("lead.create") && (
                   <button
                     type="button"
