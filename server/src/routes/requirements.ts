@@ -36,11 +36,11 @@ const submitLimiter = rateLimit({
 });
 
 const fields = {
-  title: z.string().trim().max(120).optional().or(z.literal("")),
+  title: z.string().trim().min(3).max(120),
   propertyType: z.enum(propertyTypes),
   city: z.string().trim().min(2).max(100),
   location: z.string().trim().min(2).max(160),
-  minBudget: z.number().finite().min(0).nullable().optional(),
+  minBudget: z.number().finite().min(0),
   maxBudget: z.number().finite().positive(),
   minAreaSqft: z.number().finite().positive().nullable().optional(),
   maxAreaSqft: z.number().finite().positive().nullable().optional(),
