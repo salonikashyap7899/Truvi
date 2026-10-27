@@ -11,14 +11,13 @@ import {
   type IProject,
   type IUnit,
 } from "../db/schema";
-import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { notifyUser } from "./notificationService";
 import { sendEmail } from "./emailService";
 
 type MatchableRequirement = IPropertyRequirement;
 type MatchableProject = IProject;
 
-function normalize(value: unknown): string {
+export function normalize(value: unknown): string {
   return String(value ?? "")
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -27,7 +26,7 @@ function normalize(value: unknown): string {
     .trim();
 }
 
-function locationMatches(requirement: MatchableRequirement, project: MatchableProject): boolean {
+export function locationMatches(requirement: MatchableRequirement, project: MatchableProject): boolean {
   const requestedCity = normalize(requirement.city);
   const projectCity = normalize(project.city);
   if (!requestedCity || !projectCity) return false;
@@ -45,7 +44,7 @@ function locationMatches(requirement: MatchableRequirement, project: MatchablePr
   );
 }
 
-function typeBucket(value: unknown): string {
+export function typeBucket(value: unknown): string {
   const valueNorm = normalize(value);
   if (!valueNorm || valueNorm === "any" || valueNorm === "any property") return "ANY";
   if (/plot|plotted|land|parcel/.test(valueNorm)) return "PLOT";
@@ -63,7 +62,7 @@ function typeMatches(requirement: MatchableRequirement, project: MatchableProjec
   return [project.projectType, unit.type].some((value) => typeBucket(value) === wanted);
 }
 
-function matchingUnits(requirement: MatchableRequirement, project: MatchableProject, availableUnits: IUnit[]): IUnit[] {
+export function matchingUnits(requirement: MatchableRequirement, project: MatchableProject, availableUnits: IUnit[]): IUnit[] {
   if (!locationMatches(requirement, project)) return [];
   const minBudget = requirement.minBudget == null ? 0 : Number(requirement.minBudget);
   const maxBudget = Number(requirement.maxBudget);
