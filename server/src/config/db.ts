@@ -742,6 +742,7 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "requirement_kind" text NOT NULL DEFAULT 'BUYER'`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "visibility" text NOT NULL DEFAULT 'TRUVI'`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "preferred_contact_method" text NOT NULL DEFAULT 'IN_APP'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "public_summary" text`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_name" text`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_phone" text`,
     `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_email" text`,
