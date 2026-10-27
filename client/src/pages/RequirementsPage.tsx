@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock3, MapPin, Pencil, Plus, Search, X, CheckCircle2, IndianRupee, Ruler } from "lucide-react";
 import { api } from "@/lib/api";
@@ -289,7 +289,7 @@ export default function RequirementsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function setStatus(row: PropertyRequirement, status: RequirementStatus) {
+  async function setStatus(row: PropertyRequirement, status: "ACTIVE" | "CLOSED") {
     try {
       await api.patch(`/requirements/${row._id}`, { status });
       toast.success(status === "CLOSED" ? "Requirement closed." : "Requirement reopened.");
@@ -342,8 +342,8 @@ export default function RequirementsPage() {
             <form onSubmit={submit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block text-sm">
-                  <span className="mb-1.5 block text-white/80">Requirement title (optional)</span>
-                  <input value={form.title} onChange={(event) => changeForm("title", event.target.value)} maxLength={120} placeholder="e.g. Urgent plot requirement" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none transition focus:border-teal-400/70" />
+                  <span className="mb-1.5 block text-white/80">Requirement title</span>
+                  <input required value={form.title} onChange={(event) => changeForm("title", event.target.value)} maxLength={120} placeholder="e.g. Urgent residential plot requirement" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none transition focus:border-teal-400/70" />
                 </label>
                 <label className="block text-sm">
                   <span className="mb-1.5 block text-white/80">Property type</span>
@@ -360,8 +360,8 @@ export default function RequirementsPage() {
                   <input required value={form.location} onChange={(event) => changeForm("location", event.target.value)} maxLength={160} placeholder="e.g. Sultanpur Road" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-teal-400/70" />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1.5 block text-white/80">Minimum budget (₹, optional)</span>
-                  <input type="number" min="0" step="1000" value={form.minBudget} onChange={(event) => changeForm("minBudget", event.target.value)} placeholder="e.g. 2500000" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-teal-400/70" />
+                  <span className="mb-1.5 block text-white/80">Minimum budget (₹)</span>
+                  <input required type="number" min="0" step="1000" value={form.minBudget} onChange={(event) => changeForm("minBudget", event.target.value)} placeholder="e.g. 2500000" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-teal-400/70" />
                 </label>
                 <label className="block text-sm">
                   <span className="mb-1.5 block text-white/80">Maximum budget (₹)</span>
@@ -391,7 +391,53 @@ export default function RequirementsPage() {
                     {TIMELINES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block text-white/80">Preferred contact method</span>
+                  <select value={form.preferredContactMethod} onChange={(event) => changeForm("preferredContactMethod", event.target.value as ContactMethod)} className="w-full rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 outline-none focus:border-teal-400/70">
+                    <option value="IN_APP">Truvi in-app</option>
+                    <option value="PHONE">Phone call</option>
+                    <option value="EMAIL">Email</option>
+                    <option value="WHATSAPP">WhatsApp (manual follow-up preference)</option>
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1.5 block text-white/80">Noticeboard visibility</span>
+                  <select value={form.visibility} onChange={(event) => changeForm("visibility", event.target.value as Visibility)} className="w-full rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 outline-none focus:border-teal-400/70">
+                    <option value="TRUVI">Visible to authorized Truvi users</option>
+                    <option value="PRIVATE">Private — only me and authorized admins</option>
+                  </select>
+                </label>
               </div>
+
+              {!isBuyer && (
+                <section className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4">
+                  <h3 className="font-medium text-amber-100">Client details (private)</h3>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Only collect contact details that are necessary. They are visible only to the submitting partner and authorized admins, never on the noticeboard.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm">
+                      <span className="mb-1.5 block text-white/80">Client name (optional)</span>
+                      <input value={form.clientName} onChange={(event) => changeForm("clientName", event.target.value)} maxLength={120} className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-amber-300/70" />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="mb-1.5 block text-white/80">Client phone (optional)</span>
+                      <input value={form.clientPhone} onChange={(event) => changeForm("clientPhone", event.target.value)} maxLength={30} autoComplete="off" placeholder="Only if needed and authorized" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-amber-300/70" />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="mb-1.5 block text-white/80">Client email (optional)</span>
+                      <input type="email" value={form.clientEmail} onChange={(event) => changeForm("clientEmail", event.target.value)} maxLength={254} autoComplete="off" placeholder="Only if needed and authorized" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-amber-300/70" />
+                    </label>
+                  </div>
+                  <label className="mt-3 flex items-start gap-2.5 text-sm">
+                    <input required type="checkbox" checked={form.contactConsent} onChange={(event) => changeForm("contactConsent", event.target.checked)} className="mt-1 size-4 accent-amber-300" />
+                    <span>I confirm the client has agreed to share this property requirement with Truvi. I will not submit another person’s contact details without authorization.</span>
+                  </label>
+                </section>
+              )}
+
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-white/80">Noticeboard summary (visible to authorized Truvi users, optional)</span>
+                <textarea value={form.publicSummary} onChange={(event) => changeForm("publicSummary", event.target.value)} maxLength={400} rows={2} placeholder="e.g. Preferably near the main road. Do not include any contact details." className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 outline-none focus:border-teal-400/70" />
+              </label>
 
               <label className="block text-sm">
                 <span className="mb-1.5 block text-white/80">Additional requirement details (private to you and authorized admins)</span>
@@ -448,7 +494,7 @@ export default function RequirementsPage() {
             {mine.map((row) => (
               <article key={row._id} className="rounded-xl border border-white/10 bg-black/15 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${row.status === "ACTIVE" ? "bg-emerald-400/10 text-emerald-300" : "bg-white/10 text-white/60"}`}>{row.status === "ACTIVE" ? "Active" : "Closed"}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${row.status === "ACTIVE" ? "bg-emerald-400/10 text-emerald-300" : row.status === "CLOSED" ? "bg-white/10 text-white/60" : "bg-amber-400/10 text-amber-200"}`}>{row.status.replace(/_/g, " ")}</span>
                   <span className="text-xs text-muted-foreground">{new Date(row.createdAt).toLocaleDateString("en-IN")}</span>
                 </div>
                 <h3 className="mt-3 font-semibold">{row.title}</h3>
@@ -458,11 +504,16 @@ export default function RequirementsPage() {
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Clock3 size={14} /> {labelForTimeline(row.timeline)}</p>
                 {(row.minAreaSqft || row.maxAreaSqft) && <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Ruler size={14} /> {row.minAreaSqft ?? "Any"} – {row.maxAreaSqft ?? "Any"} sq. ft.</p>}
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" type="button" onClick={() => editRequirement(row)}><Pencil size={13} /> Edit</Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => setStatus(row, row.status === "ACTIVE" ? "CLOSED" : "ACTIVE")}>
-                    {row.status === "ACTIVE" ? <X size={13} /> : <CheckCircle2 size={13} />}
-                    {row.status === "ACTIVE" ? "Close" : "Reopen"}
-                  </Button>
+                  {(row.status === "ACTIVE" || row.status === "CLOSED") && (
+                    <>
+                      <Button variant="outline" size="sm" type="button" onClick={() => editRequirement(row)}><Pencil size={13} /> Edit</Button>
+                      <Button variant="ghost" size="sm" type="button" onClick={() => setStatus(row, row.status === "ACTIVE" ? "CLOSED" : "ACTIVE")}>
+                        {row.status === "ACTIVE" ? <X size={13} /> : <CheckCircle2 size={13} />}
+                        {row.status === "ACTIVE" ? "Withdraw" : "Reopen"}
+                      </Button>
+                    </>
+                  )}
+                  {row.status === "UNDER_REVIEW" && <span className="text-xs text-amber-200">Waiting for admin review</span>}
                 </div>
               </article>
             ))}
@@ -476,14 +527,26 @@ export default function RequirementsPage() {
               <h2 className="text-xl font-semibold">Requirement noticeboard</h2>
               <p className="mt-1 text-sm text-muted-foreground">Active requests shared with the authorized Truvi community. Personal contact details and private notes are never shown here.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_190px]">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3">
                 <Search size={15} className="text-muted-foreground" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search city or location" className="min-w-0 bg-transparent py-2.5 text-sm outline-none" />
+                <input value={search} onChange={(event) => { setSearch(event.target.value); setBoardPage(1); }} placeholder="Search requirements" className="min-w-0 bg-transparent py-2.5 text-sm outline-none" />
               </label>
-              <select value={boardType} onChange={(event) => setBoardType(event.target.value)} className="rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 text-sm outline-none">
+              <input value={boardCity} onChange={(event) => { setBoardCity(event.target.value); setBoardPage(1); }} placeholder="Filter city" className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-teal-400/70" />
+              <input value={boardLocation} onChange={(event) => { setBoardLocation(event.target.value); setBoardPage(1); }} placeholder="Filter locality" className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-teal-400/70" />
+              <select value={boardType} onChange={(event) => { setBoardType(event.target.value); setBoardPage(1); }} className="rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 text-sm outline-none">
                 <option value="ALL">All property types</option>
                 {PROPERTY_TYPES.filter((item) => item.value !== "ANY").map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
+              <input type="number" min="0" value={boardBudgetMin} onChange={(event) => { setBoardBudgetMin(event.target.value); setBoardPage(1); }} placeholder="Minimum budget ₹" className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-teal-400/70" />
+              <input type="number" min="1" value={boardBudgetMax} onChange={(event) => { setBoardBudgetMax(event.target.value); setBoardPage(1); }} placeholder="Maximum budget ₹" className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-teal-400/70" />
+              <select value={boardTimeline} onChange={(event) => { setBoardTimeline(event.target.value); setBoardPage(1); }} className="rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 text-sm outline-none">
+                <option value="ALL">Any urgency</option>
+                {TIMELINES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+              </select>
+              <select value={boardStatus} onChange={(event) => { setBoardStatus(event.target.value); setBoardPage(1); }} className="rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 text-sm outline-none">
+                <option value="ACTIVE">Active requirements</option>
+                <option value="CLOSED">Closed requirements</option>
               </select>
             </div>
           </div>
@@ -499,9 +562,18 @@ export default function RequirementsPage() {
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-white/75"><MapPin size={14} /> {row.location}, {row.city}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><IndianRupee size={14} /> {budgetLabel(row)}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Clock3 size={14} /> {labelForTimeline(row.timeline)}</p>
+                {row.publicSummary && <p className="mt-3 rounded-lg bg-white/[0.04] p-3 text-sm leading-5 text-white/70">{row.publicSummary}</p>}
+                <span className="mt-3 inline-block rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-muted-foreground">{row.status.replace(/_/g, " ")}</span>
               </article>
             ))}
-            {filteredBoard.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">{loading ? "Loading noticeboard..." : "No active requirements match this filter."}</p>}
+            {filteredBoard.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">{loading ? "Loading noticeboard..." : "No requirements match these filters."}</p>}
+          </div>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+            <p className="text-xs text-muted-foreground">{boardPagination.total} requirements · Page {boardPagination.page} of {Math.max(1, boardPagination.totalPages)}</p>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={boardPage <= 1 || loading} onClick={() => setBoardPage((page) => Math.max(1, page - 1))}>Previous</Button>
+              <Button type="button" variant="outline" size="sm" disabled={boardPage >= boardPagination.totalPages || loading || boardPagination.totalPages === 0} onClick={() => setBoardPage((page) => page + 1)}>Next</Button>
+            </div>
           </div>
         </section>
       </div>
