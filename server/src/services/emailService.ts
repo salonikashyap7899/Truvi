@@ -58,7 +58,7 @@ export async function sendEmailWithStatus(
   subject: string,
   html: string,
   from: string = MAIL_FROM,
-  options?: { idempotencyKey?: string; preferResend?: boolean },
+  options?: { idempotencyKey?: string; preferResend?: boolean; replyTo?: string },
 ): Promise<EmailDispatchResult> {
   // Preserve Truvi's existing SMTP path for OTP, password reset, approval,
   // and other pre-existing transactional email calls. Resend is selected only
@@ -80,7 +80,7 @@ export async function sendEmailWithStatus(
             .digest("hex")}`,
         } : {}),
       },
-      body: JSON.stringify({ from, to: [to], subject, html }),
+      body: JSON.stringify({ from, to: [to], subject, html, ...(options?.replyTo ? { reply_to: options.replyTo } : {}) }),
       signal: AbortSignal.timeout(15_000),
     }).catch(() => {
       throw new Error("RESEND_REQUEST_FAILED");
@@ -101,7 +101,7 @@ export async function sendEmailWithStatus(
     console.warn("[email] Not delivered because no email provider is configured.");
     return { status: "UNCONFIGURED", messageId: null };
   }
-  const info = await transporter.sendMail({ from, to, subject, html });
+  const info = await transporter.sendMail({ from, to, subject, html, ...(options?.replyTo ? { replyTo: options.replyTo } : {}) });
   const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
   if (acceptedCount === 0) throw new Error("SMTP did not accept the recipient");
   return { status: "SENT_TO_PROVIDER", messageId: typeof info.messageId === "string" ? info.messageId : null };

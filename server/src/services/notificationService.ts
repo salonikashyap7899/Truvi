@@ -40,6 +40,7 @@ export const NotificationType = {
   // Properties
   NEW_PROPERTY: "new_property",
   PROPERTY_MATCH: "property_match",
+  REQUIREMENT_SUBMITTED: "requirement_submitted",
   PROPERTY_UPDATED: "property_updated",
   PROPERTY_PRICE_CHANGED: "property_price_changed",
   // Referrals & commissions
