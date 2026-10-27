@@ -665,6 +665,30 @@ export const propertyRequirementEvents = pgTable(
   ],
 );
 
+/** Durable matching jobs; requests only enqueue and the worker processes with retries. */
+export const propertyRequirementMatchJobs = pgTable(
+  "property_requirement_match_jobs",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    jobType: text("job_type").$type<"REQUIREMENT" | "PROJECT">().notNull(),
+    requirementId: uuid("requirement_id").references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "cascade" }),
+    status: text("status").$type<"QUEUED" | "RUNNING" | "COMPLETED" | "RETRY_PENDING" | "FAILED">().notNull().default("QUEUED"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("property_requirement_match_jobs_status_due_idx").on(t.status, t.nextAttemptAt),
+    index("property_requirement_match_jobs_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_match_jobs_project_idx").on(t.projectId, t.createdAt),
+  ],
+);
+export type IPropertyRequirementMatchJob = typeof propertyRequirementMatchJobs.$inferSelect;
+
 export const units = pgTable(
   "units",
   {
