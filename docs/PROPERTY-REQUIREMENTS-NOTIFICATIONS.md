@@ -1,5 +1,24 @@
 # Truvi Requirement Sharing and Property-Match Notifications
 
+## New requirement intake alerts
+
+When a requirement is saved successfully, Truvi keeps it in PostgreSQL, queues property matching, sends an in-app notification to users with the ADMIN role, and attempts an internal team email. This applies to buyer requirements and to lead requirements submitted by authorized partners, developers, ambassadors, and employees with the existing permission.
+
+- The internal alert is sent from Truvi's configured SMTP_FROM identity using the existing SMTP transport.
+- Set REQUIREMENT_TEAM_EMAIL in the backend server/.env to the team inbox. If it is absent, the service falls back to SMTP_USER when it is a valid email address. A comma-separated recipient list is supported.
+- The submitting account's registered email is used as Reply-To when valid. Truvi remains the sender; the service does not forge the submitter's address in the From header.
+- Third-party client name, phone, and email are included in the internal team alert only when contact consent is recorded. The public noticeboard remains privacy-safe, and full details remain in the admin-protected requirement view.
+- Admin in-app and team-email attempts are recorded in requirement activity history as ADMIN_NOTIFICATION_* and TEAM_EMAIL_* events. An email failure does not invalidate the saved requirement.
+- Team intake alerts use existing SMTP. The optional Resend API key remains scoped to property-match emails and the delivery webhook; OTP and other existing transactional email flows are unchanged.
+
+### Admin workflow
+
+1. Open Admin dashboard → Requirement moderation at /admin/requirements. The queue is ordered newest-first and supports search, status and submitter-role filters, and pagination.
+2. Review the submitter and any consented client details. Check possible duplicates and inspect activity history.
+3. Add a moderation note and choose the appropriate status. Every moderation change is audit-logged.
+4. Monitor match and email KPI counts. Provider acceptance is not the same as confirmed mailbox delivery; only valid signed provider events confirm Resend match-email delivery.
+5. If a team alert fails, the saved requirement remains in the admin queue and the activity history records the result. Check SMTP configuration and server logs without printing secrets.
+
 ## Feature behavior
 
 - Requirements are submitted through the authenticated `/requirements` page and are stored even if no current listing matches.
