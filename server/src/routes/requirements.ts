@@ -268,7 +268,17 @@ router.get("/board", async (req: AuthedRequest, res) => {
     .offset(offset);
   const total = countRow?.total ?? 0;
   res.json({
-    requirements: rows.map(({ submittedById, ...row }) => ({ ...row, isOwn: String(submittedById) === req.user!.userId })),
+    requirements: rows.map(({ submittedById, ...row }) => ({
+      ...row,
+      // All user-authored strings shown to other users are treated as public
+      // text, never as a trusted privacy boundary. Contact patterns are stripped
+      // even if accidentally entered in a title, city, locality, or summary.
+      title: sanitizePublicRequirementSummary(row.title) ?? "Property requirement",
+      city: sanitizePublicRequirementSummary(row.city) ?? "Location withheld",
+      location: sanitizePublicRequirementSummary(row.location) ?? "Location withheld",
+      publicSummary: sanitizePublicRequirementSummary(row.publicSummary),
+      isOwn: String(submittedById) === req.user!.userId,
+    })),
     canRespond,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
