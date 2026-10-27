@@ -20,8 +20,9 @@ import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 import { isEmailTransportConfigured } from "../services/emailService";
-import { notifyUser, NotificationType } from "../services/notificationService";
+import { notifyRole, notifyUser, NotificationType } from "../services/notificationService";
 import { sanitizePublicRequirementSummary } from "../lib/requirementPrivacy";
+import { sendRequirementTeamEmail } from "../services/requirementSubmissionNotification";
 
 const router = Router();
 router.use(authenticate);
@@ -506,11 +507,74 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     propertyType: requirement.propertyType,
   });
 
-  void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(requirement._id) }).catch(() => {
+  const requirementId = String(requirement._id);
+  void enqueueRequirementMatchJob("REQUIREMENT", { requirementId }).catch(() => {
     console.warn("[property-matching] requirement matching job could not be queued");
   });
 
-  res.status(201).json({ requirement, reference: String(requirement._id) });
+  // The requirement is already safely persisted. Side-channel alert failures must
+  // never roll back or fail the user's successful submission.
+  let submitterProfile = {
+    name: null as string | null,
+    email: null as string | null,
+    role: req.user!.role as string,
+  };
+  try {
+    const [profile] = await db.select({
+      name: users.name,
+      email: users.email,
+      role: users.role,
+    }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
+    if (profile) {
+      submitterProfile = {
+        name: profile.name ?? null,
+        email: profile.email ?? null,
+        role: profile.role ?? req.user!.role,
+      };
+    }
+  } catch {
+    console.warn("[requirements] submitter profile lookup failed for alert metadata");
+  }
+
+  const [adminAlertResult, teamEmailResult] = await Promise.allSettled([
+    notifyRole("ADMIN", {
+      type: NotificationType.REQUIREMENT_SUBMITTED,
+      title: "New property requirement",
+      message: "A new property requirement is ready for review.",
+      data: { href: "/admin/requirements", requirementId },
+      priority: "high",
+      actorUserId: req.user!.userId,
+      dedupeKey: `requirement-submitted:${requirementId}`,
+    }),
+    sendRequirementTeamEmail(requirement, submitterProfile),
+  ]);
+
+  if (adminAlertResult.status === "fulfilled") {
+    await writeRequirementEvent(requirementId, req.user!.userId, "ADMIN_NOTIFICATION_SENT", {
+      channel: "IN_APP",
+    });
+  } else {
+    console.warn("[requirements] admin in-app alert failed");
+    await writeRequirementEvent(requirementId, req.user!.userId, "ADMIN_NOTIFICATION_FAILED", {
+      channel: "IN_APP",
+    });
+  }
+
+  if (teamEmailResult.status === "fulfilled") {
+    await writeRequirementEvent(requirementId, req.user!.userId, `TEAM_EMAIL_${teamEmailResult.value}`, {
+      channel: "EMAIL",
+    });
+    if (teamEmailResult.value === "FAILED") {
+      console.warn("[requirements] team email alert failed");
+    }
+  } else {
+    console.warn("[requirements] team email alert failed");
+    await writeRequirementEvent(requirementId, req.user!.userId, "TEAM_EMAIL_FAILED", {
+      channel: "EMAIL",
+    });
+  }
+
+  res.status(201).json({ requirement, reference: requirementId });
 });
 
 /** Admin-only requirements queue. Private fields are returned only on this route. */
