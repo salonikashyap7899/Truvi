@@ -583,12 +583,12 @@ router.get("/admin/:id/events", requireRole("ADMIN"), async (req: AuthedRequest,
 router.post("/admin/retry-failed-emails", adminRetryLimiter, requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   if (!isEmailTransportConfigured()) {
     return res.status(503).json({
-      error: "SMTP is not configured in this server process. Configure SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD before retrying.",
-      code: "SMTP_NOT_CONFIGURED",
+      error: "No email provider is configured. Configure SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY before retrying.",
+      code: "EMAIL_PROVIDER_NOT_CONFIGURED",
     });
   }
 
-  const eligibleErrors = ["SMTP_SEND_FAILED", "SMTP_NOT_CONFIGURED", "STALE_SEND_EXHAUSTED"];
+  const eligibleErrors = ["SMTP_SEND_FAILED", "SMTP_NOT_CONFIGURED", "EMAIL_PROVIDER_NOT_CONFIGURED", "RESEND_REQUEST_FAILED", "RESEND_REJECTED_400", "RESEND_REJECTED_401", "RESEND_REJECTED_403", "RESEND_REJECTED_429", "STALE_SEND_EXHAUSTED"];
   const rows = await getDb().update(propertyRequirementMatches).set({
     emailStatus: "RETRY_PENDING",
     emailAttempts: 0,
