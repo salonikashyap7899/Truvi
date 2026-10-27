@@ -304,6 +304,8 @@ export default function InventoryPage() {
               : "No properties match your search."}
           </p>
         ) : (
+          <>
+          <h2 className="sr-only">Property listings</h2>
           <div className="mx-auto mt-6 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {results.map((project) => (
               <ListingCard
@@ -319,6 +321,7 @@ export default function InventoryPage() {
               />
             ))}
           </div>
+          </>
         )}
       </main>
 
