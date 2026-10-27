@@ -105,7 +105,7 @@ export async function run(shared) {
       if (!text || !re.test(text)) continue;
       const tag = el.tagName.toLowerCase();
       const href = el.getAttribute("href");
-      out.push({ text: text.slice(0, 60), tag, href, idx: i });
+      out.push({ text: text.slice(0, 60), tag, href, idx: i, domIndex: els.indexOf(el) });
       i++;
       if (out.length >= 12) break;
     }
@@ -122,7 +122,10 @@ export async function run(shared) {
     try {
       await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: TIMEOUTS.navigation });
       await settle(page);
-      const loc = page.getByText(cta.text, { exact: false }).first();
+      // Click the actual CTA element discovered above. Text-only selection can
+      // accidentally click a duplicate label or nested span and report a working
+      // link as inert.
+      const loc = page.locator("a[href], button, [role=button]").nth(cta.domIndex);
       if (!(await loc.count())) continue;
       const beforeUrl = page.url();
       const dialogsBefore = await page.locator("[role=dialog], .modal, [aria-modal='true']").count();
