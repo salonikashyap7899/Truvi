@@ -249,7 +249,15 @@ async function recordAndNotifyMatch(
       // specifically because the match temporarily became ineligible.
       const emailSkippedForEligibility =
         matchRow.emailStatus === "SKIPPED" &&
-        ["NO_MATCHING_AVAILABLE_UNIT", "PROJECT_NOT_PUBLISHED_OR_UNAVAILABLE", "REQUIREMENT_NOT_ACTIVE"]
+        [
+          "NO_MATCHING_AVAILABLE_UNIT",
+          "PROJECT_NOT_PUBLISHED_OR_UNAVAILABLE",
+          "REQUIREMENT_NOT_ACTIVE",
+          "MATCH_NO_LONGER_ELIGIBLE",
+          "NO_AVAILABLE_UNITS",
+          "PROJECT_NOT_FOUND",
+          "PROJECT_NO_LONGER_MATCHES_LOCATION",
+        ]
           .includes(String(matchRow.emailLastError ?? ""));
       const [reopened] = await db.update(propertyRequirementMatches)
         .set({
