@@ -76,6 +76,8 @@ export default function AdminRequirementsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [retryingEmails, setRetryingEmails] = useState(false);
+  const [analyticsDraft, setAnalyticsDraft] = useState({ dateFrom: "", dateTo: "", city: "", location: "", propertyType: "ALL", sourceRole: "ALL", status: "ALL" });
+  const [analyticsFilters, setAnalyticsFilters] = useState({ dateFrom: "", dateTo: "", city: "", location: "", propertyType: "ALL", sourceRole: "ALL", status: "ALL" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,7 +92,17 @@ export default function AdminRequirementsPage() {
             role: roleFilter !== "ALL" ? roleFilter : undefined,
           },
         }),
-        api.get("/requirements/admin/analytics"),
+        api.get("/requirements/admin/analytics", {
+          params: {
+            dateFrom: analyticsFilters.dateFrom || undefined,
+            dateTo: analyticsFilters.dateTo || undefined,
+            city: analyticsFilters.city.trim() || undefined,
+            location: analyticsFilters.location.trim() || undefined,
+            propertyType: analyticsFilters.propertyType !== "ALL" ? analyticsFilters.propertyType : undefined,
+            role: analyticsFilters.sourceRole !== "ALL" ? analyticsFilters.sourceRole : undefined,
+            status: analyticsFilters.status !== "ALL" ? analyticsFilters.status : "ALL",
+          },
+        }),
         api.get("/requirements/admin/duplicates"),
       ]);
       setRows((listRes.data.requirements ?? []) as AdminRequirementRow[]);
@@ -102,7 +114,7 @@ export default function AdminRequirementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, query, statusFilter, roleFilter]);
+  }, [page, query, statusFilter, roleFilter, analyticsFilters]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -178,6 +190,48 @@ export default function AdminRequirementsPage() {
             <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-teal-300 hover:text-teal-200"><ArrowLeft size={15} /> Admin dashboard</Link>
           </div>
         </header>
+
+        <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">Analytics filters</h2>
+              <p className="mt-1 text-xs text-muted-foreground">The KPI cards below use the same database filters; date boundaries use server timestamps.</p>
+            </div>
+            <Button type="button" size="sm" onClick={() => setAnalyticsFilters({ ...analyticsDraft })} disabled={loading}><Filter size={14} /> Apply filters</Button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="block text-xs text-muted-foreground">From date
+              <input type="date" value={analyticsDraft.dateFrom} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, dateFrom: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-[#111820] px-3 py-2 text-sm text-white" />
+            </label>
+            <label className="block text-xs text-muted-foreground">To date
+              <input type="date" value={analyticsDraft.dateTo} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, dateTo: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-[#111820] px-3 py-2 text-sm text-white" />
+            </label>
+            <label className="block text-xs text-muted-foreground">City
+              <input value={analyticsDraft.city} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, city: event.target.value }))} placeholder="All cities" className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" />
+            </label>
+            <label className="block text-xs text-muted-foreground">Locality
+              <input value={analyticsDraft.location} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, location: event.target.value }))} placeholder="All localities" className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white" />
+            </label>
+            <label className="block text-xs text-muted-foreground">Property type
+              <select value={analyticsDraft.propertyType} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, propertyType: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-[#111820] px-3 py-2 text-sm text-white">
+                <option value="ALL">All types</option>
+                {["PLOTTED", "RESIDENTIAL", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "LAND", "MIXED"].map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs text-muted-foreground">Requirement source role
+              <select value={analyticsDraft.sourceRole} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, sourceRole: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-[#111820] px-3 py-2 text-sm text-white">
+                <option value="ALL">All roles</option>
+                {["BUYER", "CP", "DEVELOPER", "AMBASSADOR", "EMPLOYEE", "ADMIN"].map((role) => <option key={role} value={role}>{role}</option>)}
+              </select>
+            </label>
+            <label className="block text-xs text-muted-foreground">Requirement status
+              <select value={analyticsDraft.status} onChange={(event) => setAnalyticsDraft((current) => ({ ...current, status: event.target.value }))} className="mt-1 w-full rounded-lg border border-white/10 bg-[#111820] px-3 py-2 text-sm text-white">
+                <option value="ALL">All statuses</option>
+                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
+              </select>
+            </label>
+          </div>
+        </section>
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {kpis.map((item) => (
