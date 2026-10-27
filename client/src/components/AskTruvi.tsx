@@ -130,6 +130,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
         `}
         style={{ maxHeight: "85vh" }}
         aria-hidden={!expanded}
+        inert={!expanded}
       >
         <div aria-hidden className="pointer-events-none absolute -inset-2 sm:-inset-6 -z-10 opacity-40 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
         <div
