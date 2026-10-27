@@ -1,25 +1,39 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { rateLimit } from "express-rate-limit";
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
+  propertyRequirementEvents,
   propertyRequirementMatches,
   propertyRequirements,
   projects,
+  users,
 } from "../db/schema";
 import { zodMessage } from "../lib/validationError";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { matchRequirementAgainstAvailableProjects } from "../services/propertyRequirementMatching";
+import { logAudit } from "../services/audit";
 
 const router = Router();
 router.use(authenticate);
 router.use(requireRole("ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"));
 
-const propertyTypes = ["ANY", "PLOTTED", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "LAND", "MIXED"] as const;
+const propertyTypes = ["ANY", "PLOTTED", "RESIDENTIAL", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "LAND", "MIXED"] as const;
 const timelines = ["IMMEDIATE", "WITHIN_30_DAYS", "WITHIN_3_MONTHS", "WITHIN_6_MONTHS", "FLEXIBLE"] as const;
 const purposes = ["INVESTMENT", "SELF_USE", "BUSINESS", "OTHER"] as const;
+const contactMethods = ["PHONE", "EMAIL", "WHATSAPP", "IN_APP"] as const;
+const visibilityValues = ["PRIVATE", "TRUVI"] as const;
+const requirementStatuses = ["ACTIVE", "CLOSED", "UNDER_REVIEW", "REJECTED", "SPAM"] as const;
+
+const submitLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const fields = {
   title: z.string().trim().max(120).optional().or(z.literal("")),
@@ -33,6 +47,13 @@ const fields = {
   purpose: z.enum(purposes).nullable().optional(),
   timeline: z.enum(timelines),
   details: z.string().trim().max(1200).nullable().optional(),
+  publicSummary: z.string().trim().max(400).nullable().optional(),
+  preferredContactMethod: z.enum(contactMethods).optional().default("IN_APP"),
+  visibility: z.enum(visibilityValues).optional().default("TRUVI"),
+  clientName: z.string().trim().max(120).nullable().optional(),
+  clientPhone: z.string().trim().max(30).regex(/^\+?[0-9 ()-]{8,30}$/).nullable().optional(),
+  clientEmail: z.string().trim().email().max(254).nullable().optional(),
+  contactConsent: z.boolean().optional().default(false),
 };
 const createRequirementSchema = z.object(fields);
 const updateRequirementSchema = z.object({
@@ -47,7 +68,19 @@ const updateRequirementSchema = z.object({
   purpose: z.enum(purposes).nullable().optional(),
   timeline: z.enum(timelines).optional(),
   details: z.string().trim().max(1200).nullable().optional(),
+  publicSummary: z.string().trim().max(400).nullable().optional(),
+  preferredContactMethod: z.enum(contactMethods).optional(),
+  visibility: z.enum(visibilityValues).optional(),
+  clientName: z.string().trim().max(120).nullable().optional(),
+  clientPhone: z.string().trim().max(30).regex(/^\+?[0-9 ()-]{8,30}$/).nullable().optional(),
+  clientEmail: z.string().trim().email().max(254).nullable().optional(),
+  contactConsent: z.boolean().optional(),
   status: z.enum(["ACTIVE", "CLOSED"]).optional(),
+});
+const adminModerationSchema = z.object({
+  status: z.enum(requirementStatuses),
+  moderationNote: z.string().trim().max(500).nullable().optional(),
+  duplicateOfId: z.string().uuid().nullable().optional(),
 });
 
 function validateBounds(values: {
@@ -69,9 +102,97 @@ function displayType(value: string): string {
   return value === "ANY" ? "Property" : value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+/** Public summaries are a separate field; redact common contact patterns defensively. */
+function sanitizePublicSummary(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const sanitized = value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[contact removed]")
+    .replace(/\+?\d[\d ()-]{7,}\d/g, "[contact removed]")
+    .trim();
+  return sanitized || null;
+}
+
+async function writeRequirementEvent(
+  requirementId: string,
+  actorUserId: string | null,
+  action: string,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await getDb().insert(propertyRequirementEvents).values({
+      requirementId,
+      actorUserId,
+      action,
+      metadata,
+    });
+  } catch {
+    // Event logging is non-fatal to the user's primary action; failure is logged
+    // without requirement details or client contact information.
+    console.warn("[requirements] activity event could not be recorded");
+  }
+}
+
+function buildBoardFilters(query: Record<string, unknown>, allowPrivate = false) {
+  const conditions = [];
+  if (!allowPrivate) conditions.push(eq(propertyRequirements.visibility, "TRUVI"));
+
+  const status = typeof query.status === "string" ? query.status : "ACTIVE";
+  if (allowPrivate && requirementStatuses.includes(status as typeof requirementStatuses[number])) {
+    conditions.push(eq(propertyRequirements.status, status as typeof requirementStatuses[number]));
+  } else {
+    const allowedStatus = status === "CLOSED" ? "CLOSED" : "ACTIVE";
+    conditions.push(eq(propertyRequirements.status, allowedStatus));
+  }
+
+  if (typeof query.city === "string" && query.city.trim()) {
+    conditions.push(ilike(propertyRequirements.city, `%${query.city.trim().slice(0, 100)}%`));
+  }
+  if (typeof query.location === "string" && query.location.trim()) {
+    conditions.push(ilike(propertyRequirements.location, `%${query.location.trim().slice(0, 160)}%`));
+  }
+  if (typeof query.propertyType === "string" && propertyTypes.includes(query.propertyType as typeof propertyTypes[number])) {
+    conditions.push(eq(propertyRequirements.propertyType, query.propertyType));
+  }
+  if (typeof query.timeline === "string" && timelines.includes(query.timeline as typeof timelines[number])) {
+    conditions.push(eq(propertyRequirements.timeline, query.timeline));
+  }
+  const budgetMin = Number(query.budgetMin);
+  const budgetMax = Number(query.budgetMax);
+  if (Number.isFinite(budgetMin) && budgetMin > 0) conditions.push(gte(propertyRequirements.maxBudget, budgetMin));
+  if (Number.isFinite(budgetMax) && budgetMax > 0) {
+    conditions.push(or(isNull(propertyRequirements.minBudget), lte(propertyRequirements.minBudget, budgetMax))!);
+  }
+  const dateFrom = typeof query.dateFrom === "string" ? new Date(query.dateFrom) : null;
+  const dateTo = typeof query.dateTo === "string" ? new Date(query.dateTo) : null;
+  if (dateFrom && !Number.isNaN(dateFrom.getTime())) conditions.push(gte(propertyRequirements.createdAt, dateFrom));
+  if (dateTo && !Number.isNaN(dateTo.getTime())) conditions.push(lte(propertyRequirements.createdAt, dateTo));
+  if (allowPrivate && typeof query.role === "string") {
+    conditions.push(eq(propertyRequirements.submittedByRole, query.role as never));
+  }
+  if (typeof query.q === "string" && query.q.trim()) {
+    const pattern = `%${query.q.trim().slice(0, 100)}%`;
+    conditions.push(or(
+      ilike(propertyRequirements.title, pattern),
+      ilike(propertyRequirements.city, pattern),
+      ilike(propertyRequirements.location, pattern),
+    )!);
+  }
+  if (allowPrivate && typeof query.visibility === "string" && visibilityValues.includes(query.visibility as typeof visibilityValues[number])) {
+    conditions.push(eq(propertyRequirements.visibility, query.visibility as typeof visibilityValues[number]));
+  }
+  return conditions;
+}
+
+function pagination(query: Record<string, unknown>) {
+  const pageParsed = Number.parseInt(String(query.page ?? "1"), 10);
+  const limitParsed = Number.parseInt(String(query.limit ?? "20"), 10);
+  const page = Number.isInteger(pageParsed) ? Math.max(1, Math.min(100000, pageParsed)) : 1;
+  const limit = Number.isInteger(limitParsed) ? Math.max(1, Math.min(100, limitParsed)) : 20;
+  return { page, limit, offset: (page - 1) * limit };
+}
+
 /**
- * GET /api/requirements/mine
- * Only the signed-in submitter's records are returned, including their private notes.
+ * GET /api/requirements/mine — private records (including contact details) for the owner only.
  */
 router.get("/mine", async (req: AuthedRequest, res) => {
   const rows = await getDb()
@@ -84,11 +205,15 @@ router.get("/mine", async (req: AuthedRequest, res) => {
 });
 
 /**
- * GET /api/requirements/board
- * A privacy-safe board summary. Never return submitter IDs, contact details, or private notes.
+ * GET /api/requirements/board — paginated, privacy-safe summaries for authorized Truvi users.
+ * Submitter IDs, private notes, client names and contact details are excluded.
  */
-router.get("/board", async (_req: AuthedRequest, res) => {
-  const rows = await getDb()
+router.get("/board", async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const { page, limit, offset } = pagination(req.query as Record<string, unknown>);
+  const conditions = buildBoardFilters(req.query as Record<string, unknown>);
+  const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(propertyRequirements).where(and(...conditions));
+  const rows = await db
     .select({
       _id: propertyRequirements._id,
       title: propertyRequirements.title,
@@ -101,18 +226,22 @@ router.get("/board", async (_req: AuthedRequest, res) => {
       maxAreaSqft: propertyRequirements.maxAreaSqft,
       purpose: propertyRequirements.purpose,
       timeline: propertyRequirements.timeline,
+      publicSummary: propertyRequirements.publicSummary,
       submittedByRole: propertyRequirements.submittedByRole,
+      visibility: propertyRequirements.visibility,
       status: propertyRequirements.status,
       createdAt: propertyRequirements.createdAt,
     })
     .from(propertyRequirements)
-    .where(eq(propertyRequirements.status, "ACTIVE"))
+    .where(and(...conditions))
     .orderBy(desc(propertyRequirements.createdAt))
-    .limit(100);
-  res.json({ requirements: rows });
+    .limit(limit)
+    .offset(offset);
+  const total = countRow?.total ?? 0;
+  res.json({ requirements: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
 });
 
-/** GET /api/requirements/matches — live, published projects matched to this user's active requirements. */
+/** GET /api/requirements/matches — only matches for this user's active requirements and live projects. */
 router.get("/matches", async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const rows = await getDb()
@@ -138,6 +267,7 @@ router.get("/matches", async (req: AuthedRequest, res) => {
         eq(projects.availabilityStatus, "AVAILABLE"),
       ),
     )
+    .where(eq(propertyRequirementMatches.matchStatus, "MATCHED"))
     .orderBy(desc(propertyRequirementMatches.createdAt))
     .limit(100);
 
@@ -145,79 +275,257 @@ router.get("/matches", async (req: AuthedRequest, res) => {
     matches: rows.map((row) => ({
       match: row.match,
       requirementTitle: row.requirementTitle,
-      project: withoutPrivateProjectFields(
-        row.project,
-        { userId, role: req.user!.role },
-        String(row.project.developerId),
-      ),
+      project: withoutPrivateProjectFields(row.project, { userId, role: req.user!.role }, String(row.project.developerId)),
     })),
   });
 });
 
-/** POST /api/requirements — submit an unmet requirement even when no project is currently listed. */
-router.post("/", async (req: AuthedRequest, res) => {
-  const parsed = createRequirementSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+/** A requirement's private event history is available only to its submitter and admins. */
+router.get("/mine/:id/events", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
+  const [row] = await getDb().select({
+    id: propertyRequirements._id,
+    ownerId: propertyRequirements.submittedById,
+  }).from(propertyRequirements).where(eq(propertyRequirements._id, req.params.id)).limit(1);
+  if (!row) return res.status(404).json({ error: "Requirement not found" });
+  if (req.user!.role !== "ADMIN" && String(row.ownerId) !== req.user!.userId) {
+    return res.status(403).json({ error: "You are not allowed to view this requirement's history." });
   }
+  const events = await getDb().select().from(propertyRequirementEvents)
+    .where(eq(propertyRequirementEvents.requirementId, row.id))
+    .orderBy(desc(propertyRequirementEvents.createdAt)).limit(100);
+  res.json({ events });
+});
+
+/**
+ * POST /api/requirements — submit an unmet need, with no existing property required.
+ * For lead-generating roles this stores private client data only when the submitter
+ * attests to client permission; client data is never included in board summaries.
+ */
+router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
+  const parsed = createRequirementSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const invalidBounds = validateBounds(parsed.data);
   if (invalidBounds) return res.status(400).json({ error: invalidBounds });
 
   const data = parsed.data;
-  const title = data.title?.trim() || `${displayType(data.propertyType)} requirement in ${data.city.trim()}`;
-  const [requirement] = await getDb()
-    .insert(propertyRequirements)
-    .values({
-      submittedById: req.user!.userId,
-      // Derive the role from the authenticated session; never trust client input.
-      submittedByRole: req.user!.role,
-      title,
-      propertyType: data.propertyType,
-      city: data.city.trim(),
-      location: data.location.trim(),
-      minBudget: data.minBudget ?? null,
-      maxBudget: data.maxBudget,
-      minAreaSqft: data.minAreaSqft ?? null,
-      maxAreaSqft: data.maxAreaSqft ?? null,
-      purpose: data.purpose ?? null,
-      timeline: data.timeline,
-      details: data.details?.trim() || null,
-      status: "ACTIVE",
-    })
-    .returning();
+  const hasClientContact = Boolean(data.clientName?.trim() || data.clientPhone?.trim() || data.clientEmail?.trim());
+  const isBuyer = req.user!.role === "BUYER";
+  if (isBuyer && hasClientContact) {
+    return res.status(400).json({ error: "Buyer requirements cannot contain another person's contact details." });
+  }
+  if (!isBuyer && !data.contactConsent) {
+    return res.status(400).json({ error: "Confirm that the client has consented before submitting a lead requirement." });
+  }
+  if (hasClientContact && !data.contactConsent) {
+    return res.status(400).json({ error: "Client consent is required before saving client contact information." });
+  }
 
-  // Matching is deliberately isolated from the HTTP success path: a delayed email
-  // provider must not cause a submitted requirement to fail.
-  void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch((error) => {
-    console.warn("[property-matching] new requirement matching failed:", error instanceof Error ? error.message : "unknown error");
+  const title = data.title?.trim() || `${displayType(data.propertyType)} requirement in ${data.city.trim()}`;
+  const [requirement] = await getDb().insert(propertyRequirements).values({
+    submittedById: req.user!.userId,
+    submittedByRole: req.user!.role,
+    requirementKind: isBuyer ? "BUYER" : "CLIENT",
+    visibility: data.visibility,
+    title,
+    propertyType: data.propertyType,
+    city: data.city.trim(),
+    location: data.location.trim(),
+    minBudget: data.minBudget ?? null,
+    maxBudget: data.maxBudget,
+    minAreaSqft: data.minAreaSqft ?? null,
+    maxAreaSqft: data.maxAreaSqft ?? null,
+    purpose: data.purpose ?? null,
+    timeline: data.timeline,
+    details: data.details?.trim() || null,
+    publicSummary: sanitizePublicSummary(data.publicSummary),
+    preferredContactMethod: data.preferredContactMethod,
+    clientName: hasClientContact ? data.clientName?.trim() || null : null,
+    clientPhone: hasClientContact ? data.clientPhone?.trim() || null : null,
+    clientEmail: hasClientContact ? data.clientEmail?.trim() || null : null,
+    contactConsent: Boolean(data.contactConsent),
+    contactConsentAt: data.contactConsent ? new Date() : null,
+    status: "ACTIVE",
+  }).returning();
+
+  await writeRequirementEvent(String(requirement._id), req.user!.userId, "REQUIREMENT_CREATED", {
+    role: req.user!.role,
+    requirementKind: requirement.requirementKind,
+    visibility: requirement.visibility,
+    city: requirement.city,
+    propertyType: requirement.propertyType,
   });
 
-  res.status(201).json({ requirement });
+  void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch(() => {
+    console.warn("[property-matching] new requirement matching failed");
+  });
+
+  res.status(201).json({ requirement, reference: String(requirement._id) });
 });
 
-/** PATCH /api/requirements/:id — only the owner or an administrator can update/close a requirement. */
+/** Admin-only requirements queue. Private fields are returned only on this route. */
+router.get("/admin", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const { page, limit, offset } = pagination(req.query as Record<string, unknown>);
+  const conditions = buildBoardFilters(req.query as Record<string, unknown>, true);
+  const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(propertyRequirements).where(and(...conditions));
+  const rows = await db.select({
+    requirement: propertyRequirements,
+    submitter: { id: users._id, name: users.name, email: users.email, role: users.role },
+  }).from(propertyRequirements)
+    .innerJoin(users, eq(propertyRequirements.submittedById, users._id))
+    .where(and(...conditions))
+    .orderBy(desc(propertyRequirements.createdAt))
+    .limit(limit)
+    .offset(offset);
+  const total = countRow?.total ?? 0;
+  res.json({ requirements: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+});
+
+/** Admin analytics use real PostgreSQL records; uninstrumented metrics are marked unavailable. */
+router.get("/admin/analytics", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const db = getDb();
+  const all = await db.select({
+    id: propertyRequirements._id,
+    status: propertyRequirements.status,
+  }).from(propertyRequirements);
+  const activeIds = all.filter((row) => row.status === "ACTIVE").map((row) => String(row.id));
+  const matchedRows = await db.select({
+    requirementId: propertyRequirementMatches.requirementId,
+    matchStatus: propertyRequirementMatches.matchStatus,
+    emailStatus: propertyRequirementMatches.emailStatus,
+    notificationStatus: propertyRequirementMatches.notificationStatus,
+  }).from(propertyRequirementMatches);
+  const matchedRequirementIds = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId)));
+  const [matchedCountRow] = await db.select({ count: sql<number>`count(*)::int` })
+    .from(propertyRequirementMatches).where(eq(propertyRequirementMatches.matchStatus, "MATCHED"));
+  res.json({
+    requirements: {
+      total: all.length,
+      active: all.filter((r) => r.status === "ACTIVE").length,
+      closed: all.filter((r) => r.status === "CLOSED").length,
+      underReview: all.filter((r) => r.status === "UNDER_REVIEW").length,
+      rejected: all.filter((r) => r.status === "REJECTED").length,
+      spam: all.filter((r) => r.status === "SPAM").length,
+      activeWithMatches: activeIds.filter((id) => matchedRequirementIds.has(id)).length,
+      activeWithoutMatches: activeIds.filter((id) => !matchedRequirementIds.has(id)).length,
+    },
+    matches: {
+      total: matchedRows.filter((r) => r.matchStatus === "MATCHED").length,
+      distinctMatchedRequirements: matchedCountRow?.count ?? 0,
+      notificationQueued: matchedRows.filter((r) => ["PENDING", "QUEUED", "RETRY_PENDING", "SENDING"].includes(r.notificationStatus) || ["QUEUED", "RETRY_PENDING", "SENDING"].includes(r.emailStatus)).length,
+      emailsAcceptedBySmtp: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
+      emailsConfirmedDelivered: matchedRows.filter((r) => r.emailStatus === "DELIVERED").length,
+      failures: matchedRows.filter((r) => r.notificationStatus === "FAILED" || r.emailStatus === "FAILED").length,
+    },
+    propertyEnquiriesFromNotifications: { tracked: false, count: null },
+    note: "SMTP acceptance is not confirmed mailbox delivery. A provider-specific signed delivery webhook is required to populate confirmed-delivery counts.",
+  });
+});
+
+/** Admin moderation and duplicate marking; changes are audit logged. */
+router.patch("/admin/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
+  const parsed = adminModerationSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [existing] = await db.select().from(propertyRequirements).where(eq(propertyRequirements._id, req.params.id)).limit(1);
+  if (!existing) return res.status(404).json({ error: "Requirement not found" });
+  if (parsed.data.duplicateOfId && parsed.data.duplicateOfId === String(existing._id)) {
+    return res.status(400).json({ error: "A requirement cannot be a duplicate of itself." });
+  }
+  if (parsed.data.duplicateOfId) {
+    const [duplicateTarget] = await db.select({ id: propertyRequirements._id }).from(propertyRequirements)
+      .where(eq(propertyRequirements._id, parsed.data.duplicateOfId)).limit(1);
+    if (!duplicateTarget) return res.status(400).json({ error: "Duplicate target was not found." });
+  }
+
+  const [updated] = await db.update(propertyRequirements).set({
+    status: parsed.data.status,
+    moderationNote: parsed.data.moderationNote?.trim() || null,
+    duplicateOfId: parsed.data.duplicateOfId ?? null,
+    moderatedById: req.user!.userId,
+    moderatedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(propertyRequirements._id, existing._id)).returning();
+
+  await writeRequirementEvent(String(updated._id), req.user!.userId, "REQUIREMENT_MODERATED", {
+    fromStatus: existing.status,
+    toStatus: updated.status,
+    duplicateMarked: Boolean(updated.duplicateOfId),
+    hasModerationNote: Boolean(updated.moderationNote),
+  });
+  await logAudit({
+    userId: req.user!.userId,
+    action: "requirement.moderate",
+    resourceType: "property_requirement",
+    resourceId: String(updated._id),
+    metadata: { fromStatus: existing.status, toStatus: updated.status, duplicateMarked: Boolean(updated.duplicateOfId) },
+  });
+  res.json({ requirement: updated });
+});
+
+router.get("/admin/:id/events", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
+  const events = await getDb().select().from(propertyRequirementEvents)
+    .where(eq(propertyRequirementEvents.requirementId, req.params.id))
+    .orderBy(desc(propertyRequirementEvents.createdAt)).limit(200);
+  res.json({ events });
+});
+
+/** Admin-only duplicate candidates: same normalized city/locality/type and overlapping budgets. */
+router.get("/admin/duplicates", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+  const rows = await getDb().select({
+    id: propertyRequirements._id,
+    title: propertyRequirements.title,
+    city: propertyRequirements.city,
+    location: propertyRequirements.location,
+    propertyType: propertyRequirements.propertyType,
+    minBudget: propertyRequirements.minBudget,
+    maxBudget: propertyRequirements.maxBudget,
+    createdAt: propertyRequirements.createdAt,
+    submittedByRole: propertyRequirements.submittedByRole,
+  }).from(propertyRequirements).where(eq(propertyRequirements.status, "ACTIVE"))
+    .orderBy(desc(propertyRequirements.createdAt)).limit(1500);
+
+  const normalizeKey = (value: string) => value.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const groups = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = [normalizeKey(row.city), normalizeKey(row.location), row.propertyType].join("|");
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  const candidates = [...groups.entries()].flatMap(([key, group]) => {
+    if (group.length < 2) return [];
+    const overlapping = group.some((a, i) => group.slice(i + 1).some((b) => {
+      const aMin = a.minBudget ?? 0;
+      const bMin = b.minBudget ?? 0;
+      return aMin <= b.maxBudget && bMin <= a.maxBudget;
+    }));
+    return overlapping ? [{ key, requirements: group.map(({ minBudget, ...row }) => ({ ...row, minBudget })) }] : [];
+  });
+  res.json({ candidateGroups: candidates, scanned: rows.length, capped: rows.length === 1500 });
+});
+
+/** Owner update/withdrawal. Admin moderation statuses may only be changed by admins. */
 router.patch("/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
   const parsed = updateRequirementSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
-  }
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+  const invalidBounds = validateBounds(parsed.data);
+  if (invalidBounds) return res.status(400).json({ error: invalidBounds });
 
   const db = getDb();
-  const [existing] = await db
-    .select()
-    .from(propertyRequirements)
-    .where(eq(propertyRequirements._id, req.params.id))
-    .limit(1);
+  const [existing] = await db.select().from(propertyRequirements).where(eq(propertyRequirements._id, req.params.id)).limit(1);
   if (!existing) return res.status(404).json({ error: "Requirement not found" });
   if (req.user!.role !== "ADMIN" && String(existing.submittedById) !== req.user!.userId) {
     return res.status(403).json({ error: "You can only update your own requirements." });
   }
+  if (req.user!.role !== "ADMIN" && !["ACTIVE", "CLOSED"].includes(existing.status)) {
+    return res.status(403).json({ error: "This requirement is under moderation and cannot be changed by its owner." });
+  }
 
   const combined = { ...existing, ...parsed.data };
-  const invalidBounds = validateBounds(combined);
-  if (invalidBounds) return res.status(400).json({ error: invalidBounds });
-
   const data = parsed.data;
   const update: Record<string, unknown> = { updatedAt: new Date() };
   if (data.title !== undefined) update.title = data.title.trim() || `${displayType(String(combined.propertyType))} requirement in ${String(combined.city)}`;
@@ -231,17 +539,42 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   if (data.purpose !== undefined) update.purpose = data.purpose;
   if (data.timeline !== undefined) update.timeline = data.timeline;
   if (data.details !== undefined) update.details = data.details?.trim() || null;
+  if (data.publicSummary !== undefined) update.publicSummary = sanitizePublicSummary(data.publicSummary);
+  if (data.preferredContactMethod !== undefined) update.preferredContactMethod = data.preferredContactMethod;
+  if (data.visibility !== undefined) update.visibility = data.visibility;
+  if (data.clientName !== undefined) update.clientName = data.clientName?.trim() || null;
+  if (data.clientPhone !== undefined) update.clientPhone = data.clientPhone?.trim() || null;
+  if (data.clientEmail !== undefined) update.clientEmail = data.clientEmail?.trim() || null;
+  if (data.contactConsent !== undefined) {
+    update.contactConsent = data.contactConsent;
+    update.contactConsentAt = data.contactConsent ? new Date() : null;
+  }
   if (data.status !== undefined) update.status = data.status;
 
-  const [requirement] = await db
-    .update(propertyRequirements)
-    .set(update)
-    .where(eq(propertyRequirements._id, existing._id))
-    .returning();
+  const hasClientContactAfter = Boolean(
+    data.clientName !== undefined ? data.clientName?.trim() : existing.clientName
+  ) || Boolean(
+    data.clientPhone !== undefined ? data.clientPhone?.trim() : existing.clientPhone
+  ) || Boolean(
+    data.clientEmail !== undefined ? data.clientEmail?.trim() : existing.clientEmail
+  );
+  const consentAfter = data.contactConsent !== undefined ? data.contactConsent : existing.contactConsent;
+  if (hasClientContactAfter && !consentAfter) {
+    return res.status(400).json({ error: "Client consent is required before saving client contact information." });
+  }
+
+  const [requirement] = await db.update(propertyRequirements).set(update)
+    .where(eq(propertyRequirements._id, existing._id)).returning();
+
+  await writeRequirementEvent(String(requirement._id), req.user!.userId, "REQUIREMENT_UPDATED", {
+    changedFields: Object.keys(data),
+    fromStatus: existing.status,
+    toStatus: requirement.status,
+  });
 
   if (requirement.status === "ACTIVE") {
-    void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch((error) => {
-      console.warn("[property-matching] requirement update matching failed:", error instanceof Error ? error.message : "unknown error");
+    void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch(() => {
+      console.warn("[property-matching] requirement update matching failed");
     });
   }
   res.json({ requirement });
