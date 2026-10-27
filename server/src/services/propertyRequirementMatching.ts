@@ -11,7 +11,7 @@ import {
   type IProject,
   type IUnit,
 } from "../db/schema";
-import { notifyUser } from "./notificationService";
+import { notifyUser, NotificationType } from "./notificationService";
 import { sendEmail } from "./emailService";
 
 type MatchableRequirement = IPropertyRequirement;
@@ -151,7 +151,7 @@ async function recordAndNotifyMatch(
   if (!matchRow.inAppNotifiedAt) {
     try {
       const created = await notifyUser(String(recipient.id), {
-        type: "property_match",
+        type: NotificationType.PROPERTY_MATCH,
         title: "A property matches your requirement",
         message,
         priority: "high",
