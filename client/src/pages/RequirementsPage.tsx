@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 
-type RequirementStatus = "ACTIVE" | "CLOSED";
-type PropertyType = "ANY" | "PLOTTED" | "APARTMENT" | "VILLA" | "COMMERCIAL" | "INDUSTRIAL" | "LAND" | "MIXED";
+type RequirementStatus = "ACTIVE" | "CLOSED" | "UNDER_REVIEW" | "REJECTED" | "SPAM";
+type PropertyType = "ANY" | "PLOTTED" | "RESIDENTIAL" | "APARTMENT" | "VILLA" | "COMMERCIAL" | "INDUSTRIAL" | "LAND" | "MIXED";
+type ContactMethod = "PHONE" | "EMAIL" | "WHATSAPP" | "IN_APP";
+type Visibility = "PRIVATE" | "TRUVI";
 type Timeline = "IMMEDIATE" | "WITHIN_30_DAYS" | "WITHIN_3_MONTHS" | "WITHIN_6_MONTHS" | "FLEXIBLE";
 type Purpose = "" | "INVESTMENT" | "SELF_USE" | "BUSINESS" | "OTHER";
 
@@ -24,6 +26,14 @@ interface PropertyRequirement {
   purpose: Exclude<Purpose, ""> | null;
   timeline: Timeline;
   details?: string | null;
+  publicSummary?: string | null;
+  preferredContactMethod: ContactMethod;
+  visibility: Visibility;
+  requirementKind?: "BUYER" | "CLIENT";
+  clientName?: string | null;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  contactConsent: boolean;
   submittedByRole: string;
   status: RequirementStatus;
   createdAt: string;
@@ -55,6 +65,13 @@ interface RequirementForm {
   purpose: Purpose;
   timeline: Timeline;
   details: string;
+  publicSummary: string;
+  preferredContactMethod: ContactMethod;
+  visibility: Visibility;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string;
+  contactConsent: boolean;
 }
 
 const EMPTY_FORM: RequirementForm = {
@@ -69,11 +86,19 @@ const EMPTY_FORM: RequirementForm = {
   purpose: "",
   timeline: "WITHIN_30_DAYS",
   details: "",
+  publicSummary: "",
+  preferredContactMethod: "IN_APP",
+  visibility: "TRUVI",
+  clientName: "",
+  clientPhone: "",
+  clientEmail: "",
+  contactConsent: false,
 };
 
 const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: "ANY", label: "Any property type" },
-  { value: "PLOTTED", label: "Residential plot" },
+  { value: "PLOTTED", label: "Plot" },
+  { value: "RESIDENTIAL", label: "Residential property" },
   { value: "APARTMENT", label: "Apartment / Flat" },
   { value: "VILLA", label: "Villa / Independent home" },
   { value: "COMMERCIAL", label: "Commercial" },
@@ -127,24 +152,46 @@ export default function RequirementsPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [boardType, setBoardType] = useState("ALL");
+  const [boardCity, setBoardCity] = useState("");
+  const [boardLocation, setBoardLocation] = useState("");
+  const [boardBudgetMin, setBoardBudgetMin] = useState("");
+  const [boardBudgetMax, setBoardBudgetMax] = useState("");
+  const [boardTimeline, setBoardTimeline] = useState("ALL");
+  const [boardStatus, setBoardStatus] = useState("ACTIVE");
+  const [boardPage, setBoardPage] = useState(1);
+  const [boardPagination, setBoardPagination] = useState({ page: 1, limit: 12, total: 0, totalPages: 0 });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [mineRes, boardRes, matchesRes] = await Promise.all([
         api.get("/requirements/mine"),
-        api.get("/requirements/board"),
+        api.get("/requirements/board", {
+          params: {
+            page: boardPage,
+            limit: 12,
+            q: search.trim() || undefined,
+            propertyType: boardType !== "ALL" ? boardType : undefined,
+            city: boardCity.trim() || undefined,
+            location: boardLocation.trim() || undefined,
+            budgetMin: boardBudgetMin ? Number(boardBudgetMin) : undefined,
+            budgetMax: boardBudgetMax ? Number(boardBudgetMax) : undefined,
+            timeline: boardTimeline !== "ALL" ? boardTimeline : undefined,
+            status: boardStatus,
+          },
+        }),
         api.get("/requirements/matches"),
       ]);
       setMine((mineRes.data.requirements ?? []) as PropertyRequirement[]);
       setBoard((boardRes.data.requirements ?? []) as Omit<PropertyRequirement, "details">[]);
+      setBoardPagination(boardRes.data.pagination ?? { page: 1, limit: 12, total: 0, totalPages: 0 });
       setMatches((matchesRes.data.matches ?? []) as MatchRecord[]);
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Could not load property requirements.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [boardPage, search, boardType, boardCity, boardLocation, boardBudgetMin, boardBudgetMax, boardTimeline, boardStatus]);
 
   useEffect(() => {
     void load();
@@ -161,8 +208,12 @@ export default function RequirementsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.city.trim() || !form.location.trim() || !form.maxBudget || Number(form.maxBudget) <= 0) {
-      toast.error("Enter a city, preferred location, and a maximum budget.");
+    if (!form.title.trim() || !form.city.trim() || !form.location.trim() || !form.minBudget || !form.maxBudget || Number(form.maxBudget) <= 0) {
+      toast.error("Enter a requirement title, city, preferred location, minimum budget and maximum budget.");
+      return;
+    }
+    if (user?.role !== "BUYER" && !form.contactConsent) {
+      toast.error("Confirm that your client has consented before submitting this lead requirement.");
       return;
     }
     if (form.minBudget && Number(form.minBudget) > Number(form.maxBudget)) {
@@ -179,13 +230,20 @@ export default function RequirementsPage() {
       propertyType: form.propertyType,
       city: form.city.trim(),
       location: form.location.trim(),
-      minBudget: form.minBudget ? Number(form.minBudget) : null,
+      minBudget: Number(form.minBudget),
       maxBudget: Number(form.maxBudget),
       minAreaSqft: form.minAreaSqft ? Number(form.minAreaSqft) : null,
       maxAreaSqft: form.maxAreaSqft ? Number(form.maxAreaSqft) : null,
       purpose: form.purpose || null,
       timeline: form.timeline,
       details: form.details.trim() || null,
+      publicSummary: form.publicSummary.trim() || null,
+      preferredContactMethod: form.preferredContactMethod,
+      visibility: form.visibility,
+      clientName: form.clientName.trim() || null,
+      clientPhone: form.clientPhone.trim() || null,
+      clientEmail: form.clientEmail.trim() || null,
+      contactConsent: user?.role === "BUYER" ? false : form.contactConsent,
     };
 
     setSaving(true);
@@ -220,6 +278,13 @@ export default function RequirementsPage() {
       purpose: row.purpose ?? "",
       timeline: row.timeline ?? "FLEXIBLE",
       details: row.details ?? "",
+      publicSummary: row.publicSummary ?? "",
+      preferredContactMethod: row.preferredContactMethod ?? "IN_APP",
+      visibility: row.visibility ?? "TRUVI",
+      clientName: row.clientName ?? "",
+      clientPhone: row.clientPhone ?? "",
+      clientEmail: row.clientEmail ?? "",
+      contactConsent: row.contactConsent ?? false,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -234,15 +299,7 @@ export default function RequirementsPage() {
     }
   }
 
-  const filteredBoard = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return board.filter((row) => {
-      const queryMatches = !needle || [row.title, row.city, row.location, row.propertyType]
-        .some((value) => String(value ?? "").toLowerCase().includes(needle));
-      const typeMatches = boardType === "ALL" || row.propertyType === boardType;
-      return queryMatches && typeMatches;
-    });
-  }, [board, search, boardType]);
+  const filteredBoard = board;
 
   const dashboardHref = user?.role === "BUYER"
     ? "/buyer/dashboard"
