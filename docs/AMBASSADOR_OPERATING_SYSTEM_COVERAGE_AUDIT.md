@@ -31,7 +31,7 @@
 - Incentive policies and retention policies are inactive until their respective approval references are recorded. Do not infer a real commission entitlement from the example policy amount or sample targets in the PDF.
 - Property booking records are intentionally separate from service/Habitat bookings and from the incentive ledger. A lead/enquiry alone is not a verified property sale.
 - Program Manager/Sales Coordinator/Training Coordinator assignments are OS-scoped and do not elevate a user's global Truvi role. Payout creation/settlement remains Admin-only in this implementation.
-- Ambassadors can download a scoped JSON export of their own OS records; it excludes customer contact details and free-text CRM/follow-up notes, and the export event is audited. The export does not cover every record in other Truvi systems. Privacy requests are still tracked with case references; deletion requests do not promise that lawfully-required booking, finance, consent, or audit records will be erased.
+- Ambassadors can download a scoped JSON export of their own OS records; it excludes buyer contact details from lead records, free-text CRM/follow-up notes, task evidence and marketing asset content, and the export event is audited. The export does not cover every record in other Truvi systems. Privacy requests are still tracked with case references; deletion requests do not promise that lawfully-required booking, finance, consent, or audit records will be erased.
 
 ## CI, staging and release
 
@@ -46,7 +46,7 @@ A successful CI run alone does not validate the live database bootstrap, product
 3. Validate every CRM source/stage and booking transition against the authoritative existing data model; ensure sale-verified inventory cannot be double-counted across booking records.
 4. Obtain written policy approval for incentive amounts, eligible sources/milestones, cancellation/refunds, payment authority, scorecard weights and each retention schedule.
 5. Configure and test provider-level backups/PITR, disaster recovery, alerting and restore-to-staging. Code in this PR cannot prove these cloud settings are enabled.
-6. Confirm the privacy-request handling process, review the self-service export's scope, fulfil any access request for records outside the OS export, and approve deletion exceptions and audit-retention obligations with the privacy/legal owner.
+6. Confirm the privacy-request handling process, review the self-service export's scope and exclusions, fulfil any access request for records outside the OS export, and approve deletion exceptions and audit-retention obligations with the privacy/legal owner.
 7. Only mark full PDF parity after all P0 requirements pass the above checks, P1 is implemented/accepted, and remaining differences are documented and signed off.
 
 **Release status:** Code coverage is not proof of deployment, complete PDF parity, or security certification. Do not describe the operating system as production-ready until the above release gates have passed.
