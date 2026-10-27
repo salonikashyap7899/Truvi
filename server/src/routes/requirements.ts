@@ -36,7 +36,17 @@ const fields = {
 };
 const createRequirementSchema = z.object(fields);
 const updateRequirementSchema = z.object({
-  ...Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, schema.optional()])),
+  title: z.string().trim().max(120).optional().or(z.literal("")),
+  propertyType: z.enum(propertyTypes).optional(),
+  city: z.string().trim().min(2).max(100).optional(),
+  location: z.string().trim().min(2).max(160).optional(),
+  minBudget: z.number().finite().min(0).nullable().optional(),
+  maxBudget: z.number().finite().positive().optional(),
+  minAreaSqft: z.number().finite().positive().nullable().optional(),
+  maxAreaSqft: z.number().finite().positive().nullable().optional(),
+  purpose: z.enum(purposes).nullable().optional(),
+  timeline: z.enum(timelines).optional(),
+  details: z.string().trim().max(1200).nullable().optional(),
   status: z.enum(["ACTIVE", "CLOSED"]).optional(),
 });
 
