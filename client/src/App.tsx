@@ -88,6 +88,7 @@ const BusinessHubPage = lazy(() => import("@/pages/cp/BusinessHubPage"));
 const GrowthHubPage = lazy(() => import("@/pages/cp/GrowthHubPage"));
 const OnboardDevelopersPage = lazy(() => import("@/pages/cp/OnboardDevelopersPage"));
 const BuyerDashboardPage = lazy(() => import("@/pages/buyer/BuyerDashboardPage"));
+const RequirementsPage = lazy(() => import("@/pages/RequirementsPage"));
 const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
 const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
 const HabitatPage = lazy(() => import("@/pages/habitat/HabitatPage"));
@@ -448,6 +449,11 @@ export default function App() {
         <Route path="/crm/pipeline" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><PipelinePage /></ProtectedRoute>} />
         <Route path="/bookings" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><BookingsPage /></ProtectedRoute>} />
         <Route path="/vault" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><VaultPage /></ProtectedRoute>} />
+
+        <Route
+          path="/requirements"
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"]}><RequirementsPage /></ProtectedRoute>}
+        />
 
         {/* Buyer */}
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />
