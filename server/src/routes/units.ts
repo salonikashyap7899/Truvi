@@ -10,7 +10,7 @@ import { expireStaleLocks } from "../services/inventoryService";
 import { emitUnitUpdate } from "../sockets";
 import { UNIT_LOCK_MINUTES } from "../config/constants";
 import { notifyUser, notifyRole } from "../services/notificationService";
-import { matchRequirementsForPublishedProject } from "../services/propertyRequirementMatching";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 
 const router = Router();
 router.use(authenticate);
@@ -102,8 +102,8 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
         data: { href: `/inventory/${project._id}/presentation` },
         dedupeKey: `inventory:${project._id}:${day}`,
       });
-      void matchRequirementsForPublishedProject(String(project._id)).catch((error) => {
-        console.warn("[property-matching] inventory matching failed:", error instanceof Error ? error.message : "unknown error");
+      void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
+        console.warn("[property-matching] inventory matching job could not be queued");
       });
     }
   } catch {
