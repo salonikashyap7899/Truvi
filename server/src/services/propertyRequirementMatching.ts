@@ -394,7 +394,7 @@ export async function enqueueRequirementMatchJob(
     projectId: ids.projectId ?? null,
     status: "QUEUED",
     nextAttemptAt: new Date(),
-  });
+  }).onConflictDoNothing();
 }
 
 /**
