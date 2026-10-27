@@ -191,6 +191,16 @@ async function recordAndNotifyMatch(
   }
   if (!matchRow) return;
 
+  // A failed notification is eligible for bounded retry through the durable
+  // matching job. The job itself stops retrying after five attempts.
+  if (matchRow.notificationStatus === "FAILED") {
+    const [reset] = await db.update(propertyRequirementMatches)
+      .set({ notificationStatus: "PENDING" })
+      .where(eq(propertyRequirementMatches._id, matchRow._id))
+      .returning();
+    matchRow = reset ?? matchRow;
+  }
+
   if (matchRow.notificationStatus === "PENDING") {
     try {
       const created = await notifyUser(String(requirement.submittedById), {
@@ -217,6 +227,8 @@ async function recordAndNotifyMatch(
         .where(eq(propertyRequirementMatches._id, matchRow._id))
         .catch(() => {});
       console.warn("[property-matching] in-app notification failed");
+      // Re-throw so the durable job queue applies its bounded retry policy.
+      throw new Error("IN_APP_NOTIFICATION_FAILED");
     }
   }
 }
@@ -532,7 +544,7 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
           <p style="margin:4px 0"><strong>Matching available inventory:</strong> ${escapeHtml(priceText)}</p>
         </div>
         <p><a href="${projectLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none">View Property Details</a></p>
-        <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account.</p>
+        <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account. <a href="${(process.env.CLIENT_URL || process.env.PUBLIC_SITE_URL || "https://truviventures.com").replace(/\\/+$/, "")}/settings/notifications" style="color:#0f766e">Manage notification preferences</a>.</p>
         <p>Team Truvi</p>
       </div>`;
 
