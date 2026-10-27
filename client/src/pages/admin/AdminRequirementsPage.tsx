@@ -75,6 +75,7 @@ export default function AdminRequirementsPage() {
   const [duplicateTargets, setDuplicateTargets] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [retryingEmails, setRetryingEmails] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +105,19 @@ export default function AdminRequirementsPage() {
   }, [page, query, statusFilter, roleFilter]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function retryFailedEmails() {
+    setRetryingEmails(true);
+    try {
+      const response = await api.post("/requirements/admin/retry-failed-emails");
+      toast.success(`${response.data.resetCount ?? 0} failed email(s) queued for retry.`);
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not retry failed email notifications.");
+    } finally {
+      setRetryingEmails(false);
+    }
+  }
 
   async function moderate(row: Requirement) {
     setBusyId(row._id);
@@ -158,8 +172,9 @@ export default function AdminRequirementsPage() {
             <h1 className="mt-2 flex items-center gap-2 text-2xl font-semibold sm:text-3xl"><ShieldCheck size={26} /> Requirement moderation</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Review requirement quality, identify possible duplicates, inspect activity history, and monitor real matching and email queue status. Private client data appears only in this admin-protected view.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw size={14} /> Refresh</Button>
+            <Button variant="outline" size="sm" onClick={() => void retryFailedEmails()} disabled={retryingEmails}><RefreshCw size={14} /> {retryingEmails ? "Queueing..." : "Retry failed emails"}</Button>
             <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-teal-300 hover:text-teal-200"><ArrowLeft size={15} /> Admin dashboard</Link>
           </div>
         </header>
