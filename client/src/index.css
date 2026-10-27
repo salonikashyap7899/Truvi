@@ -99,13 +99,13 @@ img, video {
   [class~="text-white/45"],
   [class~="text-white/50"]
 ) {
-  color: rgb(226 234 245 / 0.92) !important;
+  color: rgb(226 234 245 / 0.70) !important;
 }
 
 /* Muted placeholders were also too faint against the dark form surfaces. */
 input::placeholder,
 textarea::placeholder {
-  color: rgb(203 213 225 / 0.9);
+  color: rgb(203 213 225 / 0.8);
   opacity: 1;
 }
 
