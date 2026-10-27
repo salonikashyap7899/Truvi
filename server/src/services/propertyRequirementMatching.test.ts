@@ -91,7 +91,8 @@ describe("property requirement matching", () => {
 
   it("normalizes common real-estate property type aliases", () => {
     expect(typeBucket("Residential Plot")).toBe("PLOT");
-    expect(typeBucket("Land Parcel")).toBe("PLOT");
+    expect(typeBucket("Land Parcel")).toBe("LAND");
+    expect(typeBucket("Vacant Land")).toBe("LAND");
     expect(typeBucket("Flat / Apartment")).toBe("APARTMENT");
     expect(typeBucket("Commercial Office")).toBe("COMMERCIAL");
     expect(typeBucket("Any property")).toBe("ANY");
