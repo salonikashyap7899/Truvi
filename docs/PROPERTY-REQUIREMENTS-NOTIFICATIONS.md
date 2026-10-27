@@ -48,7 +48,9 @@ Successful SMTP submission is recorded as `SENT_TO_PROVIDER`. Generic SMTP does 
 
 The webhook is mounted with a raw-body parser before global JSON parsing, verifies the Svix/Resend signature and a five-minute timestamp window, and deduplicates provider events using the signed `svix-id`. Event records store provider IDs/status only—not the email body or recipient address.
 
-When `RESEND_API_KEY` is configured, Resend is the email provider for the existing email service as well as property recommendations. A Resend API failure does not silently fall back to SMTP (which could create duplicates). Remove `RESEND_API_KEY` to return to the existing SMTP path.
+When `RESEND_API_KEY` is configured, Resend is used **only for property-match recommendation emails**. Existing account OTP, password-reset, approval, commission, and other transactional messages continue to use Truvi's existing SMTP transport. If SMTP is not configured, those existing email flows will remain unconfigured even if a Resend key is present.
+
+A property-match send uses Resend when `RESEND_API_KEY` is configured and otherwise uses SMTP. If a Resend request fails after selection, the worker does not fall back to SMTP, avoiding accidental duplicate sends. Remove `RESEND_API_KEY` to keep property-match mail on SMTP.
 
 ## Notification preferences
 
