@@ -129,6 +129,7 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
           ${expanded ? "translate-y-0 opacity-100" : "translate-y-full sm:translate-y-8 opacity-0 pointer-events-none"}
         `}
         style={{ maxHeight: "85vh" }}
+        hidden={!expanded}
         aria-hidden={!expanded}
         inert={!expanded}
       >
