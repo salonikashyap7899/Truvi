@@ -641,6 +641,8 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
         String(recipient.email),
         "A New Property Matches Your Truvi Requirement",
         html,
+        undefined,
+        { idempotencyKey: `property-match/${claimed._id}` },
       );
       if (result.status === "SENT_TO_PROVIDER") {
         await db.update(propertyRequirementMatches).set({
