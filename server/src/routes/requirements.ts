@@ -6,6 +6,7 @@ import { getDb } from "../config/db";
 import {
   propertyRequirementEvents,
   propertyRequirementMatches,
+  propertyRequirementResponses,
   propertyRequirements,
   projects,
   employees,
@@ -19,6 +20,7 @@ import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 import { isEmailTransportConfigured } from "../services/emailService";
+import { notifyUser, NotificationType } from "../services/notificationService";
 
 const router = Router();
 router.use(authenticate);
@@ -625,6 +627,117 @@ router.get("/admin/duplicates", requireRole("ADMIN"), async (_req: AuthedRequest
     return overlapping ? [{ key, requirements: group.map(({ minBudget, ...row }) => ({ ...row, minBudget })) }] : [];
   });
   res.json({ candidateGroups: candidates, scanned: rows.length, capped: rows.length === 1500 });
+});
+
+const responseSchema = z.object({
+  message: z.string().trim().min(5).max(1000),
+});
+
+/** Submit a private response to an active TRUVI-visible requirement. Contact details are never returned by this route. */
+router.post("/:id/responses", submitLimiter, async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
+  const allowedRoles = ["ADMIN", "DEVELOPER", "CP", "AMBASSADOR", "EMPLOYEE"];
+  if (!allowedRoles.includes(req.user!.role)) {
+    return res.status(403).json({ error: "Only authorized Truvi lead-generating roles can respond to a requirement." });
+  }
+  if (req.user!.role === "EMPLOYEE" && !(await employeeCanCreateRequirement(req.user!.userId))) {
+    return res.status(403).json({ error: "Requirement responses are not enabled for this employee account." });
+  }
+  const parsed = responseSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+
+  const db = getDb();
+  const [requirement] = await db.select({
+    id: propertyRequirements._id,
+    ownerId: propertyRequirements.submittedById,
+    title: propertyRequirements.title,
+    visibility: propertyRequirements.visibility,
+    status: propertyRequirements.status,
+  }).from(propertyRequirements)
+    .where(eq(propertyRequirements._id, req.params.id))
+    .limit(1);
+  if (!requirement || requirement.visibility !== "TRUVI" || requirement.status !== "ACTIVE") {
+    return res.status(404).json({ error: "This requirement is not available for responses." });
+  }
+  if (String(requirement.ownerId) === req.user!.userId) {
+    return res.status(400).json({ error: "You cannot respond to your own requirement." });
+  }
+
+  const [existingResponse] = await db.select({ id: propertyRequirementResponses._id })
+    .from(propertyRequirementResponses)
+    .where(and(
+      eq(propertyRequirementResponses.requirementId, requirement.id),
+      eq(propertyRequirementResponses.responderId, req.user!.userId),
+      eq(propertyRequirementResponses.status, "SENT"),
+    )).limit(1);
+  if (existingResponse) {
+    return res.status(409).json({ error: "You have already responded to this requirement.", code: "RESPONSE_ALREADY_EXISTS" });
+  }
+
+  const [response] = await db.insert(propertyRequirementResponses).values({
+    requirementId: requirement.id,
+    responderId: req.user!.userId,
+    message: parsed.data.message,
+    status: "SENT",
+  }).returning();
+
+  await writeRequirementEvent(String(requirement.id), req.user!.userId, "REQUIREMENT_RESPONSE_SENT", {
+    responseId: String(response._id),
+  });
+
+  try {
+    await notifyUser(String(requirement.ownerId), {
+      type: "requirement_response",
+      title: "New response to your property requirement",
+      message: "An authorized Truvi user has responded to your requirement. Sign in to review the response.",
+      priority: "high",
+      data: { href: "/requirements", requirementId: String(requirement.id) },
+      dedupeKey: `requirement-response:${response._id}`,
+    });
+  } catch {
+    console.warn("[requirements] response notification could not be delivered");
+  }
+
+  res.status(201).json({ response: { _id: response._id, requirementId: response.requirementId, message: response.message, createdAt: response.createdAt } });
+});
+
+/** The owner or administrator can review private responses; client contact information is never exposed. */
+router.get("/mine/:id/responses", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Requirement not found" });
+  const [requirement] = await getDb().select({
+    id: propertyRequirements._id,
+    ownerId: propertyRequirements.submittedById,
+  }).from(propertyRequirements).where(eq(propertyRequirements._id, req.params.id)).limit(1);
+  if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+  if (req.user!.role !== "ADMIN" && String(requirement.ownerId) !== req.user!.userId) {
+    return res.status(403).json({ error: "You are not allowed to view this requirement's responses." });
+  }
+  const rows = await getDb().select({
+    id: propertyRequirementResponses._id,
+    message: propertyRequirementResponses.message,
+    status: propertyRequirementResponses.status,
+    createdAt: propertyRequirementResponses.createdAt,
+    readAt: propertyRequirementResponses.readAt,
+    responderName: users.name,
+    responderRole: users.role,
+  }).from(propertyRequirementResponses)
+    .innerJoin(users, eq(propertyRequirementResponses.responderId, users._id))
+    .where(and(
+      eq(propertyRequirementResponses.requirementId, requirement.id),
+      eq(propertyRequirementResponses.status, "SENT"),
+    ))
+    .orderBy(desc(propertyRequirementResponses.createdAt))
+    .limit(100);
+
+  if (req.user!.role !== "ADMIN") {
+    await getDb().update(propertyRequirementResponses)
+      .set({ readAt: new Date() })
+      .where(and(
+        eq(propertyRequirementResponses.requirementId, requirement.id),
+        isNull(propertyRequirementResponses.readAt),
+      ));
+  }
+  res.json({ responses: rows });
 });
 
 /** Owner update/withdrawal. Admin moderation statuses may only be changed by admins. */
