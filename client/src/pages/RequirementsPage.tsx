@@ -581,6 +581,24 @@ export default function RequirementsPage() {
                     </>
                   )}
                   {row.status === "UNDER_REVIEW" && <span className="text-xs text-amber-200">Waiting for admin review</span>}
+                  <Button variant="outline" size="sm" type="button" onClick={() => void toggleResponses(row._id)}>
+                    <Eye size={13} /> {viewResponsesFor === row._id ? "Hide responses" : "Responses"}
+                  </Button>
+                </div>
+                {viewResponsesFor === row._id && (
+                  <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+                    <p className="text-xs font-medium text-teal-200">Private responses</p>
+                    {loadingResponsesFor === row._id && <p className="text-xs text-muted-foreground">Loading responses…</p>}
+                    {(responsesByRequirement[row._id] ?? []).map((response) => (
+                      <div key={response.id} className="rounded-lg border border-white/10 bg-white/[0.035] p-3">
+                        <p className="text-sm font-medium">{response.responderName} <span className="text-xs font-normal text-muted-foreground">· {roleLabel(response.responderRole)}</span></p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-5 text-white/75">{response.message}</p>
+                        <p className="mt-2 text-[11px] text-muted-foreground">{new Date(response.createdAt).toLocaleString("en-IN")}</p>
+                      </div>
+                    ))}
+                    {!loadingResponsesFor && (responsesByRequirement[row._id] ?? []).length === 0 && <p className="text-xs text-muted-foreground">No responses yet.</p>}
+                  </div>
+                )}
                 </div>
               </article>
             ))}
