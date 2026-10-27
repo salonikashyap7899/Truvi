@@ -835,7 +835,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   if (data.purpose !== undefined) update.purpose = data.purpose;
   if (data.timeline !== undefined) update.timeline = data.timeline;
   if (data.details !== undefined) update.details = data.details?.trim() || null;
-  if (data.publicSummary !== undefined) update.publicSummary = sanitizePublicSummary(data.publicSummary);
+  if (data.publicSummary !== undefined) update.publicSummary = sanitizePublicRequirementSummary(data.publicSummary);
   if (data.preferredContactMethod !== undefined) update.preferredContactMethod = data.preferredContactMethod;
   if (data.visibility !== undefined) update.visibility = data.visibility;
   if (data.clientName !== undefined) update.clientName = data.clientName?.trim() || null;
