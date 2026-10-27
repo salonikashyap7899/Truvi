@@ -455,7 +455,7 @@ export default function App() {
 
         <Route
           path="/requirements"
-          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"]}><RequirementsPage /></ProtectedRoute>}
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE"]}><RequirementsPage /></ProtectedRoute>}
         />
         <Route
           path="/settings/notifications"
