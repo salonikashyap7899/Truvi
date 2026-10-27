@@ -28,15 +28,21 @@ export function normalize(value: unknown): string {
     .trim();
 }
 
+function cityKey(value: unknown): string {
+  // City fields sometimes include a state/region after a comma. Compare the
+  // city name itself, not substring matches (e.g. "York" must not match "New York").
+  return normalize(String(value ?? "").split(",")[0]);
+}
+
+export function isPublishedProject(project: Pick<MatchableProject, "approvalStatus" | "availabilityStatus"> | null | undefined): boolean {
+  return !!project && project.approvalStatus === "APPROVED" && project.availabilityStatus === "AVAILABLE";
+}
+
 export function locationMatches(requirement: MatchableRequirement, project: MatchableProject): boolean {
-  const requestedCity = normalize(requirement.city);
-  const projectCity = normalize(project.city);
+  const requestedCity = cityKey(requirement.city);
+  const projectCity = cityKey(project.city);
   if (!requestedCity || !projectCity) return false;
-  const sameCity =
-    requestedCity === projectCity ||
-    requestedCity.includes(projectCity) ||
-    projectCity.includes(requestedCity);
-  if (!sameCity) return false;
+  if (requestedCity !== projectCity) return false;
 
   const requestedLocation = normalize(requirement.location);
   const projectLocation = normalize(project.location);
@@ -354,7 +360,7 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
     await invalidateProjectMatches(projectId, "PROJECT_NOT_FOUND");
     return;
   }
-  if (project.approvalStatus !== "APPROVED" || project.availabilityStatus !== "AVAILABLE") {
+  if (!isPublishedProject(project)) {
     await invalidateProjectMatches(projectId, "PROJECT_NOT_PUBLISHED_OR_UNAVAILABLE");
     return;
   }
