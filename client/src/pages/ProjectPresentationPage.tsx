@@ -377,7 +377,7 @@ export default function ProjectPresentationPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-clip p-6 text-white md:p-10 pb-28">
+    <main className="min-h-screen min-w-0 max-w-full overflow-x-clip p-4 text-white sm:p-6 md:p-10 pb-28">
       {lightbox && (
         <Lightbox
           images={lightbox.images}
