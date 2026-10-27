@@ -7,7 +7,7 @@
 - Channel Partner / employee lead submissions require an explicit client-consent attestation before private client contact information can be saved.
 - Matching jobs are stored in PostgreSQL and processed by the server's background worker. Match rows have a unique requirement/project key; email attempts are claimed in the database and have bounded retries.
 - In-app notifications use Truvi's existing notification engine and read/unread history.
-- WhatsApp messages for property-match events are intentionally not enabled by this feature. The existing provider dispatcher remains unchanged.
+- WhatsApp messages for property-match events are intentionally excluded, even if the environment's general `WHATSAPP_EVENTS` list is overridden. They remain disabled until Truvi adds a dedicated channel preference/consent flow and approved template; this does not disable existing developer WhatsApp events.
 
 ## Email provider configuration
 
