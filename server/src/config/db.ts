@@ -779,6 +779,36 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_delivered_at" timestamptz`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_email_retry_idx" ON "property_requirement_matches" ("email_status", "email_next_attempt_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_project_idx" ON "property_requirement_matches" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "email_delivery_events" (
+       "provider_event_id" text PRIMARY KEY,
+       "provider" text NOT NULL DEFAULT 'RESEND',
+       "provider_message_id" text NOT NULL,
+       "match_id" uuid REFERENCES "property_requirement_matches"("id") ON DELETE SET NULL,
+       "event_type" text NOT NULL,
+       "provider_created_at" timestamptz,
+       "received_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "email_delivery_events_message_idx" ON "email_delivery_events" ("provider_message_id", "received_at")`,
+    `CREATE INDEX IF NOT EXISTS "email_delivery_events_match_idx" ON "email_delivery_events" ("match_id", "received_at")`,
+    // Keep only one active match job per target. Existing duplicates are retained
+    // as FAILED history before the partial indexes are created; no data is deleted.
+    `WITH ranked AS (
+       SELECT "id", row_number() OVER (
+         PARTITION BY "job_type", COALESCE("requirement_id"::text, "project_id"::text)
+         ORDER BY "created_at" DESC, "id" DESC
+       ) AS rn
+       FROM "property_requirement_match_jobs"
+       WHERE "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')
+     )
+     UPDATE "property_requirement_match_jobs" AS job
+     SET "status" = 'FAILED', "last_error" = 'DUPLICATE_ACTIVE_JOB_CLEANED_UP', "updated_at" = now()
+     FROM ranked WHERE ranked."id" = job."id" AND ranked.rn > 1`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_requirement_unique"
+       ON "property_requirement_match_jobs" ("requirement_id")
+       WHERE "job_type" = 'REQUIREMENT' AND "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_project_unique"
+       ON "property_requirement_match_jobs" ("project_id")
+       WHERE "job_type" = 'PROJECT' AND "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')`,
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "property_requirement_match_id" uuid REFERENCES "property_requirement_matches"("id")`,
     `CREATE INDEX IF NOT EXISTS "leads_requirement_match_idx" ON "leads" ("property_requirement_match_id")`,
     `CREATE TABLE IF NOT EXISTS "property_requirement_events" (
