@@ -774,6 +774,7 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_attempts" integer NOT NULL DEFAULT 0`,
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_last_error" text`,
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_next_attempt_at" timestamptz`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_claimed_at" timestamptz`,
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_provider_message_id" text`,
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_delivered_at" timestamptz`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_email_retry_idx" ON "property_requirement_matches" ("email_status", "email_next_attempt_at")`,
