@@ -183,10 +183,20 @@ function buildBoardFilters(query: Record<string, unknown>, allowPrivate = false)
   if (Number.isFinite(budgetMax) && budgetMax > 0) {
     conditions.push(or(isNull(propertyRequirements.minBudget), lte(propertyRequirements.minBudget, budgetMax))!);
   }
-  const dateFrom = typeof query.dateFrom === "string" ? new Date(query.dateFrom) : null;
-  const dateTo = typeof query.dateTo === "string" ? new Date(query.dateTo) : null;
-  if (dateFrom && !Number.isNaN(dateFrom.getTime())) conditions.push(gte(propertyRequirements.createdAt, dateFrom));
-  if (dateTo && !Number.isNaN(dateTo.getTime())) conditions.push(lte(propertyRequirements.createdAt, dateTo));
+  const parseDateBoundary = (value: unknown, endOfDay: boolean): Date | null => {
+    if (typeof value !== "string" || !value.trim()) return null;
+    // Date-picker inputs are calendar dates in the product's primary timezone (India).
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+    const normalized = dateOnly
+      ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+05:30`
+      : value;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const dateFrom = parseDateBoundary(query.dateFrom, false);
+  const dateTo = parseDateBoundary(query.dateTo, true);
+  if (dateFrom) conditions.push(gte(propertyRequirements.createdAt, dateFrom));
+  if (dateTo) conditions.push(lte(propertyRequirements.createdAt, dateTo));
   if (allowPrivate && typeof query.role === "string") {
     conditions.push(eq(propertyRequirements.submittedByRole, query.role as never));
   }
