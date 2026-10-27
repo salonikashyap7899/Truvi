@@ -73,6 +73,11 @@ function typeMatches(requirement: MatchableRequirement, project: MatchableProjec
     || projectBucket === "RESIDENTIAL"
     || projectBucket === "ANY";
 
+  // "Residential" is a broad requirement, so it matches residential plots,
+  // apartments and villas; a specific type still rejects mismatched units.
+  if (wanted === "RESIDENTIAL") {
+    return projectIsCompatible && ["PLOT", "APARTMENT", "VILLA", "RESIDENTIAL", "ANY"].includes(unitBucket);
+  }
   // A clearly categorized unit takes precedence over a broad project label.
   if (knownCategories.has(unitBucket)) return unitBucket === wanted && projectIsCompatible;
   return projectIsCompatible;
