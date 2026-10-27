@@ -48,7 +48,8 @@ export function typeBucket(value: unknown): string {
   const valueNorm = normalize(value);
   if (!valueNorm || valueNorm === "any" || valueNorm === "any property") return "ANY";
   if (/plot|plotted|land|parcel/.test(valueNorm)) return "PLOT";
-  if (/apartment|flat|residential/.test(valueNorm)) return "APARTMENT";
+  if (/apartment|flat/.test(valueNorm)) return "APARTMENT";
+  if (/residential/.test(valueNorm)) return "RESIDENTIAL";
   if (/villa|bungalow|independent house/.test(valueNorm)) return "VILLA";
   if (/commercial|office|shop|retail/.test(valueNorm)) return "COMMERCIAL";
   if (/industrial|warehouse|factory/.test(valueNorm)) return "INDUSTRIAL";
