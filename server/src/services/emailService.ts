@@ -18,10 +18,10 @@ const transporter = hasSmtpConfig
     })
   : null;
 
-if (!hasSmtpConfig) {
+if (!hasSmtpConfig && !resendApiKey) {
   console.warn(
-    "[email] SMTP is NOT configured — verification/OTP and other emails will NOT be delivered. " +
-      "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and optionally SMTP_FROM) to enable email.",
+    "[email] No email provider is configured — transactional emails will NOT be delivered. " +
+      "Configure SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY (and SMTP_FROM for the sender).",
   );
 }
 
