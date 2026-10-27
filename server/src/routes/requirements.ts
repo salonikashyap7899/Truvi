@@ -264,6 +264,7 @@ router.get("/board", async (req: AuthedRequest, res) => {
       purpose: propertyRequirements.purpose,
       timeline: propertyRequirements.timeline,
       publicSummary: propertyRequirements.publicSummary,
+      preferredContactMethod: propertyRequirements.preferredContactMethod,
       submittedByRole: propertyRequirements.submittedByRole,
       visibility: propertyRequirements.visibility,
       status: propertyRequirements.status,
