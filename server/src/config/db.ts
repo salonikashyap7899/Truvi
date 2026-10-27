@@ -798,17 +798,17 @@ async function ensureSchema(db: Db): Promise<void> {
          ORDER BY "created_at" DESC, "id" DESC
        ) AS rn
        FROM "property_requirement_match_jobs"
-       WHERE "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')
+       WHERE "status" IN ('QUEUED', 'RETRY_PENDING')
      )
      UPDATE "property_requirement_match_jobs" AS job
-     SET "status" = 'FAILED', "last_error" = 'DUPLICATE_ACTIVE_JOB_CLEANED_UP', "updated_at" = now()
+     SET "status" = 'FAILED', "last_error" = 'DUPLICATE_QUEUED_JOB_CLEANED_UP', "updated_at" = now()
      FROM ranked WHERE ranked."id" = job."id" AND ranked.rn > 1`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_requirement_unique"
        ON "property_requirement_match_jobs" ("requirement_id")
-       WHERE "job_type" = 'REQUIREMENT' AND "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')`,
+       WHERE "job_type" = 'REQUIREMENT' AND "status" IN ('QUEUED', 'RETRY_PENDING')`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_project_unique"
        ON "property_requirement_match_jobs" ("project_id")
-       WHERE "job_type" = 'PROJECT' AND "status" IN ('QUEUED', 'RUNNING', 'RETRY_PENDING')`,
+       WHERE "job_type" = 'PROJECT' AND "status" IN ('QUEUED', 'RETRY_PENDING')`,
     `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "property_requirement_match_id" uuid REFERENCES "property_requirement_matches"("id")`,
     `CREATE INDEX IF NOT EXISTS "leads_requirement_match_idx" ON "leads" ("property_requirement_match_id")`,
     `CREATE TABLE IF NOT EXISTS "property_requirement_events" (
