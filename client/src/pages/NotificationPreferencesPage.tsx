@@ -89,7 +89,7 @@ export default function NotificationPreferencesPage() {
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-400/10 text-sky-300"><Mail size={19} /></span>
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">Property recommendation emails</span>
-                <span className="mt-1 block text-sm text-muted-foreground">Send an email when verified, approved inventory matches one of your active requirements. Email needs a verified address and configured SMTP service.</span>
+                <span className="mt-1 block text-sm text-muted-foreground">Send an email when verified, approved inventory matches one of your active requirements. Email needs a verified address and a configured SMTP or Resend provider.</span>
               </span>
               <input type="checkbox" checked={preferences.email} disabled={loading || saving} onChange={(event) => setChannel("email", event.target.checked)} className="mt-2 size-5 accent-sky-400" />
             </label>
