@@ -60,7 +60,22 @@ export function typeBucket(value: unknown): string {
 function typeMatches(requirement: MatchableRequirement, project: MatchableProject, unit: IUnit): boolean {
   const wanted = typeBucket(requirement.propertyType);
   if (wanted === "ANY") return true;
-  return [project.projectType, unit.type].some((value) => typeBucket(value) === wanted);
+
+  const projectBucket = typeBucket(project.projectType);
+  const unitBucket = typeBucket(unit.type);
+  const knownCategories = new Set(["PLOT", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "MIXED", "RESIDENTIAL"]);
+  const projectIsCompatible = projectBucket === wanted
+    || projectBucket === "MIXED"
+    || projectBucket === "RESIDENTIAL"
+    || projectBucket === "ANY";
+
+  // A clearly categorized unit takes precedence over a broad project label;
+  // e.g. an apartment unit inside inconsistent plotted-project data must not
+  // be recommended to a buyer who specifically requested a plot.
+  if (knownCategories.has(unitBucket)) {
+    return unitBucket === wanted && projectIsCompatible;
+  }
+  return projectIsCompatible;
 }
 
 export function matchingUnits(requirement: MatchableRequirement, project: MatchableProject, availableUnits: IUnit[]): IUnit[] {
