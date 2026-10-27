@@ -70,7 +70,7 @@ export function typeBucket(value: unknown): string {
   // Land and plotted residential inventory are separate categories in Truvi.
   // Don't turn a "Land" requirement into a residential plot recommendation.
   if (/plot|plotted/.test(valueNorm)) return "PLOT";
-  if (/(^|\\s)(land|land parcel|vacant land|agricultural land|parcel)(\\s|$)/.test(valueNorm)) return "LAND";
+  if (/(^|\s)(land|land parcel|vacant land|agricultural land|parcel)(\s|$)/.test(valueNorm)) return "LAND";
   if (/apartment|flat/.test(valueNorm)) return "APARTMENT";
   if (/residential/.test(valueNorm)) return "RESIDENTIAL";
   if (/villa|bungalow|independent house/.test(valueNorm)) return "VILLA";
