@@ -116,6 +116,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Payments", icon: "target", path: "/admin/payments" },
   { label: "Marketing", icon: "spark", path: "/admin/marketing" },
   { label: "Notifications", icon: "spark", path: "/admin/notifications" },
+  { label: "Requirements", icon: "target", path: "/admin/requirements" },
   { label: "Commissions", icon: "wallet", path: "/admin/commissions" },
   { label: "Investments", icon: "chart", path: "/admin/investments" },
   { label: "Ambassador Tasks", icon: "trophy", path: "/admin/ambassador-tasks" },
