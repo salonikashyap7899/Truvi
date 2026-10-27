@@ -19,10 +19,12 @@ const transporter = hasSmtpConfig
     })
   : null;
 
-if (!hasSmtpConfig && !resendApiKey) {
+if (!hasSmtpConfig) {
   console.warn(
-    "[email] No email provider is configured — transactional emails will NOT be delivered. " +
-      "Configure SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD or RESEND_API_KEY (and SMTP_FROM for the sender).",
+    "[email] SMTP is not configured — existing OTP/account transactional email calls will NOT be delivered. " +
+      (resendApiKey
+        ? "Resend is configured for property-match emails only."
+        : "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and SMTP_FROM) to enable those emails."),
   );
 }
 
@@ -31,7 +33,7 @@ if (!hasSmtpConfig && !resendApiKey) {
 // defaults to the Truvi Ventures Gmail identity.
 export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
 
-/** Whether the current process has a usable SMTP transport configured. */
+/** Whether a provider is configured for property-match email delivery/retry. */
 export function isEmailTransportConfigured(): boolean {
   return Boolean(resendApiKey || transporter !== null);
 }
@@ -56,12 +58,14 @@ export async function sendEmailWithStatus(
   subject: string,
   html: string,
   from: string = MAIL_FROM,
-  options?: { idempotencyKey?: string },
+  options?: { idempotencyKey?: string; preferResend?: boolean },
 ): Promise<EmailDispatchResult> {
-  // Resend is optional. When its API key is present, use its signed delivery
-  // webhook support so delivery can be confirmed; never fall back to SMTP after
-  // a Resend API failure because that could send duplicate messages.
-  if (resendApiKey) {
+  // Preserve Truvi's existing SMTP path for OTP, password reset, approval,
+  // and other pre-existing transactional email calls. Resend is selected only
+  // by the property-match worker through the explicit preferResend option.
+  // If a selected Resend attempt fails, never fall back to SMTP: that could
+  // deliver the same property recommendation twice.
+  if (options?.preferResend && resendApiKey) {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
