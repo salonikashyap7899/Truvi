@@ -599,7 +599,6 @@ export default function RequirementsPage() {
                     {!loadingResponsesFor && (responsesByRequirement[row._id] ?? []).length === 0 && <p className="text-xs text-muted-foreground">No responses yet.</p>}
                   </div>
                 )}
-                </div>
               </article>
             ))}
             {mine.length === 0 && !loading && <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">You have not submitted a requirement yet. Use the form above to get started.</p>}
@@ -647,8 +646,14 @@ export default function RequirementsPage() {
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-white/75"><MapPin size={14} /> {row.location}, {row.city}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><IndianRupee size={14} /> {budgetLabel(row)}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Clock3 size={14} /> {labelForTimeline(row.timeline)}</p>
+                {(row.minAreaSqft != null || row.maxAreaSqft != null) && <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Ruler size={14} /> {row.minAreaSqft ?? "Any"} – {row.maxAreaSqft ?? "Any"} sq. ft.</p>}
                 {row.publicSummary && <p className="mt-3 rounded-lg bg-white/[0.04] p-3 text-sm leading-5 text-white/70">{row.publicSummary}</p>}
                 <span className="mt-3 inline-block rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-muted-foreground">{row.status.replace(/_/g, " ")}</span>
+                {canRespondToRequirements && !row.isOwn && row.status === "ACTIVE" && (
+                  <Button type="button" size="sm" variant="outline" className="mt-3 w-full" onClick={() => { setRespondingTo({ id: row._id, title: row.title }); setResponseMessage(""); }}>
+                    <MessageCircle size={14} /> Respond privately
+                  </Button>
+                )}
               </article>
             ))}
             {filteredBoard.length === 0 && <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">{loading ? "Loading noticeboard..." : "No requirements match these filters."}</p>}
@@ -662,6 +667,31 @@ export default function RequirementsPage() {
           </div>
         </section>
       </div>
+      {respondingTo && (
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => { if (!submittingResponse) setRespondingTo(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="requirement-response-title" className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/10 bg-[#0b111b] p-5 shadow-2xl sm:rounded-2xl sm:p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-teal-300">Private response</p>
+                <h2 id="requirement-response-title" className="mt-2 text-lg font-semibold">{respondingTo.title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Your message is sent privately to the requirement owner. Do not include credentials or sensitive personal information.</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" disabled={submittingResponse} onClick={() => setRespondingTo(null)} aria-label="Close response dialog"><X size={16} /></Button>
+            </div>
+            <form onSubmit={submitRequirementResponse} className="mt-5 space-y-4">
+              <label className="block text-sm">
+                <span className="mb-1.5 block text-white/80">Your response</span>
+                <textarea autoFocus required minLength={5} maxLength={1000} rows={5} value={responseMessage} onChange={(event) => setResponseMessage(event.target.value)} placeholder="Share how you can help with this requirement…" className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-3 py-3 outline-none focus:border-teal-400/70" />
+                <span className="mt-1 block text-right text-xs text-muted-foreground">{responseMessage.length}/1000</span>
+              </label>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" disabled={submittingResponse} onClick={() => setRespondingTo(null)}>Cancel</Button>
+                <Button type="submit" disabled={submittingResponse || responseMessage.trim().length < 5}><Send size={14} /> {submittingResponse ? "Sending…" : "Send privately"}</Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
