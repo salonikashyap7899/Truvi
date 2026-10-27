@@ -294,7 +294,13 @@ router.get("/matches", async (req: AuthedRequest, res) => {
   const userId = req.user!.userId;
   const rows = await getDb()
     .select({
-      match: propertyRequirementMatches,
+      match: {
+        _id: propertyRequirementMatches._id,
+        matchStatus: propertyRequirementMatches.matchStatus,
+        matchReasons: propertyRequirementMatches.matchReasons,
+        notificationStatus: propertyRequirementMatches.notificationStatus,
+        createdAt: propertyRequirementMatches.createdAt,
+      },
       requirementTitle: propertyRequirements.title,
       project: projects,
     })
