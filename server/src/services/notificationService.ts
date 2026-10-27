@@ -58,6 +58,7 @@ export const NotificationType = {
   // Tasks
   INVESTOR_TASK: "investor_task",
   INVESTOR_TASK_REMINDER: "investor_task_reminder",
+  AMBASSADOR_OS_TASK_REMINDER: "ambassador_os_task_reminder",
   DAILY_TASK: "daily_task",
   TASK_COMPLETED: "task_completed",
   // Meetings
@@ -105,6 +106,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   lead_converted: "leads",
   investor_task: "tasks",
   investor_task_reminder: "tasks",
+  ambassador_os_task_reminder: "tasks",
   employee_task_assigned: "tasks",
   employee_task_reassigned: "tasks",
   employee_task_reminder: "tasks",
