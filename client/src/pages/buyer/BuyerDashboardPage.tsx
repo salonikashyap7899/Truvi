@@ -221,6 +221,12 @@ export default function BuyerDashboardPage() {
             <NotificationBell />
           </div>
           <UserMenu />
+          <Link to="/requirements">
+            <Button size="sm" variant="outline">
+              <PlusCircle size={15} className="mr-1.5" />
+              Share Requirement
+            </Button>
+          </Link>
           <Link to="/habitat">
             <Button
               size="sm"
