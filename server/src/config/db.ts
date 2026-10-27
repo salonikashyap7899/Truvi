@@ -759,6 +759,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "property_requirements_status_created_idx" ON "property_requirements" ("status", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirements_owner_status_idx" ON "property_requirements" ("submitted_by_id", "status")`,
     `CREATE INDEX IF NOT EXISTS "property_requirements_city_idx" ON "property_requirements" ("city")`,
+    // Functional prefix indexes keep per-city matching from scanning every project/requirement.
+    `CREATE INDEX IF NOT EXISTS "projects_city_lower_pattern_idx" ON "projects" (lower("city") text_pattern_ops)`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_city_lower_pattern_idx" ON "property_requirements" (lower("city") text_pattern_ops)`,
     `CREATE TABLE IF NOT EXISTS "property_requirement_matches" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
