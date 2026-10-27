@@ -420,26 +420,28 @@ export async function enqueueRequirementMatchJob(
   if (jobType === "PROJECT" && !ids.projectId) throw new Error("projectId is required");
 
   const db = getDb();
-  const activeTarget = jobType === "REQUIREMENT"
+  const queuedTarget = jobType === "REQUIREMENT"
     ? and(
         eq(propertyRequirementMatchJobs.jobType, "REQUIREMENT"),
         eq(propertyRequirementMatchJobs.requirementId, ids.requirementId!),
-        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RUNNING", "RETRY_PENDING"]),
+        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RETRY_PENDING"]),
       )
     : and(
         eq(propertyRequirementMatchJobs.jobType, "PROJECT"),
         eq(propertyRequirementMatchJobs.projectId, ids.projectId!),
-        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RUNNING", "RETRY_PENDING"]),
+        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RETRY_PENDING"]),
       );
   const [existing] = await db.select({ id: propertyRequirementMatchJobs._id })
     .from(propertyRequirementMatchJobs)
-    .where(activeTarget)
+    .where(queuedTarget)
     .limit(1);
   if (existing) return;
 
-  // The partial unique indexes serialize concurrent QUEUED/RETRY_PENDING
-  // inserts; the active-target lookup also avoids queuing a second pass while
-  // another PM2 worker is already processing the same target.
+  // A fresh QUEUED pass may coexist with a RUNNING pass. This is intentional:
+  // an inventory/requirement change that happens while a worker is scanning
+  // must not be lost. Match rows, in-app dedupe keys and atomic email claims
+  // make overlapping passes idempotent; partial unique indexes ensure only one
+  // queued/retry-pending follow-up exists per target.
   await db.insert(propertyRequirementMatchJobs).values({
     jobType,
     requirementId: ids.requirementId ?? null,
