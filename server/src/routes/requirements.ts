@@ -10,6 +10,7 @@ import {
   projects,
   employees,
   users,
+  leads,
 } from "../db/schema";
 import { zodMessage } from "../lib/validationError";
 import { isValidId } from "../lib/ids";
@@ -462,13 +463,23 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, 
   const activeIds = all.filter((row) => row.status === "ACTIVE").map((row) => String(row.id));
   const ids = all.map((row) => row.id);
   const matchedRows = ids.length ? await db.select({
+    id: propertyRequirementMatches._id,
     requirementId: propertyRequirementMatches.requirementId,
     matchStatus: propertyRequirementMatches.matchStatus,
     emailStatus: propertyRequirementMatches.emailStatus,
     notificationStatus: propertyRequirementMatches.notificationStatus,
   }).from(propertyRequirementMatches).where(inArray(propertyRequirementMatches.requirementId, ids)) : [];
-  const matchedRequirementIds = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId)));
-  const distinctMatchedRequirements = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId))).size;
+  const eligibleMatches = matchedRows.filter((row) => ["MATCHED", "ENQUIRY_CREATED"].includes(row.matchStatus));
+  const matchedRequirementIds = new Set(eligibleMatches.map((row) => String(row.requirementId)));
+  const distinctMatchedRequirements = new Set(eligibleMatches.map((row) => String(row.requirementId))).size;
+  const matchIds = matchedRows.map((row) => row.id);
+  let enquiryCount = 0;
+  if (matchIds.length > 0) {
+    const [enquiryCountRow] = await db.select({
+      count: sql<number>`count(*)::int`,
+    }).from(leads).where(inArray(leads.propertyRequirementMatchId, matchIds));
+    enquiryCount = enquiryCountRow?.count ?? 0;
+  }
   res.json({
     filters: {
       city: typeof req.query.city === "string" ? req.query.city : null,
@@ -490,14 +501,14 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, 
       activeWithoutMatches: activeIds.filter((id) => !matchedRequirementIds.has(id)).length,
     },
     matches: {
-      total: matchedRows.filter((r) => r.matchStatus === "MATCHED").length,
+      total: eligibleMatches.length,
       distinctMatchedRequirements,
       notificationQueued: matchedRows.filter((r) => ["PENDING", "QUEUED", "RETRY_PENDING", "SENDING"].includes(r.notificationStatus) || ["QUEUED", "RETRY_PENDING", "SENDING"].includes(r.emailStatus)).length,
       emailsAcceptedBySmtp: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
       emailsConfirmedDelivered: matchedRows.filter((r) => r.emailStatus === "DELIVERED").length,
       failures: matchedRows.filter((r) => r.notificationStatus === "FAILED" || r.emailStatus === "FAILED").length,
     },
-    propertyEnquiriesFromNotifications: { tracked: false, count: null },
+    propertyEnquiriesFromNotifications: { tracked: true, count: enquiryCount },
     note: "SMTP acceptance is not confirmed mailbox delivery. A provider-specific signed delivery webhook is required to populate confirmed-delivery counts.",
   });
 });
