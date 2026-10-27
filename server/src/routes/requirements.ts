@@ -14,7 +14,7 @@ import { zodMessage } from "../lib/validationError";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
-import { matchRequirementAgainstAvailableProjects } from "../services/propertyRequirementMatching";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 
 const router = Router();
@@ -356,8 +356,8 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     propertyType: requirement.propertyType,
   });
 
-  void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch(() => {
-    console.warn("[property-matching] new requirement matching failed");
+  void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(requirement._id) }).catch(() => {
+    console.warn("[property-matching] requirement matching job could not be queued");
   });
 
   res.status(201).json({ requirement, reference: String(requirement._id) });
@@ -573,8 +573,8 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   });
 
   if (requirement.status === "ACTIVE") {
-    void matchRequirementAgainstAvailableProjects(String(requirement._id)).catch(() => {
-      console.warn("[property-matching] requirement update matching failed");
+    void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(requirement._id) }).catch(() => {
+      console.warn("[property-matching] requirement update matching job could not be queued");
     });
   }
   res.json({ requirement });
