@@ -67,7 +67,10 @@ export function locationMatches(requirement: MatchableRequirement, project: Matc
 export function typeBucket(value: unknown): string {
   const valueNorm = normalize(value);
   if (!valueNorm || valueNorm === "any" || valueNorm === "any property") return "ANY";
-  if (/plot|plotted|land|parcel/.test(valueNorm)) return "PLOT";
+  // Land and plotted residential inventory are separate categories in Truvi.
+  // Don't turn a "Land" requirement into a residential plot recommendation.
+  if (/plot|plotted/.test(valueNorm)) return "PLOT";
+  if (/(^|\\s)(land|land parcel|vacant land|agricultural land|parcel)(\\s|$)/.test(valueNorm)) return "LAND";
   if (/apartment|flat/.test(valueNorm)) return "APARTMENT";
   if (/residential/.test(valueNorm)) return "RESIDENTIAL";
   if (/villa|bungalow|independent house/.test(valueNorm)) return "VILLA";
@@ -83,7 +86,7 @@ function typeMatches(requirement: MatchableRequirement, project: MatchableProjec
 
   const projectBucket = typeBucket(project.projectType);
   const unitBucket = typeBucket(unit.type);
-  const knownCategories = new Set(["PLOT", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "MIXED", "RESIDENTIAL"]);
+  const knownCategories = new Set(["PLOT", "LAND", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "MIXED", "RESIDENTIAL"]);
   const projectIsCompatible = projectBucket === wanted
     || projectBucket === "MIXED"
     || projectBucket === "RESIDENTIAL"
