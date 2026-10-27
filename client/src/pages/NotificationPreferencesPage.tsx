@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, BellRing, Mail, MessageCircle, Save, Settings2 } from "lucide-react";
+import { BellRing, Mail, MessageCircle, Save, Settings2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
