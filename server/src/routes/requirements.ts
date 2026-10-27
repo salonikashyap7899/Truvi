@@ -136,9 +136,11 @@ function buildBoardFilters(query: Record<string, unknown>, allowPrivate = false)
   const conditions = [];
   if (!allowPrivate) conditions.push(eq(propertyRequirements.visibility, "TRUVI"));
 
-  const status = typeof query.status === "string" ? query.status : "ACTIVE";
-  if (allowPrivate && requirementStatuses.includes(status as typeof requirementStatuses[number])) {
-    conditions.push(eq(propertyRequirements.status, status as typeof requirementStatuses[number]));
+  const status = typeof query.status === "string" ? query.status : allowPrivate ? "ALL" : "ACTIVE";
+  if (allowPrivate) {
+    if (status !== "ALL" && requirementStatuses.includes(status as typeof requirementStatuses[number])) {
+      conditions.push(eq(propertyRequirements.status, status as typeof requirementStatuses[number]));
+    }
   } else {
     const allowedStatus = status === "CLOSED" ? "CLOSED" : "ACTIVE";
     conditions.push(eq(propertyRequirements.status, allowedStatus));
@@ -397,7 +399,7 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (_req: AuthedRequest,
     notificationStatus: propertyRequirementMatches.notificationStatus,
   }).from(propertyRequirementMatches);
   const matchedRequirementIds = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId)));
-  const [matchedCountRow] = await db.select({ count: sql<number>`count(*)::int` })
+  const [matchedCountRow] = await db.select({ count: sql<number>`count(DISTINCT ${propertyRequirementMatches.requirementId})::int` })
     .from(propertyRequirementMatches).where(eq(propertyRequirementMatches.matchStatus, "MATCHED"));
   res.json({
     requirements: {
