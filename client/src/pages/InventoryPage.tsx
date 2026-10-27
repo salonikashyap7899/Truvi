@@ -501,7 +501,7 @@ function ListingCard({
         <Link to={`/inventory/${project._id}/presentation`} className="block">
           <div className="p-4">
             <div className="flex items-start justify-between gap-2">
-              <h3 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h3>
+              <h2 className="min-w-0 truncate font-display text-base font-semibold text-white">{project.name}</h2>
               {(() => {
                 const score = project.truviScore ?? project.trustScore;
                 if (typeof score !== "number") return null;
