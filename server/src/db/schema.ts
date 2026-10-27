@@ -951,6 +951,26 @@ export const notificationPreferences = pgTable(
 );
 
 /**
+ * Channel-level communication choices, separate from the legacy category mute
+ * table so in-app/email/WhatsApp preferences can coexist without data loss.
+ */
+export const userNotificationChannelPreferences = pgTable(
+  "user_notification_channel_preferences",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    channel: text("channel").$type<"IN_APP" | "EMAIL" | "WHATSAPP">().notNull(),
+    category: text("category").notNull().default("properties"),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("user_notification_channel_prefs_unique").on(t.userId, t.channel, t.category),
+    index("user_notification_channel_prefs_user_idx").on(t.userId, t.category),
+  ],
+);
+
+/**
  * Legacy native push-token records. Kept in the schema temporarily so automatic
  * schema sync does not drop existing production data after switching to web-only.
  * The web application no longer registers, reads, or sends to these tokens.
