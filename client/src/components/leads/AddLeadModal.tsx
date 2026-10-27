@@ -44,6 +44,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
   useBodyScrollLock(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const requirementMatchId = new URLSearchParams(location.search).get("requirementMatchId");
   const user = useAuthStore((s) => s.user);
   const role = user?.role;
   const isBuyer = role === "BUYER";
@@ -137,6 +138,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
     try {
       const res = await api.post("/leads/from-inventory", {
         projectId: project._id,
+        requirementMatchId: requirementMatchId || undefined,
         unitId: unitId || undefined,
         ...(isBuyer
           ? needsBuyerPhone ? { customerPhone: phone } : {}
