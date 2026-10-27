@@ -764,6 +764,7 @@ export const leads = pgTable(
     leadNo: bigserial("lead_no", { mode: "number" }),
     // The exact inventory the lead came from (null = whole project).
     unitId: uuid("unit_id").references(() => units._id),
+    propertyRequirementMatchId: uuid("property_requirement_match_id").references(() => propertyRequirementMatches._id),
     // Role of the account that created the lead (BUYER / CP / AMBASSADOR …),
     // derived on the server from the session, never from the request body.
     creatorRole: text("creator_role").$type<Role>(),
@@ -803,6 +804,7 @@ export const leads = pgTable(
     index("leads_dup_check_idx").on(t.projectId, t.clientPhone, t.createdAt),
     index("leads_source_channel_idx").on(t.sourceChannel, t.createdAt),
     index("leads_next_follow_up_idx").on(t.nextFollowUpAt),
+    index("leads_requirement_match_idx").on(t.propertyRequirementMatchId),
     index("leads_ownership_review_idx").on(t.ownershipReviewStatus, t.createdAt),
   ]
 );
