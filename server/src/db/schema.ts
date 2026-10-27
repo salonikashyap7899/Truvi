@@ -583,6 +583,8 @@ export const propertyRequirements = pgTable(
     _id: uuid("id").defaultRandom().primaryKey(),
     submittedById: uuid("submitted_by_id").notNull().references(() => users._id),
     submittedByRole: text("submitted_by_role").$type<Role>().notNull(),
+    // Client-generated idempotency key, unique per account; null for older rows.
+    submissionKey: text("submission_key"),
     requirementKind: text("requirement_kind").$type<"BUYER" | "CLIENT">().notNull().default("BUYER"),
     visibility: text("visibility").$type<"PRIVATE" | "TRUVI">().notNull().default("TRUVI"),
     title: text("title").notNull(),
@@ -614,6 +616,7 @@ export const propertyRequirements = pgTable(
   (t) => [
     index("property_requirements_status_created_idx").on(t.status, t.createdAt),
     index("property_requirements_owner_status_idx").on(t.submittedById, t.status),
+    uniqueIndex("property_requirements_submitter_submission_key_unique").on(t.submittedById, t.submissionKey),
     index("property_requirements_city_idx").on(t.city),
   ],
 );
