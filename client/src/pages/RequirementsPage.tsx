@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock3, MapPin, Pencil, Plus, Search, X, CheckCircle2, IndianRupee, Ruler } from "lucide-react";
 import { api } from "@/lib/api";
@@ -128,7 +128,7 @@ export default function RequirementsPage() {
   const [search, setSearch] = useState("");
   const [boardType, setBoardType] = useState("ALL");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [mineRes, boardRes, matchesRes] = await Promise.all([
@@ -144,11 +144,11 @@ export default function RequirementsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   function changeForm<K extends keyof RequirementForm>(key: K, value: RequirementForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
