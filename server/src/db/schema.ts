@@ -572,6 +572,59 @@ export const projects = pgTable(
   ]
 );
 
+/**
+ * Structured, unmet property requirements submitted by buyers and authorized
+ * lead-generating roles. Private notes remain visible only to the submitter
+ * and admins; the noticeboard API deliberately selects public fields only.
+ */
+export const propertyRequirements = pgTable(
+  "property_requirements",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    submittedById: uuid("submitted_by_id").notNull().references(() => users._id),
+    submittedByRole: text("submitted_by_role").$type<Role>().notNull(),
+    title: text("title").notNull(),
+    propertyType: text("property_type").notNull().default("ANY"),
+    city: text("city").notNull(),
+    location: text("location").notNull(),
+    minBudget: doublePrecision("min_budget"),
+    maxBudget: doublePrecision("max_budget").notNull(),
+    minAreaSqft: doublePrecision("min_area_sqft"),
+    maxAreaSqft: doublePrecision("max_area_sqft"),
+    purpose: text("purpose"),
+    timeline: text("timeline").notNull(),
+    details: text("details"),
+    status: text("status").$type<"ACTIVE" | "CLOSED">().notNull().default("ACTIVE"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("property_requirements_status_created_idx").on(t.status, t.createdAt),
+    index("property_requirements_owner_status_idx").on(t.submittedById, t.status),
+    index("property_requirements_city_idx").on(t.city),
+  ],
+);
+export type IPropertyRequirement = typeof propertyRequirements.$inferSelect;
+
+/** One row per requirement/project pair, with idempotent delivery bookkeeping. */
+export const propertyRequirementMatches = pgTable(
+  "property_requirement_matches",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    requirementId: uuid("requirement_id").notNull().references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").notNull().references(() => projects._id, { onDelete: "cascade" }),
+    inAppNotifiedAt: timestamp("in_app_notified_at", { withTimezone: true, mode: "date" }),
+    emailSentAt: timestamp("email_sent_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("property_requirement_matches_pair_unique").on(t.requirementId, t.projectId),
+    index("property_requirement_matches_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_matches_project_idx").on(t.projectId, t.createdAt),
+  ],
+);
+export type IPropertyRequirementMatch = typeof propertyRequirementMatches.$inferSelect;
+
 export const units = pgTable(
   "units",
   {
