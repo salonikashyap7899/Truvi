@@ -22,7 +22,7 @@ The pilot is integrated into the existing Truvi web application and retains the 
 9. Create incentive policy versions as inactive. Use the recorded written approval reference only after the responsible business/finance approver has approved the actual terms. In Admin, select an Ambassador to load the eligible registered/completed sales list; the form deliberately does not ask staff to paste a raw lead UUID.
 10. Test the entire payout state sequence with a non-production sale: Pending → Approved → Payable → Paid. A payment receipt/reference is required for Paid.
 11. Check role boundaries with separate Admin, verified/active Ambassador, and unactivated Ambassador accounts. Confirm other Ambassadors cannot read each other's leads or incentive ledger.
-12. From the Ambassador workspace, download the JSON data export. Verify it contains only that account's OS data, excludes buyer names/contact details and CRM/follow-up free text, and records an audit event. Confirm the exported data does not contain password or authentication secrets.
+12. From the Ambassador workspace, download the JSON data export. Verify it contains only that account's OS data, excludes buyer contact details, CRM/follow-up notes, task evidence and marketing asset content, and records an audit event. Confirm the exported data does not contain password or authentication secrets.
 
 ## Important business rules
 
