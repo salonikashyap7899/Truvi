@@ -403,14 +403,22 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
   if (data.clientPhone?.trim()) duplicateConditions.push(eq(propertyRequirements.clientPhone, data.clientPhone.trim()) as never);
   else if (data.clientEmail?.trim()) duplicateConditions.push(eq(propertyRequirements.clientEmail, data.clientEmail.trim()) as never);
   else if (data.clientName?.trim()) duplicateConditions.push(eq(propertyRequirements.clientName, data.clientName.trim()) as never);
-  else if (!isBuyer) duplicateConditions.push(isNull(propertyRequirements.clientPhone) as never);
 
-  const [recentDuplicate] = await getDb().select({
-    id: propertyRequirements._id,
-  }).from(propertyRequirements)
-    .where(and(...duplicateConditions))
-    .orderBy(desc(propertyRequirements.createdAt))
-    .limit(1);
+  // Buyers can be deduplicated by their own requirement attributes. For lead
+  // submitters, require an identifying client field before applying the soft
+  // duplicate heuristic; otherwise two different clients with the same budget
+  // and location would incorrectly block one another. Submission keys still
+  // prevent retries/double-clicks for every role.
+  let recentDuplicate: { id: string } | undefined;
+  if (isBuyer || hasClientContact) {
+    const [foundDuplicate] = await db.select({
+      id: propertyRequirements._id,
+    }).from(propertyRequirements)
+      .where(and(...duplicateConditions))
+      .orderBy(desc(propertyRequirements.createdAt))
+      .limit(1);
+    recentDuplicate = foundDuplicate;
+  }
   if (recentDuplicate) {
     return res.status(409).json({
       error: "A very similar requirement was just submitted. Check your saved requirements before submitting again.",
