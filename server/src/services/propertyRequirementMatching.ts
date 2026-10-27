@@ -1,18 +1,18 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
-  notificationPreferences,
   propertyRequirementMatches,
   propertyRequirements,
   projects,
   units,
   users,
+  userNotificationChannelPreferences,
   type IPropertyRequirement,
   type IProject,
   type IUnit,
 } from "../db/schema";
 import { notifyUser, NotificationType } from "./notificationService";
-import { sendEmail } from "./emailService";
+import { sendEmailWithStatus } from "./emailService";
 
 type MatchableRequirement = IPropertyRequirement;
 type MatchableProject = IProject;
@@ -30,7 +30,10 @@ export function locationMatches(requirement: MatchableRequirement, project: Matc
   const requestedCity = normalize(requirement.city);
   const projectCity = normalize(project.city);
   if (!requestedCity || !projectCity) return false;
-  const sameCity = requestedCity === projectCity || requestedCity.includes(projectCity) || projectCity.includes(requestedCity);
+  const sameCity =
+    requestedCity === projectCity ||
+    requestedCity.includes(projectCity) ||
+    projectCity.includes(requestedCity);
   if (!sameCity) return false;
 
   const requestedLocation = normalize(requirement.location);
@@ -69,16 +72,16 @@ function typeMatches(requirement: MatchableRequirement, project: MatchableProjec
     || projectBucket === "RESIDENTIAL"
     || projectBucket === "ANY";
 
-  // A clearly categorized unit takes precedence over a broad project label;
-  // e.g. an apartment unit inside inconsistent plotted-project data must not
-  // be recommended to a buyer who specifically requested a plot.
-  if (knownCategories.has(unitBucket)) {
-    return unitBucket === wanted && projectIsCompatible;
-  }
+  // A clearly categorized unit takes precedence over a broad project label.
+  if (knownCategories.has(unitBucket)) return unitBucket === wanted && projectIsCompatible;
   return projectIsCompatible;
 }
 
-export function matchingUnits(requirement: MatchableRequirement, project: MatchableProject, availableUnits: IUnit[]): IUnit[] {
+export function matchingUnits(
+  requirement: MatchableRequirement,
+  project: MatchableProject,
+  availableUnits: IUnit[],
+): IUnit[] {
   if (!locationMatches(requirement, project)) return [];
   const minBudget = requirement.minBudget == null ? 0 : Number(requirement.minBudget);
   const maxBudget = Number(requirement.maxBudget);
@@ -93,6 +96,17 @@ export function matchingUnits(requirement: MatchableRequirement, project: Matcha
     if (requirement.maxAreaSqft != null && (!Number.isFinite(area) || area > Number(requirement.maxAreaSqft))) return false;
     return true;
   });
+}
+
+function matchReasons(requirement: MatchableRequirement, project: MatchableProject): string[] {
+  return [
+    "CITY_MATCH",
+    normalize(requirement.location) === normalize(requirement.city) ? "CITY_WIDE_LOCATION" : "LOCALITY_MATCH",
+    `PROPERTY_TYPE:${typeBucket(requirement.propertyType)}`,
+    `BUDGET:${requirement.minBudget == null ? 0 : Number(requirement.minBudget)}-${Number(requirement.maxBudget)}`,
+    ...(requirement.minAreaSqft != null || requirement.maxAreaSqft != null ? ["AREA_MATCH"] : []),
+    `PROJECT_TYPE:${typeBucket(project.projectType)}`,
+  ];
 }
 
 function escapeHtml(value: unknown): string {
@@ -115,9 +129,9 @@ function propertyUrl(projectId: string): string {
 }
 
 /**
- * Record one pair exactly once, then dispatch idempotent in-app and SMTP email
- * notifications. Provider failures are non-fatal: publishing a project or
- * submitting a requirement must never depend on SMTP being available.
+ * Matching itself is non-blocking relative to the project/requirement API.
+ * Durable match rows are the email queue; SMTP is processed by a server
+ * scheduler, with atomic claims and a bounded retry count.
  */
 async function recordAndNotifyMatch(
   requirement: MatchableRequirement,
@@ -128,9 +142,18 @@ async function recordAndNotifyMatch(
   const matching = matchingUnits(requirement, project, availableUnits);
   if (!matching.length) return;
 
+  const reasons = matchReasons(requirement, project);
   const [inserted] = await db
     .insert(propertyRequirementMatches)
-    .values({ requirementId: requirement._id, projectId: project._id })
+    .values({
+      requirementId: requirement._id,
+      projectId: project._id,
+      matchStatus: "MATCHED",
+      matchReasons: reasons,
+      notificationStatus: "PENDING",
+      emailStatus: "QUEUED",
+      emailNextAttemptAt: new Date(),
+    })
     .onConflictDoNothing()
     .returning();
 
@@ -145,97 +168,68 @@ async function recordAndNotifyMatch(
       ))
       .limit(1);
     matchRow = existing;
+    if (matchRow?.matchStatus === "NO_LONGER_ELIGIBLE") {
+      const [reopened] = await db.update(propertyRequirementMatches)
+        .set({
+          matchStatus: "MATCHED",
+          matchReasons: reasons,
+          notificationStatus: "PENDING",
+          emailStatus: "QUEUED",
+          emailAttempts: 0,
+          emailLastError: null,
+          emailNextAttemptAt: new Date(),
+          inAppNotifiedAt: null,
+          emailSentAt: null,
+          emailProviderMessageId: null,
+          emailDeliveredAt: null,
+        })
+        .where(eq(propertyRequirementMatches._id, matchRow._id))
+        .returning();
+      matchRow = reopened ?? matchRow;
+    }
   }
   if (!matchRow) return;
 
-  const [recipient] = await db
-    .select({
-      id: users._id,
-      name: users.name,
-      email: users.email,
-      emailVerified: users.emailVerified,
-    })
-    .from(users)
-    .where(eq(users._id, requirement.submittedById))
-    .limit(1);
-  if (!recipient) return;
-
-  const href = `/inventory/${project._id}/presentation`;
-  const message = `A ${project.projectType || requirement.propertyType || "property"} matching your requirement is available in ${project.location}, ${project.city}. Available inventory starts at ${inr(Math.min(...matching.map((unit) => Number(unit.price))))}. Tap to check the project details.`;
-
-  if (!matchRow.inAppNotifiedAt) {
+  if (matchRow.notificationStatus === "PENDING") {
     try {
-      const created = await notifyUser(String(recipient.id), {
+      const created = await notifyUser(String(requirement.submittedById), {
         type: NotificationType.PROPERTY_MATCH,
-        title: "A property matches your requirement",
-        message,
+        title: "New property in your preferred area",
+        message: `A new ${project.projectType || requirement.propertyType || "property"} has been listed in ${project.location}, ${project.city}, matching your requirement. View the project for verified details and available inventory.`,
         priority: "high",
-        data: { href, requirementId: String(requirement._id), projectId: String(project._id) },
+        data: {
+          href: `/inventory/${project._id}/presentation`,
+          requirementId: String(requirement._id),
+          projectId: String(project._id),
+        },
         dedupeKey: `property-requirement:${requirement._id}:${project._id}`,
       });
-      if (created.length > 0) {
-        await db.update(propertyRequirementMatches)
-          .set({ inAppNotifiedAt: new Date() })
-          .where(eq(propertyRequirementMatches._id, matchRow._id));
-      }
-    } catch (error) {
-      console.warn("[property-matching] in-app notification failed:", error instanceof Error ? error.message : "unknown error");
-    }
-  }
-
-  if (!matchRow.emailSentAt && recipient.emailVerified && recipient.email) {
-    try {
-      const [muted] = await db
-        .select({ id: notificationPreferences._id })
-        .from(notificationPreferences)
-        .where(and(
-          eq(notificationPreferences.userId, recipient.id),
-          eq(notificationPreferences.category, "properties"),
-          eq(notificationPreferences.enabled, false),
-        ))
-        .limit(1);
-
-      if (!muted) {
-        const projectLink = propertyUrl(String(project._id));
-        const prices = matching.map((unit) => Number(unit.price)).filter(Number.isFinite);
-        const low = Math.min(...prices);
-        const high = Math.max(...prices);
-        const priceText = low === high ? inr(low) : `${inr(low)} – ${inr(high)}`;
-        const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#172033;line-height:1.6">
-          <h2 style="color:#0f766e">A new property matches your Truvi requirement</h2>
-          <p>Hello ${escapeHtml(recipient.name)},</p>
-          <p>A newly available Truvi project matches your saved property requirement.</p>
-          <div style="border:1px solid #dbe3ea;border-radius:12px;padding:18px;margin:18px 0">
-            <h3 style="margin:0 0 8px">${escapeHtml(project.name)}</h3>
-            <p style="margin:4px 0"><strong>Location:</strong> ${escapeHtml(project.location)}, ${escapeHtml(project.city)}</p>
-            <p style="margin:4px 0"><strong>Property type:</strong> ${escapeHtml(project.projectType || "Property")}</p>
-            <p style="margin:4px 0"><strong>Matching available inventory:</strong> ${escapeHtml(priceText)}</p>
-          </div>
-          <p><a href="${projectLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none">View Property Details</a></p>
-          <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account.</p>
-          <p>Team Truvi</p>
-        </div>`;
-        const sent = await sendEmail(String(recipient.email), "A new property matches your Truvi requirement", html);
-        if (sent) {
-          await db.update(propertyRequirementMatches)
-            .set({ emailSentAt: new Date() })
-            .where(eq(propertyRequirementMatches._id, matchRow._id));
-        }
-      }
-    } catch (error) {
-      // Don't log addresses or email contents; provider configuration can be checked separately.
-      console.warn("[property-matching] email notification failed:", error instanceof Error ? error.message : "unknown error");
+      await db.update(propertyRequirementMatches)
+        .set({
+          notificationStatus: created.length > 0 ? "CREATED" : "SKIPPED",
+          ...(created.length > 0 ? { inAppNotifiedAt: new Date() } : {}),
+        })
+        .where(eq(propertyRequirementMatches._id, matchRow._id));
+    } catch {
+      await db.update(propertyRequirementMatches)
+        .set({ notificationStatus: "FAILED" })
+        .where(eq(propertyRequirementMatches._id, matchRow._id))
+        .catch(() => {});
+      console.warn("[property-matching] in-app notification failed");
     }
   }
 }
 
-/** Match a newly submitted/updated active requirement against currently live inventory. */
+/** Match a submitted or updated active requirement against currently live inventory. */
 export async function matchRequirementAgainstAvailableProjects(requirementId: string): Promise<void> {
   const db = getDb();
   const [requirement] = await db
     .select()
     .from(propertyRequirements)
-    .where(and(eq(propertyRequirements._id, requirementId), eq(propertyRequirements.status, "ACTIVE")))
+    .where(and(
+      eq(propertyRequirements._id, requirementId),
+      eq(propertyRequirements.status, "ACTIVE"),
+    ))
     .limit(1);
   if (!requirement) return;
 
@@ -266,7 +260,7 @@ export async function matchRequirementAgainstAvailableProjects(requirementId: st
   }
 }
 
-/** Match a newly approved project or newly added inventory against active requirements. */
+/** Match existing active requirements after a project goes live or inventory changes. */
 export async function matchRequirementsForPublishedProject(projectId: string): Promise<void> {
   const db = getDb();
   const [project] = await db
@@ -293,4 +287,175 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
       await recordAndNotifyMatch(requirement, project, availableUnits);
     }
   }
+}
+
+/**
+ * Durable queued email worker. Atomic status transition to SENDING means two
+ * server replicas cannot send the same queue row. Retry policy is capped at
+ * three attempts; SMTP acceptance is NOT reported as recipient delivery.
+ */
+export async function processPendingRequirementEmails(limit = 25): Promise<{ scanned: number; sentToProvider: number; retried: number; failed: number }> {
+  const db = getDb();
+  const now = new Date();
+  const pending = await db
+    .select({ id: propertyRequirementMatches._id })
+    .from(propertyRequirementMatches)
+    .where(and(
+      inArray(propertyRequirementMatches.emailStatus, ["QUEUED", "RETRY_PENDING"]),
+      lt(propertyRequirementMatches.emailAttempts, 3),
+      or(isNull(propertyRequirementMatches.emailNextAttemptAt), lte(propertyRequirementMatches.emailNextAttemptAt, now)),
+    ))
+    .orderBy(desc(propertyRequirementMatches.createdAt))
+    .limit(Math.max(1, Math.min(100, Math.floor(limit))));
+
+  let sentToProvider = 0;
+  let retried = 0;
+  let failed = 0;
+
+  for (const item of pending) {
+    const [claimed] = await db.update(propertyRequirementMatches)
+      .set({
+        emailStatus: "SENDING",
+        emailAttempts: sql`${propertyRequirementMatches.emailAttempts} + 1`,
+        emailNextAttemptAt: null,
+      })
+      .where(and(
+        eq(propertyRequirementMatches._id, item.id),
+        inArray(propertyRequirementMatches.emailStatus, ["QUEUED", "RETRY_PENDING"]),
+        lt(propertyRequirementMatches.emailAttempts, 3),
+        or(isNull(propertyRequirementMatches.emailNextAttemptAt), lte(propertyRequirementMatches.emailNextAttemptAt, now)),
+      ))
+      .returning();
+    if (!claimed) continue;
+
+    const attempt = claimed.emailAttempts;
+    try {
+      const [requirement] = await db.select().from(propertyRequirements)
+        .where(eq(propertyRequirements._id, claimed.requirementId)).limit(1);
+      const [project] = await db.select().from(projects)
+        .where(eq(projects._id, claimed.projectId)).limit(1);
+      if (!requirement || requirement.status !== "ACTIVE" || !project
+        || project.approvalStatus !== "APPROVED" || project.availabilityStatus !== "AVAILABLE") {
+        await db.update(propertyRequirementMatches)
+          .set({ matchStatus: "NO_LONGER_ELIGIBLE", emailStatus: "SKIPPED", emailLastError: "MATCH_NO_LONGER_ELIGIBLE" })
+          .where(eq(propertyRequirementMatches._id, claimed._id));
+        continue;
+      }
+
+      const availableUnits = await db.select().from(units).where(and(
+        eq(units.projectId, project._id),
+        eq(units.status, "AVAILABLE"),
+      ));
+      const matching = matchingUnits(requirement, project, availableUnits);
+      if (!matching.length) {
+        await db.update(propertyRequirementMatches)
+          .set({ matchStatus: "NO_LONGER_ELIGIBLE", emailStatus: "SKIPPED", emailLastError: "NO_MATCHING_AVAILABLE_UNIT" })
+          .where(eq(propertyRequirementMatches._id, claimed._id));
+        continue;
+      }
+
+      const [recipient] = await db.select({
+        id: users._id,
+        name: users.name,
+        email: users.email,
+        emailVerified: users.emailVerified,
+        disabled: users.disabled,
+      }).from(users).where(eq(users._id, requirement.submittedById)).limit(1);
+
+      if (!recipient || recipient.disabled || !recipient.email || !recipient.emailVerified) {
+        await db.update(propertyRequirementMatches)
+          .set({ emailStatus: "SKIPPED", emailLastError: "RECIPIENT_EMAIL_NOT_ELIGIBLE" })
+          .where(eq(propertyRequirementMatches._id, claimed._id));
+        continue;
+      }
+
+      const [emailOff] = await db.select({ id: userNotificationChannelPreferences._id })
+        .from(userNotificationChannelPreferences)
+        .where(and(
+          eq(userNotificationChannelPreferences.userId, recipient.id),
+          eq(userNotificationChannelPreferences.channel, "EMAIL"),
+          eq(userNotificationChannelPreferences.category, "properties"),
+          eq(userNotificationChannelPreferences.enabled, false),
+        )).limit(1);
+      if (emailOff) {
+        await db.update(propertyRequirementMatches)
+          .set({ emailStatus: "SKIPPED", emailLastError: "EMAIL_PREFERENCE_DISABLED" })
+          .where(eq(propertyRequirementMatches._id, claimed._id));
+        continue;
+      }
+
+      const prices = matching.map((unit) => Number(unit.price)).filter(Number.isFinite);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const priceText = minPrice === maxPrice ? inr(minPrice) : `${inr(minPrice)} – ${inr(maxPrice)}`;
+      const projectLink = propertyUrl(String(project._id));
+      const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#172033;line-height:1.6">
+        <h2 style="color:#0f766e">A new property matches your Truvi requirement</h2>
+        <p>Hello ${escapeHtml(recipient.name)},</p>
+        <p>A newly available Truvi project matches your active property requirement.</p>
+        <div style="border:1px solid #dbe3ea;border-radius:12px;padding:18px;margin:18px 0">
+          <h3 style="margin:0 0 8px">${escapeHtml(project.name)}</h3>
+          <p style="margin:4px 0"><strong>Location:</strong> ${escapeHtml(project.location)}, ${escapeHtml(project.city)}</p>
+          <p style="margin:4px 0"><strong>Property type:</strong> ${escapeHtml(project.projectType || "Property")}</p>
+          <p style="margin:4px 0"><strong>Matching available inventory:</strong> ${escapeHtml(priceText)}</p>
+        </div>
+        <p><a href="${projectLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none">View Property Details</a></p>
+        <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account.</p>
+        <p>Team Truvi</p>
+      </div>`;
+
+      const result = await sendEmailWithStatus(
+        String(recipient.email),
+        "A New Property Matches Your Truvi Requirement",
+        html,
+      );
+      if (result.status === "SENT_TO_PROVIDER") {
+        await db.update(propertyRequirementMatches).set({
+          emailStatus: "SENT_TO_PROVIDER",
+          emailSentAt: new Date(),
+          emailProviderMessageId: result.messageId,
+          emailLastError: null,
+          emailNextAttemptAt: null,
+        }).where(eq(propertyRequirementMatches._id, claimed._id));
+        sentToProvider++;
+      } else {
+        // A missing SMTP configuration is a terminal operational issue until an
+        // admin fixes config and manually retries; never claim that mail was sent.
+        await db.update(propertyRequirementMatches).set({
+          emailStatus: "FAILED",
+          emailLastError: "SMTP_NOT_CONFIGURED",
+          emailNextAttemptAt: null,
+        }).where(eq(propertyRequirementMatches._id, claimed._id));
+        failed++;
+      }
+    } catch {
+      const terminal = attempt >= 3;
+      const delayMinutes = attempt === 1 ? 1 : attempt === 2 ? 5 : 15;
+      await db.update(propertyRequirementMatches).set({
+        emailStatus: terminal ? "FAILED" : "RETRY_PENDING",
+        emailLastError: "SMTP_SEND_FAILED",
+        emailNextAttemptAt: terminal ? null : new Date(Date.now() + delayMinutes * 60_000),
+      }).where(eq(propertyRequirementMatches._id, claimed._id));
+      if (terminal) failed++;
+      else retried++;
+      console.warn("[property-matching] queued email attempt failed");
+    }
+  }
+
+  return { scanned: pending.length, sentToProvider, retried, failed };
+}
+
+/** Start the durable queue worker. Database status claims make it safe on PM2 replicas. */
+export function startPropertyRequirementEmailScheduler(): void {
+  const run = () => {
+    processPendingRequirementEmails()
+      .then((result) => {
+        if (result.scanned > 0) {
+          console.log(`[property-matching] email queue scanned=${result.scanned}, accepted=${result.sentToProvider}, retry=${result.retried}, failed=${result.failed}`);
+        }
+      })
+      .catch(() => console.warn("[property-matching] email queue sweep failed"));
+  };
+  setTimeout(run, 45_000).unref();
+  setInterval(run, 60_000).unref();
 }
