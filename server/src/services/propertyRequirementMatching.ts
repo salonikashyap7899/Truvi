@@ -403,7 +403,28 @@ export async function enqueueRequirementMatchJob(
   if (jobType === "REQUIREMENT" && !ids.requirementId) throw new Error("requirementId is required");
   if (jobType === "PROJECT" && !ids.projectId) throw new Error("projectId is required");
 
-  await getDb().insert(propertyRequirementMatchJobs).values({
+  const db = getDb();
+  const activeTarget = jobType === "REQUIREMENT"
+    ? and(
+        eq(propertyRequirementMatchJobs.jobType, "REQUIREMENT"),
+        eq(propertyRequirementMatchJobs.requirementId, ids.requirementId!),
+        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RUNNING", "RETRY_PENDING"]),
+      )
+    : and(
+        eq(propertyRequirementMatchJobs.jobType, "PROJECT"),
+        eq(propertyRequirementMatchJobs.projectId, ids.projectId!),
+        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RUNNING", "RETRY_PENDING"]),
+      );
+  const [existing] = await db.select({ id: propertyRequirementMatchJobs._id })
+    .from(propertyRequirementMatchJobs)
+    .where(activeTarget)
+    .limit(1);
+  if (existing) return;
+
+  // The partial unique indexes serialize concurrent QUEUED/RETRY_PENDING
+  // inserts; the active-target lookup also avoids queuing a second pass while
+  // another PM2 worker is already processing the same target.
+  await db.insert(propertyRequirementMatchJobs).values({
     jobType,
     requirementId: ids.requirementId ?? null,
     projectId: ids.projectId ?? null,
