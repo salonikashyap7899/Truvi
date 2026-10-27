@@ -6,7 +6,7 @@ import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 import { startLifecycleReminderScheduler } from "./services/lifecycleEmails";
 import { startNotificationReminderScheduler } from "./services/notificationReminders";
-import { startPropertyRequirementEmailScheduler } from "./services/propertyRequirementMatching";
+import { startPropertyRequirementBackgroundWorkers } from "./services/propertyRequirementMatching";
 import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
 import { startHabitatPayoutScheduler } from "./routes/habitatFinance";
 
@@ -55,7 +55,7 @@ async function main() {
   startNotificationReminderScheduler();
 
   // Durable, bounded-retry queue for property-match email notifications.
-  startPropertyRequirementEmailScheduler();
+  startPropertyRequirementBackgroundWorkers();
   startHabitatPayoutScheduler();
 
   // Most PaaS/VPS process managers send SIGTERM before killing the process on
