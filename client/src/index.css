@@ -85,3 +85,34 @@ img, video {
   image-rendering: auto;           /* UA default = high-quality (bicubic) scaler */
   image-rendering: high-quality;   /* honoured where supported */
 }
+
+
+/* Accessibility contrast adjustments from the live axe audit.
+   Keep the dark navy + blue brand, but make utility text reliably readable. */
+:where(
+  [class~="text-white/15"],
+  [class~="text-white/20"],
+  [class~="text-white/25"],
+  [class~="text-white/30"],
+  [class~="text-white/35"],
+  [class~="text-white/40"],
+  [class~="text-white/45"],
+  [class~="text-white/50"]
+) {
+  color: rgb(226 234 245 / 0.92) !important;
+}
+
+/* Muted placeholders were also too faint against the dark form surfaces. */
+input::placeholder,
+textarea::placeholder {
+  color: rgb(203 213 225 / 0.9);
+  opacity: 1;
+}
+
+/* White labels on the brand blue need a darker blue surface to meet WCAG AA. */
+:where([class~="bg-[var(--trust)]"]) {
+  background-color: oklch(0.52 0.19 250) !important;
+}
+:where([class~="hover:bg-[var(--trust)]/85"]:hover) {
+  background-color: oklch(0.47 0.19 250) !important;
+}
