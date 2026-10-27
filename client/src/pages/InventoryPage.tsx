@@ -278,6 +278,7 @@ export default function InventoryPage() {
             <label className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1.5 text-xs text-white/80">
               <SlidersHorizontal size={13} className="text-white/50" />
               <select
+                aria-label="Sort properties"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 className="bg-transparent outline-none [&>option]:bg-[#0a0d14]"
