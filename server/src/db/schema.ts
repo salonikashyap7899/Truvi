@@ -690,6 +690,26 @@ export const propertyRequirementMatchJobs = pgTable(
 );
 export type IPropertyRequirementMatchJob = typeof propertyRequirementMatchJobs.$inferSelect;
 
+/** Internal, privacy-preserving responses to a requirement on the authorized noticeboard. */
+export const propertyRequirementResponses = pgTable(
+  "property_requirement_responses",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    requirementId: uuid("requirement_id").notNull().references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    responderId: uuid("responder_id").notNull().references(() => users._id),
+    message: text("message").notNull(),
+    status: text("status").$type<"SENT" | "WITHDRAWN">().notNull().default("SENT"),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("property_requirement_response_user_unique").on(t.requirementId, t.responderId),
+    index("property_requirement_responses_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_responses_responder_idx").on(t.responderId, t.createdAt),
+  ],
+);
+
 export const units = pgTable(
   "units",
   {
