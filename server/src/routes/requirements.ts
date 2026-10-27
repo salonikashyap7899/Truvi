@@ -249,6 +249,10 @@ router.get("/board", async (req: AuthedRequest, res) => {
     .select({
       _id: propertyRequirements._id,
       submittedById: propertyRequirements.submittedById,
+      // Read private contacts only for in-process redaction; omit them from the response.
+      clientName: propertyRequirements.clientName,
+      clientPhone: propertyRequirements.clientPhone,
+      clientEmail: propertyRequirements.clientEmail,
       title: propertyRequirements.title,
       propertyType: propertyRequirements.propertyType,
       city: propertyRequirements.city,
@@ -272,17 +276,19 @@ router.get("/board", async (req: AuthedRequest, res) => {
     .offset(offset);
   const total = countRow?.total ?? 0;
   res.json({
-    requirements: rows.map(({ submittedById, ...row }) => ({
-      ...row,
-      // All user-authored strings shown to other users are treated as public
-      // text, never as a trusted privacy boundary. Contact patterns are stripped
-      // even if accidentally entered in a title, city, locality, or summary.
-      title: sanitizePublicRequirementSummary(row.title) ?? "Property requirement",
-      city: sanitizePublicRequirementSummary(row.city) ?? "Location withheld",
-      location: sanitizePublicRequirementSummary(row.location) ?? "Location withheld",
-      publicSummary: sanitizePublicRequirementSummary(row.publicSummary),
-      isOwn: String(submittedById) === req.user!.userId,
-    })),
+    requirements: rows.map(({ submittedById, clientName, clientPhone, clientEmail, ...row }) => {
+      const privateValues = [clientName, clientPhone, clientEmail];
+      return {
+        ...row,
+        // Contact patterns and known private client values are removed from every
+        // user-authored public field. Private contact fields are omitted entirely.
+        title: sanitizePublicRequirementSummary(row.title, privateValues) ?? "Property requirement",
+        city: sanitizePublicRequirementSummary(row.city, privateValues) ?? "Location withheld",
+        location: sanitizePublicRequirementSummary(row.location, privateValues) ?? "Location withheld",
+        publicSummary: sanitizePublicRequirementSummary(row.publicSummary, privateValues),
+        isOwn: String(submittedById) === req.user!.userId,
+      };
+    }),
     canSubmit,
     canRespond,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
