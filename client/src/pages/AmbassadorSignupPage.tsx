@@ -91,7 +91,7 @@ export default function AmbassadorSignupPage() {
               </p>
             )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
+            <form noValidate onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
                 <div>
                   <Label>Full name</Label>
                   <Input {...register("name")} required aria-invalid={Boolean(errors.name)} placeholder="Priya Sharma" className="h-11 border-white/15 bg-white/5 text-white placeholder:text-white/30" />
