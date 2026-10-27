@@ -148,6 +148,13 @@ const labelForType = (value: string) =>
 const labelForTimeline = (value: string) =>
   TIMELINES.find((item) => item.value === value)?.label ?? value.replace(/_/g, " ");
 
+const labelForContactMethod = (value: string) => ({
+  IN_APP: "Truvi in-app",
+  PHONE: "Phone call",
+  EMAIL: "Email",
+  WHATSAPP: "WhatsApp (manual follow-up only)",
+}[value] ?? "Truvi in-app");
+
 const roleLabel = (role: string) => ({
   BUYER: "Buyer",
   CP: "Channel Partner",
@@ -480,11 +487,12 @@ export default function RequirementsPage() {
                   <span className="mb-1.5 block text-white/80">Preferred contact method</span>
                   <select value={form.preferredContactMethod} onChange={(event) => changeForm("preferredContactMethod", event.target.value as ContactMethod)} className="w-full rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 outline-none focus:border-teal-400/70">
                     <option value="IN_APP">Truvi in-app</option>
-                    <option value="PHONE">Phone call</option>
-                    <option value="EMAIL">Email</option>
+                    <option value="PHONE">Phone call (manual follow-up preference)</option>
+                    <option value="EMAIL">Email (manual follow-up preference)</option>
                     <option value="WHATSAPP">WhatsApp (manual follow-up preference)</option>
                   </select>
                 </label>
+                <p className="text-xs leading-5 text-muted-foreground sm:col-span-2">This is your preferred follow-up method, not an automated outreach setting. Requirement responses are sent privately through Truvi in-app; WhatsApp automation is not enabled for property recommendations.</p>
                 <label className="block text-sm">
                   <span className="mb-1.5 block text-white/80">Noticeboard visibility</span>
                   <select value={form.visibility} onChange={(event) => changeForm("visibility", event.target.value as Visibility)} className="w-full rounded-xl border border-white/10 bg-[#111820] px-3 py-2.5 outline-none focus:border-teal-400/70">
@@ -592,6 +600,7 @@ export default function RequirementsPage() {
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><MapPin size={14} /> {row.location}, {row.city}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><IndianRupee size={14} /> {budgetLabel(row)}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Clock3 size={14} /> {labelForTimeline(row.timeline)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Preferred follow-up: {labelForContactMethod(row.preferredContactMethod)}</p>
                 {(row.minAreaSqft || row.maxAreaSqft) && <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Ruler size={14} /> {row.minAreaSqft ?? "Any"} – {row.maxAreaSqft ?? "Any"} sq. ft.</p>}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {(row.status === "ACTIVE" || row.status === "CLOSED") && (
@@ -669,6 +678,7 @@ export default function RequirementsPage() {
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-white/75"><MapPin size={14} /> {row.location}, {row.city}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><IndianRupee size={14} /> {budgetLabel(row)}</p>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Clock3 size={14} /> {labelForTimeline(row.timeline)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Preferred follow-up: {labelForContactMethod(row.preferredContactMethod)}</p>
                 {(row.minAreaSqft != null || row.maxAreaSqft != null) && <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75"><Ruler size={14} /> {row.minAreaSqft ?? "Any"} – {row.maxAreaSqft ?? "Any"} sq. ft.</p>}
                 {row.publicSummary && <p className="mt-3 rounded-lg bg-white/[0.04] p-3 text-sm leading-5 text-white/70">{row.publicSummary}</p>}
                 <span className="mt-3 inline-block rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-muted-foreground">{row.status.replace(/_/g, " ")}</span>
