@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   propertyRequirementMatches,
@@ -32,6 +32,17 @@ function cityKey(value: unknown): string {
   // City fields sometimes include a state/region after a comma. Compare the
   // city name itself, not substring matches (e.g. "York" must not match "New York").
   return normalize(String(value ?? "").split(",")[0]);
+}
+
+/** SQL candidate filter; exact normalized matching is still done in locationMatches. */
+function cityPrefixPattern(value: unknown): string | null {
+  const prefix = String(value ?? "").split(",")[0].trim().toLowerCase();
+  if (!prefix) return null;
+  return `${prefix.replace(/[\\%_]/g, "\\function cityKey(value: unknown): string {
+  // City fields sometimes include a state/region after a comma. Compare the
+  // city name itself, not substring matches (e.g. "York" must not match "New York").
+  return normalize(String(value ?? "").split(",")[0]);
+}")}%`;
 }
 
 export function isPublishedProject(project: Pick<MatchableProject, "approvalStatus" | "availabilityStatus"> | null | undefined): boolean {
@@ -337,12 +348,20 @@ export async function matchRequirementAgainstAvailableProjects(requirementId: st
     return;
   }
 
+  const cityPattern = cityPrefixPattern(requirement.city);
+  if (!cityPattern) {
+    await invalidateRequirementMatches(String(requirement._id), "REQUIREMENT_CITY_MISSING");
+    return;
+  }
+  // Narrow the candidate set in PostgreSQL using the indexed city prefix;
+  // exact normalized city/locality matching is still validated below.
   const candidates = await db
     .select()
     .from(projects)
     .where(and(
       eq(projects.approvalStatus, "APPROVED"),
       eq(projects.availabilityStatus, "AVAILABLE"),
+      like(sql`lower(${projects.city})`, cityPattern),
     ));
   const possible = candidates.filter((project) => locationMatches(requirement, project));
   const possibleIds = new Set(possible.map((project) => String(project._id)));
@@ -406,15 +425,36 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
     return;
   }
 
-  const activeRequirements = await db
-    .select()
-    .from(propertyRequirements)
-    .where(eq(propertyRequirements.status, "ACTIVE"))
-    .orderBy(desc(propertyRequirements.createdAt));
+  const cityPattern = cityPrefixPattern(project.city);
+  const activeRequirements = cityPattern
+    ? await db
+        .select()
+        .from(propertyRequirements)
+        .where(and(
+          eq(propertyRequirements.status, "ACTIVE"),
+          like(sql`lower(${propertyRequirements.city})`, cityPattern),
+        ))
+        .orderBy(desc(propertyRequirements.createdAt))
+    : [];
+
+  const activeRequirementIds = new Set(activeRequirements.map((requirement) => String(requirement._id)));
+  const priorMatches = await db.select({
+    requirementId: propertyRequirementMatches.requirementId,
+  }).from(propertyRequirementMatches).where(and(
+    eq(propertyRequirementMatches.projectId, project._id),
+    inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+  ));
+  // A project moved to a different city must not leave stale matches visible
+  // to requirements from its former city. Retain the rows for audit/history.
+  for (const prior of priorMatches) {
+    const requirementId = String(prior.requirementId);
+    if (!activeRequirementIds.has(requirementId)) {
+      await markMatchIneligible(requirementId, String(project._id), "REQUIREMENT_NO_LONGER_MATCHES_LOCATION");
+    }
+  }
 
   for (const requirement of activeRequirements) {
-    // Passing non-matches through recordAndNotifyMatch also invalidates stale
-    // previously matched rows after a locality, type, price, or size change.
+    // Exact locality/type/budget/area validation happens in recordAndNotifyMatch.
     await recordAndNotifyMatch(requirement, project, availableUnits);
   }
 }
