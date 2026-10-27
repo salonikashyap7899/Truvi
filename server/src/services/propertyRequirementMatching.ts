@@ -484,6 +484,16 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
         .where(eq(propertyRequirements._id, claimed.requirementId)).limit(1);
       const [project] = await db.select().from(projects)
         .where(eq(projects._id, claimed.projectId)).limit(1);
+      if (claimed.matchStatus === "ENQUIRY_CREATED") {
+        await db.update(propertyRequirementMatches).set({
+          emailStatus: "SKIPPED",
+          emailNextAttemptAt: null,
+          emailClaimedAt: null,
+          emailLastError: "ENQUIRY_ALREADY_CREATED",
+        }).where(eq(propertyRequirementMatches._id, claimed._id));
+        continue;
+      }
+
       if (!requirement || requirement.status !== "ACTIVE" || !project
         || project.approvalStatus !== "APPROVED" || project.availabilityStatus !== "AVAILABLE") {
         await db.update(propertyRequirementMatches)
