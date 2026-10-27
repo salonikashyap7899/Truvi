@@ -128,7 +128,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
     if (isGuest) {
       navigate("/login", {
         state: {
-          returnTo: location.pathname,
+          returnTo: `${location.pathname}${location.search}`,
           siteVisitDraft: { unitId, visitDate, visitTime, requirement, notes },
         },
       });
