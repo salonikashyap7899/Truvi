@@ -651,29 +651,31 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
           emailNextAttemptAt: null,
         }).where(eq(propertyRequirementMatches._id, claimed._id));
 
-        // A provider webhook can arrive before the message ID has been persisted.
-        // Reconcile any such early event so DELIVERED/FAILED is not lost to a race.
-        const earlyEvents = await db.select({
+        if (result.messageId) {
+          // A provider webhook can arrive before the message ID has been persisted.
+          // Reconcile any such early event so DELIVERED/FAILED is not lost to a race.
+          const earlyEvents = await db.select({
           eventType: emailDeliveryEvents.eventType,
           providerCreatedAt: emailDeliveryEvents.providerCreatedAt,
         }).from(emailDeliveryEvents)
           .where(eq(emailDeliveryEvents.providerMessageId, result.messageId))
           .orderBy(desc(emailDeliveryEvents.receivedAt))
           .limit(20);
-        const deliveredEvent = earlyEvents.find((event) => event.eventType === "email.delivered");
-        const failedEvent = earlyEvents.find((event) => ["email.bounced", "email.complained", "email.failed"].includes(event.eventType));
-        if (deliveredEvent) {
-          await db.update(propertyRequirementMatches).set({
-            emailStatus: "DELIVERED",
-            emailDeliveredAt: deliveredEvent.providerCreatedAt ?? new Date(),
-            emailLastError: null,
-          }).where(eq(propertyRequirementMatches._id, claimed._id));
-        } else if (failedEvent) {
-          await db.update(propertyRequirementMatches).set({
-            emailStatus: "FAILED",
-            emailLastError: `RESEND_${failedEvent.eventType.replace(/[^a-z.]/g, "").toUpperCase().replace(/\./g, "_")}`,
-            emailNextAttemptAt: null,
-          }).where(eq(propertyRequirementMatches._id, claimed._id));
+          const deliveredEvent = earlyEvents.find((event) => event.eventType === "email.delivered");
+          const failedEvent = earlyEvents.find((event) => ["email.bounced", "email.complained", "email.failed"].includes(event.eventType));
+          if (deliveredEvent) {
+            await db.update(propertyRequirementMatches).set({
+              emailStatus: "DELIVERED",
+              emailDeliveredAt: deliveredEvent.providerCreatedAt ?? new Date(),
+              emailLastError: null,
+            }).where(eq(propertyRequirementMatches._id, claimed._id));
+          } else if (failedEvent) {
+            await db.update(propertyRequirementMatches).set({
+              emailStatus: "FAILED",
+              emailLastError: `RESEND_${failedEvent.eventType.replace(/[^a-z.]/g, "").toUpperCase().replace(/\./g, "_")}`,
+              emailNextAttemptAt: null,
+            }).where(eq(propertyRequirementMatches._id, claimed._id));
+          }
         }
         sentToProvider++;
       } else {
