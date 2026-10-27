@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IProject, IPropertyRequirement, IUnit } from "../db/schema";
-import { locationMatches, matchingUnits, typeBucket } from "./propertyRequirementMatching";
+import { isPublishedProject, locationMatches, matchingUnits, typeBucket } from "./propertyRequirementMatching";
 
 function requirement(overrides: Partial<IPropertyRequirement> = {}): IPropertyRequirement {
   return {
@@ -60,6 +60,19 @@ describe("property requirement matching", () => {
 
   it("rejects a project in another city", () => {
     expect(locationMatches(requirement(), project({ city: "Delhi", location: "Sultanpur Road" }))).toBe(false);
+  });
+
+  it("matches city names with an optional state suffix but does not use unsafe substrings", () => {
+    expect(locationMatches(requirement(), project({ city: "Lucknow, Uttar Pradesh" }))).toBe(true);
+    expect(locationMatches(requirement({ city: "York", location: "York" }), project({ city: "New York", location: "York" }))).toBe(false);
+  });
+
+  it("only treats approved and available projects as recommendation-eligible", () => {
+    expect(isPublishedProject(project())).toBe(true);
+    expect(isPublishedProject(project({ approvalStatus: "PENDING" }))).toBe(false);
+    expect(isPublishedProject(project({ approvalStatus: "REJECTED" }))).toBe(false);
+    expect(isPublishedProject(project({ availabilityStatus: "SOLD_OUT" }))).toBe(false);
+    expect(isPublishedProject(null)).toBe(false);
   });
 
   it("normalizes common real-estate property type aliases", () => {
