@@ -125,7 +125,12 @@ export async function run(shared) {
       // Click the actual CTA element discovered above. Text-only selection can
       // accidentally click a duplicate label or nested span and report a working
       // link as inert.
-      const loc = page.locator("a[href], button, [role=button]").nth(cta.domIndex);
+      // Reloads may change the DOM order (deferred sections, auth state,
+      // animations). Prefer the actual destination for links instead of
+      // assuming the same element keeps the same ordinal index after reload.
+      const loc = cta.tag === "a" && cta.href
+        ? page.locator(`a[href="${cssAttributeEscape(cta.href)}"]`).first()
+        : page.locator("a[href], button, [role=button]").nth(cta.domIndex);
       if (!(await loc.count())) continue;
       const beforeUrl = page.url();
       const dialogsBefore = await page.locator("[role=dialog], .modal, [aria-modal='true']").count();
@@ -165,6 +170,10 @@ export async function run(shared) {
 // Minimal CSS attribute-value escaper for the href selector.
 function cssEscape(s) {
   return String(s).replace(/'/g, "\\'");
+}
+
+function cssAttributeEscape(s) {
+  return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 if (isMain(import.meta.url)) {
