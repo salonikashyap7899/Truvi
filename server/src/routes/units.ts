@@ -15,6 +15,12 @@ import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatch
 const router = Router();
 router.use(authenticate);
 
+function queueProjectRequirementRecheck(projectId: string): void {
+  void enqueueRequirementMatchJob("PROJECT", { projectId }).catch(() => {
+    console.warn("[property-matching] inventory-change match job could not be queued");
+  });
+}
+
 router.get("/", async (req: AuthedRequest, res) => {
   await expireStaleLocks();
   const role = req.user!.role;
@@ -128,6 +134,7 @@ router.delete("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReque
   }
 
   await db.delete(units).where(eq(units._id, unit._id));
+  queueProjectRequirementRecheck(String(unit.projectId));
   res.json({ ok: true });
 });
 
@@ -187,6 +194,7 @@ router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
   const unit = outcome.unit;
 
   emitUnitUpdate(String(unit.projectId), unit);
+  queueProjectRequirementRecheck(String(unit.projectId));
 
   // Let the project's developer know a CP just locked a unit (booking intent).
   try {
@@ -221,6 +229,7 @@ router.delete("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) =>
   if (!unit) return res.status(403).json({ error: "You don't hold the lock on this unit" });
 
   emitUnitUpdate(String(unit.projectId), unit);
+  queueProjectRequirementRecheck(String(unit.projectId));
   res.json({ unit });
 });
 
@@ -267,6 +276,7 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
   if (!updated) return res.status(409).json({ error: "Unit is no longer LOCKED" });
 
   emitUnitUpdate(String(updated.projectId), updated);
+  queueProjectRequirementRecheck(String(updated.projectId));
   res.json({ unit: updated });
 });
 
@@ -337,6 +347,9 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
     const [updated] = await db.update(units).set(upd).where(eq(units._id, unit._id)).returning();
     emitUnitUpdate(String(updated.projectId), updated);
+    if (d.price !== undefined || d.type !== undefined || d.areaSqft !== undefined) {
+      queueProjectRequirementRecheck(String(updated.projectId));
+    }
     return res.json({ unit: updated });
   }
 
@@ -356,6 +369,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
       .returning();
 
     emitUnitUpdate(String(updated.projectId), updated);
+    queueProjectRequirementRecheck(String(updated.projectId));
     return res.json({ unit: updated });
   }
 
@@ -372,6 +386,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
       .where(eq(units._id, unit._id))
       .returning();
     emitUnitUpdate(String(updated.projectId), updated);
+    queueProjectRequirementRecheck(String(updated.projectId));
     return res.json({ unit: updated });
   }
 
