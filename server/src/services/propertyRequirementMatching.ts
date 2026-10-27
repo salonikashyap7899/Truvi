@@ -671,6 +671,10 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
               .where(eq(emailDeliveryEvents.providerMessageId, result.messageId))
               .orderBy(desc(emailDeliveryEvents.receivedAt))
               .limit(20);
+            if (earlyEvents.length > 0) {
+              await db.update(emailDeliveryEvents).set({ matchId: claimed._id })
+                .where(eq(emailDeliveryEvents.providerMessageId, result.messageId));
+            }
             const deliveredEvent = earlyEvents.find((event) => event.eventType === "email.delivered");
             const failedEvent = earlyEvents.find((event) => ["email.bounced", "email.complained", "email.failed"].includes(event.eventType));
             if (deliveredEvent) {
@@ -696,7 +700,7 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
         // admin fixes config and manually retries; never claim that mail was sent.
         await db.update(propertyRequirementMatches).set({
           emailStatus: "FAILED",
-          emailLastError: "SMTP_NOT_CONFIGURED",
+          emailLastError: "EMAIL_PROVIDER_NOT_CONFIGURED",
           emailNextAttemptAt: null,
         }).where(eq(propertyRequirementMatches._id, claimed._id));
         failed++;
