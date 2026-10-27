@@ -411,20 +411,22 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
   await db.update(propertyRequirementMatches).set({
     emailStatus: "RETRY_PENDING",
     emailNextAttemptAt: now,
+    emailClaimedAt: null,
     emailLastError: "STALE_SEND_RECOVERED",
   }).where(and(
     eq(propertyRequirementMatches.emailStatus, "SENDING"),
     lt(propertyRequirementMatches.emailAttempts, 3),
-    lt(propertyRequirementMatches.createdAt, staleBefore),
+    or(isNull(propertyRequirementMatches.emailClaimedAt), lt(propertyRequirementMatches.emailClaimedAt, staleBefore)),
   ));
   await db.update(propertyRequirementMatches).set({
     emailStatus: "FAILED",
     emailNextAttemptAt: null,
+    emailClaimedAt: null,
     emailLastError: "STALE_SEND_EXHAUSTED",
   }).where(and(
     eq(propertyRequirementMatches.emailStatus, "SENDING"),
     gte(propertyRequirementMatches.emailAttempts, 3),
-    lt(propertyRequirementMatches.createdAt, staleBefore),
+    or(isNull(propertyRequirementMatches.emailClaimedAt), lt(propertyRequirementMatches.emailClaimedAt, staleBefore)),
   ));
   const pending = await db
     .select({ id: propertyRequirementMatches._id })
@@ -447,6 +449,7 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
         emailStatus: "SENDING",
         emailAttempts: sql`${propertyRequirementMatches.emailAttempts} + 1`,
         emailNextAttemptAt: null,
+        emailClaimedAt: now,
       })
       .where(and(
         eq(propertyRequirementMatches._id, item.id),
