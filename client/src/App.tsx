@@ -231,7 +231,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet"].includes(normalizedPath);
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
