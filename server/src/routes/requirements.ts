@@ -523,30 +523,50 @@ router.get("/admin", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
 router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const db = getDb();
   const conditions = buildBoardFilters(req.query as Record<string, unknown>, true);
-  const all = await db.select({
-    id: propertyRequirements._id,
-    status: propertyRequirements.status,
+
+  // Aggregate in PostgreSQL instead of materializing every requirement/match row
+  // in the Node process. This keeps the admin dashboard usable as records grow.
+  const [requirementCounts] = await db.select({
+    total: sql<number>`count(*)::int`,
+    active: sql<number>`count(*) FILTER (WHERE ${propertyRequirements.status} = 'ACTIVE')::int`,
+    closed: sql<number>`count(*) FILTER (WHERE ${propertyRequirements.status} = 'CLOSED')::int`,
+    underReview: sql<number>`count(*) FILTER (WHERE ${propertyRequirements.status} = 'UNDER_REVIEW')::int`,
+    rejected: sql<number>`count(*) FILTER (WHERE ${propertyRequirements.status} = 'REJECTED')::int`,
+    spam: sql<number>`count(*) FILTER (WHERE ${propertyRequirements.status} = 'SPAM')::int`,
   }).from(propertyRequirements).where(and(...conditions));
-  const activeIds = all.filter((row) => row.status === "ACTIVE").map((row) => String(row.id));
-  const ids = all.map((row) => row.id);
-  const matchedRows = ids.length ? await db.select({
-    id: propertyRequirementMatches._id,
-    requirementId: propertyRequirementMatches.requirementId,
-    matchStatus: propertyRequirementMatches.matchStatus,
-    emailStatus: propertyRequirementMatches.emailStatus,
-    notificationStatus: propertyRequirementMatches.notificationStatus,
-  }).from(propertyRequirementMatches).where(inArray(propertyRequirementMatches.requirementId, ids)) : [];
-  const eligibleMatches = matchedRows.filter((row) => ["MATCHED", "ENQUIRY_CREATED"].includes(row.matchStatus));
-  const matchedRequirementIds = new Set(eligibleMatches.map((row) => String(row.requirementId)));
-  const distinctMatchedRequirements = new Set(eligibleMatches.map((row) => String(row.requirementId))).size;
-  const matchIds = matchedRows.map((row) => row.id);
-  let enquiryCount = 0;
-  if (matchIds.length > 0) {
-    const [enquiryCountRow] = await db.select({
-      count: sql<number>`count(*)::int`,
-    }).from(leads).where(inArray(leads.propertyRequirementMatchId, matchIds));
-    enquiryCount = enquiryCountRow?.count ?? 0;
-  }
+
+  const [activeMatchCounts] = await db.select({
+    withMatches: sql<number>`count(DISTINCT CASE WHEN ${propertyRequirements.status} = 'ACTIVE' AND ${propertyRequirementMatches._id} IS NOT NULL THEN ${propertyRequirements._id} END)::int`,
+    withoutMatches: sql<number>`count(DISTINCT CASE WHEN ${propertyRequirements.status} = 'ACTIVE' AND ${propertyRequirementMatches._id} IS NULL THEN ${propertyRequirements._id} END)::int`,
+  }).from(propertyRequirements).leftJoin(
+    propertyRequirementMatches,
+    and(
+      eq(propertyRequirementMatches.requirementId, propertyRequirements._id),
+      inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+    ),
+  ).where(and(...conditions));
+
+  const [matchCounts] = await db.select({
+    total: sql<number>`count(*) FILTER (WHERE ${propertyRequirementMatches.matchStatus} IN ('MATCHED', 'ENQUIRY_CREATED'))::int`,
+    distinctMatchedRequirements: sql<number>`count(DISTINCT ${propertyRequirementMatches.requirementId}) FILTER (WHERE ${propertyRequirementMatches.matchStatus} IN ('MATCHED', 'ENQUIRY_CREATED'))::int`,
+    notificationQueued: sql<number>`count(*) FILTER (
+      WHERE ${propertyRequirementMatches.notificationStatus} IN ('PENDING', 'QUEUED', 'RETRY_PENDING', 'SENDING')
+         OR ${propertyRequirementMatches.emailStatus} IN ('QUEUED', 'RETRY_PENDING', 'SENDING')
+    )::int`,
+    emailsAcceptedByProvider: sql<number>`count(*) FILTER (WHERE ${propertyRequirementMatches.emailStatus} IN ('SENT_TO_PROVIDER', 'DELIVERED'))::int`,
+    emailsConfirmedDelivered: sql<number>`count(*) FILTER (WHERE ${propertyRequirementMatches.emailStatus} = 'DELIVERED')::int`,
+    failures: sql<number>`count(*) FILTER (WHERE ${propertyRequirementMatches.notificationStatus} = 'FAILED' OR ${propertyRequirementMatches.emailStatus} = 'FAILED')::int`,
+  }).from(propertyRequirementMatches)
+    .innerJoin(propertyRequirements, eq(propertyRequirements._id, propertyRequirementMatches.requirementId))
+    .where(and(...conditions));
+
+  const [enquiryCountRow] = await db.select({
+    count: sql<number>`count(*)::int`,
+  }).from(leads)
+    .innerJoin(propertyRequirementMatches, eq(leads.propertyRequirementMatchId, propertyRequirementMatches._id))
+    .innerJoin(propertyRequirements, eq(propertyRequirementMatches.requirementId, propertyRequirements._id))
+    .where(and(...conditions));
+
   res.json({
     filters: {
       city: typeof req.query.city === "string" ? req.query.city : null,
@@ -558,24 +578,24 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, 
       dateTo: typeof req.query.dateTo === "string" ? req.query.dateTo : null,
     },
     requirements: {
-      total: all.length,
-      active: all.filter((r) => r.status === "ACTIVE").length,
-      closed: all.filter((r) => r.status === "CLOSED").length,
-      underReview: all.filter((r) => r.status === "UNDER_REVIEW").length,
-      rejected: all.filter((r) => r.status === "REJECTED").length,
-      spam: all.filter((r) => r.status === "SPAM").length,
-      activeWithMatches: activeIds.filter((id) => matchedRequirementIds.has(id)).length,
-      activeWithoutMatches: activeIds.filter((id) => !matchedRequirementIds.has(id)).length,
+      total: requirementCounts?.total ?? 0,
+      active: requirementCounts?.active ?? 0,
+      closed: requirementCounts?.closed ?? 0,
+      underReview: requirementCounts?.underReview ?? 0,
+      rejected: requirementCounts?.rejected ?? 0,
+      spam: requirementCounts?.spam ?? 0,
+      activeWithMatches: activeMatchCounts?.withMatches ?? 0,
+      activeWithoutMatches: activeMatchCounts?.withoutMatches ?? 0,
     },
     matches: {
-      total: eligibleMatches.length,
-      distinctMatchedRequirements,
-      notificationQueued: matchedRows.filter((r) => ["PENDING", "QUEUED", "RETRY_PENDING", "SENDING"].includes(r.notificationStatus) || ["QUEUED", "RETRY_PENDING", "SENDING"].includes(r.emailStatus)).length,
-      emailsAcceptedByProvider: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
-      emailsConfirmedDelivered: matchedRows.filter((r) => r.emailStatus === "DELIVERED").length,
-      failures: matchedRows.filter((r) => r.notificationStatus === "FAILED" || r.emailStatus === "FAILED").length,
+      total: matchCounts?.total ?? 0,
+      distinctMatchedRequirements: matchCounts?.distinctMatchedRequirements ?? 0,
+      notificationQueued: matchCounts?.notificationQueued ?? 0,
+      emailsAcceptedByProvider: matchCounts?.emailsAcceptedByProvider ?? 0,
+      emailsConfirmedDelivered: matchCounts?.emailsConfirmedDelivered ?? 0,
+      failures: matchCounts?.failures ?? 0,
     },
-    propertyEnquiriesFromNotifications: { tracked: true, count: enquiryCount },
+    propertyEnquiriesFromNotifications: { tracked: true, count: enquiryCountRow?.count ?? 0 },
     note: "Email provider acceptance is not confirmed mailbox delivery. A valid signed provider delivery webhook is required to populate confirmed-delivery counts; SMTP alone cannot confirm delivery.",
   });
 });
