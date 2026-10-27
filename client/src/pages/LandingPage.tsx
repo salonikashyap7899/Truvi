@@ -909,6 +909,7 @@ export default function LandingPage() {
 
       <Suspense fallback={null}>{mounted && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
+      <main id="main-content">
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
@@ -1457,6 +1458,7 @@ export default function LandingPage() {
         </Reveal>
       </Section>
 
+      </main>
       <Footer />
     </div>
   );
