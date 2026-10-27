@@ -1547,6 +1547,14 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
 
   await logAudit({ userId: req.user!.userId, action: "project.update", resourceType: "project", resourceId: projectId, metadata: { fields: Object.keys(update), approvalStatus: data.approvalStatus, isVerified: data.isVerified } });
 
+  // Enqueue on every approval-state transition, not only approval: moving a
+  // previously published listing back to PENDING/REJECTED must invalidate old matches.
+  if (data.approvalStatus && data.approvalStatus !== existing.approvalStatus) {
+    void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
+      console.warn("[property-matching] project eligibility recheck could not be queued");
+    });
+  }
+
   // Real-time notifications on an approval-status transition. The transition
   // guard (only when the status actually changes) keeps a double-click from
   // notifying twice. Never let a notification failure fail the request.
@@ -1567,11 +1575,6 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
           title: "New project available",
           message: `A new project "${project.name}"${project.city ? ` in ${project.city}` : ""} is now available on Truvi.`,
           data: { href: `/inventory/${project._id}/presentation` },
-        });
-        // Personalized matches run alongside existing generic alerts. They are
-        // non-fatal and never delay/reject the project approval itself.
-        void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
-          console.warn("[property-matching] project approval match job could not be queued");
         });
       } else if (data.approvalStatus === "REJECTED") {
         await notifyUser(String(project.developerId), {
