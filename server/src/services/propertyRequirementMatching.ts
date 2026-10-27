@@ -130,8 +130,9 @@ function siteBaseUrl(): string {
   return base;
 }
 
-function propertyUrl(projectId: string): string {
-  return `${siteBaseUrl()}/inventory/${encodeURIComponent(projectId)}/presentation`;
+function propertyUrl(projectId: string, requirementMatchId?: string): string {
+  const base = `${siteBaseUrl()}/inventory/${encodeURIComponent(projectId)}/presentation`;
+  return requirementMatchId ? `${base}?requirementMatchId=${encodeURIComponent(requirementMatchId)}` : base;
 }
 
 /**
@@ -214,7 +215,7 @@ async function recordAndNotifyMatch(
         message: `A new ${project.projectType || requirement.propertyType || "property"} has been listed in ${project.location}, ${project.city}, matching your requirement. View the project for verified details and available inventory.`,
         priority: "high",
         data: {
-          href: `/inventory/${project._id}/presentation`,
+          href: `/inventory/${project._id}/presentation?requirementMatchId=${encodeURIComponent(String(matchRow._id))}`,
           requirementId: String(requirement._id),
           projectId: String(project._id),
         },
@@ -537,7 +538,7 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
       const minPrice = Math.min(...prices);
       const maxPrice = Math.max(...prices);
       const priceText = minPrice === maxPrice ? inr(minPrice) : `${inr(minPrice)} – ${inr(maxPrice)}`;
-      const projectLink = propertyUrl(String(project._id));
+      const projectLink = propertyUrl(String(project._id), String(claimed._id));
       const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#172033;line-height:1.6">
         <h2 style="color:#0f766e">A new property matches your Truvi requirement</h2>
         <p>Hello ${escapeHtml(recipient.name)},</p>
