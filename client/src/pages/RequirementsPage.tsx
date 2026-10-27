@@ -312,6 +312,48 @@ export default function RequirementsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function submitRequirementResponse(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!respondingTo || responseMessage.trim().length < 5) {
+      toast.error("Please enter a response of at least 5 characters.");
+      return;
+    }
+    setSubmittingResponse(true);
+    try {
+      await api.post(`/requirements/${respondingTo.id}/responses`, { message: responseMessage.trim() });
+      toast.success("Your response was sent privately to the requirement owner.");
+      setRespondingTo(null);
+      setResponseMessage("");
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not send your response.");
+    } finally {
+      setSubmittingResponse(false);
+    }
+  }
+
+  async function toggleResponses(requirementId: string) {
+    if (viewResponsesFor === requirementId) {
+      setViewResponsesFor(null);
+      return;
+    }
+    setViewResponsesFor(requirementId);
+    if (responsesByRequirement[requirementId]) return;
+    setLoadingResponsesFor(requirementId);
+    try {
+      const result = await api.get(`/requirements/mine/${requirementId}/responses`);
+      setResponsesByRequirement((current) => ({
+        ...current,
+        [requirementId]: (result.data.responses ?? []) as RequirementResponse[],
+      }));
+    } catch (error: any) {
+      setViewResponsesFor(null);
+      toast.error(error?.response?.data?.error || "Could not load private requirement responses.");
+    } finally {
+      setLoadingResponsesFor(null);
+    }
+  }
+
   async function setStatus(row: PropertyRequirement, status: "ACTIVE" | "CLOSED") {
     try {
       await api.patch(`/requirements/${row._id}`, { status });
