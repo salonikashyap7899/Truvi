@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, FileSearch, Filter, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Clock3, FileSearch, Filter, RefreshCw, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
