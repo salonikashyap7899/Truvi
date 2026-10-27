@@ -38,13 +38,9 @@ function cityKey(value: unknown): string {
 function cityPrefixPattern(value: unknown): string | null {
   const prefix = String(value ?? "").split(",")[0].trim().toLowerCase();
   if (!prefix) return null;
-  return `${prefix.replace(/[\\%_]/g, "\\function cityKey(value: unknown): string {
-  // City fields sometimes include a state/region after a comma. Compare the
-  // city name itself, not substring matches (e.g. "York" must not match "New York").
-  return normalize(String(value ?? "").split(",")[0]);
-}")}%`;
+  const escaped = prefix.replace(/[\\%_]/g, "\\$&");
+  return `${escaped}%`;
 }
-
 export function isPublishedProject(project: Pick<MatchableProject, "approvalStatus" | "availabilityStatus"> | null | undefined): boolean {
   return !!project && project.approvalStatus === "APPROVED" && project.availabilityStatus === "AVAILABLE";
 }
