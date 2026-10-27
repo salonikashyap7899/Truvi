@@ -55,10 +55,12 @@ export function locationMatches(requirement: MatchableRequirement, project: Matc
   const projectLocation = normalize(project.location);
   // A city entered in the locality box means the user is open to the whole city.
   const broadLocation = requestedLocation === requestedCity || requestedLocation === projectCity;
+  const containsPhrase = (container: string, phrase: string) =>
+    (` ${container} `).includes(` ${phrase} `);
   return broadLocation || Boolean(
     requestedLocation &&
     projectLocation &&
-    (projectLocation.includes(requestedLocation) || requestedLocation.includes(projectLocation)),
+    (containsPhrase(projectLocation, requestedLocation) || containsPhrase(requestedLocation, projectLocation)),
   );
 }
 
