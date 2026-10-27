@@ -48,7 +48,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
-import { matchRequirementsForPublishedProject } from "../services/propertyRequirementMatching";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagCountsForProjects } from "../services/ragIntel";
@@ -1570,8 +1570,8 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
         });
         // Personalized matches run alongside existing generic alerts. They are
         // non-fatal and never delay/reject the project approval itself.
-        void matchRequirementsForPublishedProject(String(project._id)).catch((error) => {
-          console.warn("[property-matching] project approval matching failed:", error instanceof Error ? error.message : "unknown error");
+        void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
+          console.warn("[property-matching] project approval match job could not be queued");
         });
       } else if (data.approvalStatus === "REJECTED") {
         await notifyUser(String(project.developerId), {
