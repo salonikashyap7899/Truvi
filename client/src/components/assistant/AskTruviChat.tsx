@@ -277,15 +277,15 @@ export function AdvisorPanel({
           onChange={(e) => onChange({ ...profile, budget: e.target.value })} />
         <input className={field} placeholder="Preferred city / area" value={profile.city}
           onChange={(e) => onChange({ ...profile, city: e.target.value })} />
-        <select className={field} value={profile.bhk} onChange={(e) => onChange({ ...profile, bhk: e.target.value })}>
+        <select aria-label="Unit size" className={field} value={profile.bhk} onChange={(e) => onChange({ ...profile, bhk: e.target.value })}>
           <option value="">Unit size</option>
           <option>1BHK</option><option>2BHK</option><option>3BHK</option><option>4BHK+</option>
         </select>
-        <select className={field} value={profile.purpose} onChange={(e) => onChange({ ...profile, purpose: e.target.value })}>
+        <select aria-label="Purchase purpose" className={field} value={profile.purpose} onChange={(e) => onChange({ ...profile, purpose: e.target.value })}>
           <option value="">Purpose</option>
           <option>Self-use</option><option>Investment</option><option>Rental income</option><option>NRI investment</option><option>First-time buyer</option>
         </select>
-        <select className={`${field} col-span-2`} value={profile.timeline} onChange={(e) => onChange({ ...profile, timeline: e.target.value })}>
+        <select aria-label="Possession timeline" className={`${field} col-span-2`} value={profile.timeline} onChange={(e) => onChange({ ...profile, timeline: e.target.value })}>
           <option value="">Possession timeline</option>
           <option>Ready to move</option><option>Within 1 year</option><option>1–3 years</option><option>Flexible</option>
         </select>
