@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
@@ -55,6 +56,7 @@ export async function sendEmailWithStatus(
   subject: string,
   html: string,
   from: string = MAIL_FROM,
+  options?: { idempotencyKey?: string },
 ): Promise<EmailDispatchResult> {
   // Resend is optional. When its API key is present, use its signed delivery
   // webhook support so delivery can be confirmed; never fall back to SMTP after
@@ -65,6 +67,14 @@ export async function sendEmailWithStatus(
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
+        ...(options?.idempotencyKey ? {
+          // Derive a stable key from the event identity and exact payload:
+          // repeated retries of the same message are deduped by Resend, while a
+          // materially changed message gets a new key instead of a 409 mismatch.
+          "Idempotency-Key": `truvi-${createHash("sha256")
+            .update([options.idempotencyKey, from, to, subject, html].join("\\0"))
+            .digest("hex")}`,
+        } : {}),
       },
       body: JSON.stringify({ from, to: [to], subject, html }),
       signal: AbortSignal.timeout(15_000),
