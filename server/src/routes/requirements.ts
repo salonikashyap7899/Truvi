@@ -48,6 +48,7 @@ const adminRetryLimiter = rateLimit({
 });
 
 const fields = {
+  submissionKey: z.string().uuid().optional(),
   title: z.string().trim().min(3).max(120),
   propertyType: z.enum(propertyTypes),
   city: z.string().trim().min(2).max(100),
@@ -353,6 +354,24 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
   if (invalidBounds) return res.status(400).json({ error: invalidBounds });
 
   const data = parsed.data;
+  const db = getDb();
+  // Safe retry path: the exact same browser submission key returns the original
+  // record, without creating duplicate events, matches, or emails.
+  if (data.submissionKey) {
+    const [sameSubmission] = await db.select().from(propertyRequirements)
+      .where(and(
+        eq(propertyRequirements.submittedById, req.user!.userId),
+        eq(propertyRequirements.submissionKey, data.submissionKey),
+      ))
+      .limit(1);
+    if (sameSubmission) {
+      return res.status(200).json({
+        requirement: sameSubmission,
+        reference: String(sameSubmission._id),
+        deduplicated: true,
+      });
+    }
+  }
   const hasClientContact = Boolean(data.clientName?.trim() || data.clientPhone?.trim() || data.clientEmail?.trim());
   const isBuyer = req.user!.role === "BUYER";
   if (isBuyer && hasClientContact) {
@@ -401,8 +420,9 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
   }
 
   const title = data.title?.trim() || `${displayType(data.propertyType)} requirement in ${data.city.trim()}`;
-  const [requirement] = await getDb().insert(propertyRequirements).values({
+  const [insertedRequirement] = await db.insert(propertyRequirements).values({
     submittedById: req.user!.userId,
+    submissionKey: data.submissionKey ?? null,
     submittedByRole: req.user!.role,
     requirementKind: isBuyer ? "BUYER" : "CLIENT",
     visibility: data.visibility,
@@ -425,7 +445,31 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     contactConsent: Boolean(data.contactConsent),
     contactConsentAt: data.contactConsent ? new Date() : null,
     status: "ACTIVE",
+  }).onConflictDoNothing({
+    target: [propertyRequirements.submittedById, propertyRequirements.submissionKey],
   }).returning();
+
+  let requirement = insertedRequirement;
+  if (!requirement && data.submissionKey) {
+    // Two concurrent requests can both pass the first lookup. The unique index
+    // serializes them; the loser returns the winning row instead of duplicating it.
+    const [sameSubmission] = await db.select().from(propertyRequirements)
+      .where(and(
+        eq(propertyRequirements.submittedById, req.user!.userId),
+        eq(propertyRequirements.submissionKey, data.submissionKey),
+      ))
+      .limit(1);
+    if (sameSubmission) {
+      return res.status(200).json({
+        requirement: sameSubmission,
+        reference: String(sameSubmission._id),
+        deduplicated: true,
+      });
+    }
+  }
+  if (!requirement) {
+    return res.status(409).json({ error: "This requirement submission could not be completed safely. Please retry.", code: "REQUIREMENT_SUBMISSION_CONFLICT" });
+  }
 
   await writeRequirementEvent(String(requirement._id), req.user!.userId, "REQUIREMENT_CREATED", {
     role: req.user!.role,
