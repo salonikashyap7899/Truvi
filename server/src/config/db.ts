@@ -779,6 +779,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_delivered_at" timestamptz`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_email_retry_idx" ON "property_requirement_matches" ("email_status", "email_next_attempt_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_project_idx" ON "property_requirement_matches" ("project_id", "created_at")`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "property_requirement_match_id" uuid REFERENCES "property_requirement_matches"("id")`,
+    `CREATE INDEX IF NOT EXISTS "leads_requirement_match_idx" ON "leads" ("property_requirement_match_id")`,
     `CREATE TABLE IF NOT EXISTS "property_requirement_events" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
