@@ -709,6 +709,41 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "user_push_tokens_token_idx" ON "user_push_tokens" ("token")`,
     `CREATE INDEX IF NOT EXISTS "user_push_tokens_user_idx" ON "user_push_tokens" ("user_id")`,
 
+    // Structured buyer requirements and match/delivery bookkeeping. Additive and safe to rerun.
+    `CREATE TABLE IF NOT EXISTS "property_requirements" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "submitted_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "submitted_by_role" text NOT NULL,
+       "title" text NOT NULL,
+       "property_type" text NOT NULL DEFAULT 'ANY',
+       "city" text NOT NULL,
+       "location" text NOT NULL,
+       "min_budget" double precision,
+       "max_budget" double precision NOT NULL,
+       "min_area_sqft" double precision,
+       "max_area_sqft" double precision,
+       "purpose" text,
+       "timeline" text NOT NULL,
+       "details" text,
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_status_created_idx" ON "property_requirements" ("status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_owner_status_idx" ON "property_requirements" ("submitted_by_id", "status")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_city_idx" ON "property_requirements" ("city")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_matches" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+       "in_app_notified_at" timestamptz,
+       "email_sent_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("requirement_id", "project_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_requirement_idx" ON "property_requirement_matches" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_project_idx" ON "property_requirement_matches" ("project_id", "created_at")`,
+
     // ── Marketing module tables (auto-applied on boot; same rationale as above
     // — a plain restart is enough, no separate `npm run db:marketing`). ──
     `CREATE TABLE IF NOT EXISTS "marketing_access" (
