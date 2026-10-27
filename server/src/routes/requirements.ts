@@ -16,6 +16,7 @@ import { authenticate, requireRole, type AuthedRequest } from "../middleware/aut
 import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
+import { isEmailTransportConfigured } from "../services/emailService";
 
 const router = Router();
 router.use(authenticate);
@@ -31,6 +32,13 @@ const requirementStatuses = ["ACTIVE", "CLOSED", "UNDER_REVIEW", "REJECTED", "SP
 const submitLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const adminRetryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -509,6 +517,36 @@ router.get("/admin/:id/events", requireRole("ADMIN"), async (req: AuthedRequest,
     .where(eq(propertyRequirementEvents.requirementId, req.params.id))
     .orderBy(desc(propertyRequirementEvents.createdAt)).limit(200);
   res.json({ events });
+});
+
+/** Retry failed property-recommendation email attempts after SMTP has been configured/fixed. */
+router.post("/admin/retry-failed-emails", adminRetryLimiter, requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+  if (!isEmailTransportConfigured()) {
+    return res.status(503).json({
+      error: "SMTP is not configured in this server process. Configure SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD before retrying.",
+      code: "SMTP_NOT_CONFIGURED",
+    });
+  }
+
+  const eligibleErrors = ["SMTP_SEND_FAILED", "SMTP_NOT_CONFIGURED", "STALE_SEND_EXHAUSTED"];
+  const rows = await getDb().update(propertyRequirementMatches).set({
+    emailStatus: "RETRY_PENDING",
+    emailAttempts: 0,
+    emailNextAttemptAt: new Date(),
+    emailClaimedAt: null,
+    emailLastError: null,
+  }).where(and(
+    eq(propertyRequirementMatches.emailStatus, "FAILED"),
+    inArray(propertyRequirementMatches.emailLastError, eligibleErrors),
+  )).returning({ id: propertyRequirementMatches._id });
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "requirement.email.retry",
+    resourceType: "property_requirement_match",
+    metadata: { resetCount: rows.length },
+  });
+  res.json({ ok: true, resetCount: rows.length, message: "Eligible failed email attempts were placed back in the retry queue." });
 });
 
 /** Admin-only duplicate candidates: same normalized city/locality/type and overlapping budgets. */
