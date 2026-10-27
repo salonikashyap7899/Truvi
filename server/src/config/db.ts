@@ -729,6 +729,20 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now(),
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "requirement_kind" text NOT NULL DEFAULT 'BUYER'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "visibility" text NOT NULL DEFAULT 'TRUVI'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "preferred_contact_method" text NOT NULL DEFAULT 'IN_APP'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_name" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_phone" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_email" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "contact_consent" boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "contact_consent_at" timestamptz`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderated_by_id" uuid REFERENCES users(id)`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderated_at" timestamptz`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderation_note" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "duplicate_of_id" uuid`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_visibility_status_created_idx" ON "property_requirements" ("visibility", "status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_kind_created_idx" ON "property_requirements" ("requirement_kind", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirements_status_created_idx" ON "property_requirements" ("status", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirements_owner_status_idx" ON "property_requirements" ("submitted_by_id", "status")`,
     `CREATE INDEX IF NOT EXISTS "property_requirements_city_idx" ON "property_requirements" ("city")`,
@@ -742,7 +756,27 @@ async function ensureSchema(db: Db): Promise<void> {
        UNIQUE ("requirement_id", "project_id")
      )`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_requirement_idx" ON "property_requirement_matches" ("requirement_id", "created_at")`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "match_status" text NOT NULL DEFAULT 'MATCHED'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "match_reasons" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "notification_status" text NOT NULL DEFAULT 'PENDING'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_status" text NOT NULL DEFAULT 'QUEUED'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_attempts" integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_last_error" text`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_next_attempt_at" timestamptz`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_provider_message_id" text`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_delivered_at" timestamptz`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_email_retry_idx" ON "property_requirement_matches" ("email_status", "email_next_attempt_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_matches_project_idx" ON "property_requirement_matches" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "actor_user_id" uuid REFERENCES "users"("id"),
+       "action" text NOT NULL,
+       "metadata" jsonb,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_events_req_created_idx" ON "property_requirement_events" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_events_actor_idx" ON "property_requirement_events" ("actor_user_id", "created_at")`,
 
     // ── Marketing module tables (auto-applied on boot; same rationale as above
     // — a plain restart is enough, no separate `npm run db:marketing`). ──
