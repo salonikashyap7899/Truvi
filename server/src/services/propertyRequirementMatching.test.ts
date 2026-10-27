@@ -57,7 +57,7 @@ describe("property requirement matching", () => {
   it("uses a safe, escaped city prefix for indexed candidate queries", () => {
     expect(cityPrefixPattern("Lucknow, Uttar Pradesh")).toBe("lucknow%");
     expect(cityPrefixPattern("New York")).toBe("new york%");
-    expect(cityPrefixPattern("A_% City")).toBe("a\\_\\%%");
+    expect(cityPrefixPattern("A_% City")).toBe("a\\_\\% city%");
     expect(cityPrefixPattern(" , State")).toBeNull();
   });
 
