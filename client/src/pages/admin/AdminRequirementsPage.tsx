@@ -220,6 +220,35 @@ export default function AdminRequirementsPage() {
           <p className="mt-3 text-xs leading-5 text-muted-foreground">Team alert recipient: server variable <code>REQUIREMENT_TEAM_EMAIL</code> (falls back to <code>SMTP_USER</code>). Email is sent as Truvi; Reply-to points to the submitter's registered account email. Third-party client contacts are emailed only when consent is recorded. If email fails, the requirement remains in this queue and the event is recorded in its activity history.</p>
         </section>
 
+        <section aria-labelledby="requirement-intake-workflow" className="rounded-2xl border border-teal-300/20 bg-teal-300/[0.035] p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 id="requirement-intake-workflow" className="font-semibold">Requirement intake workflow</h2>
+              <p className="mt-1 text-sm text-muted-foreground">The requirement is saved first. Matching and notifications happen afterward, so an email issue never removes a submitted request.</p>
+            </div>
+            <span className="rounded-full border border-teal-300/20 px-3 py-1 text-xs text-teal-200">Admin-only private details</span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-200">01 · Submit</p>
+              <p className="mt-1 text-sm">Buyer or an authorized lead-generating role submits a property need from Requirements.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-200">02 · Notify</p>
+              <p className="mt-1 text-sm">Admin accounts receive an in-app alert. Truvi sends an email to the configured team inbox.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-200">03 · Review</p>
+              <p className="mt-1 text-sm">Use the queue below to review submitter details, check possible duplicates, add notes, and update moderation status.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-200">04 · Match and follow up</p>
+              <p className="mt-1 text-sm">Eligible inventory is matched; admins monitor match and email status and use activity history for audits.</p>
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">Set <code>REQUIREMENT_TEAM_EMAIL</code> on the backend for the team inbox; otherwise Truvi falls back to <code>SMTP_USER</code> when it is a valid email address. Email is sent as Truvi, with the submitter account email as Reply-To. Third-party client contacts are included only when consent is recorded. Failed email alerts are recorded in activity history; the requirement stays in the queue.</p>
+        </section>
+
         <section className="rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
