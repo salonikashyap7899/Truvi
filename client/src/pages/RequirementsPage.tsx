@@ -252,8 +252,11 @@ export default function RequirementsPage() {
         await api.patch(`/requirements/${editingId}`, payload);
         toast.success("Requirement updated.");
       } else {
-        await api.post("/requirements", payload);
-        toast.success("Requirement shared on the Truvi noticeboard.");
+        const response = await api.post("/requirements", payload);
+        const reference = String(response.data.reference || response.data.requirement?._id || "");
+        toast.success(reference
+          ? `Requirement submitted. Reference: ${reference}`
+          : "Requirement submitted successfully.");
       }
       resetForm();
       await load();
