@@ -89,6 +89,7 @@ const GrowthHubPage = lazy(() => import("@/pages/cp/GrowthHubPage"));
 const OnboardDevelopersPage = lazy(() => import("@/pages/cp/OnboardDevelopersPage"));
 const BuyerDashboardPage = lazy(() => import("@/pages/buyer/BuyerDashboardPage"));
 const RequirementsPage = lazy(() => import("@/pages/RequirementsPage"));
+const NotificationPreferencesPage = lazy(() => import("@/pages/NotificationPreferencesPage"));
 const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
 const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
 const HabitatPage = lazy(() => import("@/pages/habitat/HabitatPage"));
@@ -453,6 +454,10 @@ export default function App() {
         <Route
           path="/requirements"
           element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"]}><RequirementsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/settings/notifications"
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE", "VERIFIER"]}><NotificationPreferencesPage /></ProtectedRoute>}
         />
 
         {/* Buyer */}
