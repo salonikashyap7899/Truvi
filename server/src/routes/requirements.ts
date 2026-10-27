@@ -8,6 +8,7 @@ import {
   propertyRequirementMatches,
   propertyRequirements,
   projects,
+  employees,
   users,
 } from "../db/schema";
 import { zodMessage } from "../lib/validationError";
@@ -20,7 +21,7 @@ import { isEmailTransportConfigured } from "../services/emailService";
 
 const router = Router();
 router.use(authenticate);
-router.use(requireRole("ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR"));
+router.use(requireRole("ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE"));
 
 const propertyTypes = ["ANY", "PLOTTED", "RESIDENTIAL", "APARTMENT", "VILLA", "COMMERCIAL", "INDUSTRIAL", "LAND", "MIXED"] as const;
 const timelines = ["IMMEDIATE", "WITHIN_30_DAYS", "WITHIN_3_MONTHS", "WITHIN_6_MONTHS", "FLEXIBLE"] as const;
@@ -118,6 +119,16 @@ function sanitizePublicSummary(value: string | null | undefined): string | null 
     .replace(/\+?\d[\d ()-]{7,}\d/g, "[contact removed]")
     .trim();
   return sanitized || null;
+}
+
+async function employeeCanCreateRequirement(userId: string): Promise<boolean> {
+  const [employee] = await getDb().select({
+    permissions: employees.permissions,
+    status: employees.status,
+  }).from(employees)
+    .where(eq(employees.accountUserId, userId))
+    .limit(1);
+  return Boolean(employee && employee.status === "ACTIVE" && employee.permissions.includes("lead.create"));
 }
 
 async function writeRequirementEvent(
@@ -313,6 +324,9 @@ router.get("/mine/:id/events", async (req: AuthedRequest, res) => {
  * attests to client permission; client data is never included in board summaries.
  */
 router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
+  if (req.user!.role === "EMPLOYEE" && !(await employeeCanCreateRequirement(req.user!.userId))) {
+    return res.status(403).json({ error: "Requirement submission is not enabled for this employee account.", code: "EMPLOYEE_REQUIREMENT_PERMISSION_REQUIRED" });
+  }
   const parsed = createRequirementSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const invalidBounds = validateBounds(parsed.data);
@@ -595,6 +609,9 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
   if (!existing) return res.status(404).json({ error: "Requirement not found" });
   if (req.user!.role !== "ADMIN" && String(existing.submittedById) !== req.user!.userId) {
     return res.status(403).json({ error: "You can only update your own requirements." });
+  }
+  if (req.user!.role === "EMPLOYEE" && !(await employeeCanCreateRequirement(req.user!.userId))) {
+    return res.status(403).json({ error: "Requirement editing is not enabled for this employee account." });
   }
   if (req.user!.role !== "ADMIN" && !["ACTIVE", "CLOSED"].includes(existing.status)) {
     return res.status(403).json({ error: "This requirement is under moderation and cannot be changed by its owner." });
