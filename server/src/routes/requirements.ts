@@ -513,12 +513,12 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, 
       total: eligibleMatches.length,
       distinctMatchedRequirements,
       notificationQueued: matchedRows.filter((r) => ["PENDING", "QUEUED", "RETRY_PENDING", "SENDING"].includes(r.notificationStatus) || ["QUEUED", "RETRY_PENDING", "SENDING"].includes(r.emailStatus)).length,
-      emailsAcceptedBySmtp: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
+      emailsAcceptedByProvider: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
       emailsConfirmedDelivered: matchedRows.filter((r) => r.emailStatus === "DELIVERED").length,
       failures: matchedRows.filter((r) => r.notificationStatus === "FAILED" || r.emailStatus === "FAILED").length,
     },
     propertyEnquiriesFromNotifications: { tracked: true, count: enquiryCount },
-    note: "SMTP acceptance is not confirmed mailbox delivery. A provider-specific signed delivery webhook is required to populate confirmed-delivery counts.",
+    note: "Email provider acceptance is not confirmed mailbox delivery. A valid signed provider delivery webhook is required to populate confirmed-delivery counts; SMTP alone cannot confirm delivery.",
   });
 });
 
