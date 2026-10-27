@@ -88,6 +88,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   project_live: "projects",
   new_project: "projects",
   new_property: "properties",
+  property_match: "properties",
   property_updated: "properties",
   property_price_changed: "properties",
   developer_referred: "referrals",
