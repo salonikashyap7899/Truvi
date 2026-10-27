@@ -442,23 +442,33 @@ router.get("/admin", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
 });
 
 /** Admin analytics use real PostgreSQL records; uninstrumented metrics are marked unavailable. */
-router.get("/admin/analytics", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/analytics", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const db = getDb();
+  const conditions = buildBoardFilters(req.query as Record<string, unknown>, true);
   const all = await db.select({
     id: propertyRequirements._id,
     status: propertyRequirements.status,
-  }).from(propertyRequirements);
+  }).from(propertyRequirements).where(and(...conditions));
   const activeIds = all.filter((row) => row.status === "ACTIVE").map((row) => String(row.id));
-  const matchedRows = await db.select({
+  const ids = all.map((row) => row.id);
+  const matchedRows = ids.length ? await db.select({
     requirementId: propertyRequirementMatches.requirementId,
     matchStatus: propertyRequirementMatches.matchStatus,
     emailStatus: propertyRequirementMatches.emailStatus,
     notificationStatus: propertyRequirementMatches.notificationStatus,
-  }).from(propertyRequirementMatches);
+  }).from(propertyRequirementMatches).where(inArray(propertyRequirementMatches.requirementId, ids)) : [];
   const matchedRequirementIds = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId)));
-  const [matchedCountRow] = await db.select({ count: sql<number>`count(DISTINCT ${propertyRequirementMatches.requirementId})::int` })
-    .from(propertyRequirementMatches).where(eq(propertyRequirementMatches.matchStatus, "MATCHED"));
+  const distinctMatchedRequirements = new Set(matchedRows.filter((row) => row.matchStatus === "MATCHED").map((row) => String(row.requirementId))).size;
   res.json({
+    filters: {
+      city: typeof req.query.city === "string" ? req.query.city : null,
+      location: typeof req.query.location === "string" ? req.query.location : null,
+      propertyType: typeof req.query.propertyType === "string" ? req.query.propertyType : null,
+      role: typeof req.query.role === "string" ? req.query.role : null,
+      status: typeof req.query.status === "string" ? req.query.status : "ALL",
+      dateFrom: typeof req.query.dateFrom === "string" ? req.query.dateFrom : null,
+      dateTo: typeof req.query.dateTo === "string" ? req.query.dateTo : null,
+    },
     requirements: {
       total: all.length,
       active: all.filter((r) => r.status === "ACTIVE").length,
@@ -471,7 +481,7 @@ router.get("/admin/analytics", requireRole("ADMIN"), async (_req: AuthedRequest,
     },
     matches: {
       total: matchedRows.filter((r) => r.matchStatus === "MATCHED").length,
-      distinctMatchedRequirements: matchedCountRow?.count ?? 0,
+      distinctMatchedRequirements,
       notificationQueued: matchedRows.filter((r) => ["PENDING", "QUEUED", "RETRY_PENDING", "SENDING"].includes(r.notificationStatus) || ["QUEUED", "RETRY_PENDING", "SENDING"].includes(r.emailStatus)).length,
       emailsAcceptedBySmtp: matchedRows.filter((r) => ["SENT_TO_PROVIDER", "DELIVERED"].includes(r.emailStatus)).length,
       emailsConfirmedDelivered: matchedRows.filter((r) => r.emailStatus === "DELIVERED").length,
