@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   propertyRequirementMatches,
@@ -317,6 +317,27 @@ export async function processPropertyRequirementMatchJobs(limit = 25): Promise<{
 }> {
   const db = getDb();
   const now = new Date();
+  const staleBefore = new Date(now.getTime() - 10 * 60_000);
+  // Recover jobs left RUNNING if the process exited after claiming them.
+  await db.update(propertyRequirementMatchJobs).set({
+    status: "RETRY_PENDING",
+    nextAttemptAt: now,
+    updatedAt: now,
+    lastError: "STALE_JOB_RECOVERED",
+  }).where(and(
+    eq(propertyRequirementMatchJobs.status, "RUNNING"),
+    lt(propertyRequirementMatchJobs.attempts, 5),
+    lt(propertyRequirementMatchJobs.updatedAt, staleBefore),
+  ));
+  await db.update(propertyRequirementMatchJobs).set({
+    status: "FAILED",
+    updatedAt: now,
+    lastError: "STALE_JOB_EXHAUSTED",
+  }).where(and(
+    eq(propertyRequirementMatchJobs.status, "RUNNING"),
+    gte(propertyRequirementMatchJobs.attempts, 5),
+    lt(propertyRequirementMatchJobs.updatedAt, staleBefore),
+  ));
   const pending = await db.select({ id: propertyRequirementMatchJobs._id })
     .from(propertyRequirementMatchJobs)
     .where(and(
@@ -385,6 +406,26 @@ export async function processPropertyRequirementMatchJobs(limit = 25): Promise<{
 export async function processPendingRequirementEmails(limit = 25): Promise<{ scanned: number; sentToProvider: number; retried: number; failed: number }> {
   const db = getDb();
   const now = new Date();
+  const staleBefore = new Date(now.getTime() - 10 * 60_000);
+  // Recover email jobs left SENDING by a crashed/restarted process.
+  await db.update(propertyRequirementMatches).set({
+    emailStatus: "RETRY_PENDING",
+    emailNextAttemptAt: now,
+    emailLastError: "STALE_SEND_RECOVERED",
+  }).where(and(
+    eq(propertyRequirementMatches.emailStatus, "SENDING"),
+    lt(propertyRequirementMatches.emailAttempts, 3),
+    lt(propertyRequirementMatches.createdAt, staleBefore),
+  ));
+  await db.update(propertyRequirementMatches).set({
+    emailStatus: "FAILED",
+    emailNextAttemptAt: null,
+    emailLastError: "STALE_SEND_EXHAUSTED",
+  }).where(and(
+    eq(propertyRequirementMatches.emailStatus, "SENDING"),
+    gte(propertyRequirementMatches.emailAttempts, 3),
+    lt(propertyRequirementMatches.createdAt, staleBefore),
+  ));
   const pending = await db
     .select({ id: propertyRequirementMatches._id })
     .from(propertyRequirementMatches)
