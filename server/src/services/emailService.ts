@@ -29,6 +29,11 @@ if (!hasSmtpConfig) {
 // defaults to the Truvi Ventures Gmail identity.
 export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
 
+/** Whether the current process has a usable SMTP transport configured. */
+export function isEmailTransportConfigured(): boolean {
+  return transporter !== null;
+}
+
 /**
  * Send an email. Returns `true` only when it was actually dispatched via SMTP.
  * When SMTP isn't configured it emits a non-sensitive warning and returns
