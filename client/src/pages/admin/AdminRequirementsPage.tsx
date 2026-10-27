@@ -38,7 +38,7 @@ interface AdminRequirementRow {
 }
 interface Analytics {
   requirements: { total: number; active: number; closed: number; underReview: number; rejected: number; spam: number; activeWithMatches: number; activeWithoutMatches: number };
-  matches: { total: number; distinctMatchedRequirements: number; notificationQueued: number; emailsAcceptedBySmtp: number; emailsConfirmedDelivered: number; failures: number };
+  matches: { total: number; distinctMatchedRequirements: number; notificationQueued: number; emailsAcceptedByProvider: number; emailsConfirmedDelivered: number; failures: number };
   propertyEnquiriesFromNotifications: { tracked: boolean; count: number | null };
   note: string;
 }
@@ -170,7 +170,7 @@ export default function AdminRequirementsPage() {
     { label: "Active with matches", value: analytics.requirements.activeWithMatches, description: "Has at least one eligible match" },
     { label: "No active match", value: analytics.requirements.activeWithoutMatches, description: "Can match future inventory" },
     { label: "Queued / retrying", value: analytics.matches.notificationQueued, description: "Match notification work" },
-    { label: "SMTP accepted", value: analytics.matches.emailsAcceptedBySmtp, description: "Not proof of inbox delivery" },
+    { label: "Provider accepted", value: analytics.matches.emailsAcceptedByProvider, description: "Not proof of inbox delivery" },
     { label: "Confirmed delivered", value: analytics.matches.emailsConfirmedDelivered, description: "Provider-confirmed only" },
     { label: "Delivery failures", value: analytics.matches.failures, description: "Failed notification or email rows" },
   ] : [];
