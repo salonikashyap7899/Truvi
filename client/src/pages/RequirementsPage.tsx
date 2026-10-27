@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock3, MapPin, Pencil, Plus, Search, X, CheckCircle2, IndianRupee, Ruler, MessageCircle, Send, Eye } from "lucide-react";
 import { api } from "@/lib/api";
@@ -85,6 +85,17 @@ interface RequirementForm {
   contactConsent: boolean;
 }
 
+function generateSubmissionKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Compatibility fallback; this idempotency token is not an authentication credential.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    return (char === "x" ? value : (value & 0x3) | 0x8).toString(16);
+  });
+}
+
 const EMPTY_FORM: RequirementForm = {
   title: "",
   propertyType: "ANY",
@@ -156,6 +167,7 @@ export default function RequirementsPage() {
   const user = useAuthStore((state) => state.user);
   const isBuyer = user?.role === "BUYER";
   const [form, setForm] = useState<RequirementForm>({ ...EMPTY_FORM });
+  const submissionKeyRef = useRef<string>(generateSubmissionKey());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [mine, setMine] = useState<PropertyRequirement[]>([]);
   const [board, setBoard] = useState<Omit<PropertyRequirement, "details">[]>([]);
@@ -264,6 +276,7 @@ export default function RequirementsPage() {
       clientPhone: form.clientPhone.trim() || null,
       clientEmail: form.clientEmail.trim() || null,
       contactConsent: user?.role === "BUYER" ? false : form.contactConsent,
+      submissionKey: editingId ? undefined : submissionKeyRef.current,
     };
 
     setSaving(true);
@@ -274,9 +287,12 @@ export default function RequirementsPage() {
       } else {
         const response = await api.post("/requirements", payload);
         const reference = String(response.data.reference || response.data.requirement?._id || "");
-        toast.success(reference
-          ? `Requirement submitted. Reference: ${reference}`
-          : "Requirement submitted successfully.");
+        submissionKeyRef.current = generateSubmissionKey();
+        toast.success(response.data.deduplicated
+          ? `Submission already saved. Reference: ${reference}`
+          : reference
+            ? `Requirement submitted. Reference: ${reference}`
+            : "Requirement submitted successfully.");
       }
       resetForm();
       await load();
