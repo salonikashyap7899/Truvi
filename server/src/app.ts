@@ -44,6 +44,7 @@ import { getEnv } from "./config/env";
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import buyerRoutes from "./routes/buyer";
+import requirementRoutes from "./routes/requirements";
 import projectRoutes from "./routes/projects";
 import unitRoutes from "./routes/units";
 import leadRoutes from "./routes/leads";
@@ -88,6 +89,7 @@ import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import ambassadorOperatingSystemRoutes from "./routes/ambassadorOperatingSystem";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
+import { resendWebhookHandler } from "./routes/resendWebhook";
 import financeRoutes from "./routes/finance";
 import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
@@ -157,6 +159,7 @@ export function createApp() {
   // it is mounted with express.raw BEFORE the global JSON parser.
   app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
   app.post("/api/habitat/webhook", express.raw({ type: "*/*" }), habitatRazorpayWebhook);
+  app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
 
   // Private buyer documents are opened through short-lived signed links (a
   // plain link can't carry a Bearer token). Registered before every /api
@@ -243,6 +246,7 @@ export function createApp() {
   app.use("/api", voucherRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/buyer", buyerRoutes);
+  app.use("/api/requirements", requirementRoutes);
   app.use("/api/projects", projectRoutes);
   app.use("/api/units", unitRoutes);
   app.use("/api/leads", leadManagementRoutes); // /from-inventory, /mine, /admin/* (before /:id)

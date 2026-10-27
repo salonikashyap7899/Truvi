@@ -88,6 +88,8 @@ const BusinessHubPage = lazy(() => import("@/pages/cp/BusinessHubPage"));
 const GrowthHubPage = lazy(() => import("@/pages/cp/GrowthHubPage"));
 const OnboardDevelopersPage = lazy(() => import("@/pages/cp/OnboardDevelopersPage"));
 const BuyerDashboardPage = lazy(() => import("@/pages/buyer/BuyerDashboardPage"));
+const RequirementsPage = lazy(() => import("@/pages/RequirementsPage"));
+const NotificationPreferencesPage = lazy(() => import("@/pages/NotificationPreferencesPage"));
 const BuyerProjectsPage = lazy(() => import("@/pages/buyer/BuyerProjectsPage"));
 const ComparePage = lazy(() => import("@/pages/buyer/ComparePage"));
 const HabitatPage = lazy(() => import("@/pages/habitat/HabitatPage"));
@@ -124,6 +126,7 @@ const AdminAmbassadorKnowledgePage = lazy(() => import("@/pages/admin/AdminAmbas
 const AdminAcademyPage = lazy(() => import("@/pages/admin/AdminAcademyPage"));
 const MarketingManagementPage = lazy(() => import("@/pages/admin/MarketingManagementPage"));
 const AdminNotificationsPage = lazy(() => import("@/pages/admin/AdminNotificationsPage"));
+const AdminRequirementsPage = lazy(() => import("@/pages/admin/AdminRequirementsPage"));
 const MarketingDashboardPage = lazy(() => import("@/pages/marketing/MarketingDashboardPage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
@@ -228,7 +231,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet"].includes(normalizedPath);
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
@@ -401,6 +404,7 @@ export default function App() {
           <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
           <Route path="marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
+          <Route path="requirements" element={<ProtectedRoute roles={["ADMIN"]}><AdminRequirementsPage /></ProtectedRoute>} />
           <Route path="verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
           <Route path="kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
           <Route path="referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
@@ -448,6 +452,15 @@ export default function App() {
         <Route path="/crm/pipeline" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><PipelinePage /></ProtectedRoute>} />
         <Route path="/bookings" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><BookingsPage /></ProtectedRoute>} />
         <Route path="/vault" element={<ProtectedRoute roles={["CP", "DEVELOPER", "ADMIN"]}><VaultPage /></ProtectedRoute>} />
+
+        <Route
+          path="/requirements"
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE"]}><RequirementsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/settings/notifications"
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE", "VERIFIER"]}><NotificationPreferencesPage /></ProtectedRoute>}
+        />
 
         {/* Buyer */}
         <Route path="/buyer/dashboard" element={<ProtectedRoute roles={["BUYER"]}><BuyerDashboardPage /></ProtectedRoute>} />

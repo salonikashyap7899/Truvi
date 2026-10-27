@@ -6,6 +6,7 @@ import { getDb } from "../config/db";
 import {
   ambassadorOsProfiles, ambassadorOsCampaigns, ambassadorOsCampaignGuidelines, ambassadorOsCampaignAcknowledgements,
   leads, leadActivities, projects, units, users, siteVisits, offers,
+  propertyRequirementMatches, propertyRequirements,
   LeadStage, Role, LeadReferralLink,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
@@ -89,6 +90,7 @@ function normalizeMobile(raw: unknown): string | null {
 const VISIT_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const fromInventorySchema = z.object({
   projectId: z.string().refine(isValidId, "Choose a valid project"),
+  requirementMatchId: z.string().refine(isValidId, "Invalid requirement match").optional(),
   unitId: z.string().refine(isValidId, "Choose a valid unit").optional().nullable(),
   customerName: z.string().trim().min(2, "Enter the customer's name").max(80).optional(),
   customerPhone: z.string().trim().max(20).optional(),
@@ -296,6 +298,33 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
     if (currentProject.availabilityStatus === "SOLD_OUT") {
       return { kind: "project-sold-out" as const };
     }
+
+    let linkedRequirementMatchId: string | null = null;
+    if (d.requirementMatchId) {
+      // Match attribution can only be attached when the match belongs to this
+      // signed-in user, is for this exact project, and is still eligible.
+      const [matched] = await tx.select({
+        id: propertyRequirementMatches._id,
+      }).from(propertyRequirementMatches)
+        .innerJoin(
+          propertyRequirements,
+          and(
+            eq(propertyRequirements._id, propertyRequirementMatches.requirementId),
+            eq(propertyRequirements.submittedById, me._id),
+            eq(propertyRequirements.status, "ACTIVE"),
+          ),
+        )
+        .where(and(
+          eq(propertyRequirementMatches._id, d.requirementMatchId),
+          eq(propertyRequirementMatches.projectId, currentProject._id),
+          inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+        ))
+        .limit(1)
+        .for("update");
+      if (!matched) return { kind: "invalid-requirement-match" as const };
+      linkedRequirementMatchId = String(matched.id);
+    }
+
     if (d.unitId) {
       const [currentUnit] = await tx
         .select({ projectId: units.projectId, status: units.status })
@@ -314,6 +343,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
       .values({
         projectId: project._id,
         unitId: unit?._id ?? null,
+        propertyRequirementMatchId: linkedRequirementMatchId,
         submittedById: me._id,
         // A Channel Partner works their own lead; buyer/ambassador leads go to
         // the Truvi team (unassigned, and kept out of the lead marketplace).
@@ -342,6 +372,17 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
         isDuplicate: !!dup,
       })
       .returning();
+
+    if (linkedRequirementMatchId) {
+      await tx.update(propertyRequirementMatches).set({
+        matchStatus: "ENQUIRY_CREATED",
+        emailStatus: "SKIPPED",
+        emailNextAttemptAt: null,
+        emailClaimedAt: null,
+        emailLastError: "ENQUIRY_ALREADY_CREATED",
+      }).where(eq(propertyRequirementMatches._id, linkedRequirementMatchId));
+    }
+
     await tx.insert(siteVisits).values({
       leadId: lead._id,
       projectId: project._id,
@@ -366,6 +407,7 @@ router.post("/from-inventory", requireRole("BUYER", "CP", "AMBASSADOR"), async (
   if (outcome.kind === "unit-mismatch") return res.status(400).json({ error: "That unit doesn't belong to this project" });
   if (outcome.kind === "unit-unavailable") return res.status(409).json({ error: "This unit isn't available — pick another unit" });
   if (outcome.kind === "visit-time-passed") return res.status(400).json({ error: "That visit time has already passed — pick a later time" });
+  if (outcome.kind === "invalid-requirement-match") return res.status(400).json({ error: "This property-match notification is no longer available. Open your active requirements to view current matches." });
 
   const { lead: created, project: currentProject } = outcome;
   const leadId = displayLeadId(created.leadNo);

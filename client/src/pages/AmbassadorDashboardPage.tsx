@@ -10,7 +10,7 @@ import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import {
   MapPin, Clock, QrCode, CheckCircle2, Loader2, Wifi, Navigation,
   FileUp, IndianRupee, ExternalLink, ClipboardCheck, Camera, X,
-  Network, Users, Share2, Copy, TrendingUp, Wallet, Landmark, Save, Building2, Handshake,
+  Network, Users, Share2, Copy, TrendingUp, Wallet, Landmark, Save, Building2, Handshake, FileText,
 } from "lucide-react";
 import { formatINR, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -107,6 +107,13 @@ export default function AmbassadorDashboardPage() {
             >
               <Handshake size={16} />
               Operating System
+            </Link>
+            <Link
+              to="/requirements"
+              className="inline-flex items-center gap-2 rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-2 text-sm font-medium text-teal-200 hover:bg-teal-400/15 transition"
+            >
+              <FileText size={16} />
+              Share Lead Requirement
             </Link>
             <Link
               to="/inventory"

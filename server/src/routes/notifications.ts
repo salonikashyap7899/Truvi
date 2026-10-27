@@ -1,11 +1,88 @@
 import { Router } from "express";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "../config/db";
-import { notifications } from "../db/schema";
+import { notifications, notificationPreferences, userNotificationChannelPreferences } from "../db/schema";
+import { isWhatsAppEnabled } from "../services/whatsappService";
 import { authenticate, AuthedRequest } from "../middleware/auth";
 
 const router = Router();
 router.use(authenticate);
+
+const preferenceSchema = z.object({
+  inApp: z.boolean(),
+  email: z.boolean(),
+});
+
+/** Property recommendation preferences. Existing users default to in-app/email enabled. */
+router.get("/preferences", async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const userId = req.user!.userId;
+  const [legacyInApp] = await db.select({ enabled: notificationPreferences.enabled })
+    .from(notificationPreferences)
+    .where(and(
+      eq(notificationPreferences.userId, userId),
+      eq(notificationPreferences.category, "properties"),
+    )).limit(1);
+  const channelRows = await db.select({
+    channel: userNotificationChannelPreferences.channel,
+    enabled: userNotificationChannelPreferences.enabled,
+  }).from(userNotificationChannelPreferences)
+    .where(and(
+      eq(userNotificationChannelPreferences.userId, userId),
+      eq(userNotificationChannelPreferences.category, "properties"),
+    ));
+  const channels = new Map(channelRows.map((row) => [row.channel, row.enabled]));
+  res.json({
+    preferences: {
+      inApp: legacyInApp?.enabled ?? true,
+      email: channels.get("EMAIL") ?? true,
+      // Property-match WhatsApp is intentionally unavailable; the existing
+      // provider dispatcher is restricted to configured developer events.
+      whatsapp: false,
+      whatsappAvailable: false,
+      whatsappProviderConfigured: isWhatsAppEnabled(),
+    },
+  });
+});
+
+/** Save only the supported property recommendation channels. WhatsApp is not advertised as active. */
+router.put("/preferences", async (req: AuthedRequest, res) => {
+  const parsed = preferenceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid notification preferences." });
+  }
+  const db = getDb();
+  const userId = req.user!.userId;
+  const now = new Date();
+
+  await db.insert(notificationPreferences)
+    .values({ userId, category: "properties", enabled: parsed.data.inApp, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [notificationPreferences.userId, notificationPreferences.category],
+      set: { enabled: parsed.data.inApp, updatedAt: now },
+    });
+
+  await db.insert(userNotificationChannelPreferences)
+    .values({ userId, channel: "EMAIL", category: "properties", enabled: parsed.data.email, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [
+        userNotificationChannelPreferences.userId,
+        userNotificationChannelPreferences.channel,
+        userNotificationChannelPreferences.category,
+      ],
+      set: { enabled: parsed.data.email, updatedAt: now },
+    });
+
+  res.json({
+    preferences: {
+      inApp: parsed.data.inApp,
+      email: parsed.data.email,
+      whatsapp: false,
+      whatsappAvailable: false,
+    },
+  });
+});
 
 /**
  * List the signed-in user's notifications (newest first).

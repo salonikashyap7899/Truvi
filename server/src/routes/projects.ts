@@ -10,6 +10,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
 import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 import { notifyRole, NotificationType } from "../services/notificationService";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 
 const router = Router();
 router.use(authenticate);
@@ -294,6 +295,19 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
     .set(update)
     .where(eq(projects._id, project._id))
     .returning();
+
+  // Changes to location/type or listing availability alter matching eligibility.
+  // The persistent worker handles the recheck away from the request path.
+  if (
+    (d.city !== undefined && d.city !== project.city) ||
+    (d.location !== undefined && d.location !== project.location) ||
+    (d.projectType !== undefined && d.projectType !== project.projectType) ||
+    (d.availabilityStatus !== undefined && d.availabilityStatus !== project.availabilityStatus)
+  ) {
+    void enqueueRequirementMatchJob("PROJECT", { projectId: String(updated._id) }).catch(() => {
+      console.warn("[property-matching] project update match job could not be queued");
+    });
+  }
   res.json({ project: updated });
 });
 

@@ -91,6 +91,9 @@ export default function DeveloperDashboardPage() {
           <Link to="/developer/projects/new">
             <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700">+ New Project</button>
           </Link>
+          <Link to="/requirements">
+            <button className="rounded-lg border border-teal-400/30 bg-teal-400/10 px-4 py-2 text-sm font-medium text-teal-200 hover:bg-teal-400/15">Share Lead Requirement</button>
+          </Link>
         </div>
       </div>
 

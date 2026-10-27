@@ -572,6 +572,165 @@ export const projects = pgTable(
   ]
 );
 
+/**
+ * Structured, unmet property requirements submitted by buyers and authorized
+ * lead-generating roles. Private notes remain visible only to the submitter
+ * and admins; the noticeboard API deliberately selects public fields only.
+ */
+export const propertyRequirements = pgTable(
+  "property_requirements",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    submittedById: uuid("submitted_by_id").notNull().references(() => users._id),
+    submittedByRole: text("submitted_by_role").$type<Role>().notNull(),
+    // Client-generated idempotency key, unique per account; null for older rows.
+    submissionKey: text("submission_key"),
+    requirementKind: text("requirement_kind").$type<"BUYER" | "CLIENT">().notNull().default("BUYER"),
+    visibility: text("visibility").$type<"PRIVATE" | "TRUVI">().notNull().default("TRUVI"),
+    title: text("title").notNull(),
+    propertyType: text("property_type").notNull().default("ANY"),
+    city: text("city").notNull(),
+    location: text("location").notNull(),
+    minBudget: doublePrecision("min_budget"),
+    maxBudget: doublePrecision("max_budget").notNull(),
+    minAreaSqft: doublePrecision("min_area_sqft"),
+    maxAreaSqft: doublePrecision("max_area_sqft"),
+    purpose: text("purpose"),
+    timeline: text("timeline").notNull(),
+    details: text("details"),
+    publicSummary: text("public_summary"),
+    preferredContactMethod: text("preferred_contact_method").$type<"PHONE" | "EMAIL" | "WHATSAPP" | "IN_APP">().notNull().default("IN_APP"),
+    clientName: text("client_name"),
+    clientPhone: text("client_phone"),
+    clientEmail: text("client_email"),
+    contactConsent: boolean("contact_consent").notNull().default(false),
+    contactConsentAt: timestamp("contact_consent_at", { withTimezone: true, mode: "date" }),
+    status: text("status").$type<"ACTIVE" | "CLOSED" | "UNDER_REVIEW" | "REJECTED" | "SPAM">().notNull().default("ACTIVE"),
+    moderatedById: uuid("moderated_by_id").references(() => users._id),
+    moderatedAt: timestamp("moderated_at", { withTimezone: true, mode: "date" }),
+    moderationNote: text("moderation_note"),
+    duplicateOfId: uuid("duplicate_of_id"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("property_requirements_status_created_idx").on(t.status, t.createdAt),
+    index("property_requirements_owner_status_idx").on(t.submittedById, t.status),
+    uniqueIndex("property_requirements_submitter_submission_key_unique").on(t.submittedById, t.submissionKey),
+    index("property_requirements_city_idx").on(t.city),
+  ],
+);
+export type IPropertyRequirement = typeof propertyRequirements.$inferSelect;
+
+/** One row per requirement/project pair, with idempotent delivery bookkeeping. */
+export const propertyRequirementMatches = pgTable(
+  "property_requirement_matches",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    requirementId: uuid("requirement_id").notNull().references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").notNull().references(() => projects._id, { onDelete: "cascade" }),
+    matchStatus: text("match_status").$type<"MATCHED" | "NO_LONGER_ELIGIBLE" | "ENQUIRY_CREATED">().notNull().default("MATCHED"),
+    matchReasons: jsonb("match_reasons").$type<string[]>().notNull().default([]),
+    notificationStatus: text("notification_status").$type<"PENDING" | "CREATED" | "FAILED" | "SKIPPED">().notNull().default("PENDING"),
+    emailStatus: text("email_status").$type<"QUEUED" | "SENDING" | "SENT_TO_PROVIDER" | "DELIVERED" | "FAILED" | "RETRY_PENDING" | "SKIPPED">().notNull().default("QUEUED"),
+    emailAttempts: integer("email_attempts").notNull().default(0),
+    emailLastError: text("email_last_error"),
+    emailNextAttemptAt: timestamp("email_next_attempt_at", { withTimezone: true, mode: "date" }),
+    emailClaimedAt: timestamp("email_claimed_at", { withTimezone: true, mode: "date" }),
+    emailProviderMessageId: text("email_provider_message_id"),
+    emailDeliveredAt: timestamp("email_delivered_at", { withTimezone: true, mode: "date" }),
+    inAppNotifiedAt: timestamp("in_app_notified_at", { withTimezone: true, mode: "date" }),
+    emailSentAt: timestamp("email_sent_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("property_requirement_matches_pair_unique").on(t.requirementId, t.projectId),
+    index("property_requirement_matches_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_matches_project_idx").on(t.projectId, t.createdAt),
+  ],
+);
+
+export type IPropertyRequirementMatch = typeof propertyRequirementMatches.$inferSelect;
+
+/** Provider callbacks that confirm email delivery/failure; stores no email body or recipient address. */
+export const emailDeliveryEvents = pgTable(
+  "email_delivery_events",
+  {
+    providerEventId: text("provider_event_id").primaryKey(),
+    provider: text("provider").notNull().default("RESEND"),
+    providerMessageId: text("provider_message_id").notNull(),
+    matchId: uuid("match_id").references(() => propertyRequirementMatches._id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    providerCreatedAt: timestamp("provider_created_at", { withTimezone: true, mode: "date" }),
+    receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("email_delivery_events_message_idx").on(t.providerMessageId, t.receivedAt),
+    index("email_delivery_events_match_idx").on(t.matchId, t.receivedAt),
+  ],
+);
+
+/** Append-only audit trail for requirement submissions and moderation. */
+export const propertyRequirementEvents = pgTable(
+  "property_requirement_events",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    requirementId: uuid("requirement_id").notNull().references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users._id),
+    action: text("action").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("property_requirement_events_req_created_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_events_actor_idx").on(t.actorUserId, t.createdAt),
+  ],
+);
+
+/** Durable matching jobs; requests only enqueue and the worker processes with retries. */
+export const propertyRequirementMatchJobs = pgTable(
+  "property_requirement_match_jobs",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    jobType: text("job_type").$type<"REQUIREMENT" | "PROJECT">().notNull(),
+    requirementId: uuid("requirement_id").references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "cascade" }),
+    status: text("status").$type<"QUEUED" | "RUNNING" | "COMPLETED" | "RETRY_PENDING" | "FAILED">().notNull().default("QUEUED"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [
+    index("property_requirement_match_jobs_status_due_idx").on(t.status, t.nextAttemptAt),
+    index("property_requirement_match_jobs_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_match_jobs_project_idx").on(t.projectId, t.createdAt),
+  ],
+);
+export type IPropertyRequirementMatchJob = typeof propertyRequirementMatchJobs.$inferSelect;
+
+/** Internal, privacy-preserving responses to a requirement on the authorized noticeboard. */
+export const propertyRequirementResponses = pgTable(
+  "property_requirement_responses",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    requirementId: uuid("requirement_id").notNull().references(() => propertyRequirements._id, { onDelete: "cascade" }),
+    responderId: uuid("responder_id").notNull().references(() => users._id),
+    message: text("message").notNull(),
+    status: text("status").$type<"SENT" | "WITHDRAWN">().notNull().default("SENT"),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("property_requirement_response_user_unique").on(t.requirementId, t.responderId),
+    index("property_requirement_responses_requirement_idx").on(t.requirementId, t.createdAt),
+    index("property_requirement_responses_responder_idx").on(t.responderId, t.createdAt),
+  ],
+);
+
 export const units = pgTable(
   "units",
   {
@@ -646,6 +805,7 @@ export const leads = pgTable(
     leadNo: bigserial("lead_no", { mode: "number" }),
     // The exact inventory the lead came from (null = whole project).
     unitId: uuid("unit_id").references(() => units._id),
+    propertyRequirementMatchId: uuid("property_requirement_match_id").references(() => propertyRequirementMatches._id),
     // Role of the account that created the lead (BUYER / CP / AMBASSADOR …),
     // derived on the server from the session, never from the request body.
     creatorRole: text("creator_role").$type<Role>(),
@@ -685,6 +845,7 @@ export const leads = pgTable(
     index("leads_dup_check_idx").on(t.projectId, t.clientPhone, t.createdAt),
     index("leads_source_channel_idx").on(t.sourceChannel, t.createdAt),
     index("leads_next_follow_up_idx").on(t.nextFollowUpAt),
+    index("leads_requirement_match_idx").on(t.propertyRequirementMatchId),
     index("leads_ownership_review_idx").on(t.ownershipReviewStatus, t.createdAt),
   ]
 );
@@ -856,6 +1017,26 @@ export const notificationPreferences = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("notification_prefs_user_category_idx").on(t.userId, t.category)]
+);
+
+/**
+ * Channel-level communication choices, separate from the legacy category mute
+ * table so in-app/email/WhatsApp preferences can coexist without data loss.
+ */
+export const userNotificationChannelPreferences = pgTable(
+  "user_notification_channel_preferences",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users._id),
+    channel: text("channel").$type<"IN_APP" | "EMAIL" | "WHATSAPP">().notNull(),
+    category: text("category").notNull().default("properties"),
+    enabled: boolean("enabled").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("user_notification_channel_prefs_unique").on(t.userId, t.channel, t.category),
+    index("user_notification_channel_prefs_user_idx").on(t.userId, t.category),
+  ],
 );
 
 /**

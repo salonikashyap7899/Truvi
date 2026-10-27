@@ -659,7 +659,18 @@ export default function EmployeeDashboardPage() {
                 <h1>Hello{employee?.name ? ", " + employee.name.split(" ")[0] : ""}</h1>
                 <p>{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })} <span>·</span> {employee?.designation || "Employee"} <span>·</span> {employee?.department || "Team"}</p>
               </div>
-              <div className="truvi-employee-heading-status"><span className="truvi-employee-status-dot" /> Workspace active</div>
+              <div className="flex flex-wrap items-center gap-3">
+                {employee?.permissions?.includes("lead.create") && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/requirements")}
+                    className="inline-flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-400/10 px-4 py-2 text-sm font-medium text-teal-200 transition hover:bg-teal-400/15"
+                  >
+                    <Users size={15} aria-hidden="true" /> Share Lead Requirement
+                  </button>
+                )}
+                <div className="truvi-employee-heading-status"><span className="truvi-employee-status-dot" /> Workspace active</div>
+              </div>
             </div>
 
             {loading && <div role="status" className="truvi-erm-loading-state">Loading your workspace data…</div>}

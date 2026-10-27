@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
 const hasSmtpConfig = !!process.env.SMTP_HOST;
+const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
 
 const transporter = hasSmtpConfig
   ? nodemailer.createTransport({
@@ -19,8 +21,10 @@ const transporter = hasSmtpConfig
 
 if (!hasSmtpConfig) {
   console.warn(
-    "[email] SMTP is NOT configured — verification/OTP and other emails will NOT be delivered. " +
-      "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and optionally SMTP_FROM) to enable email.",
+    "[email] SMTP is not configured — existing OTP/account transactional email calls will NOT be delivered. " +
+      (resendApiKey
+        ? "Resend is configured for property-match emails only."
+        : "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and SMTP_FROM) to enable those emails."),
   );
 }
 
@@ -29,6 +33,11 @@ if (!hasSmtpConfig) {
 // defaults to the Truvi Ventures Gmail identity.
 export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
 
+/** Whether a provider is configured for property-match email delivery/retry. */
+export function isEmailTransportConfigured(): boolean {
+  return Boolean(resendApiKey || transporter !== null);
+}
+
 /**
  * Send an email. Returns `true` only when it was actually dispatched via SMTP.
  * When SMTP isn't configured it emits a non-sensitive warning and returns
@@ -36,15 +45,71 @@ export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures
  * OTPs, recipients and message subjects are never written to logs. Throws when
  * SMTP is configured but delivery fails.
  */
-export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
-  if (!transporter) {
-    // Never log an OTP-bearing email subject, recipient, or message metadata.
-    // Callers receive false and can tell the user delivery is unavailable.
-    console.warn("[email] Not delivered because SMTP is not configured.");
-    return false;
+export type EmailDispatchResult =
+  | { status: "UNCONFIGURED"; messageId: null }
+  | { status: "SENT_TO_PROVIDER"; messageId: string | null };
+
+/**
+ * Generic SMTP confirms provider acceptance, not final mailbox delivery.
+ * Provider-specific delivery events must set the durable record to DELIVERED.
+ */
+export async function sendEmailWithStatus(
+  to: string,
+  subject: string,
+  html: string,
+  from: string = MAIL_FROM,
+  options?: { idempotencyKey?: string; preferResend?: boolean },
+): Promise<EmailDispatchResult> {
+  // Preserve Truvi's existing SMTP path for OTP, password reset, approval,
+  // and other pre-existing transactional email calls. Resend is selected only
+  // by the property-match worker through the explicit preferResend option.
+  // If a selected Resend attempt fails, never fall back to SMTP: that could
+  // deliver the same property recommendation twice.
+  if (options?.preferResend && resendApiKey) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+        ...(options?.idempotencyKey ? {
+          // Derive a stable key from the event identity and exact payload:
+          // repeated retries of the same message are deduped by Resend, while a
+          // materially changed message gets a new key instead of a 409 mismatch.
+          "Idempotency-Key": `truvi-${createHash("sha256")
+            .update([options.idempotencyKey, from, to, subject, html].join("\\0"))
+            .digest("hex")}`,
+        } : {}),
+      },
+      body: JSON.stringify({ from, to: [to], subject, html }),
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => {
+      throw new Error("RESEND_REQUEST_FAILED");
+    });
+    if (!response.ok) {
+      // Keep provider response bodies out of logs/errors; they can contain
+      // recipient/provider diagnostics and aren't needed for retry decisions.
+      throw new Error(`RESEND_REJECTED_${response.status}`);
+    }
+    const payload = await response.json().catch(() => null) as { id?: unknown } | null;
+    if (!payload || typeof payload.id !== "string" || !payload.id.trim()) {
+      throw new Error("RESEND_MESSAGE_ID_MISSING");
+    }
+    return { status: "SENT_TO_PROVIDER", messageId: payload.id };
   }
-  await transporter.sendMail({ from, to, subject, html });
-  return true;
+
+  if (!transporter) {
+    console.warn("[email] Not delivered because no email provider is configured.");
+    return { status: "UNCONFIGURED", messageId: null };
+  }
+  const info = await transporter.sendMail({ from, to, subject, html });
+  const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
+  if (acceptedCount === 0) throw new Error("SMTP did not accept the recipient");
+  return { status: "SENT_TO_PROVIDER", messageId: typeof info.messageId === "string" ? info.messageId : null };
+}
+
+export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
+  const result = await sendEmailWithStatus(to, subject, html, from);
+  return result.status === "SENT_TO_PROVIDER";
 }
 
 export async function sendApprovalEmail(to: string, name: string, approved: boolean): Promise<void> {

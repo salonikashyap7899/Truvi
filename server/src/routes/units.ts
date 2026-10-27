@@ -10,9 +10,16 @@ import { expireStaleLocks } from "../services/inventoryService";
 import { emitUnitUpdate } from "../sockets";
 import { UNIT_LOCK_MINUTES } from "../config/constants";
 import { notifyUser, notifyRole } from "../services/notificationService";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 
 const router = Router();
 router.use(authenticate);
+
+function queueProjectRequirementRecheck(projectId: string): void {
+  void enqueueRequirementMatchJob("PROJECT", { projectId }).catch(() => {
+    console.warn("[property-matching] inventory-change match job could not be queued");
+  });
+}
 
 router.get("/", async (req: AuthedRequest, res) => {
   await expireStaleLocks();
@@ -88,11 +95,11 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
     })
     .returning();
 
-  // New inventory: tell CPs and buyers there are fresh plots to explore. Deduped
-  // to once per project per day so adding many units at once doesn't spam. Only
-  // for live (approved) projects — pending ones aren't public yet.
-  try {
-    if (project.approvalStatus === "APPROVED") {
+  // New inventory: tell CPs and buyers there are fresh plots to explore. A
+  // generic notification-provider failure must never prevent requirement
+  // matching from being queued for the same newly added inventory.
+  if (project.approvalStatus === "APPROVED") {
+    try {
       const day = new Date().toISOString().slice(0, 10);
       await notifyRole(["CP", "BUYER"], {
         type: "new_property",
@@ -101,9 +108,10 @@ router.post("/", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedRequest, r
         data: { href: `/inventory/${project._id}/presentation` },
         dedupeKey: `inventory:${project._id}:${day}`,
       });
+    } catch {
+      /* generic inventory alert is non-fatal; matching is independent */
     }
-  } catch {
-    /* non-fatal */
+    queueProjectRequirementRecheck(String(project._id));
   }
 
   res.status(201).json({ unit });
@@ -124,6 +132,7 @@ router.delete("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReque
   }
 
   await db.delete(units).where(eq(units._id, unit._id));
+  queueProjectRequirementRecheck(String(unit.projectId));
   res.json({ ok: true });
 });
 
@@ -183,6 +192,7 @@ router.post("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) => {
   const unit = outcome.unit;
 
   emitUnitUpdate(String(unit.projectId), unit);
+  queueProjectRequirementRecheck(String(unit.projectId));
 
   // Let the project's developer know a CP just locked a unit (booking intent).
   try {
@@ -217,6 +227,7 @@ router.delete("/:id/lock", requireRole("CP"), async (req: AuthedRequest, res) =>
   if (!unit) return res.status(403).json({ error: "You don't hold the lock on this unit" });
 
   emitUnitUpdate(String(unit.projectId), unit);
+  queueProjectRequirementRecheck(String(unit.projectId));
   res.json({ unit });
 });
 
@@ -263,6 +274,7 @@ router.post("/:id/reserve", requireRole("ADMIN", "DEVELOPER"), async (req: Authe
   if (!updated) return res.status(409).json({ error: "Unit is no longer LOCKED" });
 
   emitUnitUpdate(String(updated.projectId), updated);
+  queueProjectRequirementRecheck(String(updated.projectId));
   res.json({ unit: updated });
 });
 
@@ -333,6 +345,9 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
 
     const [updated] = await db.update(units).set(upd).where(eq(units._id, unit._id)).returning();
     emitUnitUpdate(String(updated.projectId), updated);
+    if (d.price !== undefined || d.type !== undefined || d.areaSqft !== undefined) {
+      queueProjectRequirementRecheck(String(updated.projectId));
+    }
     return res.json({ unit: updated });
   }
 
@@ -352,6 +367,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
       .returning();
 
     emitUnitUpdate(String(updated.projectId), updated);
+    queueProjectRequirementRecheck(String(updated.projectId));
     return res.json({ unit: updated });
   }
 
@@ -368,6 +384,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
       .where(eq(units._id, unit._id))
       .returning();
     emitUnitUpdate(String(updated.projectId), updated);
+    queueProjectRequirementRecheck(String(updated.projectId));
     return res.json({ unit: updated });
   }
 

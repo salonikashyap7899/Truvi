@@ -48,6 +48,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
+import { enqueueRequirementMatchJob } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagCountsForProjects } from "../services/ragIntel";
@@ -1545,6 +1546,14 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (!project) return res.status(404).json({ error: "Project not found" });
 
   await logAudit({ userId: req.user!.userId, action: "project.update", resourceType: "project", resourceId: projectId, metadata: { fields: Object.keys(update), approvalStatus: data.approvalStatus, isVerified: data.isVerified } });
+
+  // Enqueue on every approval-state transition, not only approval: moving a
+  // previously published listing back to PENDING/REJECTED must invalidate old matches.
+  if (data.approvalStatus && data.approvalStatus !== existing.approvalStatus) {
+    void enqueueRequirementMatchJob("PROJECT", { projectId: String(project._id) }).catch(() => {
+      console.warn("[property-matching] project eligibility recheck could not be queued");
+    });
+  }
 
   // Real-time notifications on an approval-status transition. The transition
   // guard (only when the status actually changes) keeps a double-click from

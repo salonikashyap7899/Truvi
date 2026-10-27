@@ -39,6 +39,7 @@ export const NotificationType = {
   NEW_PROJECT: "new_project",
   // Properties
   NEW_PROPERTY: "new_property",
+  PROPERTY_MATCH: "property_match",
   PROPERTY_UPDATED: "property_updated",
   PROPERTY_PRICE_CHANGED: "property_price_changed",
   // Referrals & commissions
@@ -88,6 +89,7 @@ const TYPE_CATEGORY: Record<string, string> = {
   project_live: "projects",
   new_project: "projects",
   new_property: "properties",
+  property_match: "properties",
   property_updated: "properties",
   property_price_changed: "properties",
   developer_referred: "referrals",

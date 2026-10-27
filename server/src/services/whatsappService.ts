@@ -76,6 +76,15 @@ export function isWhatsAppEventEnabled(type: string): boolean {
   return ENABLED_EVENTS.has(type);
 }
 
+/**
+ * Property-match WhatsApp is intentionally disabled until Truvi adds a dedicated
+ * user opt-in/consent flow and approved template for this notification category.
+ * A generic WHATSAPP_EVENTS override must not bypass that decision.
+ */
+export function isWhatsAppEventDisabledPendingConsent(type: string): boolean {
+  return type === "property_match";
+}
+
 /** The Meta-approved template name for an event type, if one is configured. */
 function templateForType(type: string): string | undefined {
   const key = `WHATSAPP_TPL_${type.toUpperCase()}`;
@@ -173,6 +182,7 @@ export async function dispatchNotificationWhatsApp(
   notification: { type: string; title?: string | null; message: string },
 ): Promise<void> {
   if (!isWhatsAppEnabled()) return;
+  if (isWhatsAppEventDisabledPendingConsent(notification.type)) return;
   if (recipient.role !== "DEVELOPER") return; // spec: WhatsApp is for developer actions
   if (!recipient.phone) return;
   if (!isWhatsAppEventEnabled(notification.type)) return;

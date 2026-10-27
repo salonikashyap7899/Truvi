@@ -146,6 +146,9 @@ export default function CPDashboardPage({ title = "CP Dashboard" }: { title?: st
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/requirements" className="inline-flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-xs font-medium text-teal-200 transition hover:bg-teal-400/15 sm:text-sm">
+            <FileText size={15} /> Share Lead Requirement
+          </Link>
           <NotificationBell />
           <UserMenu />
         </div>

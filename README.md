@@ -32,6 +32,10 @@ Zustand · Axios · Socket.io-client · React Hook Form · Zod · Recharts
 - **A backend that fully type-checks in this environment** — `tsc --noEmit`,
   a full `tsc` build, and the full Vitest suite all run with zero gaps.
 
+## Requirement sharing and property-match notifications
+
+The structured requirement form, privacy-safe noticeboard, background property matching, in-app notifications, email-delivery tracking and rollout prerequisites are documented in [docs/PROPERTY-REQUIREMENTS-NOTIFICATIONS.md](docs/PROPERTY-REQUIREMENTS-NOTIFICATIONS.md). The feature remains behind its review PR until its tests and deployment prerequisites are verified.
+
 ## Setup
 
 ### 1. Supabase (PostgreSQL) — the only database

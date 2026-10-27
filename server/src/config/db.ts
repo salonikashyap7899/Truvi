@@ -697,6 +697,16 @@ async function ensureSchema(db: Db): Promise<void> {
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "notification_prefs_user_category_idx" ON "notification_preferences" ("user_id", "category")`,
+    `CREATE TABLE IF NOT EXISTS "user_notification_channel_preferences" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "channel" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'properties',
+       "enabled" boolean NOT NULL DEFAULT true,
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("user_id", "channel", "category")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "user_notification_channel_prefs_user_idx" ON "user_notification_channel_preferences" ("user_id", "category")`,
     `CREATE TABLE IF NOT EXISTS "user_push_tokens" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "user_id" uuid NOT NULL REFERENCES users(id),
@@ -708,6 +718,143 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "user_push_tokens_token_idx" ON "user_push_tokens" ("token")`,
     `CREATE INDEX IF NOT EXISTS "user_push_tokens_user_idx" ON "user_push_tokens" ("user_id")`,
+
+    // Structured buyer requirements and match/delivery bookkeeping. Additive and safe to rerun.
+    `CREATE TABLE IF NOT EXISTS "property_requirements" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "submitted_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "submitted_by_role" text NOT NULL,
+       "title" text NOT NULL,
+       "property_type" text NOT NULL DEFAULT 'ANY',
+       "city" text NOT NULL,
+       "location" text NOT NULL,
+       "min_budget" double precision,
+       "max_budget" double precision NOT NULL,
+       "min_area_sqft" double precision,
+       "max_area_sqft" double precision,
+       "purpose" text,
+       "timeline" text NOT NULL,
+       "details" text,
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "submission_key" text`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirements_submitter_submission_key_unique" ON "property_requirements" ("submitted_by_id", "submission_key")`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "requirement_kind" text NOT NULL DEFAULT 'BUYER'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "visibility" text NOT NULL DEFAULT 'TRUVI'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "preferred_contact_method" text NOT NULL DEFAULT 'IN_APP'`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "public_summary" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_name" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_phone" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "client_email" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "contact_consent" boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "contact_consent_at" timestamptz`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderated_by_id" uuid REFERENCES users(id)`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderated_at" timestamptz`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "moderation_note" text`,
+    `ALTER TABLE "property_requirements" ADD COLUMN IF NOT EXISTS "duplicate_of_id" uuid`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_visibility_status_created_idx" ON "property_requirements" ("visibility", "status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_kind_created_idx" ON "property_requirements" ("requirement_kind", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_status_created_idx" ON "property_requirements" ("status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_owner_status_idx" ON "property_requirements" ("submitted_by_id", "status")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_city_idx" ON "property_requirements" ("city")`,
+    // Functional prefix indexes keep per-city matching from scanning every project/requirement.
+    `CREATE INDEX IF NOT EXISTS "projects_city_lower_pattern_idx" ON "projects" (lower("city") text_pattern_ops)`,
+    `CREATE INDEX IF NOT EXISTS "property_requirements_city_lower_pattern_idx" ON "property_requirements" (lower("city") text_pattern_ops)`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_matches" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+       "in_app_notified_at" timestamptz,
+       "email_sent_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("requirement_id", "project_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_requirement_idx" ON "property_requirement_matches" ("requirement_id", "created_at")`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "match_status" text NOT NULL DEFAULT 'MATCHED'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "match_reasons" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "notification_status" text NOT NULL DEFAULT 'PENDING'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_status" text NOT NULL DEFAULT 'QUEUED'`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_attempts" integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_last_error" text`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_next_attempt_at" timestamptz`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_claimed_at" timestamptz`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_provider_message_id" text`,
+    `ALTER TABLE "property_requirement_matches" ADD COLUMN IF NOT EXISTS "email_delivered_at" timestamptz`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_email_retry_idx" ON "property_requirement_matches" ("email_status", "email_next_attempt_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_matches_project_idx" ON "property_requirement_matches" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "email_delivery_events" (
+       "provider_event_id" text PRIMARY KEY,
+       "provider" text NOT NULL DEFAULT 'RESEND',
+       "provider_message_id" text NOT NULL,
+       "match_id" uuid REFERENCES "property_requirement_matches"("id") ON DELETE SET NULL,
+       "event_type" text NOT NULL,
+       "provider_created_at" timestamptz,
+       "received_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "email_delivery_events_message_idx" ON "email_delivery_events" ("provider_message_id", "received_at")`,
+    `CREATE INDEX IF NOT EXISTS "email_delivery_events_match_idx" ON "email_delivery_events" ("match_id", "received_at")`,
+    // Keep only one active match job per target. Existing duplicates are retained
+    // as FAILED history before the partial indexes are created; no data is deleted.
+    `WITH ranked AS (
+       SELECT "id", row_number() OVER (
+         PARTITION BY "job_type", COALESCE("requirement_id"::text, "project_id"::text)
+         ORDER BY "created_at" DESC, "id" DESC
+       ) AS rn
+       FROM "property_requirement_match_jobs"
+       WHERE "status" IN ('QUEUED', 'RETRY_PENDING')
+     )
+     UPDATE "property_requirement_match_jobs" AS job
+     SET "status" = 'FAILED', "last_error" = 'DUPLICATE_QUEUED_JOB_CLEANED_UP', "updated_at" = now()
+     FROM ranked WHERE ranked."id" = job."id" AND ranked.rn > 1`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_requirement_unique"
+       ON "property_requirement_match_jobs" ("requirement_id")
+       WHERE "job_type" = 'REQUIREMENT' AND "status" IN ('QUEUED', 'RETRY_PENDING')`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "property_requirement_match_jobs_active_project_unique"
+       ON "property_requirement_match_jobs" ("project_id")
+       WHERE "job_type" = 'PROJECT' AND "status" IN ('QUEUED', 'RETRY_PENDING')`,
+    `ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "property_requirement_match_id" uuid REFERENCES "property_requirement_matches"("id")`,
+    `CREATE INDEX IF NOT EXISTS "leads_requirement_match_idx" ON "leads" ("property_requirement_match_id")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "actor_user_id" uuid REFERENCES "users"("id"),
+       "action" text NOT NULL,
+       "metadata" jsonb,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_events_req_created_idx" ON "property_requirement_events" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_events_actor_idx" ON "property_requirement_events" ("actor_user_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_match_jobs" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "job_type" text NOT NULL,
+       "requirement_id" uuid REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "project_id" uuid REFERENCES "projects"("id") ON DELETE CASCADE,
+       "status" text NOT NULL DEFAULT 'QUEUED',
+       "attempts" integer NOT NULL DEFAULT 0,
+       "next_attempt_at" timestamptz NOT NULL DEFAULT now(),
+       "last_error" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       "completed_at" timestamptz
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_status_due_idx" ON "property_requirement_match_jobs" ("status", "next_attempt_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_requirement_idx" ON "property_requirement_match_jobs" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_project_idx" ON "property_requirement_match_jobs" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_responses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "responder_id" uuid NOT NULL REFERENCES "users"("id"),
+       "message" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'SENT',
+       "read_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("requirement_id", "responder_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_responses_requirement_idx" ON "property_requirement_responses" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_responses_responder_idx" ON "property_requirement_responses" ("responder_id", "created_at")`,
 
     // ── Marketing module tables (auto-applied on boot; same rationale as above
     // — a plain restart is enough, no separate `npm run db:marketing`). ──
