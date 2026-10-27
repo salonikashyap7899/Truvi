@@ -244,19 +244,27 @@ async function recordAndNotifyMatch(
       .limit(1);
     matchRow = existing;
     if (matchRow?.matchStatus === "NO_LONGER_ELIGIBLE") {
+      // Re-activation of the same requirement/project pair must not erase
+      // successful delivery history. Only re-queue a channel if it was skipped
+      // specifically because the match temporarily became ineligible.
+      const emailSkippedForEligibility =
+        matchRow.emailStatus === "SKIPPED" &&
+        ["NO_MATCHING_AVAILABLE_UNIT", "PROJECT_NOT_PUBLISHED_OR_UNAVAILABLE", "REQUIREMENT_NOT_ACTIVE"]
+          .includes(String(matchRow.emailLastError ?? ""));
       const [reopened] = await db.update(propertyRequirementMatches)
         .set({
           matchStatus: "MATCHED",
           matchReasons: reasons,
-          notificationStatus: "PENDING",
-          emailStatus: "QUEUED",
-          emailAttempts: 0,
-          emailLastError: null,
-          emailNextAttemptAt: new Date(),
-          inAppNotifiedAt: null,
-          emailSentAt: null,
-          emailProviderMessageId: null,
-          emailDeliveredAt: null,
+          notificationStatus: matchRow.notificationStatus === "CREATED" || matchRow.inAppNotifiedAt
+            ? "CREATED"
+            : matchRow.notificationStatus === "FAILED" ? "FAILED" : "PENDING",
+          ...(emailSkippedForEligibility ? {
+            emailStatus: "QUEUED" as const,
+            emailAttempts: 0,
+            emailLastError: null,
+            emailNextAttemptAt: new Date(),
+            emailClaimedAt: null,
+          } : {}),
         })
         .where(eq(propertyRequirementMatches._id, matchRow._id))
         .returning();
