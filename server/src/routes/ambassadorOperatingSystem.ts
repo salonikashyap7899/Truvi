@@ -2935,6 +2935,190 @@ router.get("/privacy/requests/me", async (req: AuthedRequest, res) => {
   res.json({ requests });
 });
 
+router.get("/privacy/export", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "AMBASSADOR") return res.status(403).json({ error: "Ambassadors only" });
+
+  const userId = req.user!.userId;
+  const db = getDb();
+  const [
+    accountRows,
+    profileRows,
+    trainingProgress,
+    assignedTasks,
+    followUps,
+    submittedLeads,
+    propertyBookings,
+    incentives,
+    performanceReviews,
+    careerApplications,
+    careerAssessments,
+    campaignAcknowledgements,
+    marketingMaterials,
+    privacyRequests,
+  ] = await Promise.all([
+    // Explicitly exclude credentials, auth versions, payout details and other unrelated role profiles.
+    db.select({
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      emailVerified: users.emailVerified,
+      phoneVerified: users.phoneVerified,
+      onboardingVerified: users.onboardingVerified,
+      referralCode: users.referralCode,
+    }).from(users).where(eq(users._id, userId)),
+    db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, userId)),
+    db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, userId)).orderBy(ambassadorOsTrainingProgress.day),
+    // Export task metadata but not evidence text/URLs, which can contain buyer data or private asset links.
+    db.select({
+      taskId: ambassadorOsTasks._id,
+      title: ambassadorOsTasks.title,
+      category: ambassadorOsTasks.category,
+      description: ambassadorOsTasks.description,
+      campaignId: ambassadorOsTasks.campaignId,
+      dueAt: ambassadorOsTasks.dueAt,
+      status: ambassadorOsTasks.status,
+      checklistItems: ambassadorOsTasks.checklistItems,
+      checklistResponses: ambassadorOsTasks.checklistResponses,
+      createdAt: ambassadorOsTasks.createdAt,
+      completedAt: ambassadorOsTasks.completedAt,
+    }).from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
+    // Follow-up notes/outcomes are excluded because free text can contain a buyer's personal data.
+    db.select({
+      leadId: ambassadorOsFollowUps.leadId,
+      dueAt: ambassadorOsFollowUps.dueAt,
+      channel: ambassadorOsFollowUps.channel,
+      status: ambassadorOsFollowUps.status,
+      completedAt: ambassadorOsFollowUps.completedAt,
+      createdAt: ambassadorOsFollowUps.createdAt,
+      updatedAt: ambassadorOsFollowUps.updatedAt,
+    }).from(ambassadorOsFollowUps).where(eq(ambassadorOsFollowUps.ambassadorId, userId)).orderBy(desc(ambassadorOsFollowUps.dueAt)),
+    // Export attribution and qualification metadata, never customer names, phone numbers, emails or CRM notes.
+    db.select({
+      leadId: leads._id,
+      leadNumber: leads.leadNo,
+      stage: leads.stage,
+      source: leads.source,
+      sourceChannel: leads.sourceChannel,
+      requirement: leads.requirement,
+      budgetRange: leads.budgetRange,
+      purchasePurpose: leads.purchasePurpose,
+      preferredPlotSize: leads.preferredPlotSize,
+      purchaseTimeline: leads.purchaseTimeline,
+      contactConsent: leads.contactConsent,
+      contactConsentAt: leads.contactConsentAt,
+      consentTextVersion: leads.consentTextVersion,
+      isDuplicate: leads.isDuplicate,
+      ownershipReviewStatus: leads.ownershipReviewStatus,
+      nextFollowUpAt: leads.nextFollowUpAt,
+      firstContactedAt: leads.firstContactedAt,
+      qualifiedAt: leads.qualifiedAt,
+      createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
+    }).from(leads).where(eq(leads.submittedById, userId)).orderBy(desc(leads.createdAt)),
+    db.select({
+      bookingReference: ambassadorOsPropertyBookings.bookingReference,
+      leadId: ambassadorOsPropertyBookings.leadId,
+      projectId: ambassadorOsPropertyBookings.projectId,
+      unitId: ambassadorOsPropertyBookings.unitId,
+      status: ambassadorOsPropertyBookings.status,
+      bookingValue: ambassadorOsPropertyBookings.bookingValue,
+      amountReceived: ambassadorOsPropertyBookings.amountReceived,
+      paymentMilestone: ambassadorOsPropertyBookings.paymentMilestone,
+      refundStatus: ambassadorOsPropertyBookings.refundStatus,
+      refundAmount: ambassadorOsPropertyBookings.refundAmount,
+      expectedIncentivePayoutAt: ambassadorOsPropertyBookings.expectedIncentivePayoutAt,
+      createdAt: ambassadorOsPropertyBookings.createdAt,
+      updatedAt: ambassadorOsPropertyBookings.updatedAt,
+    }).from(ambassadorOsPropertyBookings)
+      .innerJoin(leads, eq(ambassadorOsPropertyBookings.leadId, leads._id))
+      .where(eq(leads.submittedById, userId))
+      .orderBy(desc(ambassadorOsPropertyBookings.createdAt)),
+    db.select().from(ambassadorOsIncentives).where(eq(ambassadorOsIncentives.userId, userId)).orderBy(desc(ambassadorOsIncentives.createdAt)),
+    db.select().from(ambassadorOsPerformanceReviews).where(eq(ambassadorOsPerformanceReviews.ambassadorId, userId)).orderBy(desc(ambassadorOsPerformanceReviews.periodEnd)),
+    db.select().from(ambassadorOsCareerApplications).where(eq(ambassadorOsCareerApplications.ambassadorId, userId)).orderBy(desc(ambassadorOsCareerApplications.createdAt)),
+    db.select().from(ambassadorOsCareerAssessments).where(eq(ambassadorOsCareerAssessments.ambassadorId, userId)).orderBy(desc(ambassadorOsCareerAssessments.reviewedAt)),
+    db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, userId)).orderBy(desc(ambassadorOsCampaignAcknowledgements.acknowledgedAt)),
+    // Export metadata only; submitted content and asset links can contain third-party data or private URLs.
+    db.select({
+      materialId: ambassadorOsMarketingMaterials._id,
+      campaignId: ambassadorOsMarketingMaterials.campaignId,
+      title: ambassadorOsMarketingMaterials.title,
+      channel: ambassadorOsMarketingMaterials.channel,
+      version: ambassadorOsMarketingMaterials.version,
+      status: ambassadorOsMarketingMaterials.status,
+      validFrom: ambassadorOsMarketingMaterials.validFrom,
+      validTo: ambassadorOsMarketingMaterials.validTo,
+      createdAt: ambassadorOsMarketingMaterials.createdAt,
+      updatedAt: ambassadorOsMarketingMaterials.updatedAt,
+    }).from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials.createdById, userId)).orderBy(desc(ambassadorOsMarketingMaterials.createdAt)),
+    db.select().from(ambassadorOsPrivacyRequests).where(eq(ambassadorOsPrivacyRequests.requesterUserId, userId)).orderBy(desc(ambassadorOsPrivacyRequests.requestedAt)),
+  ]);
+
+  const account = accountRows[0];
+  if (!account) return res.status(404).json({ error: "Ambassador account not found" });
+
+  const exportedAt = new Date();
+  const dataExport = {
+    metadata: {
+      format: "truvi-ambassador-data-export",
+      version: 1,
+      exportedAt: exportedAt.toISOString(),
+      scope: "Ambassador Operating System records associated with the authenticated account",
+      exclusions: [
+        "Customer names, phone numbers, email addresses and free-text CRM notes are excluded from lead exports.",
+        "Follow-up free-text notes and outcomes are excluded because they may contain buyer personal data.",
+        "Passwords, authentication secrets, other users' records, and unrelated Truvi workspaces are excluded.",
+        "Task evidence, reviewer free-text, submitted marketing content, and linked asset URLs are omitted because they may contain third-party data or private links.",
+        "This export is not a substitute for a separately reviewed request for records held in other Truvi systems.",
+      ],
+    },
+    account,
+    ambassadorProfile: profileRows[0] ?? null,
+    trainingProgress,
+    assignedTasks,
+    followUps,
+    leadAttributionAndQualification: submittedLeads,
+    propertyBookings,
+    incentiveLedger: incentives,
+    performanceReviews,
+    careerApplications,
+    careerAssessments,
+    campaignGuidelineAcknowledgements: campaignAcknowledgements,
+    submittedMarketingMaterials: marketingMaterials,
+    privacyRequests,
+  };
+
+  await logAudit({
+    userId,
+    action: "ambassador_os.privacy.export",
+    resourceType: "ambassador_os_data_export",
+    resourceId: userId,
+    metadata: {
+      exportedAt: exportedAt.toISOString(),
+      categoryCounts: {
+        trainingProgress: trainingProgress.length,
+        assignedTasks: assignedTasks.length,
+        followUps: followUps.length,
+        leadAttributionAndQualification: submittedLeads.length,
+        propertyBookings: propertyBookings.length,
+        incentiveLedger: incentives.length,
+        performanceReviews: performanceReviews.length,
+        careerApplications: careerApplications.length,
+        careerAssessments: careerAssessments.length,
+        campaignGuidelineAcknowledgements: campaignAcknowledgements.length,
+        submittedMarketingMaterials: marketingMaterials.length,
+        privacyRequests: privacyRequests.length,
+      },
+      customerContactDataExcluded: true,
+    },
+  });
+
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Content-Disposition", "attachment; filename=\"truvi-ambassador-data-" + exportedAt.toISOString().slice(0, 10) + ".json\"");
+  return res.json(dataExport);
+});
+
 router.get("/admin/privacy-requests", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
   const rows = await getDb().select({ request: ambassadorOsPrivacyRequests, name: users.name, email: users.email })
     .from(ambassadorOsPrivacyRequests).innerJoin(users, eq(ambassadorOsPrivacyRequests.requesterUserId, users._id))

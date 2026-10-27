@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   ArrowLeft, BookOpen, CheckCircle2, Clock3, GraduationCap, ClipboardList,
-  Wallet, TrendingUp, Users, ShieldCheck, LockKeyhole, Building2, Send, Award,
+  Wallet, TrendingUp, Users, ShieldCheck, LockKeyhole, Building2, Send, Award, Download,
 } from "lucide-react";
 
 type Progress = {
@@ -86,6 +86,7 @@ export default function AmbassadorOperatingSystemPage() {
   const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([]);
   const [privacyForm, setPrivacyForm] = useState({ requestType: "ACCESS", reason: "" });
   const [submittingPrivacy, setSubmittingPrivacy] = useState(false);
+  const [downloadingData, setDownloadingData] = useState(false);
   const [materialForm, setMaterialForm] = useState({ campaignId: "", title: "", channel: "WHATSAPP", content: "", assetUrl: "" });
   const [submittingMaterial, setSubmittingMaterial] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -211,6 +212,27 @@ export default function AmbassadorOperatingSystemPage() {
       await load();
     } catch (error: any) { toast.error(error?.response?.data?.error || "Could not submit privacy request"); }
     finally { setSubmittingPrivacy(false); }
+  }
+
+  async function downloadMyData() {
+    setDownloadingData(true);
+    try {
+      const response = await api.get("/ambassador-os/privacy/export");
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: "application/json;charset=utf-8" });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = "truvi-ambassador-data-" + new Date().toISOString().slice(0, 10) + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
+      toast.success("Your Ambassador OS data export was downloaded.");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not export your data");
+    } finally {
+      setDownloadingData(false);
+    }
   }
 
   async function acknowledgeCampaign(campaign: Campaign) {
@@ -472,7 +494,18 @@ export default function AmbassadorOperatingSystemPage() {
 
       <section className="space-y-4">
         <div><h2 className="flex items-center gap-2 text-xl font-semibold"><ShieldCheck className="text-sky-300" /> My privacy & data requests</h2><p className="mt-1 text-sm text-muted-foreground">Request access to your OS records, correction of data, or review of a deletion request. Sensitive records and legally-required audit/finance history may need restricted handling; submission does not automatically erase records.</p></div>
-        <Card className="border-white/10 bg-white/[0.035] p-5"><form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void submitPrivacyRequest(e)}>
+        <Card className="border-white/10 bg-white/[0.035] p-5">
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-medium">Download a copy of your data</p>
+              <p className="mt-1 text-sm text-muted-foreground">Export your Ambassador profile, training, task metadata, incentive ledger, career records and lead attribution. Buyer contact details, CRM/follow-up notes, task evidence and marketing asset content are excluded from this download.</p>
+            </div>
+            <Button type="button" className="shrink-0" disabled={downloadingData} onClick={() => void downloadMyData()}>
+              <Download size={16} className="mr-2" aria-hidden="true" />
+              {downloadingData ? "Preparing export…" : "Download my data"}
+            </Button>
+          </div>
+          <form className="grid gap-3 md:grid-cols-3" onSubmit={(e) => void submitPrivacyRequest(e)}>
           <label className="block text-sm"><span className="mb-1 block text-muted-foreground">Request type</span><select className="h-10 w-full rounded-lg border border-white/10 bg-slate-950 px-3" value={privacyForm.requestType} onChange={(e) => setPrivacyForm((f) => ({...f,requestType:e.target.value}))}>{[["ACCESS","Access to my records"],["RECTIFICATION","Correct my data"],["DELETION","Review a deletion request"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label>
           <label className="block text-sm md:col-span-2"><span className="mb-1 block text-muted-foreground">Details and scope</span><textarea required minLength={10} maxLength={3000} rows={3} className="w-full rounded-lg border border-white/10 bg-slate-950 p-3" value={privacyForm.reason} onChange={(e) => setPrivacyForm((f) => ({...f,reason:e.target.value}))} placeholder="Describe the records or correction you are requesting…" /></label>
           <div className="md:col-span-3"><Button type="submit" disabled={submittingPrivacy || privacyForm.reason.trim().length < 10}>{submittingPrivacy ? "Submitting…" : "Submit privacy request"}</Button></div>
