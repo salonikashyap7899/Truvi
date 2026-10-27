@@ -15,8 +15,8 @@ const AmbientBackground = lazy(() =>
   import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
 );
 
-// Eager: the shell components + the landing page (first paint must be instant).
-import LandingPage from "@/pages/LandingPage";
+// Keep the shell eager, but split the large landing-page bundle so sign-up and
+// authenticated routes do not have to download and parse marketing animations.
 import GlobalNav, { GLOBAL_NAV_OFFSET, useGlobalNavVisible } from "@/components/GlobalNav";
 import PageBackLink from "@/components/PageBackLink";
 import { showsNavBack } from "@/lib/navChrome";
@@ -30,6 +30,7 @@ import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/P
 
 // Every other route page is lazy-loaded, so the initial download is tiny and
 // the app opens fast; each page's code is fetched only when its route opens.
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const IntelligencePage = lazy(() => import("@/pages/IntelligencePage"));
 const AskTruviPage = lazy(() => import("@/pages/AskTruviPage"));
 const HomePage = lazy(() => import("@/pages/HomePage"));
