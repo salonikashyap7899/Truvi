@@ -323,6 +323,41 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     return res.status(400).json({ error: "Client consent is required before saving client contact information." });
   }
 
+  // Idempotent duplicate guard for repeated submit/network retries. Partners can
+  // still create separate client records; supplied consented contact identifiers
+  // are included in the comparison when available.
+  const recentSince = new Date(Date.now() - 2 * 60_000);
+  const duplicateConditions = [
+    eq(propertyRequirements.submittedById, req.user!.userId),
+    eq(propertyRequirements.requirementKind, isBuyer ? "BUYER" : "CLIENT"),
+    eq(propertyRequirements.propertyType, data.propertyType),
+    eq(propertyRequirements.city, data.city.trim()),
+    eq(propertyRequirements.location, data.location.trim()),
+    eq(propertyRequirements.maxBudget, data.maxBudget),
+    gte(propertyRequirements.createdAt, recentSince),
+    eq(propertyRequirements.status, "ACTIVE"),
+  ];
+  if (data.minBudget == null) duplicateConditions.push(isNull(propertyRequirements.minBudget) as never);
+  else duplicateConditions.push(eq(propertyRequirements.minBudget, data.minBudget) as never);
+  if (data.clientPhone?.trim()) duplicateConditions.push(eq(propertyRequirements.clientPhone, data.clientPhone.trim()) as never);
+  else if (data.clientEmail?.trim()) duplicateConditions.push(eq(propertyRequirements.clientEmail, data.clientEmail.trim()) as never);
+  else if (data.clientName?.trim()) duplicateConditions.push(eq(propertyRequirements.clientName, data.clientName.trim()) as never);
+  else if (!isBuyer) duplicateConditions.push(isNull(propertyRequirements.clientPhone) as never);
+
+  const [recentDuplicate] = await getDb().select({
+    id: propertyRequirements._id,
+  }).from(propertyRequirements)
+    .where(and(...duplicateConditions))
+    .orderBy(desc(propertyRequirements.createdAt))
+    .limit(1);
+  if (recentDuplicate) {
+    return res.status(409).json({
+      error: "A very similar requirement was just submitted. Check your saved requirements before submitting again.",
+      reference: String(recentDuplicate.id),
+      code: "RECENT_DUPLICATE_REQUIREMENT",
+    });
+  }
+
   const title = data.title?.trim() || `${displayType(data.propertyType)} requirement in ${data.city.trim()}`;
   const [requirement] = await getDb().insert(propertyRequirements).values({
     submittedById: req.user!.userId,
