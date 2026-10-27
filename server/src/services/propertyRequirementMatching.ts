@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
   propertyRequirementMatches,
+  propertyRequirementMatchJobs,
   propertyRequirements,
   projects,
   units,
@@ -289,6 +290,93 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
   }
 }
 
+/** Enqueue matching work without extending a public API request's lifetime. */
+export async function enqueueRequirementMatchJob(
+  jobType: "REQUIREMENT" | "PROJECT",
+  ids: { requirementId?: string; projectId?: string },
+): Promise<void> {
+  if (jobType === "REQUIREMENT" && !ids.requirementId) throw new Error("requirementId is required");
+  if (jobType === "PROJECT" && !ids.projectId) throw new Error("projectId is required");
+
+  await getDb().insert(propertyRequirementMatchJobs).values({
+    jobType,
+    requirementId: ids.requirementId ?? null,
+    projectId: ids.projectId ?? null,
+    status: "QUEUED",
+    nextAttemptAt: new Date(),
+  });
+}
+
+/**
+ * Durable matching job worker. Each job is atomically claimed by moving it to
+ * RUNNING; two PM2 replicas cannot process the same job concurrently. Match
+ * result rows provide the second line of idempotency.
+ */
+export async function processPropertyRequirementMatchJobs(limit = 25): Promise<{
+  scanned: number; completed: number; retried: number; failed: number;
+}> {
+  const db = getDb();
+  const now = new Date();
+  const pending = await db.select({ id: propertyRequirementMatchJobs._id })
+    .from(propertyRequirementMatchJobs)
+    .where(and(
+      inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RETRY_PENDING"]),
+      lt(propertyRequirementMatchJobs.attempts, 5),
+      lte(propertyRequirementMatchJobs.nextAttemptAt, now),
+    ))
+    .orderBy(desc(propertyRequirementMatchJobs.createdAt))
+    .limit(Math.max(1, Math.min(100, Math.floor(limit))));
+
+  let completed = 0;
+  let retried = 0;
+  let failed = 0;
+  for (const item of pending) {
+    const [job] = await db.update(propertyRequirementMatchJobs)
+      .set({
+        status: "RUNNING",
+        attempts: sql`${propertyRequirementMatchJobs.attempts} + 1`,
+        updatedAt: new Date(),
+        lastError: null,
+      })
+      .where(and(
+        eq(propertyRequirementMatchJobs._id, item.id),
+        inArray(propertyRequirementMatchJobs.status, ["QUEUED", "RETRY_PENDING"]),
+        lt(propertyRequirementMatchJobs.attempts, 5),
+        lte(propertyRequirementMatchJobs.nextAttemptAt, now),
+      ))
+      .returning();
+    if (!job) continue;
+
+    try {
+      if (job.jobType === "REQUIREMENT" && job.requirementId) {
+        await matchRequirementAgainstAvailableProjects(String(job.requirementId));
+      } else if (job.jobType === "PROJECT" && job.projectId) {
+        await matchRequirementsForPublishedProject(String(job.projectId));
+      } else {
+        throw new Error("INVALID_MATCH_JOB_PAYLOAD");
+      }
+      await db.update(propertyRequirementMatchJobs)
+        .set({ status: "COMPLETED", completedAt: new Date(), updatedAt: new Date(), lastError: null })
+        .where(eq(propertyRequirementMatchJobs._id, job._id));
+      completed++;
+    } catch {
+      const terminal = job.attempts >= 5;
+      const retryDelayMinutes = job.attempts === 1 ? 1 : job.attempts === 2 ? 2 : job.attempts === 3 ? 5 : 15;
+      await db.update(propertyRequirementMatchJobs).set({
+        status: terminal ? "FAILED" : "RETRY_PENDING",
+        nextAttemptAt: terminal ? now : new Date(Date.now() + retryDelayMinutes * 60_000),
+        updatedAt: new Date(),
+        lastError: "MATCH_PROCESSING_FAILED",
+      }).where(eq(propertyRequirementMatchJobs._id, job._id));
+      if (terminal) failed++;
+      else retried++;
+      console.warn("[property-matching] matching job failed");
+    }
+  }
+
+  return { scanned: pending.length, completed, retried, failed };
+}
+
 /**
  * Durable queued email worker. Atomic status transition to SENDING means two
  * server replicas cannot send the same queue row. Retry policy is capped at
@@ -445,9 +533,18 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
   return { scanned: pending.length, sentToProvider, retried, failed };
 }
 
-/** Start the durable queue worker. Database status claims make it safe on PM2 replicas. */
-export function startPropertyRequirementEmailScheduler(): void {
-  const run = () => {
+/** Start durable matching + email workers. DB claims make them safe on PM2 replicas. */
+export function startPropertyRequirementBackgroundWorkers(): void {
+  const runMatching = () => {
+    processPropertyRequirementMatchJobs()
+      .then((result) => {
+        if (result.scanned > 0) {
+          console.log(`[property-matching] jobs scanned=${result.scanned}, complete=${result.completed}, retry=${result.retried}, failed=${result.failed}`);
+        }
+      })
+      .catch(() => console.warn("[property-matching] matching queue sweep failed"));
+  };
+  const runEmail = () => {
     processPendingRequirementEmails()
       .then((result) => {
         if (result.scanned > 0) {
@@ -456,6 +553,8 @@ export function startPropertyRequirementEmailScheduler(): void {
       })
       .catch(() => console.warn("[property-matching] email queue sweep failed"));
   };
-  setTimeout(run, 45_000).unref();
-  setInterval(run, 60_000).unref();
+  setTimeout(runMatching, 20_000).unref();
+  setInterval(runMatching, 30_000).unref();
+  setTimeout(runEmail, 45_000).unref();
+  setInterval(runEmail, 60_000).unref();
 }
