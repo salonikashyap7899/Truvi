@@ -649,6 +649,24 @@ export const propertyRequirementMatches = pgTable(
 
 export type IPropertyRequirementMatch = typeof propertyRequirementMatches.$inferSelect;
 
+/** Provider callbacks that confirm email delivery/failure; stores no email body or recipient address. */
+export const emailDeliveryEvents = pgTable(
+  "email_delivery_events",
+  {
+    providerEventId: text("provider_event_id").primaryKey(),
+    provider: text("provider").notNull().default("RESEND"),
+    providerMessageId: text("provider_message_id").notNull(),
+    matchId: uuid("match_id").references(() => propertyRequirementMatches._id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    providerCreatedAt: timestamp("provider_created_at", { withTimezone: true, mode: "date" }),
+    receivedAt: timestamp("received_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("email_delivery_events_message_idx").on(t.providerMessageId, t.receivedAt),
+    index("email_delivery_events_match_idx").on(t.matchId, t.receivedAt),
+  ],
+);
+
 /** Append-only audit trail for requirement submissions and moderation. */
 export const propertyRequirementEvents = pgTable(
   "property_requirement_events",
