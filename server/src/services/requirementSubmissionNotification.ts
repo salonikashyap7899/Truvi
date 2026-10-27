@@ -33,13 +33,14 @@ export interface RequirementSubmitterProfile {
 }
 
 export function escapeEmailHtml(value: unknown): string {
-  return String(value ?? "—").replace(/[&<>"']/g, (character) => ({
+  const entities: Record<string, string> = {
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
-  })[character] ?? character);
+  };
+  return String(value ?? "—").replace(/[&<>"']/g, (character) => entities[character] ?? character);
 }
 
 function validEmail(value: unknown): value is string {
@@ -118,7 +119,7 @@ export function buildRequirementSubmissionEmail(
   let adminUrl = "https://truviventures.com/admin/requirements";
   try {
     const baseUrl = new URL(baseUrlCandidate);
-    if (baseUrl.protocol === "https:" || baseUrl.hostname === "localhost") {
+    if (baseUrl.protocol === "https:") {
       adminUrl = new URL("/admin/requirements", baseUrl).toString();
     }
   } catch {
