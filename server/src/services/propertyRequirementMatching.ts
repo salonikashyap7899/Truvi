@@ -124,9 +124,14 @@ function inr(value: number): string {
   }).format(value);
 }
 
+function siteBaseUrl(): string {
+  let base = process.env.CLIENT_URL || process.env.PUBLIC_SITE_URL || "https://truviventures.com";
+  while (base.endsWith("/")) base = base.slice(0, -1);
+  return base;
+}
+
 function propertyUrl(projectId: string): string {
-  const base = (process.env.CLIENT_URL || process.env.PUBLIC_SITE_URL || "https://truviventures.com").replace(/\/+$/, "");
-  return `${base}/inventory/${encodeURIComponent(projectId)}/presentation`;
+  return `${siteBaseUrl()}/inventory/${encodeURIComponent(projectId)}/presentation`;
 }
 
 /**
@@ -544,7 +549,7 @@ export async function processPendingRequirementEmails(limit = 25): Promise<{ sca
           <p style="margin:4px 0"><strong>Matching available inventory:</strong> ${escapeHtml(priceText)}</p>
         </div>
         <p><a href="${projectLink}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none">View Property Details</a></p>
-        <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account. <a href="${(process.env.CLIENT_URL || process.env.PUBLIC_SITE_URL || "https://truviventures.com").replace(/\\/+$/, "")}/settings/notifications" style="color:#0f766e">Manage notification preferences</a>.</p>
+        <p style="font-size:12px;color:#64748b">You received this email because property recommendations are enabled for your Truvi account. <a href="${siteBaseUrl()}/settings/notifications" style="color:#0f766e">Manage notification preferences</a>.</p>
         <p>Team Truvi</p>
       </div>`;
 
