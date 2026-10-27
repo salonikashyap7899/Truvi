@@ -48,6 +48,7 @@ import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { DEFAULT_PLATFORM_FEE_PERCENT } from "../config/constants";
 import { emitNotification } from "../sockets";
 import { notifyUser, notifyRole, NotificationType } from "../services/notificationService";
+import { matchRequirementsForPublishedProject } from "../services/propertyRequirementMatching";
 import { logAudit } from "../services/audit";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagCountsForProjects } from "../services/ragIntel";
@@ -1566,6 +1567,11 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
           title: "New project available",
           message: `A new project "${project.name}"${project.city ? ` in ${project.city}` : ""} is now available on Truvi.`,
           data: { href: `/inventory/${project._id}/presentation` },
+        });
+        // Personalized matches run alongside existing generic alerts. They are
+        // non-fatal and never delay/reject the project approval itself.
+        void matchRequirementsForPublishedProject(String(project._id)).catch((error) => {
+          console.warn("[property-matching] project approval matching failed:", error instanceof Error ? error.message : "unknown error");
         });
       } else if (data.approvalStatus === "REJECTED") {
         await notifyUser(String(project.developerId), {
