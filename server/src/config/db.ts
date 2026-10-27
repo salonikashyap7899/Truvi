@@ -697,6 +697,16 @@ async function ensureSchema(db: Db): Promise<void> {
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "notification_prefs_user_category_idx" ON "notification_preferences" ("user_id", "category")`,
+    `CREATE TABLE IF NOT EXISTS "user_notification_channel_preferences" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES users(id),
+       "channel" text NOT NULL,
+       "category" text NOT NULL DEFAULT 'properties',
+       "enabled" boolean NOT NULL DEFAULT true,
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("user_id", "channel", "category")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "user_notification_channel_prefs_user_idx" ON "user_notification_channel_preferences" ("user_id", "category")`,
     `CREATE TABLE IF NOT EXISTS "user_push_tokens" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "user_id" uuid NOT NULL REFERENCES users(id),
