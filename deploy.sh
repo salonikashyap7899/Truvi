@@ -64,10 +64,19 @@ echo "==> Verifying logo made it into the build"
 ls -la dist/brand/wordmark.png || echo "!! wordmark.png missing from dist — tell Claude"
 
 cd ..
-echo "==> Restarting app"
-pm2 restart all --update-env || echo "!! pm2 not found — restart your node process manually (e.g. systemctl restart <your-service>)"
-# Persist the process list so the app auto-starts after a reboot/crash.
-pm2 save >/dev/null 2>&1 || true
+echo "==> Restarting Truvi app"
+if ! command -v pm2 >/dev/null 2>&1; then
+  echo "ERROR: PM2 is not installed or not on PATH. App was built but not restarted."
+  exit 1
+fi
+if ! pm2 describe truviventures >/dev/null 2>&1; then
+  echo "ERROR: PM2 process 'truviventures' was not found. Refusing to restart unrelated apps."
+  pm2 list
+  exit 1
+fi
+pm2 restart truviventures --update-env
+# Persist this app's process list so it auto-starts after a reboot/crash.
+pm2 save
 
 # ---------------------------------------------------------------------------
 # Health check: wait for the app to answer /health so we know the restart
@@ -89,9 +98,11 @@ echo "================ DEPLOY DONE ================"
 if [ "$UP" = "yes" ]; then
   echo "App is UP and answering on :$PORT ✓"
 else
-  echo "!! App did NOT answer /health after 60s."
-  echo "   It may still be finishing boot — open the site and hard-refresh first."
-  echo "   If it's down, check: pm2 logs truviventures --lines 40 --nostream"
+  echo "ERROR: App did NOT answer /health after 60 seconds."
+  echo "Recent app logs:"
+  pm2 logs truviventures --lines 40 --nostream || true
+  echo "Deployment is not healthy; do not treat this as a successful release."
+  exit 1
 fi
 echo "Now hard-refresh the browser: Ctrl+Shift+R"
 echo "If the database schema changed in this release, also run:"
