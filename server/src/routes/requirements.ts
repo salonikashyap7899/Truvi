@@ -246,10 +246,13 @@ router.get("/board", async (req: AuthedRequest, res) => {
   const db = getDb();
   const { page, limit, offset } = pagination(req.query as Record<string, unknown>);
   const conditions = buildBoardFilters(req.query as Record<string, unknown>);
+  const canRespond = ["ADMIN", "DEVELOPER", "CP", "AMBASSADOR"].includes(req.user!.role)
+    || (req.user!.role === "EMPLOYEE" && await employeeCanCreateRequirement(req.user!.userId));
   const [countRow] = await db.select({ total: sql<number>`count(*)::int` }).from(propertyRequirements).where(and(...conditions));
   const rows = await db
     .select({
       _id: propertyRequirements._id,
+      submittedById: propertyRequirements.submittedById,
       title: propertyRequirements.title,
       propertyType: propertyRequirements.propertyType,
       city: propertyRequirements.city,
@@ -272,7 +275,11 @@ router.get("/board", async (req: AuthedRequest, res) => {
     .limit(limit)
     .offset(offset);
   const total = countRow?.total ?? 0;
-  res.json({ requirements: rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  res.json({
+    requirements: rows.map(({ submittedById, ...row }) => ({ ...row, isOwn: String(submittedById) === req.user!.userId })),
+    canRespond,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
 });
 
 /** GET /api/requirements/matches — only matches for this user's active requirements and live projects. */
