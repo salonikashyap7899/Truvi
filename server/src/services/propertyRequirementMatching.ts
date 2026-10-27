@@ -337,6 +337,22 @@ export async function matchRequirementAgainstAvailableProjects(requirementId: st
       eq(projects.availabilityStatus, "AVAILABLE"),
     ));
   const possible = candidates.filter((project) => locationMatches(requirement, project));
+  const possibleIds = new Set(possible.map((project) => String(project._id)));
+
+  // When the requirement's city/locality changes, retain historical match rows
+  // but invalidate prior project matches that no longer fall within the location.
+  const priorMatches = await db.select({
+    projectId: propertyRequirementMatches.projectId,
+  }).from(propertyRequirementMatches).where(and(
+    eq(propertyRequirementMatches.requirementId, requirement._id),
+    inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+  ));
+  for (const prior of priorMatches) {
+    const priorProjectId = String(prior.projectId);
+    if (!possibleIds.has(priorProjectId)) {
+      await markMatchIneligible(String(requirement._id), priorProjectId, "PROJECT_NO_LONGER_MATCHES_LOCATION");
+    }
+  }
   if (!possible.length) return;
 
   const ids = possible.map((project) => project._id);
