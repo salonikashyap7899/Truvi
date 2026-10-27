@@ -52,12 +52,12 @@ git merge --ff-only origin/main
 
 echo "==> Building server"
 cd server
-npm install
+npm ci
 npm run build
 
 echo "==> Building client"
 cd ../client
-npm install
+npm ci
 npm run build
 
 echo "==> Verifying logo made it into the build"
