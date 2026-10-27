@@ -126,6 +126,7 @@ const AdminAmbassadorKnowledgePage = lazy(() => import("@/pages/admin/AdminAmbas
 const AdminAcademyPage = lazy(() => import("@/pages/admin/AdminAcademyPage"));
 const MarketingManagementPage = lazy(() => import("@/pages/admin/MarketingManagementPage"));
 const AdminNotificationsPage = lazy(() => import("@/pages/admin/AdminNotificationsPage"));
+const AdminRequirementsPage = lazy(() => import("@/pages/admin/AdminRequirementsPage"));
 const MarketingDashboardPage = lazy(() => import("@/pages/marketing/MarketingDashboardPage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
@@ -403,6 +404,7 @@ export default function App() {
           <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
           <Route path="marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
+          <Route path="requirements" element={<ProtectedRoute roles={["ADMIN"]}><AdminRequirementsPage /></ProtectedRoute>} />
           <Route path="verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
           <Route path="kyc" element={<ProtectedRoute roles={["ADMIN"]}><AdminKycPage /></ProtectedRoute>} />
           <Route path="referral-leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminReferralLeadsPage /></ProtectedRoute>} />
