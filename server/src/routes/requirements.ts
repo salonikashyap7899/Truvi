@@ -555,6 +555,12 @@ router.patch("/admin/:id", requireRole("ADMIN"), async (req: AuthedRequest, res)
     duplicateMarked: Boolean(updated.duplicateOfId),
     hasModerationNote: Boolean(updated.moderationNote),
   });
+  if (updated.status === "ACTIVE" && existing.status !== "ACTIVE") {
+    void enqueueRequirementMatchJob("REQUIREMENT", { requirementId: String(updated._id) }).catch(() => {
+      console.warn("[property-matching] reactivated requirement match job could not be queued");
+    });
+  }
+
   await logAudit({
     userId: req.user!.userId,
     action: "requirement.moderate",
@@ -686,7 +692,11 @@ router.post("/:id/responses", submitLimiter, async (req: AuthedRequest, res) => 
     responderId: req.user!.userId,
     message: parsed.data.message,
     status: "SENT",
-  }).returning();
+  }).onConflictDoNothing().returning();
+
+  if (!response) {
+    return res.status(409).json({ error: "You have already responded to this requirement.", code: "RESPONSE_ALREADY_EXISTS" });
+  }
 
   await writeRequirementEvent(String(requirement.id), req.user!.userId, "REQUIREMENT_RESPONSE_SENT", {
     responseId: String(response._id),
