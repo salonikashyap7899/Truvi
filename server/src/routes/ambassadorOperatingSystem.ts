@@ -2969,7 +2969,20 @@ router.get("/privacy/export", async (req: AuthedRequest, res) => {
     }).from(users).where(eq(users._id, userId)),
     db.select().from(ambassadorOsProfiles).where(eq(ambassadorOsProfiles.userId, userId)),
     db.select().from(ambassadorOsTrainingProgress).where(eq(ambassadorOsTrainingProgress.userId, userId)).orderBy(ambassadorOsTrainingProgress.day),
-    db.select().from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
+    // Export task metadata but not evidence text/URLs, which can contain buyer data or private asset links.
+    db.select({
+      taskId: ambassadorOsTasks._id,
+      title: ambassadorOsTasks.title,
+      category: ambassadorOsTasks.category,
+      description: ambassadorOsTasks.description,
+      campaignId: ambassadorOsTasks.campaignId,
+      dueAt: ambassadorOsTasks.dueAt,
+      status: ambassadorOsTasks.status,
+      checklistItems: ambassadorOsTasks.checklistItems,
+      checklistResponses: ambassadorOsTasks.checklistResponses,
+      createdAt: ambassadorOsTasks.createdAt,
+      completedAt: ambassadorOsTasks.completedAt,
+    }).from(ambassadorOsTasks).where(eq(ambassadorOsTasks.assignedToId, userId)).orderBy(desc(ambassadorOsTasks.createdAt)),
     // Follow-up notes/outcomes are excluded because free text can contain a buyer's personal data.
     db.select({
       leadId: ambassadorOsFollowUps.leadId,
@@ -3026,7 +3039,19 @@ router.get("/privacy/export", async (req: AuthedRequest, res) => {
     db.select().from(ambassadorOsCareerApplications).where(eq(ambassadorOsCareerApplications.ambassadorId, userId)).orderBy(desc(ambassadorOsCareerApplications.createdAt)),
     db.select().from(ambassadorOsCareerAssessments).where(eq(ambassadorOsCareerAssessments.ambassadorId, userId)).orderBy(desc(ambassadorOsCareerAssessments.reviewedAt)),
     db.select().from(ambassadorOsCampaignAcknowledgements).where(eq(ambassadorOsCampaignAcknowledgements.ambassadorId, userId)).orderBy(desc(ambassadorOsCampaignAcknowledgements.acknowledgedAt)),
-    db.select().from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials.createdById, userId)).orderBy(desc(ambassadorOsMarketingMaterials.createdAt)),
+    // Export metadata only; submitted content and asset links can contain third-party data or private URLs.
+    db.select({
+      materialId: ambassadorOsMarketingMaterials._id,
+      campaignId: ambassadorOsMarketingMaterials.campaignId,
+      title: ambassadorOsMarketingMaterials.title,
+      channel: ambassadorOsMarketingMaterials.channel,
+      version: ambassadorOsMarketingMaterials.version,
+      status: ambassadorOsMarketingMaterials.status,
+      validFrom: ambassadorOsMarketingMaterials.validFrom,
+      validTo: ambassadorOsMarketingMaterials.validTo,
+      createdAt: ambassadorOsMarketingMaterials.createdAt,
+      updatedAt: ambassadorOsMarketingMaterials.updatedAt,
+    }).from(ambassadorOsMarketingMaterials).where(eq(ambassadorOsMarketingMaterials.createdById, userId)).orderBy(desc(ambassadorOsMarketingMaterials.createdAt)),
     db.select().from(ambassadorOsPrivacyRequests).where(eq(ambassadorOsPrivacyRequests.requesterUserId, userId)).orderBy(desc(ambassadorOsPrivacyRequests.requestedAt)),
   ]);
 
@@ -3044,6 +3069,7 @@ router.get("/privacy/export", async (req: AuthedRequest, res) => {
         "Customer names, phone numbers, email addresses and free-text CRM notes are excluded from lead exports.",
         "Follow-up free-text notes and outcomes are excluded because they may contain buyer personal data.",
         "Passwords, authentication secrets, other users' records, and unrelated Truvi workspaces are excluded.",
+        "Task evidence, reviewer free-text, submitted marketing content, and linked asset URLs are omitted because they may contain third-party data or private links.",
         "This export is not a substitute for a separately reviewed request for records held in other Truvi systems.",
       ],
     },
