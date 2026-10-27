@@ -15,12 +15,12 @@ export default function AskTruviPage() {
 
   return (
     <main
-      className="px-4 pb-4 pt-4 text-white"
+      className="min-w-0 max-w-full overflow-x-clip px-4 pb-4 pt-4 text-white"
     >
-      <div className="relative mx-auto h-full w-full max-w-3xl">
+      <div className="relative mx-auto h-full w-full min-w-0 max-w-3xl overflow-x-clip">
         <div
           aria-hidden
-          className="pointer-events-none absolute -inset-8 -z-10 opacity-40 blur-3xl"
+          className="pointer-events-none absolute inset-x-0 -inset-y-8 -z-10 mx-auto h-full w-full max-w-full opacity-40 blur-3xl"
           style={{ background: "var(--gradient-aurora)" }}
         />
         <div
