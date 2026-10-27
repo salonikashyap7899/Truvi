@@ -498,7 +498,7 @@ export default function AmbassadorOperatingSystemPage() {
           <div className="mb-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="font-medium">Download a copy of your data</p>
-              <p className="mt-1 text-sm text-muted-foreground">Export your Ambassador profile, training, tasks, incentive ledger, career records and lead attribution. Customer contact details and free-text CRM notes are excluded.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Export your Ambassador profile, training, task metadata, incentive ledger, career records and lead attribution. Buyer contact details, CRM/follow-up notes, task evidence and marketing asset content are excluded from this download.</p>
             </div>
             <Button type="button" className="shrink-0" disabled={downloadingData} onClick={() => void downloadMyData()}>
               <Download size={16} className="mr-2" aria-hidden="true" />
