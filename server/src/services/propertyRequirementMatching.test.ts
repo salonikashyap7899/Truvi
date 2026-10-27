@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IProject, IPropertyRequirement, IUnit } from "../db/schema";
-import { isPublishedProject, locationMatches, matchingUnits, typeBucket } from "./propertyRequirementMatching";
+import { cityPrefixPattern, isPublishedProject, locationMatches, matchingUnits, typeBucket } from "./propertyRequirementMatching";
 
 function requirement(overrides: Partial<IPropertyRequirement> = {}): IPropertyRequirement {
   return {
@@ -54,6 +54,13 @@ function unit(price: number, areaSqft: number, type = "PLOTTED", status = "AVAIL
 }
 
 describe("property requirement matching", () => {
+  it("uses a safe, escaped city prefix for indexed candidate queries", () => {
+    expect(cityPrefixPattern("Lucknow, Uttar Pradesh")).toBe("lucknow%");
+    expect(cityPrefixPattern("New York")).toBe("new york%");
+    expect(cityPrefixPattern("A_% City")).toBe("a\\_\\%%");
+    expect(cityPrefixPattern(" , State")).toBeNull();
+  });
+
   it("matches city and locality without case sensitivity", () => {
     expect(locationMatches(requirement(), project())).toBe(true);
   });
