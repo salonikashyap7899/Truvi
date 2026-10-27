@@ -89,6 +89,7 @@ import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import ambassadorOperatingSystemRoutes from "./routes/ambassadorOperatingSystem";
 import legalRoutes from "./routes/legal";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
+import { resendWebhookHandler } from "./routes/resendWebhook";
 import financeRoutes from "./routes/finance";
 import verificationRoutes from "./routes/verification";
 import ingestRoutes from "./routes/ingest";
@@ -158,6 +159,7 @@ export function createApp() {
   // it is mounted with express.raw BEFORE the global JSON parser.
   app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
   app.post("/api/habitat/webhook", express.raw({ type: "*/*" }), habitatRazorpayWebhook);
+  app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
 
   // Private buyer documents are opened through short-lived signed links (a
   // plain link can't carry a Bearer token). Registered before every /api
