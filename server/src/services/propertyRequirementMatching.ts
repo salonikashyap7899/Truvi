@@ -104,6 +104,55 @@ export function matchingUnits(
   });
 }
 
+/** Retain match history but remove it from active recommendations when criteria no longer hold. */
+async function markMatchIneligible(requirementId: string, projectId: string, reason: string): Promise<void> {
+  const db = getDb();
+  const [existing] = await db.select({
+    id: propertyRequirementMatches._id,
+    matchStatus: propertyRequirementMatches.matchStatus,
+    emailStatus: propertyRequirementMatches.emailStatus,
+    matchReasons: propertyRequirementMatches.matchReasons,
+  }).from(propertyRequirementMatches).where(and(
+    eq(propertyRequirementMatches.requirementId, requirementId),
+    eq(propertyRequirementMatches.projectId, projectId),
+  )).limit(1);
+  if (!existing || existing.matchStatus === "NO_LONGER_ELIGIBLE") return;
+
+  const pendingEmail = ["QUEUED", "RETRY_PENDING"].includes(existing.emailStatus);
+  await db.update(propertyRequirementMatches).set({
+    matchStatus: "NO_LONGER_ELIGIBLE",
+    matchReasons: [...(existing.matchReasons ?? []), `NO_LONGER_ELIGIBLE:${reason}`].slice(-12),
+    ...(pendingEmail ? {
+      emailStatus: "SKIPPED" as const,
+      emailNextAttemptAt: null,
+      emailClaimedAt: null,
+      emailLastError: reason,
+    } : {}),
+  }).where(eq(propertyRequirementMatches._id, existing.id));
+}
+
+async function invalidateRequirementMatches(requirementId: string, reason: string): Promise<void> {
+  const db = getDb();
+  const rows = await db.select({
+    projectId: propertyRequirementMatches.projectId,
+  }).from(propertyRequirementMatches).where(and(
+    eq(propertyRequirementMatches.requirementId, requirementId),
+    inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+  ));
+  for (const row of rows) await markMatchIneligible(requirementId, String(row.projectId), reason);
+}
+
+async function invalidateProjectMatches(projectId: string, reason: string): Promise<void> {
+  const db = getDb();
+  const rows = await db.select({
+    requirementId: propertyRequirementMatches.requirementId,
+  }).from(propertyRequirementMatches).where(and(
+    eq(propertyRequirementMatches.projectId, projectId),
+    inArray(propertyRequirementMatches.matchStatus, ["MATCHED", "ENQUIRY_CREATED"]),
+  ));
+  for (const row of rows) await markMatchIneligible(String(row.requirementId), projectId, reason);
+}
+
 function matchReasons(requirement: MatchableRequirement, project: MatchableProject): string[] {
   return [
     "CITY_MATCH",
@@ -152,7 +201,14 @@ async function recordAndNotifyMatch(
 ): Promise<void> {
   const db = getDb();
   const matching = matchingUnits(requirement, project, availableUnits);
-  if (!matching.length) return;
+  if (requirement.status !== "ACTIVE") {
+    await markMatchIneligible(String(requirement._id), String(project._id), "REQUIREMENT_NOT_ACTIVE");
+    return;
+  }
+  if (!matching.length) {
+    await markMatchIneligible(String(requirement._id), String(project._id), "NO_MATCHING_AVAILABLE_UNIT");
+    return;
+  }
 
   const reasons = matchReasons(requirement, project);
   const [inserted] = await db
@@ -250,12 +306,13 @@ export async function matchRequirementAgainstAvailableProjects(requirementId: st
   const [requirement] = await db
     .select()
     .from(propertyRequirements)
-    .where(and(
-      eq(propertyRequirements._id, requirementId),
-      eq(propertyRequirements.status, "ACTIVE"),
-    ))
+    .where(eq(propertyRequirements._id, requirementId))
     .limit(1);
   if (!requirement) return;
+  if (requirement.status !== "ACTIVE") {
+    await invalidateRequirementMatches(String(requirement._id), "REQUIREMENT_NOT_ACTIVE");
+    return;
+  }
 
   const candidates = await db
     .select()
@@ -292,13 +349,23 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
     .from(projects)
     .where(eq(projects._id, projectId))
     .limit(1);
-  if (!project || project.approvalStatus !== "APPROVED" || project.availabilityStatus !== "AVAILABLE") return;
+  if (!project) {
+    await invalidateProjectMatches(projectId, "PROJECT_NOT_FOUND");
+    return;
+  }
+  if (project.approvalStatus !== "APPROVED" || project.availabilityStatus !== "AVAILABLE") {
+    await invalidateProjectMatches(projectId, "PROJECT_NOT_PUBLISHED_OR_UNAVAILABLE");
+    return;
+  }
 
   const availableUnits = await db
     .select()
     .from(units)
     .where(and(eq(units.projectId, project._id), eq(units.status, "AVAILABLE")));
-  if (!availableUnits.length) return;
+  if (!availableUnits.length) {
+    await invalidateProjectMatches(String(project._id), "NO_AVAILABLE_UNITS");
+    return;
+  }
 
   const activeRequirements = await db
     .select()
@@ -307,9 +374,9 @@ export async function matchRequirementsForPublishedProject(projectId: string): P
     .orderBy(desc(propertyRequirements.createdAt));
 
   for (const requirement of activeRequirements) {
-    if (locationMatches(requirement, project)) {
-      await recordAndNotifyMatch(requirement, project, availableUnits);
-    }
+    // Passing non-matches through recordAndNotifyMatch also invalidates stale
+    // previously matched rows after a locality, type, price, or size change.
+    await recordAndNotifyMatch(requirement, project, availableUnits);
   }
 }
 
