@@ -131,6 +131,7 @@ const roleLabel = (role: string) => ({
   CP: "Channel Partner",
   DEVELOPER: "Developer",
   AMBASSADOR: "Ambassador",
+  EMPLOYEE: "Employee",
 }[role] ?? "Truvi user");
 
 function budgetLabel(row: Pick<PropertyRequirement, "minBudget" | "maxBudget">) {
@@ -312,7 +313,9 @@ export default function RequirementsPage() {
         ? "/developer/dashboard"
         : user?.role === "AMBASSADOR"
           ? "/ambassador/dashboard"
-          : "/admin";
+          : user?.role === "EMPLOYEE"
+            ? "/employee/dashboard"
+            : "/admin";
 
   return (
     <main className="min-h-screen px-4 py-7 pb-28 text-white sm:px-6 md:px-10">
