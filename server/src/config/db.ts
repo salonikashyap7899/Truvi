@@ -807,6 +807,19 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_status_due_idx" ON "property_requirement_match_jobs" ("status", "next_attempt_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_requirement_idx" ON "property_requirement_match_jobs" ("requirement_id", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_project_idx" ON "property_requirement_match_jobs" ("project_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "property_requirement_responses" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "responder_id" uuid NOT NULL REFERENCES "users"("id"),
+       "message" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'SENT',
+       "read_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       UNIQUE ("requirement_id", "responder_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_responses_requirement_idx" ON "property_requirement_responses" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_responses_responder_idx" ON "property_requirement_responses" ("responder_id", "created_at")`,
 
     // ── Marketing module tables (auto-applied on boot; same rationale as above
     // — a plain restart is enough, no separate `npm run db:marketing`). ──
