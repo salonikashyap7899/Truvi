@@ -35,7 +35,7 @@ function cityKey(value: unknown): string {
 }
 
 /** SQL candidate filter; exact normalized matching is still done in locationMatches. */
-function cityPrefixPattern(value: unknown): string | null {
+export function cityPrefixPattern(value: unknown): string | null {
   const prefix = String(value ?? "").split(",")[0].trim().toLowerCase();
   if (!prefix) return null;
   const escaped = prefix.replace(/[\\%_]/g, "\\$&");
