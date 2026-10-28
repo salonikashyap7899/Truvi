@@ -796,6 +796,24 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE INDEX IF NOT EXISTS "email_delivery_events_message_idx" ON "email_delivery_events" ("provider_message_id", "received_at")`,
     `CREATE INDEX IF NOT EXISTS "email_delivery_events_match_idx" ON "email_delivery_events" ("match_id", "received_at")`,
     // Keep only one active match job per target. Existing duplicates are retained
+    // Create the queue table and its non-unique indexes before cleanup and
+    // partial unique indexes reference it. This order is required on first boot.
+    `CREATE TABLE IF NOT EXISTS "property_requirement_match_jobs" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "job_type" text NOT NULL,
+       "requirement_id" uuid REFERENCES "property_requirements"("id") ON DELETE CASCADE,
+       "project_id" uuid REFERENCES "projects"("id") ON DELETE CASCADE,
+       "status" text NOT NULL DEFAULT 'QUEUED',
+       "attempts" integer NOT NULL DEFAULT 0,
+       "next_attempt_at" timestamptz NOT NULL DEFAULT now(),
+       "last_error" text,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       "completed_at" timestamptz
+     )`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_status_due_idx" ON "property_requirement_match_jobs" ("status", "next_attempt_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_requirement_idx" ON "property_requirement_match_jobs" ("requirement_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_project_idx" ON "property_requirement_match_jobs" ("project_id", "created_at")`,
     // as FAILED history before the partial indexes are created; no data is deleted.
     `WITH ranked AS (
        SELECT "id", row_number() OVER (
@@ -826,22 +844,6 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_events_req_created_idx" ON "property_requirement_events" ("requirement_id", "created_at")`,
     `CREATE INDEX IF NOT EXISTS "property_requirement_events_actor_idx" ON "property_requirement_events" ("actor_user_id", "created_at")`,
-    `CREATE TABLE IF NOT EXISTS "property_requirement_match_jobs" (
-       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-       "job_type" text NOT NULL,
-       "requirement_id" uuid REFERENCES "property_requirements"("id") ON DELETE CASCADE,
-       "project_id" uuid REFERENCES "projects"("id") ON DELETE CASCADE,
-       "status" text NOT NULL DEFAULT 'QUEUED',
-       "attempts" integer NOT NULL DEFAULT 0,
-       "next_attempt_at" timestamptz NOT NULL DEFAULT now(),
-       "last_error" text,
-       "created_at" timestamptz NOT NULL DEFAULT now(),
-       "updated_at" timestamptz NOT NULL DEFAULT now(),
-       "completed_at" timestamptz
-     )`,
-    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_status_due_idx" ON "property_requirement_match_jobs" ("status", "next_attempt_at")`,
-    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_requirement_idx" ON "property_requirement_match_jobs" ("requirement_id", "created_at")`,
-    `CREATE INDEX IF NOT EXISTS "property_requirement_match_jobs_project_idx" ON "property_requirement_match_jobs" ("project_id", "created_at")`,
     `CREATE TABLE IF NOT EXISTS "property_requirement_responses" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "requirement_id" uuid NOT NULL REFERENCES "property_requirements"("id") ON DELETE CASCADE,
