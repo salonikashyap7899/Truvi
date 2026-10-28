@@ -565,10 +565,14 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
       channel: "EMAIL",
     });
     if (teamEmailResult.value === "FAILED") {
-      console.warn("[requirements] team email alert failed");
+      console.warn("[requirements] team email alert failed; inspect SMTP configuration and provider logs");
+    } else if (teamEmailResult.value === "UNCONFIGURED") {
+      console.warn("[requirements] team email alert not sent because SMTP is not configured; set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM and restart Truvi");
+    } else if (teamEmailResult.value === "SKIPPED") {
+      console.warn("[requirements] team email alert skipped because no valid recipient was resolved");
     }
   } else {
-    console.warn("[requirements] team email alert failed");
+    console.warn("[requirements] team email alert failed; inspect SMTP configuration and provider logs");
     await writeRequirementEvent(requirementId, req.user!.userId, "TEAM_EMAIL_FAILED", {
       channel: "EMAIL",
     });
