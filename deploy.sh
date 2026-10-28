@@ -83,7 +83,9 @@ pm2 save
 # actually came back up (instead of leaving a silent 502).
 # ---------------------------------------------------------------------------
 PORT="$(grep -E '^PORT=' server/.env 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
-PORT="${PORT:-5000}"
+# Match server/src/config/env.ts, whose default PORT is 3001.
+# A fallback of 5000 falsely marked the deployment unhealthy when PORT was not set.
+PORT="${PORT:-3001}"
 # The app runs idempotent DB schema checks on boot, which can take a while on a
 # cold connection, so give it up to ~60s before calling it a failure.
 echo "==> Waiting for the app on :$PORT to come back up (up to 60s; DB checks run on boot)…"
