@@ -5,7 +5,9 @@
 When a requirement is saved successfully, Truvi keeps it in PostgreSQL, queues property matching, sends an in-app notification to users with the ADMIN role, and attempts an internal team email. This applies to buyer requirements and to lead requirements submitted by authorized partners, developers, ambassadors, and employees with the existing permission.
 
 - The internal alert is sent from Truvi's configured SMTP_FROM identity using the existing SMTP transport.
-- Set REQUIREMENT_TEAM_EMAIL in the backend server/.env to the team inbox. If it is absent, the service falls back to SMTP_USER when it is a valid email address. A comma-separated recipient list is supported.
+- The default requirement-alert recipient is `truviventures@gmail.com`. Set `REQUIREMENT_TEAM_EMAIL` in the backend `server/.env` to override it; a comma- or semicolon-separated recipient list is supported. `TEAM_EMAIL` is also accepted as an alias.
+- `SMTP_USER` is the sender's SMTP login, not the destination mailbox. Changing only the team email address does not configure an email transport: the backend must also have valid `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASSWORD`, plus an authorized `SMTP_FROM` sender.
+- SMTP settings are loaded when the server process starts. After changing `server/.env`, restart/redeploy the backend and submit a fresh test requirement.
 - The submitting account's registered email is used as Reply-To when valid. Truvi remains the sender; the service does not forge the submitter's address in the From header.
 - Third-party client name, phone, and email are included in the internal team alert only when contact consent is recorded. The public noticeboard remains privacy-safe, and full details remain in the admin-protected requirement view.
 - Admin in-app and team-email attempts are recorded in requirement activity history as ADMIN_NOTIFICATION_* and TEAM_EMAIL_* events. An email failure does not invalidate the saved requirement.
@@ -31,6 +33,23 @@ When a requirement is saved successfully, Truvi keeps it in PostgreSQL, queues p
 ## Email provider configuration
 
 The existing SMTP integration remains supported. The optional Resend provider is used only when `RESEND_API_KEY` is set; if it is absent, Truvi falls back to the current SMTP transport.
+
+### Quick configuration checklist for the Truvi team inbox
+
+In the backend `server/.env`, configure the recipient and the actual SMTP sender transport. Keep the SMTP password private and do not commit `.env`:
+
+```dotenv
+REQUIREMENT_TEAM_EMAIL=truviventures@gmail.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=truviventures@gmail.com
+SMTP_PASSWORD=<mailbox-provider SMTP credential>
+SMTP_FROM="Truvi Ventures <truviventures@gmail.com>"
+```
+
+The example uses Gmail SMTP. Use the mailbox provider's supported SMTP credential (for Google accounts, this may require a Google App Password) and confirm the sender identity is authorized. Do not use the ordinary account password if the provider requires an app-specific credential. If an external transactional email provider is used, use its SMTP host, port, credentials, and verified sender instead.
+
+After updating the environment file, restart the backend process. A successful SMTP send means the provider accepted the message; it is not proof that Gmail placed it in the inbox. Test with a new submission and check Spam, server logs, and the saved requirement's activity history for `TEAM_EMAIL_SENT_TO_PROVIDER`, `TEAM_EMAIL_UNCONFIGURED`, or `TEAM_EMAIL_FAILED`.
 
 ### Option A: existing SMTP
 
