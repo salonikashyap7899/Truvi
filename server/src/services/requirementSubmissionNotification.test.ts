@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRequirementSubmissionEmail, escapeEmailHtml, type RequirementSubmissionForEmail } from "./requirementSubmissionNotification";
+import { buildRequirementSubmissionEmail, escapeEmailHtml, getRequirementTeamRecipients, type RequirementSubmissionForEmail } from "./requirementSubmissionNotification";
 
 const requirement: RequirementSubmissionForEmail = {
   _id: "12345678-1234-1234-1234-123456789012",
@@ -26,6 +26,42 @@ const requirement: RequirementSubmissionForEmail = {
 };
 
 describe("requirement submission team email", () => {
+
+  it("defaults requirement alerts to the Truvi team inbox, not the SMTP sender account", () => {
+    const oldRequirementTeamEmail = process.env.REQUIREMENT_TEAM_EMAIL;
+    const oldTeamEmail = process.env.TEAM_EMAIL;
+    const oldSmtpUser = process.env.SMTP_USER;
+    delete process.env.REQUIREMENT_TEAM_EMAIL;
+    delete process.env.TEAM_EMAIL;
+    process.env.SMTP_USER = "smtp-sender@example.com";
+
+    try {
+      expect(getRequirementTeamRecipients()).toEqual(["truviventures@gmail.com"]);
+    } finally {
+      if (oldRequirementTeamEmail === undefined) delete process.env.REQUIREMENT_TEAM_EMAIL;
+      else process.env.REQUIREMENT_TEAM_EMAIL = oldRequirementTeamEmail;
+      if (oldTeamEmail === undefined) delete process.env.TEAM_EMAIL;
+      else process.env.TEAM_EMAIL = oldTeamEmail;
+      if (oldSmtpUser === undefined) delete process.env.SMTP_USER;
+      else process.env.SMTP_USER = oldSmtpUser;
+    }
+  });
+
+  it("supports the configured team inbox and comma/semicolon-separated recipients", () => {
+    const oldRequirementTeamEmail = process.env.REQUIREMENT_TEAM_EMAIL;
+    const oldTeamEmail = process.env.TEAM_EMAIL;
+    process.env.REQUIREMENT_TEAM_EMAIL = "Sales@Example.com; ops@example.com, sales@example.com";
+    process.env.TEAM_EMAIL = "ignored@example.com";
+
+    try {
+      expect(getRequirementTeamRecipients()).toEqual(["sales@example.com", "ops@example.com"]);
+    } finally {
+      if (oldRequirementTeamEmail === undefined) delete process.env.REQUIREMENT_TEAM_EMAIL;
+      else process.env.REQUIREMENT_TEAM_EMAIL = oldRequirementTeamEmail;
+      if (oldTeamEmail === undefined) delete process.env.TEAM_EMAIL;
+      else process.env.TEAM_EMAIL = oldTeamEmail;
+    }
+  });
   it("escapes untrusted HTML text", () => {
     expect(escapeEmailHtml('<script>alert("x")</script>')).toBe("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
   });
