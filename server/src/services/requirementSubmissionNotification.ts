@@ -1,6 +1,6 @@
 import { MAIL_FROM, sendEmailWithStatus } from "./emailService";
 
-export type TeamRequirementNotificationStatus = "SENT_TO_PROVIDER" | "SKIPPED" | "FAILED";
+export type TeamRequirementNotificationStatus = "SENT_TO_PROVIDER" | "SKIPPED" | "UNCONFIGURED" | "FAILED";
 
 export interface RequirementSubmissionForEmail {
   _id: string;
@@ -50,14 +50,22 @@ function validEmail(value: unknown): value is string {
     && !/[\r\n]/.test(value);
 }
 
-function getTeamRecipients(): string[] {
-  // Prefer an explicitly configured team inbox. SMTP_USER is a safe backward-
-  // compatible fallback for deployments where that existing mailbox receives mail.
-  const configured = process.env.REQUIREMENT_TEAM_EMAIL?.trim();
-  const rawRecipients = configured
-    ? configured.split(/[;,]/)
-    : [process.env.SMTP_USER ?? ""];
-  return Array.from(new Set(rawRecipients.map((value) => value.trim().toLowerCase()).filter(validEmail)));
+const DEFAULT_REQUIREMENT_TEAM_EMAIL = "truviventures@gmail.com";
+
+/**
+ * Resolve the inbox that receives new requirement alerts. SMTP_USER is the
+ * sending account, not necessarily the destination mailbox, so it must not be
+ * used as the recipient fallback.
+ */
+export function getRequirementTeamRecipients(): string[] {
+  const configured = process.env.REQUIREMENT_TEAM_EMAIL?.trim()
+    || process.env.TEAM_EMAIL?.trim()
+    || DEFAULT_REQUIREMENT_TEAM_EMAIL;
+  const recipients = Array.from(new Set(
+    configured.split(/[;,]/).map((value) => value.trim().toLowerCase()).filter(validEmail),
+  ));
+  // An empty or invalid setting must not silently disable internal alerts.
+  return recipients.length > 0 ? recipients : [DEFAULT_REQUIREMENT_TEAM_EMAIL];
 }
 
 function money(value: number | null): string {
@@ -142,7 +150,7 @@ export async function sendRequirementTeamEmail(
   requirement: RequirementSubmissionForEmail,
   submitter: RequirementSubmitterProfile,
 ): Promise<TeamRequirementNotificationStatus> {
-  const recipients = getTeamRecipients();
+  const recipients = getRequirementTeamRecipients();
   if (recipients.length === 0) return "SKIPPED";
 
   const message = buildRequirementSubmissionEmail(requirement, submitter);
@@ -160,5 +168,8 @@ export async function sendRequirementTeamEmail(
     return "SENT_TO_PROVIDER";
   }
   if (outcomes.some((outcome) => outcome.status === "rejected")) return "FAILED";
+  if (outcomes.some((outcome) => outcome.status === "fulfilled" && outcome.value.status === "UNCONFIGURED")) {
+    return "UNCONFIGURED";
+  }
   return "SKIPPED";
 }
