@@ -116,8 +116,14 @@ describe("requirement submission team email", () => {
       role: "BUYER",
     });
 
-    expect(email.subject).toContain("New Truvi requirement [12345678]");
+    expect(email.subject).toContain("New requirement:");
+    expect(email.subject).toContain("buyer@example.com");
+    expect(email.subject).toContain("Truvi Ventures");
     expect(email.replyTo).toBe("buyer@example.com");
+    expect(email.html).toContain("TRUVI VENTURES · TRUVIVENTURES.COM");
+    expect(email.html).toContain("Submitted by Truvi user");
+    expect(email.html).toContain("Buyer Example");
+    expect(email.html).toContain("Registered email:");
     expect(email.html).toContain("buyer@example.com");
     expect(email.html).toContain("Open Admin Requirements");
     expect(email.html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
