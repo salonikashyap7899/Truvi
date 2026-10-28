@@ -120,7 +120,7 @@ describe("requirement submission team email", () => {
     expect(email.subject).toContain("buyer@example.com");
     expect(email.subject).toContain("Truvi Ventures");
     expect(email.replyTo).toBe("buyer@example.com");
-    expect(email.html).toContain("TRUVI VENTURES · TRUVIVENTURES.COM");
+    expect(email.html).toContain("TRUVI VENTURES · truviventures.com");
     expect(email.html).toContain("Submitted by Truvi user");
     expect(email.html).toContain("Buyer Example");
     expect(email.html).toContain("Registered email:");
