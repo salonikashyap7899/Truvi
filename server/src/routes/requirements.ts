@@ -22,7 +22,10 @@ import { logAudit } from "../services/audit";
 import { isEmailTransportConfigured } from "../services/emailService";
 import { notifyRole, notifyUser, NotificationType } from "../services/notificationService";
 import { sanitizePublicRequirementSummary } from "../lib/requirementPrivacy";
-import { sendRequirementTeamEmail } from "../services/requirementSubmissionNotification";
+import {
+  sendRequirementSubmitterConfirmationEmail,
+  sendRequirementTeamEmail,
+} from "../services/requirementSubmissionNotification";
 
 const router = Router();
 router.use(authenticate);
@@ -536,7 +539,7 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     console.warn("[requirements] submitter profile lookup failed for alert metadata");
   }
 
-  const [adminAlertResult, teamEmailResult] = await Promise.allSettled([
+  const [adminAlertResult, teamEmailResult, submitterEmailResult] = await Promise.allSettled([
     notifyRole("ADMIN", {
       type: NotificationType.REQUIREMENT_SUBMITTED,
       title: "New property requirement",
@@ -547,6 +550,7 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
       dedupeKey: `requirement-submitted:${requirementId}`,
     }),
     sendRequirementTeamEmail(requirement, submitterProfile),
+    sendRequirementSubmitterConfirmationEmail(requirement, submitterProfile),
   ]);
 
   if (adminAlertResult.status === "fulfilled") {
@@ -576,6 +580,30 @@ router.post("/", submitLimiter, async (req: AuthedRequest, res) => {
     await writeRequirementEvent(requirementId, req.user!.userId, "TEAM_EMAIL_FAILED", {
       channel: "EMAIL",
     });
+  }
+
+  if (submitterEmailResult.status === "fulfilled") {
+    await writeRequirementEvent(
+      requirementId,
+      req.user!.userId,
+      `SUBMITTER_CONFIRMATION_EMAIL_${submitterEmailResult.value}`,
+      { channel: "EMAIL" },
+    );
+    if (submitterEmailResult.value === "FAILED") {
+      console.warn("[requirements] submitter confirmation email failed; inspect SMTP configuration and provider logs");
+    } else if (submitterEmailResult.value === "UNCONFIGURED") {
+      console.warn("[requirements] submitter confirmation email not sent because SMTP is not configured");
+    } else if (submitterEmailResult.value === "SKIPPED") {
+      console.warn("[requirements] submitter confirmation email skipped because the submitting account has no valid registered email");
+    }
+  } else {
+    console.warn("[requirements] submitter confirmation email failed unexpectedly");
+    await writeRequirementEvent(
+      requirementId,
+      req.user!.userId,
+      "SUBMITTER_CONFIRMATION_EMAIL_FAILED",
+      { channel: "EMAIL" },
+    );
   }
 
   res.status(201).json({ requirement, reference: requirementId });
