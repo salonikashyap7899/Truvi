@@ -150,9 +150,9 @@ export function buildRequirementSubmitterConfirmationEmail(
   requirement: RequirementSubmissionForEmail,
   submitter: RequirementSubmitterProfile,
 ): { subject: string; html: string } {
-  const cleanTitle = requirement.title.replace(/[\\r\\n]+/g, " ").trim().slice(0, 120);
+  const cleanTitle = requirement.title.replace(/[\r\n]+/g, " ").trim().slice(0, 120);
   const subject = `We received your Truvi requirement [${requirement._id.slice(0, 8)}]`;
-  const firstName = submitter.name?.trim().split(/\\s+/)[0]?.slice(0, 80) || "there";
+  const firstName = submitter.name?.trim().split(/\s+/)[0]?.slice(0, 80) || "there";
   const submittedAt = requirement.createdAt instanceof Date && !Number.isNaN(requirement.createdAt.getTime())
     ? requirement.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
     : "Not available";
