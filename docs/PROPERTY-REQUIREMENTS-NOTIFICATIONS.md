@@ -11,6 +11,8 @@ When a requirement is saved successfully, Truvi keeps it in PostgreSQL, queues p
 - The submitting account's registered email is used as Reply-To when valid. Truvi remains the sender; the service does not forge the submitter's address in the From header.
 - Third-party client name, phone, and email are included in the internal team alert only when contact consent is recorded. The public noticeboard remains privacy-safe, and full details remain in the admin-protected requirement view.
 - Admin in-app and team-email attempts are recorded in requirement activity history as ADMIN_NOTIFICATION_* and TEAM_EMAIL_* events. An email failure does not invalidate the saved requirement.
+- The account that submitted a requirement also receives a separate receipt email at its registered account email when that address is valid and the backend mail transport is configured. Confirmation attempts are recorded as SUBMITTER_CONFIRMATION_EMAIL_* events independently of the team alert.
+- Submitter confirmations include only the receipt/reference and a limited summary of that submitter's request. They do not include third-party client contact information, private details/CRM notes, or internal moderation data. The email is a receipt only; it does not promise availability or booking.
 - Team intake alerts use existing SMTP. The optional Resend API key remains scoped to property-match emails and the delivery webhook; OTP and other existing transactional email flows are unchanged.
 
 ### Admin workflow

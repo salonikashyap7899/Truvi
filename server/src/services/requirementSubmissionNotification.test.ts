@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildRequirementSubmissionEmail, escapeEmailHtml, getRequirementTeamRecipients, type RequirementSubmissionForEmail } from "./requirementSubmissionNotification";
+import {
+  buildRequirementSubmissionEmail,
+  buildRequirementSubmitterConfirmationEmail,
+  escapeEmailHtml,
+  getRequirementTeamRecipients,
+  type RequirementSubmissionForEmail,
+} from "./requirementSubmissionNotification";
 
 const requirement: RequirementSubmissionForEmail = {
   _id: "12345678-1234-1234-1234-123456789012",
@@ -62,6 +68,43 @@ describe("requirement submission team email", () => {
       else process.env.TEAM_EMAIL = oldTeamEmail;
     }
   });
+  it("builds a separate receipt email for the registered submitter", () => {
+    const email = buildRequirementSubmitterConfirmationEmail(requirement, {
+      name: "Buyer Example",
+      email: "buyer@example.com",
+      role: "BUYER",
+    });
+
+    expect(email.subject).toContain("We received your Truvi requirement [12345678]");
+    expect(email.html).toContain("We've received your requirement");
+    expect(email.html).toContain("Hi Buyer");
+    expect(email.html).toContain("12345678-1234-1234-1234-123456789012");
+    expect(email.html).toContain("View my requirements");
+    expect(email.html).toContain("This email confirms receipt only");
+    expect(email.html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(email.html).not.toContain('<img src=x onerror="alert(1)">');
+  });
+
+  it("keeps third-party client contacts and private notes out of submitter confirmations", () => {
+    const email = buildRequirementSubmitterConfirmationEmail({
+      ...requirement,
+      details: "Private internal notes must not be in the confirmation.",
+      clientName: "Private Client",
+      clientPhone: "+91 98765 43210",
+      clientEmail: "private@example.com",
+      contactConsent: true,
+    }, {
+      name: "Partner Example",
+      email: "partner@example.com",
+      role: "CP",
+    });
+
+    expect(email.html).not.toContain("Private Client");
+    expect(email.html).not.toContain("+91 98765 43210");
+    expect(email.html).not.toContain("private@example.com");
+    expect(email.html).not.toContain("Private internal notes");
+  });
+
   it("escapes untrusted HTML text", () => {
     expect(escapeEmailHtml('<script>alert("x")</script>')).toBe("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
   });
