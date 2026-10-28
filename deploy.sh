@@ -86,23 +86,30 @@ PORT="$(grep -E '^PORT=' server/.env 2>/dev/null | cut -d= -f2 | tr -d '[:space:
 # Match server/src/config/env.ts, whose default PORT is 3001.
 # A fallback of 5000 falsely marked the deployment unhealthy when PORT was not set.
 PORT="${PORT:-3001}"
-# The app runs idempotent DB schema checks on boot, which can take a while on a
-# cold connection, so give it up to ~60s before calling it a failure.
-echo "==> Waiting for the app on :$PORT to come back up (up to 60s; DB checks run on boot)…"
+# Database schema reconciliation can take longer than a minute on a cold
+# connection. Allow up to 180s for the API to finish booting, while bounding
+# each curl attempt so one stalled request does not consume the whole window.
+HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-180}"
+if ! [[ "$HEALTH_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [ "$HEALTH_TIMEOUT_SECONDS" -lt 1 ]; then
+  echo "ERROR: DEPLOY_HEALTH_TIMEOUT_SECONDS must be a positive integer."
+  exit 1
+fi
+echo "==> Waiting for the app on :$PORT to come back up (up to ${HEALTH_TIMEOUT_SECONDS}s; DB checks run on boot)…"
 UP=""
-for i in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then UP="yes"; break; fi
+for i in $(seq 1 "$HEALTH_TIMEOUT_SECONDS"); do
+  if curl --max-time 3 -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then UP="yes"; break; fi
   sleep 1
 done
 
-echo ""
-echo "================ DEPLOY DONE ================"
 if [ "$UP" = "yes" ]; then
+  echo ""
+  echo "================ DEPLOY DONE ================"
   echo "App is UP and answering on :$PORT ✓"
 else
-  echo "ERROR: App did NOT answer /health after 60 seconds."
-  echo "Recent app logs:"
-  pm2 logs truviventures --lines 40 --nostream || true
+  echo ""
+  echo "ERROR: App did NOT answer /health after ${HEALTH_TIMEOUT_SECONDS} seconds."
+  echo "Recent app logs (may contain older entries):"
+  pm2 logs truviventures --lines 40 --nostream --time || true
   echo "Deployment is not healthy; do not treat this as a successful release."
   exit 1
 fi
