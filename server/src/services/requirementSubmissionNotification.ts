@@ -142,6 +142,81 @@ export function buildRequirementSubmissionEmail(
 }
 
 /**
+ * Build the separate receipt email for the account that submitted the requirement.
+ * Keep this intentionally limited to the submitter's own request summary; do not
+ * include third-party client contacts, CRM notes, or internal moderation details.
+ */
+export function buildRequirementSubmitterConfirmationEmail(
+  requirement: RequirementSubmissionForEmail,
+  submitter: RequirementSubmitterProfile,
+): { subject: string; html: string } {
+  const cleanTitle = requirement.title.replace(/[\\r\\n]+/g, " ").trim().slice(0, 120);
+  const subject = `We received your Truvi requirement [${requirement._id.slice(0, 8)}]`;
+  const firstName = submitter.name?.trim().split(/\\s+/)[0]?.slice(0, 80) || "there";
+  const submittedAt = requirement.createdAt instanceof Date && !Number.isNaN(requirement.createdAt.getTime())
+    ? requirement.createdAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+    : "Not available";
+
+  const rows: Array<[string, string]> = [
+    ["Reference", requirement._id],
+    ["Requirement", cleanTitle || "Property request"],
+    ["Property type", requirement.propertyType],
+    ["City", requirement.city],
+    ["Locality", requirement.location],
+    ["Preferred timeline", requirement.timeline],
+    ["Submitted at (IST)", submittedAt],
+  ];
+  const tableRows = rows.map(([label, value]) =>
+    `<tr><th align="left" valign="top" style="padding:9px 12px;border-bottom:1px solid #e5e7eb;color:#475569;font-size:13px;width:180px">${escapeEmailHtml(label)}</th><td style="padding:9px 12px;border-bottom:1px solid #e5e7eb;color:#0f172a;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere">${escapeEmailHtml(value)}</td></tr>`,
+  ).join("");
+
+  const baseUrlCandidate = process.env.CLIENT_URL || process.env.FRONTEND_URL || "https://truviventures.com";
+  let requirementsUrl = "https://truviventures.com/requirements";
+  try {
+    const baseUrl = new URL(baseUrlCandidate);
+    if (baseUrl.protocol === "https:") {
+      requirementsUrl = new URL("/requirements", baseUrl).toString();
+    }
+  } catch {
+    // Keep the known HTTPS production URL if environment configuration is invalid.
+  }
+
+  return {
+    subject,
+    html: `<!doctype html><html><body style="margin:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a"><main style="max-width:760px;margin:0 auto;padding:24px"><div style="background:#0f172a;color:#fff;border-radius:14px;padding:20px 22px"><p style="margin:0 0 8px;color:#5eead4;font-size:12px;letter-spacing:1.5px;text-transform:uppercase">Truvi Requirements</p><h1 style="margin:0;font-size:22px">We've received your requirement</h1><p style="margin:10px 0 0;color:#cbd5e1;font-size:14px">Hi ${escapeEmailHtml(firstName)}, your property requirement has been submitted successfully.</p></div><p style="font-size:15px;line-height:1.65;color:#334155">Thank you for sharing your property needs with Truvi. Our team can review your request and follow up through your registered contact details when appropriate.</p><table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin-top:18px;border:1px solid #e5e7eb;border-radius:10px;border-collapse:separate;border-spacing:0;background:#fff;overflow:hidden">${tableRows}</table><p style="margin:22px 0"><a href="${escapeEmailHtml(requirementsUrl)}" style="display:inline-block;padding:12px 16px;background:#0f766e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View my requirements</a></p><p style="font-size:12px;line-height:1.6;color:#64748b">This email confirms receipt only. It does not confirm property availability, an allotment, or a booking. If you did not submit this request, please contact Truvi support.</p></main></body></html>`,
+  };
+}
+
+export type RequirementSubmitterConfirmationStatus =
+  | "SENT_TO_PROVIDER"
+  | "SKIPPED"
+  | "UNCONFIGURED"
+  | "FAILED";
+
+/**
+ * Send a receipt to the registered email on the authenticated submitting account.
+ * The From address always remains Truvi's configured sender; this never impersonates
+ * a user or uses user-supplied contact details as a destination.
+ */
+export async function sendRequirementSubmitterConfirmationEmail(
+  requirement: RequirementSubmissionForEmail,
+  submitter: RequirementSubmitterProfile,
+): Promise<RequirementSubmitterConfirmationStatus> {
+  const recipient = submitter.email?.trim();
+  if (!validEmail(recipient)) return "SKIPPED";
+
+  const message = buildRequirementSubmitterConfirmationEmail(requirement, submitter);
+  try {
+    const result = await sendEmailWithStatus(recipient, message.subject, message.html, MAIL_FROM);
+    return result.status;
+  } catch {
+    // The caller persists the result to requirement activity history; do not
+    // throw and turn an otherwise successful requirement submission into an error.
+    return "FAILED";
+  }
+}
+
+/**
  * Send an internal admin alert using Truvi's existing SMTP transport. This is
  * deliberately separate from property-match email delivery and never uses a
  * user-controlled address as the From header.
