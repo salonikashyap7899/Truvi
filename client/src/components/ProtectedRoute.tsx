@@ -3,9 +3,14 @@ import { useAuthStore } from "@/store/authStore";
 import { dashboardPath } from "@/lib/rolePaths";
 import type { Role } from "@/types";
 import { CpJoiningFlow } from "@/components/CpJoiningGate";
+import { CpKycOnboarding } from "@/components/CpKycOnboarding";
 
 /** CP pages that stay open before joining is complete (help/learning). */
 const CP_UNGATED = new Set(["/cp/guide"]);
+
+// Every customer/partner workspace requires completed identity verification.
+// Staff/admin accounts stay available to operate and review the platform.
+const KYC_REQUIRED_ROLES = new Set<Role>(["BUYER", "CP", "DEVELOPER", "AMBASSADOR"]);
 
 /**
  * Client-side route gating for UX only (redirect before a flash of the
@@ -30,6 +35,12 @@ export function ProtectedRoute({ roles, children }: { roles: Role[]; children: R
   if (!isInitialized) return null;
   if (!accessToken || !user) return <Navigate to="/login" replace />;
   if (!roles.includes(user.role)) return <Navigate to={dashboardPath(user)} replace />;
+
+  // CP already renders this gate through CpJoiningFlow; all other customer roles
+  // are gated here so direct URLs cannot show their dashboard before KYC.
+  if (KYC_REQUIRED_ROLES.has(user.role) && user.role !== "CP" && user.onboardingVerified !== true) {
+    return <CpKycOnboarding />;
+  }
 
   // Channel Partner workspace pages (not the pages every role shares) need the
   // compulsory CP joining — KYC, WhatsApp channel and partner terms — first.
