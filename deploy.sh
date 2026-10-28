@@ -96,8 +96,9 @@ if ! [[ "$HEALTH_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [ "$HEALTH_TIMEOUT_SECONDS" 
 fi
 echo "==> Waiting for the app on :$PORT to come back up (up to ${HEALTH_TIMEOUT_SECONDS}s; DB checks run on boot)…"
 UP=""
-for i in $(seq 1 "$HEALTH_TIMEOUT_SECONDS"); do
-  if curl --max-time 3 -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then UP="yes"; break; fi
+HEALTH_START_SECONDS="$SECONDS"
+while [ "$((SECONDS - HEALTH_START_SECONDS))" -lt "$HEALTH_TIMEOUT_SECONDS" ]; do
+  if curl --max-time 2 -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then UP="yes"; break; fi
   sleep 1
 done
 
