@@ -132,3 +132,61 @@
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 20%); }
+
+
+/* One panoramic masterplan image is shared by every section on the public homepage.
+   The image moves slightly slower than scroll, creating a calm, continuous parallax. */
+.landing-page {
+  isolation: isolate;
+}
+
+.truvi-homepage-backdrop {
+  position: fixed;
+  inset: -18vh 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translate3d(0, var(--truvi-scroll-shift, 0px), 0);
+  will-change: transform;
+  background: #071321;
+}
+
+.truvi-homepage-backdrop > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 58% 50%;
+  transform: scale(1.08);
+  filter: saturate(1.04) contrast(1.03);
+}
+
+.truvi-homepage-backdrop__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(3, 10, 21, 0.78) 0%, rgba(4, 12, 23, 0.48) 42%, rgba(4, 12, 23, 0.22) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.36) 0%, rgba(3, 9, 19, 0.10) 36%, rgba(3, 9, 19, 0.70) 100%),
+    radial-gradient(ellipse at 62% 36%, rgba(37, 99, 148, 0.13), transparent 68%);
+}
+
+@media (max-width: 767px) {
+  .truvi-homepage-backdrop > img {
+    object-position: 62% 50%;
+    transform: scale(1.15);
+  }
+
+  .truvi-homepage-backdrop__veil {
+    background:
+      linear-gradient(90deg, rgba(3, 10, 21, 0.62), rgba(3, 10, 21, 0.34)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.40), rgba(3, 9, 19, 0.68));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .truvi-homepage-backdrop {
+    transform: none !important;
+    will-change: auto;
+  }
+}

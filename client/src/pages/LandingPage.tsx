@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
@@ -10,54 +10,74 @@ import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
 
-const CityCanvas = lazy(() =>
-  import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
-);
-
-/**
- * The 3D city is decorative and expensive to download/initialize. Let the
- * page's first paint and initial interactions settle before requesting it.
- * Keep the existing reduced-motion opt-out at the render site below.
- */
-function useDeferredBackground() {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const idleWindow = window as IdleWindow;
-    let delayId: number | undefined;
-    let idleId: number | undefined;
-
-    const startDelay = () => {
-      // Avoid competing with first-paint/LCP work on the landing page.
-      delayId = window.setTimeout(() => {
-        if (idleWindow.requestIdleCallback) {
-          idleId = idleWindow.requestIdleCallback(() => setReady(true), { timeout: 3000 });
-        } else {
-          setReady(true);
-        }
-      }, 8000);
-    };
-
-    if (document.readyState === "complete") startDelay();
-    else window.addEventListener("load", startDelay, { once: true });
-
-    return () => {
-      window.removeEventListener("load", startDelay);
-      if (delayId !== undefined) window.clearTimeout(delayId);
-      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
-    };
-  }, []);
-
-  return ready;
-}
-
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
   window.dispatchEvent(new Event("open-ask-truvi"));
+}
+
+/**
+ * One continuous image behind the complete public homepage.
+ * A subtle scroll-linked offset creates parallax without moving page content.
+ * Reduced-motion visitors get the same image without motion.
+ */
+function HomepageScrollBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
+  useEffect(() => {
+    const backdrop = document.querySelector<HTMLElement>("[data-truvi-homepage-backdrop]");
+    if (!backdrop) return;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (reducedMotion) {
+        backdrop.style.setProperty("--truvi-scroll-shift", "0px");
+        return;
+      }
+
+      const scrollableHeight = Math.max(
+        1,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const progress = Math.min(1, Math.max(0, window.scrollY / scrollableHeight));
+      const maxShift = window.matchMedia("(max-width: 767px)").matches ? 70 : 190;
+      backdrop.style.setProperty("--truvi-scroll-shift", String(-progress * maxShift) + "px");
+    };
+
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(update);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    window.addEventListener("load", scheduleUpdate);
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(scheduleUpdate)
+        : null;
+    resizeObserver?.observe(document.documentElement);
+
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      window.removeEventListener("load", scheduleUpdate);
+      resizeObserver?.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [reducedMotion]);
+
+  return (
+    <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
+      <img
+        src="/media/truvi-homepage-backdrop.webp"
+        alt=""
+        loading="eager"
+        decoding="async"
+      />
+      <div className="truvi-homepage-backdrop__veil" />
+    </div>
+  );
 }
 
 function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
@@ -889,7 +909,6 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
-  const backgroundReady = useDeferredBackground();
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
   );
@@ -940,14 +959,14 @@ export default function LandingPage() {
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <SmoothScroll />
       <CursorGlow />
+      <HomepageScrollBackdrop reducedMotion={prefersReducedMotion} />
       <SiteNav />
 
-      <main id="main-content">
+      <main id="main-content" className="relative z-10">
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36 isolate overflow-hidden">
-        <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
+      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36">
         <div className="relative z-10 flex w-full flex-col items-center">
         {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
             Shown to every signed-in user except Admin/Founder. */}
@@ -994,7 +1013,7 @@ export default function LandingPage() {
         poster="/media/intro-poster.jpg"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        muted={false}
+        contained maxWidth={1040} muted={false}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
@@ -1473,7 +1492,7 @@ export default function LandingPage() {
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"
         tint={0}
-        muted={false}
+        contained maxWidth={1040} muted={false}
       />
 
       </>
@@ -1495,7 +1514,9 @@ export default function LandingPage() {
       </Section>
 
       </main>
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </div>
   );
 }
