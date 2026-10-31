@@ -38,7 +38,7 @@ function HomepageScrollBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
         document.documentElement.scrollHeight - window.innerHeight,
       );
       const progress = Math.min(1, Math.max(0, window.scrollY / scrollableHeight));
-      const maxShift = window.matchMedia("(max-width: 767px)").matches ? 70 : 190;
+      const maxShift = window.matchMedia("(max-width: 767px)").matches ? 35 : 80;
       backdrop.style.setProperty("--truvi-scroll-shift", String(-progress * maxShift) + "px");
     };
 
@@ -1013,7 +1013,7 @@ export default function LandingPage() {
         poster="/media/intro-poster.jpg"
         title={<>TRUVI</>}
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        contained maxWidth={1040} muted={false}
+        muted={false}
       />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
@@ -1492,7 +1492,7 @@ export default function LandingPage() {
         subtitle="One verified source of truth — for every home, plot and project across India."
         overlayPos="center"
         tint={0}
-        contained maxWidth={1040} muted={false}
+        muted={false}
       />
 
       </>

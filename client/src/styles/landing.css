@@ -142,7 +142,7 @@
 
 .truvi-homepage-backdrop {
   position: fixed;
-  inset: -18vh 0;
+  inset: -12vh 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
@@ -158,7 +158,7 @@
   height: 100%;
   object-fit: cover;
   object-position: 58% 50%;
-  transform: scale(1.08);
+  transform: scale(1.03);
   filter: saturate(1.04) contrast(1.03);
 }
 
@@ -174,7 +174,7 @@
 @media (max-width: 767px) {
   .truvi-homepage-backdrop > img {
     object-position: 62% 50%;
-    transform: scale(1.15);
+    transform: scale(1.08);
   }
 
   .truvi-homepage-backdrop__veil {
