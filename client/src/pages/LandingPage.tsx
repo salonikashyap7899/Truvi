@@ -70,7 +70,7 @@ function HomepageScrollBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
   return (
     <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
       <img
-        src="/media/truvi-homepage-backdrop.avif"
+        src="/media/truvi-homepage-backdrop.png"
         alt=""
         loading="eager"
         decoding="async"

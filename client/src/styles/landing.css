@@ -141,8 +141,10 @@
 }
 
 .truvi-homepage-backdrop {
-  position: fixed;
-  inset: -12vh 0;
+  /* Span the full landing page so the original tall 8K image is visible
+     from the first section through the footer, without repeating it. */
+  position: absolute;
+  inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
@@ -157,9 +159,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 58% 50%;
-  transform: scale(1.03);
-  filter: saturate(1.04) contrast(1.03);
+  object-position: 50% 50%;
+  /* Keep the uploaded source image unfiltered and unsharpened. */
 }
 
 .truvi-homepage-backdrop__veil {
@@ -173,8 +174,7 @@
 
 @media (max-width: 767px) {
   .truvi-homepage-backdrop > img {
-    object-position: 62% 50%;
-    transform: scale(1.08);
+    object-position: 50% 50%;
   }
 
   .truvi-homepage-backdrop__veil {
