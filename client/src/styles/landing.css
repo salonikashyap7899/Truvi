@@ -158,9 +158,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: 50% 50%;
-  /* Keep the uploaded source image unfiltered and unsharpened. */
+  /* Show the complete portrait artwork; cover would zoom and crop it. */
+  object-fit: fill;
+  object-position: center;
+  transform: none;
+  filter: none;
 }
 
 .truvi-homepage-backdrop__veil {
