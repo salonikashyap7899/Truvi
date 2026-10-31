@@ -11,184 +11,244 @@ const IS_MOBILE =
 
 type Vec3 = [number, number, number];
 
+type Plot = {
+  x: number;
+  z: number;
+  home?: boolean;
+};
+
+const PLOT_X = [-12, -7, -2, 3, 8];
+const PLOT_Z = [2.5, 8.5, 14.5];
+
+// Most parcels remain visibly vacant, while a few contain villas: this makes
+// the scene read as a mixed real-estate masterplan, not a villa-only estate.
+const PLOTS: Plot[] = PLOT_Z.flatMap((z, row) =>
+  PLOT_X.map((x, column) => ({
+    x,
+    z,
+    home:
+      (row === 0 && column === 3) ||
+      (row === 1 && column === 1) ||
+      (row === 2 && column === 4),
+  })),
+);
+
 function Tree({ position, scale = 1 }: { position: Vec3; scale?: number }) {
   return (
     <group position={position} scale={scale}>
-      <mesh position={[0, 0.9, 0]} castShadow>
-        <cylinderGeometry args={[0.16, 0.24, 1.8, 8]} />
-        <meshStandardMaterial color="#4a3529" roughness={0.92} />
+      <mesh position={[0, 0.72, 0]} castShadow>
+        <cylinderGeometry args={[0.13, 0.19, 1.45, 7]} />
+        <meshStandardMaterial color="#49392f" roughness={0.95} />
       </mesh>
-      <mesh position={[0, 2.15, 0]} castShadow>
-        <icosahedronGeometry args={[1.05, 1]} />
-        <meshStandardMaterial color="#183c36" roughness={0.95} />
+      <mesh position={[0, 1.78, 0]} castShadow>
+        <icosahedronGeometry args={[0.92, 1]} />
+        <meshStandardMaterial color="#1b493c" roughness={0.96} />
       </mesh>
-      <mesh position={[-0.48, 1.85, 0.08]} castShadow>
-        <icosahedronGeometry args={[0.68, 1]} />
-        <meshStandardMaterial color="#214b3d" roughness={0.95} />
+      <mesh position={[-0.4, 1.55, 0.08]} castShadow>
+        <icosahedronGeometry args={[0.58, 1]} />
+        <meshStandardMaterial color="#285844" roughness={0.96} />
       </mesh>
-      <mesh position={[0.48, 1.92, -0.08]} castShadow>
-        <icosahedronGeometry args={[0.72, 1]} />
-        <meshStandardMaterial color="#285541" roughness={0.95} />
+      <mesh position={[0.42, 1.62, -0.08]} castShadow>
+        <icosahedronGeometry args={[0.62, 1]} />
+        <meshStandardMaterial color="#214d3e" roughness={0.96} />
       </mesh>
     </group>
   );
 }
 
-function PathLight({ position }: { position: Vec3 }) {
+function VillaModel({ position }: { position: Vec3 }) {
   return (
     <group position={position}>
-      <mesh position={[0, 0.36, 0]}>
-        <cylinderGeometry args={[0.055, 0.075, 0.72, 8]} />
-        <meshStandardMaterial color="#25384a" metalness={0.8} roughness={0.3} />
+      {/* Plinth and lower storey */}
+      <mesh position={[0, 0.23, 0]} castShadow>
+        <boxGeometry args={[3.25, 0.36, 3.35]} />
+        <meshStandardMaterial color="#89949a" roughness={0.68} />
       </mesh>
-      <mesh position={[0, 0.76, 0]}>
-        <boxGeometry args={[0.2, 0.18, 0.2]} />
-        <meshBasicMaterial color="#ffd49a" />
+      <mesh position={[0, 1.02, -0.05]} castShadow>
+        <boxGeometry args={[2.85, 1.45, 2.85]} />
+        <meshStandardMaterial color="#9da7a8" roughness={0.58} />
       </mesh>
-      <pointLight position={[0, 0.82, 0]} color="#ffbb78" intensity={0.42} distance={4} />
+      {/* Glazed facade facing the main road */}
+      <mesh position={[0, 1.02, 1.405]}>
+        <boxGeometry args={[2.35, 1.12, 0.035]} />
+        <meshPhysicalMaterial
+          color="#8fc5df"
+          transparent
+          opacity={0.72}
+          roughness={0.12}
+          metalness={0.28}
+        />
+      </mesh>
+      {[-0.78, 0.78].map((x) => (
+        <mesh key={x} position={[x, 1.02, 1.45]}>
+          <boxGeometry args={[0.075, 1.2, 0.07]} />
+          <meshStandardMaterial color="#d3d0c4" metalness={0.55} roughness={0.3} />
+        </mesh>
+      ))}
+      <mesh position={[0.93, 0.96, 1.49]}>
+        <boxGeometry args={[0.36, 0.9, 0.035]} />
+        <meshBasicMaterial color="#f5bb7c" />
+      </mesh>
+      {/* Upper level and flat architectural roof */}
+      <mesh position={[0.18, 2.13, -0.36]} castShadow>
+        <boxGeometry args={[2.25, 0.92, 2.05]} />
+        <meshStandardMaterial color="#6d7d83" roughness={0.55} />
+      </mesh>
+      <mesh position={[0.18, 2.14, 0.68]}>
+        <boxGeometry args={[1.82, 0.68, 0.035]} />
+        <meshPhysicalMaterial color="#a5d3e5" transparent opacity={0.66} roughness={0.1} />
+      </mesh>
+      <mesh position={[0.18, 2.64, -0.36]} castShadow>
+        <boxGeometry args={[2.55, 0.16, 2.35]} />
+        <meshStandardMaterial color="#263746" metalness={0.65} roughness={0.3} />
+      </mesh>
+      {/* Small planted terrace */}
+      <mesh position={[-1.13, 0.47, -1.0]}>
+        <boxGeometry args={[0.62, 0.1, 1.1]} />
+        <meshStandardMaterial color="#315a45" roughness={0.95} />
+      </mesh>
+      <pointLight position={[0.25, 1.5, 2.1]} color="#ffbf83" intensity={0.36} distance={5} />
     </group>
   );
 }
 
-function Tower({
+function PlotParcel({ plot }: { plot: Plot }) {
+  const { x, z, home } = plot;
+  const border = "#8db9cf";
+  return (
+    <group position={[x, 0, z]}>
+      {/* Clearly divided individual parcel */}
+      <mesh position={[0, 0.015, 0]} receiveShadow>
+        <boxGeometry args={[4.28, 0.1, 4.72]} />
+        <meshStandardMaterial
+          color={home ? "#2b3c35" : "#34483b"}
+          roughness={0.92}
+        />
+      </mesh>
+      {/* Thin raised survey boundary around each plot */}
+      <mesh position={[0, 0.105, -2.31]}>
+        <boxGeometry args={[4.34, 0.09, 0.075]} />
+        <meshStandardMaterial color={border} metalness={0.5} roughness={0.42} />
+      </mesh>
+      <mesh position={[0, 0.105, 2.31]}>
+        <boxGeometry args={[4.34, 0.09, 0.075]} />
+        <meshStandardMaterial color={border} metalness={0.5} roughness={0.42} />
+      </mesh>
+      <mesh position={[-2.13, 0.105, 0]}>
+        <boxGeometry args={[0.075, 0.09, 4.55]} />
+        <meshStandardMaterial color={border} metalness={0.5} roughness={0.42} />
+      </mesh>
+      <mesh position={[2.13, 0.105, 0]}>
+        <boxGeometry args={[0.075, 0.09, 4.55]} />
+        <meshStandardMaterial color={border} metalness={0.5} roughness={0.42} />
+      </mesh>
+      {/* Survey pegs make the vacant parcels read as registered plots */}
+      {[
+        [-1.94, -2.08],
+        [1.94, -2.08],
+        [-1.94, 2.08],
+        [1.94, 2.08],
+      ].map(([px, pz], index) => (
+        <mesh key={index} position={[px, 0.19, pz]}>
+          <boxGeometry args={[0.12, 0.24, 0.12]} />
+          <meshStandardMaterial color="#d7c7a0" metalness={0.35} roughness={0.52} />
+        </mesh>
+      ))}
+      {home && <VillaModel position={[0, 0.18, -0.08]} />}
+    </group>
+  );
+}
+
+function ApartmentTower({
   position,
   height,
   width,
-  depth,
 }: {
   position: Vec3;
   height: number;
   width: number;
-  depth: number;
 }) {
-  const floors = Math.max(3, Math.floor(height / 2.25));
+  const floors = Math.max(5, Math.floor(height / 2));
   return (
     <group position={position}>
       <mesh position={[0, height / 2, 0]} castShadow>
-        <boxGeometry args={[width, height, depth]} />
-        <meshStandardMaterial color="#172b40" metalness={0.62} roughness={0.34} />
+        <boxGeometry args={[width, height, 4.2]} />
+        <meshStandardMaterial color="#1a2e42" metalness={0.58} roughness={0.34} />
       </mesh>
-      <mesh position={[0, height / 2, depth / 2 + 0.025]}>
-        <boxGeometry args={[width * 0.9, height * 0.91, 0.06]} />
-        <meshStandardMaterial color="#29475d" metalness={0.7} roughness={0.22} />
+      <mesh position={[0, height / 2, 2.12]}>
+        <boxGeometry args={[width * 0.94, height * 0.94, 0.055]} />
+        <meshStandardMaterial color="#2a465b" metalness={0.72} roughness={0.2} />
       </mesh>
       {Array.from({ length: floors }, (_, floor) =>
         Array.from({ length: 3 }, (_, column) => (
           <mesh
             key={floor + "-" + column}
             position={[
-              (column - 1) * (width * 0.27),
-              1.05 + floor * 2.15,
-              depth / 2 + 0.075,
+              (column - 1) * (width * 0.29),
+              1 + floor * 1.9,
+              2.17,
             ]}
           >
-            <boxGeometry args={[width * 0.17, 0.92, 0.045]} />
+            <boxGeometry args={[width * 0.17, 0.78, 0.045]} />
             <meshBasicMaterial
-              color={(floor + column) % 4 === 0 ? "#f3bd82" : "#8ebbd8"}
+              color={(floor + column) % 4 === 0 ? "#f4c58f" : "#8bbad6"}
               transparent
-              opacity={(floor + column) % 4 === 0 ? 0.94 : 0.48}
+              opacity={(floor + column) % 4 === 0 ? 0.9 : 0.5}
             />
           </mesh>
         )),
       )}
-      <mesh position={[0, height + 0.08, 0]}>
-        <boxGeometry args={[width + 0.4, 0.18, depth + 0.4]} />
-        <meshStandardMaterial color="#30475a" metalness={0.72} roughness={0.3} />
+      <mesh position={[0, height + 0.1, 0]}>
+        <boxGeometry args={[width + 0.38, 0.2, 4.5]} />
+        <meshStandardMaterial color="#344a5e" metalness={0.72} roughness={0.3} />
       </mesh>
     </group>
   );
 }
 
-function LuxuryVilla() {
-  const windowXs = [-4.8, -2.4, 0, 2.4, 4.8];
+function Road({ position, size }: { position: Vec3; size: Vec3 }) {
   return (
-    <group position={[8, 0, -3]}>
-      {/* Ground floor and floating upper volume */}
-      <mesh position={[0, 1.55, 0]} castShadow receiveShadow>
-        <boxGeometry args={[14, 3.1, 8.4]} />
-        <meshStandardMaterial color="#263646" roughness={0.56} metalness={0.2} />
+    <group position={position}>
+      <mesh>
+        <boxGeometry args={size} />
+        <meshStandardMaterial color="#202d39" roughness={0.88} metalness={0.08} />
       </mesh>
-      <mesh position={[0.65, 4.25, -0.45]} castShadow>
-        <boxGeometry args={[9.7, 2.35, 7.3]} />
-        <meshStandardMaterial color="#1b2a3a" roughness={0.48} metalness={0.24} />
+      <mesh position={[0, size[1] / 2 + 0.012, 0]}>
+        <boxGeometry args={[size[0] * 0.92, 0.018, 0.035]} />
+        <meshBasicMaterial color="#a8c0ce" transparent opacity={0.38} />
       </mesh>
-      {/* Broad cantilevered rooflines */}
-      <mesh position={[0.65, 5.48, -0.45]} castShadow>
-        <boxGeometry args={[11.1, 0.3, 8.2]} />
-        <meshStandardMaterial color="#101c2a" metalness={0.78} roughness={0.28} />
-      </mesh>
-      <mesh position={[-0.1, 3.22, 0.1]}>
-        <boxGeometry args={[14.5, 0.22, 8.9]} />
-        <meshStandardMaterial color="#75818a" metalness={0.6} roughness={0.35} />
-      </mesh>
-      {/* Glazed front elevation */}
-      <mesh position={[0, 1.7, 4.24]}>
-        <boxGeometry args={[12.8, 2.35, 0.06]} />
-        <meshPhysicalMaterial color="#8db6ca" transparent opacity={0.42} roughness={0.12} metalness={0.35} />
-      </mesh>
-      {windowXs.map((x) => (
-        <mesh key={"ground-window-" + x} position={[x, 1.72, 4.31]}>
-          <boxGeometry args={[0.12, 2.4, 0.09]} />
-          <meshStandardMaterial color="#b4c3ce" metalness={0.82} roughness={0.24} />
-        </mesh>
-      ))}
-      {[-3.7, -1.25, 1.25, 3.7].map((x) => (
-        <mesh key={"interior-" + x} position={[x, 1.72, 4.17]}>
-          <boxGeometry args={[1.45, 1.72, 0.025]} />
-          <meshBasicMaterial color="#f5b875" transparent opacity={0.72} />
-        </mesh>
-      ))}
-      {/* Upper floor glass and balcony */}
-      <mesh position={[0.65, 4.25, 3.22]}>
-        <boxGeometry args={[8.9, 1.72, 0.06]} />
-        <meshPhysicalMaterial color="#84acc2" transparent opacity={0.48} roughness={0.1} metalness={0.3} />
-      </mesh>
-      {[-2.35, 0, 2.35].map((x) => (
-        <mesh key={"upper-window-" + x} position={[x + 0.65, 4.25, 3.29]}>
-          <boxGeometry args={[0.12, 1.85, 0.09]} />
-          <meshStandardMaterial color="#c2d0d8" metalness={0.8} roughness={0.22} />
-        </mesh>
-      ))}
-      <mesh position={[0.65, 3.35, 3.55]}>
-        <boxGeometry args={[9.4, 0.12, 1.25]} />
-        <meshStandardMaterial color="#394a58" metalness={0.7} roughness={0.32} />
-      </mesh>
-      <mesh position={[0.65, 3.82, 4.14]}>
-        <boxGeometry args={[9.25, 0.72, 0.045]} />
-        <meshPhysicalMaterial color="#9dc6d7" transparent opacity={0.28} roughness={0.08} />
-      </mesh>
-      {/* Warm architectural fins and recessed lights */}
-      {[-5.3, -4.7, 5.1, 5.55].map((x) => (
-        <mesh key={"fin-" + x} position={[x, 1.75, 4.34]}>
-          <boxGeometry args={[0.16, 2.9, 0.18]} />
-          <meshStandardMaterial color="#946d4f" roughness={0.56} />
-        </mesh>
-      ))}
-      <mesh position={[0.65, 5.31, 3.58]}>
-        <boxGeometry args={[8.6, 0.045, 0.045]} />
-        <meshBasicMaterial color="#ffd29b" />
-      </mesh>
-      <pointLight position={[0, 3.3, 2.5]} color="#f8b979" intensity={1.15} distance={18} />
-      <pointLight position={[5, 2.3, 1.5]} color="#ffca8b" intensity={0.65} distance={12} />
     </group>
   );
 }
 
-function Scene() {
+function StreetLamp({ position }: { position: Vec3 }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 0.58, 0]}>
+        <cylinderGeometry args={[0.045, 0.07, 1.16, 7]} />
+        <meshStandardMaterial color="#657b89" metalness={0.78} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, 1.18, 0]}>
+        <sphereGeometry args={[0.11, 10, 8]} />
+        <meshBasicMaterial color="#f6ca91" />
+      </mesh>
+      <pointLight position={[0, 1.18, 0]} color="#ffca8c" intensity={0.34} distance={4.5} />
+    </group>
+  );
+}
+
+function MasterplanScene() {
   const trees = useMemo<{ position: Vec3; scale: number }[]>(
     () => [
-      { position: [-23, 0, -7], scale: 1.25 },
-      { position: [-17, 0, 5], scale: 1.08 },
-      { position: [-12, 0, -12], scale: 0.92 },
-      { position: [-9, 0, 13], scale: 0.84 },
-      { position: [0, 0, 14], scale: 0.9 },
-      { position: [17, 0, 12], scale: 1.05 },
-      { position: [22, 0, 3], scale: 1.2 },
-      { position: [19, 0, -10], scale: 0.9 },
-      { position: [-27, 0, 14], scale: 1.1 },
-      { position: [-30, 0, -4], scale: 0.9 },
-      { position: [29, 0, -3], scale: 1.05 },
-      { position: [30, 0, 13], scale: 0.9 },
+      { position: [-19, 0, -8], scale: 1.0 },
+      { position: [-17, 0, 4], scale: 0.84 },
+      { position: [-18, 0, 18], scale: 1.08 },
+      { position: [14, 0, -7], scale: 0.9 },
+      { position: [16, 0, 4], scale: 1.0 },
+      { position: [17, 0, 18], scale: 1.05 },
+      { position: [21, 0, 10], scale: 0.85 },
+      { position: [-5, 0, -9], scale: 0.78 },
+      { position: [5, 0, -10], scale: 0.86 },
     ],
     [],
   );
@@ -196,86 +256,72 @@ function Scene() {
   return (
     <>
       <color attach="background" args={["#071321"]} />
-      <fog attach="fog" args={["#071321", 48, 125]} />
-      <ambientLight intensity={0.8} color="#9eb8d4" />
-      <directionalLight position={[18, 32, 16]} intensity={2.1} color="#ffd5ad" />
-      <directionalLight position={[-20, 18, -18]} intensity={0.72} color="#6b9bd5" />
-      <pointLight position={[8, 10, 7]} intensity={1.6} color="#f6bb80" distance={40} />
+      <fog attach="fog" args={["#071321", 42, 112]} />
+      <ambientLight intensity={0.72} color="#a8c1d8" />
+      <directionalLight position={[18, 30, 14]} intensity={1.8} color="#ffd6ad" />
+      <directionalLight position={[-18, 18, -18]} intensity={0.72} color="#6da4dc" />
+      <pointLight position={[8, 10, 8]} intensity={0.8} color="#eab987" distance={45} />
 
-      {/* A landscaped masterplan instead of the old abstract block field */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]} receiveShadow>
-        <planeGeometry args={[180, 180]} />
-        <meshStandardMaterial color="#0b1b20" roughness={0.96} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, -20]}>
-        <planeGeometry args={[150, 5.8]} />
-        <meshStandardMaterial color="#172431" roughness={0.85} />
-      </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.045, -20]}>
-        <planeGeometry args={[150, 0.055]} />
-        <meshBasicMaterial color="#bdc9d4" transparent opacity={0.24} />
+      {/* Continuous landscaped ground */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.16, 1]} receiveShadow>
+        <planeGeometry args={[100, 100]} />
+        <meshStandardMaterial color="#0e211e" roughness={0.98} />
       </mesh>
 
-      {/* Distant premium residential skyline */}
-      <Tower position={[-25, 0, -31]} height={18} width={5.4} depth={4.2} />
-      <Tower position={[-16, 0, -34]} height={23} width={6.2} depth={4.5} />
-      <Tower position={[-6, 0, -32]} height={15} width={4.8} depth={4} />
-      <Tower position={[5, 0, -35]} height={21} width={5.4} depth={4.3} />
-      <Tower position={[18, 0, -32]} height={17} width={5.2} depth={4.2} />
-      <Tower position={[28, 0, -35]} height={24} width={6} depth={4.5} />
+      {/* Planned road grid between clearly outlined saleable parcels */}
+      {[-9.5, -4.5, 0.5, 5.5].map((x) => (
+        <Road key={"vertical-" + x} position={[x, -0.015, 8.5]} size={[0.82, 0.07, 21.8]} />
+      ))}
+      {[5.5, 11.5].map((z) => (
+        <Road key={"horizontal-" + z} position={[-2, -0.015, z]} size={[25.2, 0.07, 0.82]} />
+      ))}
+      <Road position={[-2, -0.015, 18.5]} size={[27, 0.08, 1.5]} />
+      <Road position={[-2, -0.015, -2.1]} size={[27, 0.08, 1.25]} />
 
-      <LuxuryVilla />
+      {/* Residential plot inventory: vacant parcels + a few developed villas */}
+      {PLOTS.map((plot) => (
+        <PlotParcel key={plot.x + "-" + plot.z} plot={plot} />
+      ))}
 
-      {/* Infinity pool, stone deck and illuminated garden edge */}
-      <mesh position={[8, 0.02, 8.3]} receiveShadow>
-        <boxGeometry args={[15.6, 0.22, 7.2]} />
-        <meshStandardMaterial color="#8a9697" roughness={0.58} />
+      {/* A small landscaped amenity park beside the plot layout */}
+      <mesh position={[15.5, 0.02, 7.6]}>
+        <boxGeometry args={[5.8, 0.16, 11.5]} />
+        <meshStandardMaterial color="#1b4938" roughness={0.95} />
       </mesh>
-      <mesh position={[8, 0.16, 8.3]}>
-        <boxGeometry args={[14.9, 0.12, 6.55]} />
-        <meshPhysicalMaterial color="#0b4863" metalness={0.38} roughness={0.13} clearcoat={1} clearcoatRoughness={0.08} />
+      <mesh position={[15.5, 0.12, 7.6]}>
+        <boxGeometry args={[2.3, 0.06, 6.4]} />
+        <meshStandardMaterial color="#27617a" roughness={0.25} metalness={0.2} />
       </mesh>
-      <mesh position={[8, 0.235, 5.0]}>
-        <boxGeometry args={[14.6, 0.035, 0.045]} />
-        <meshBasicMaterial color="#8bd5f2" transparent opacity={0.82} />
-      </mesh>
-      <mesh position={[8, 0.035, 13.2]}>
-        <boxGeometry args={[17.5, 0.09, 4.2]} />
-        <meshStandardMaterial color="#34404a" roughness={0.52} />
-      </mesh>
+      {[
+        [13.4, 0, 3.3],
+        [17.6, 0, 3.3],
+        [13.4, 0, 11.8],
+        [17.6, 0, 11.8],
+        [15.5, 0, 14.2],
+      ].map((position, index) => (
+        <Tree key={"park-" + index} position={position as Vec3} scale={0.64} />
+      ))}
 
-      {/* Entry lane and discreet landscape lighting */}
-      <mesh position={[7, 0.015, 16.1]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[22, 3.2]} />
-        <meshStandardMaterial color="#1b2937" roughness={0.84} />
-      </mesh>
-      {[-1, 1].map((side) =>
-        [-1, 0, 1].map((step) => (
-          <mesh key={side + "-" + step} position={[7 + side * 8.3, 0.1, 8 + step * 2.25]}>
-            <boxGeometry args={[0.28, 0.09, 0.28]} />
-            <meshBasicMaterial color="#ffd09a" />
-          </mesh>
-        )),
-      )}
+      {/* Mid- and high-rise projects at the edge of the same masterplan */}
+      <ApartmentTower position={[-17, 0, -17]} height={16} width={5.2} />
+      <ApartmentTower position={[-9, 0, -20]} height={22} width={5.7} />
+      <ApartmentTower position={[1, 0, -18]} height={18} width={5.0} />
+      <ApartmentTower position={[11, 0, -20]} height={24} width={5.9} />
+      <ApartmentTower position={[20, 0, -17]} height={16} width={5.0} />
 
       {trees.map((tree, index) => (
-        <Tree key={index} position={tree.position} scale={tree.scale} />
+        <Tree key={"tree-" + index} position={tree.position} scale={tree.scale} />
       ))}
       {[
-        [-2, 0, 5],
-        [3, 0, 13],
-        [15, 0, 14],
-        [20, 0, -2],
-        [-16, 0, -1],
-        [-21, 0, 9],
+        [-14.5, 0, 5.4],
+        [-7, 0, 11.4],
+        [1.5, 0, 5.4],
+        [7.5, 0, 17.9],
+        [-15, 0, 18.1],
+        [12.5, 0, -1.4],
       ].map((position, index) => (
-        <PathLight key={index} position={position as Vec3} />
+        <StreetLamp key={"lamp-" + index} position={position as Vec3} />
       ))}
-
-      <mesh position={[-8, 0.18, 8]}>
-        <boxGeometry args={[7, 0.34, 4]} />
-        <meshStandardMaterial color="#243b37" roughness={0.92} />
-      </mesh>
     </>
   );
 }
@@ -283,19 +329,21 @@ function Scene() {
 function CameraRig() {
   useFrame((state, delta) => {
     const camera = state.camera;
-    const targetX = 20 + state.pointer.x * 1.8;
-    const targetY = 15.5 + state.pointer.y * 1.1;
-    camera.position.x = THREE.MathUtils.damp(camera.position.x, targetX, 1.2, delta);
-    camera.position.y = THREE.MathUtils.damp(camera.position.y, targetY, 1.2, delta);
-    camera.position.z = THREE.MathUtils.damp(camera.position.z, 36, 1.2, delta);
-    camera.lookAt(5, 2.2, -4);
+    const targetX = (IS_MOBILE ? 4 : 18) + state.pointer.x * (IS_MOBILE ? 0.45 : 1.35);
+    const targetY = (IS_MOBILE ? 29 : 24) + state.pointer.y * 0.7;
+    const targetZ = IS_MOBILE ? 45 : 38;
+    camera.position.x = THREE.MathUtils.damp(camera.position.x, targetX, 1.05, delta);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, targetY, 1.05, delta);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, targetZ, 1.05, delta);
+    camera.lookAt(0, 0.4, 2);
   });
   return null;
 }
 
-/** Decorative rendering is capped at 24–30fps and pauses in hidden tabs. */
+/** Decorative rendering is capped and pauses while the browser tab is hidden. */
 function ThrottledFrames({ fps = 30 }: { fps?: number }) {
   const invalidate = useThree((state) => state.invalidate);
+
   useEffect(() => {
     let raf = 0;
     let last = 0;
@@ -332,6 +380,10 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
   return null;
 }
 
+/**
+ * Premium mixed-use 3D masterplan for Truvi: individual vacant plots,
+ * developed villas, landscaped avenues and apartment projects in one view.
+ */
 export function CityCanvas() {
   return (
     <div
@@ -342,12 +394,17 @@ export function CityCanvas() {
         <Canvas
           frameloop="demand"
           shadows={false}
-          dpr={IS_MOBILE ? 1 : [1, 1.5]}
+          dpr={IS_MOBILE ? 1 : [1, 1.35]}
           gl={{ antialias: false, powerPreference: "high-performance" }}
-          camera={{ position: [20, 15.5, 36], fov: 43, near: 0.1, far: 240 }}
+          camera={{
+            position: IS_MOBILE ? [4, 29, 45] : [18, 24, 38],
+            fov: IS_MOBILE ? 52 : 44,
+            near: 0.1,
+            far: 180,
+          }}
         >
-          <ThrottledFrames fps={IS_MOBILE ? 24 : 30} />
-          <Scene />
+          <ThrottledFrames fps={IS_MOBILE ? 20 : 28} />
+          <MasterplanScene />
           <CameraRig />
           {!IS_MOBILE && (
             <SilentErrorBoundary>
@@ -358,11 +415,12 @@ export function CityCanvas() {
           )}
         </Canvas>
       </SilentErrorBoundary>
+      {/* Keep the text and live intelligence card readable over the 3D scene. */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(90deg, rgba(4, 12, 23, 0.66) 0%, rgba(5, 14, 25, 0.26) 48%, rgba(5, 14, 25, 0.10) 100%), radial-gradient(ellipse at 50% 48%, rgba(5, 12, 22, 0.42), transparent 72%), linear-gradient(180deg, rgba(4, 10, 18, 0.22), transparent 35%, rgba(4, 10, 18, 0.70))",
+            "linear-gradient(90deg, rgba(4, 12, 23, 0.70) 0%, rgba(5, 14, 25, 0.42) 43%, rgba(5, 14, 25, 0.18) 100%), linear-gradient(180deg, rgba(4, 10, 18, 0.32) 0%, rgba(4, 10, 18, 0.08) 38%, rgba(4, 10, 18, 0.62) 100%), radial-gradient(ellipse at 58% 45%, rgba(38, 91, 125, 0.12), transparent 70%)",
         }}
       />
     </div>
