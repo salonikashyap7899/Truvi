@@ -175,7 +175,7 @@ function LuxuryVilla() {
 }
 
 function Scene() {
-  const trees: { position: Vec3; scale: number }[] = useMemo(
+  const trees = useMemo<{ position: Vec3; scale: number }[]>(
     () => [
       { position: [-23, 0, -7], scale: 1.25 },
       { position: [-17, 0, 5], scale: 1.08 },
