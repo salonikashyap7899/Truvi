@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
@@ -20,53 +19,7 @@ function openAskTruvi() {
  * A subtle scroll-linked offset creates parallax without moving page content.
  * Reduced-motion visitors get the same image without motion.
  */
-function HomepageScrollBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
-  useEffect(() => {
-    const backdrop = document.querySelector<HTMLElement>("[data-truvi-homepage-backdrop]");
-    if (!backdrop) return;
-
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      if (reducedMotion) {
-        backdrop.style.setProperty("--truvi-scroll-shift", "0px");
-        return;
-      }
-
-      const scrollableHeight = Math.max(
-        1,
-        document.documentElement.scrollHeight - window.innerHeight,
-      );
-      const progress = Math.min(1, Math.max(0, window.scrollY / scrollableHeight));
-      const maxShift = window.matchMedia("(max-width: 767px)").matches ? 35 : 80;
-      backdrop.style.setProperty("--truvi-scroll-shift", String(-progress * maxShift) + "px");
-    };
-
-    const scheduleUpdate = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(update);
-    };
-
-    scheduleUpdate();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-    window.addEventListener("load", scheduleUpdate);
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(scheduleUpdate)
-        : null;
-    resizeObserver?.observe(document.documentElement);
-
-    return () => {
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-      window.removeEventListener("load", scheduleUpdate);
-      resizeObserver?.disconnect();
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [reducedMotion]);
-
+function HomepageScrollBackdrop() {
   return (
     <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
       <img
@@ -80,17 +33,8 @@ function HomepageScrollBackdrop({ reducedMotion }: { reducedMotion: boolean }) {
   );
 }
 
-function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 40 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10%" }}
-      transition={{ duration: 1, delay, ease: [0.22, 1, 0.36, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
+function Reveal({ children }: { children: ReactNode; delay?: number }) {
+  return <div>{children}</div>;
 }
 
 
@@ -467,28 +411,18 @@ function HeroAskDemo({ s }: { s: Showcase }) {
 
         {/* Animated intelligence response */}
         <div className="mt-4">
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5 }}
-            className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground"
-          >
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Truvi Intelligence Engine™ · analysing signals…
-          </motion.p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2>
             {s.heroChips.map((chip, i) => (
-              <motion.span
+              <span
                 key={chip.label}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: 0.8 + i * 0.35, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${chip.cls}`}
               >
                 <span className="opacity-70">{chip.label}</span>
                 <span className="font-semibold">{chip.value}</span>
-              </motion.span>
+              </span>
             ))}
           </div>
         </div>
@@ -661,14 +595,11 @@ function ScoreRing({ score }: { score: number }) {
     <div className="relative grid place-items-center">
       <svg width="170" height="170" viewBox="0 0 170 170" className="-rotate-90">
         <circle cx="85" cy="85" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="11" />
-        <motion.circle
+        <circle
           cx="85" cy="85" r={r} fill="none"
           stroke="url(#scoreGrad)" strokeWidth="11" strokeLinecap="round"
           strokeDasharray={c}
-          initial={{ strokeDashoffset: c }}
-          whileInView={{ strokeDashoffset: c * (1 - score / 100) }}
-          viewport={{ once: true }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+          strokeDashoffset={c * (1 - score / 100)}
         />
         <defs>
           <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -909,19 +840,8 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
-  );
   const showcase = useShowcase();
   const { hash } = useLocation();
-
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!query) return;
-    const update = () => setPrefersReducedMotion(query.matches);
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
-  }, []);
   // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
   // except Admin/Founder (who have full oversight and don't refer).
   const bannerUser = useAuthStore((s) => s.user);
@@ -933,7 +853,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (!hash) return;
     const t = setTimeout(() => {
-      document.querySelector(hash)?.scrollIntoView({ behavior: "smooth" });
+      document.querySelector(hash)?.scrollIntoView({ behavior: "auto" });
     }, 150);
     return () => clearTimeout(t);
   }, [hash]);
@@ -957,9 +877,8 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
-      <SmoothScroll />
       <CursorGlow />
-      <HomepageScrollBackdrop reducedMotion={prefersReducedMotion} />
+      <HomepageScrollBackdrop />
       <SiteNav />
 
       <main id="main-content" className="relative z-10">
@@ -1151,13 +1070,9 @@ export default function LandingPage() {
                     <span className="font-semibold text-white">{b.value}</span>
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                    <motion.div
+                    <div
                       className="h-full rounded-full"
-                      style={{ background: "var(--gradient-trust)" }}
-                      initial={{ width: 0 }}
-                      whileInView={{ width: `${b.value}%` }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+                      style={{ background: "var(--gradient-trust)", width: `${b.value}%` }}
                     />
                   </div>
                 </div>
