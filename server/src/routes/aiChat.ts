@@ -28,7 +28,7 @@ function getGeminiStatus(error: unknown): number | undefined {
     $metadata?: { httpStatusCode?: unknown };
   };
   for (const value of [record.status, record.statusCode, record.$metadata?.httpStatusCode, record.code]) {
-    const parsed = typeof value === "number" ? value : typeof value === "string" && /^\\d{3}$/.test(value) ? Number(value) : undefined;
+    const parsed = typeof value === "number" ? value : typeof value === "string" && /^\d{3}$/.test(value) ? Number(value) : undefined;
     if (parsed && parsed >= 100 && parsed <= 599) return parsed;
   }
   return undefined;
@@ -44,7 +44,7 @@ function isUnavailableGeminiModelError(error: unknown): boolean {
   const status = getGeminiStatus(error);
   if (status === 404) return true;
   const message = errorMessage(error);
-  return /model[^\\n]{0,180}(?:not found|not available|does not exist|not supported|no longer available)|(?:not found|not available|does not exist|not supported)[^\\n]{0,180}model/i.test(message);
+  return /model[^\n]{0,180}(?:not found|not available|does not exist|not supported|no longer available)|(?:not found|not available|does not exist|not supported)[^\n]{0,180}model/i.test(message);
 }
 
 /** Retry only transient provider/network failures; invalid keys and exhausted
