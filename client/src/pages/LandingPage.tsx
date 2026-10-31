@@ -15,9 +15,8 @@ function openAskTruvi() {
 }
 
 /**
- * One continuous image behind the complete public homepage.
- * A subtle scroll-linked offset creates parallax without moving page content.
- * Reduced-motion visitors get the same image without motion.
+ * One static image behind the complete public homepage.
+ * It stays in the page background without scroll-linked movement.
  */
 function HomepageScrollBackdrop() {
   return (
@@ -414,8 +413,8 @@ function HeroAskDemo({ s }: { s: Showcase }) {
           <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
             Truvi Intelligence Engine™ · analysing signals…
           </p>
-          <div className="mt-2.5 flex flex-wrap gap-2>
-            {s.heroChips.map((chip, i) => (
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {s.heroChips.map((chip) => (
               <span
                 key={chip.label}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${chip.cls}`}
