@@ -1,191 +1,311 @@
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, Environment } from "@react-three/drei";
+import { Environment } from "@react-three/drei";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 
-type ProgressRef = { current: number };
+const IS_MOBILE =
+  typeof window !== "undefined" &&
+  !!window.matchMedia &&
+  window.matchMedia("(pointer: coarse)").matches;
 
-function useScrollProgress(): ProgressRef {
-  const ref = useRef(0);
-  useFrame(() => {
-    if (typeof window === "undefined") return;
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    ref.current = max > 0 ? window.scrollY / max : 0;
-  });
-  return ref;
+type Vec3 = [number, number, number];
+
+function Tree({ position, scale = 1 }: { position: Vec3; scale?: number }) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.16, 0.24, 1.8, 8]} />
+        <meshStandardMaterial color="#4a3529" roughness={0.92} />
+      </mesh>
+      <mesh position={[0, 2.15, 0]} castShadow>
+        <icosahedronGeometry args={[1.05, 1]} />
+        <meshStandardMaterial color="#183c36" roughness={0.95} />
+      </mesh>
+      <mesh position={[-0.48, 1.85, 0.08]} castShadow>
+        <icosahedronGeometry args={[0.68, 1]} />
+        <meshStandardMaterial color="#214b3d" roughness={0.95} />
+      </mesh>
+      <mesh position={[0.48, 1.92, -0.08]} castShadow>
+        <icosahedronGeometry args={[0.72, 1]} />
+        <meshStandardMaterial color="#285541" roughness={0.95} />
+      </mesh>
+    </group>
+  );
 }
 
-function City({ progress }: { progress: ProgressRef }) {
-  const group = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const count = 220;
-
-  const data = useMemo(() => {
-    const arr: { x: number; z: number; h: number; hue: number }[] = [];
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 6 + Math.random() * 60;
-      arr.push({
-        x: Math.cos(angle) * radius,
-        z: Math.sin(angle) * radius,
-        h: 1 + Math.random() * 18,
-        hue: Math.random(),
-      });
-    }
-    return arr;
-  }, []);
-
-  const dummy = useMemo(() => new THREE.Object3D(), []);
-  const color = useMemo(() => new THREE.Color(), []);
-
-  useFrame((state) => {
-    const p = progress.current;
-    const t = state.clock.elapsedTime;
-    if (!meshRef.current) return;
-    data.forEach((d, i) => {
-      const grow = THREE.MathUtils.clamp((p - 0.02) * 4 - (d.x + d.z) * 0.005, 0, 1);
-      const h = d.h * grow;
-      dummy.position.set(d.x, h / 2, d.z);
-      dummy.scale.set(0.8, Math.max(0.001, h), 0.8);
-      dummy.rotation.y = 0;
-      dummy.updateMatrix();
-      meshRef.current!.setMatrixAt(i, dummy.matrix);
-      const lit = 0.15 + 0.55 * Math.max(0, Math.sin(t * 0.7 + i) * 0.5 + 0.5) * grow;
-      color.setHSL(0.58 + d.hue * 0.08, 0.4, lit * 0.55);
-      meshRef.current!.setColorAt(i, color);
-    });
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  });
-
+function PathLight({ position }: { position: Vec3 }) {
   return (
-    <group ref={group}>
-      <instancedMesh ref={meshRef} args={[undefined, undefined, count]} castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial metalness={0.85} roughness={0.25} emissiveIntensity={0.6} />
-      </instancedMesh>
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <circleGeometry args={[120, 64]} />
-        <meshStandardMaterial color="#06080d" metalness={0.6} roughness={0.4} />
+    <group position={position}>
+      <mesh position={[0, 0.36, 0]}>
+        <cylinderGeometry args={[0.055, 0.075, 0.72, 8]} />
+        <meshStandardMaterial color="#25384a" metalness={0.8} roughness={0.3} />
       </mesh>
-      {/* Concentric trust rings */}
-      {[10, 20, 32, 48, 68].map((r, i) => (
-        <mesh key={r} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01 + i * 0.001, 0]}>
-          <ringGeometry args={[r - 0.05, r, 128]} />
-          <meshBasicMaterial color={i % 2 ? "#3B82F6" : "#10B981"} transparent opacity={0.18} />
+      <mesh position={[0, 0.76, 0]}>
+        <boxGeometry args={[0.2, 0.18, 0.2]} />
+        <meshBasicMaterial color="#ffd49a" />
+      </mesh>
+      <pointLight position={[0, 0.82, 0]} color="#ffbb78" intensity={0.42} distance={4} />
+    </group>
+  );
+}
+
+function Tower({
+  position,
+  height,
+  width,
+  depth,
+}: {
+  position: Vec3;
+  height: number;
+  width: number;
+  depth: number;
+}) {
+  const floors = Math.max(3, Math.floor(height / 2.25));
+  return (
+    <group position={position}>
+      <mesh position={[0, height / 2, 0]} castShadow>
+        <boxGeometry args={[width, height, depth]} />
+        <meshStandardMaterial color="#172b40" metalness={0.62} roughness={0.34} />
+      </mesh>
+      <mesh position={[0, height / 2, depth / 2 + 0.025]}>
+        <boxGeometry args={[width * 0.9, height * 0.91, 0.06]} />
+        <meshStandardMaterial color="#29475d" metalness={0.7} roughness={0.22} />
+      </mesh>
+      {Array.from({ length: floors }, (_, floor) =>
+        Array.from({ length: 3 }, (_, column) => (
+          <mesh
+            key={floor + "-" + column}
+            position={[
+              (column - 1) * (width * 0.27),
+              1.05 + floor * 2.15,
+              depth / 2 + 0.075,
+            ]}
+          >
+            <boxGeometry args={[width * 0.17, 0.92, 0.045]} />
+            <meshBasicMaterial
+              color={(floor + column) % 4 === 0 ? "#f3bd82" : "#8ebbd8"}
+              transparent
+              opacity={(floor + column) % 4 === 0 ? 0.94 : 0.48}
+            />
+          </mesh>
+        )),
+      )}
+      <mesh position={[0, height + 0.08, 0]}>
+        <boxGeometry args={[width + 0.4, 0.18, depth + 0.4]} />
+        <meshStandardMaterial color="#30475a" metalness={0.72} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+function LuxuryVilla() {
+  const windowXs = [-4.8, -2.4, 0, 2.4, 4.8];
+  return (
+    <group position={[8, 0, -3]}>
+      {/* Ground floor and floating upper volume */}
+      <mesh position={[0, 1.55, 0]} castShadow receiveShadow>
+        <boxGeometry args={[14, 3.1, 8.4]} />
+        <meshStandardMaterial color="#263646" roughness={0.56} metalness={0.2} />
+      </mesh>
+      <mesh position={[0.65, 4.25, -0.45]} castShadow>
+        <boxGeometry args={[9.7, 2.35, 7.3]} />
+        <meshStandardMaterial color="#1b2a3a" roughness={0.48} metalness={0.24} />
+      </mesh>
+      {/* Broad cantilevered rooflines */}
+      <mesh position={[0.65, 5.48, -0.45]} castShadow>
+        <boxGeometry args={[11.1, 0.3, 8.2]} />
+        <meshStandardMaterial color="#101c2a" metalness={0.78} roughness={0.28} />
+      </mesh>
+      <mesh position={[-0.1, 3.22, 0.1]}>
+        <boxGeometry args={[14.5, 0.22, 8.9]} />
+        <meshStandardMaterial color="#75818a" metalness={0.6} roughness={0.35} />
+      </mesh>
+      {/* Glazed front elevation */}
+      <mesh position={[0, 1.7, 4.24]}>
+        <boxGeometry args={[12.8, 2.35, 0.06]} />
+        <meshPhysicalMaterial color="#8db6ca" transparent opacity={0.42} roughness={0.12} metalness={0.35} />
+      </mesh>
+      {windowXs.map((x) => (
+        <mesh key={"ground-window-" + x} position={[x, 1.72, 4.31]}>
+          <boxGeometry args={[0.12, 2.4, 0.09]} />
+          <meshStandardMaterial color="#b4c3ce" metalness={0.82} roughness={0.24} />
         </mesh>
       ))}
+      {[-3.7, -1.25, 1.25, 3.7].map((x) => (
+        <mesh key={"interior-" + x} position={[x, 1.72, 4.17]}>
+          <boxGeometry args={[1.45, 1.72, 0.025]} />
+          <meshBasicMaterial color="#f5b875" transparent opacity={0.72} />
+        </mesh>
+      ))}
+      {/* Upper floor glass and balcony */}
+      <mesh position={[0.65, 4.25, 3.22]}>
+        <boxGeometry args={[8.9, 1.72, 0.06]} />
+        <meshPhysicalMaterial color="#84acc2" transparent opacity={0.48} roughness={0.1} metalness={0.3} />
+      </mesh>
+      {[-2.35, 0, 2.35].map((x) => (
+        <mesh key={"upper-window-" + x} position={[x + 0.65, 4.25, 3.29]}>
+          <boxGeometry args={[0.12, 1.85, 0.09]} />
+          <meshStandardMaterial color="#c2d0d8" metalness={0.8} roughness={0.22} />
+        </mesh>
+      ))}
+      <mesh position={[0.65, 3.35, 3.55]}>
+        <boxGeometry args={[9.4, 0.12, 1.25]} />
+        <meshStandardMaterial color="#394a58" metalness={0.7} roughness={0.32} />
+      </mesh>
+      <mesh position={[0.65, 3.82, 4.14]}>
+        <boxGeometry args={[9.25, 0.72, 0.045]} />
+        <meshPhysicalMaterial color="#9dc6d7" transparent opacity={0.28} roughness={0.08} />
+      </mesh>
+      {/* Warm architectural fins and recessed lights */}
+      {[-5.3, -4.7, 5.1, 5.55].map((x) => (
+        <mesh key={"fin-" + x} position={[x, 1.75, 4.34]}>
+          <boxGeometry args={[0.16, 2.9, 0.18]} />
+          <meshStandardMaterial color="#946d4f" roughness={0.56} />
+        </mesh>
+      ))}
+      <mesh position={[0.65, 5.31, 3.58]}>
+        <boxGeometry args={[8.6, 0.045, 0.045]} />
+        <meshBasicMaterial color="#ffd29b" />
+      </mesh>
+      <pointLight position={[0, 3.3, 2.5]} color="#f8b979" intensity={1.15} distance={18} />
+      <pointLight position={[5, 2.3, 1.5]} color="#ffca8b" intensity={0.65} distance={12} />
     </group>
   );
-}
-
-function Pillars({ progress }: { progress: ProgressRef }) {
-  const group = useRef<THREE.Group>(null);
-  const colors = ["#3B82F6", "#10B981", "#C0CBD8", "#60A5FA", "#8B5CF6"];
-  useFrame((state) => {
-    if (!group.current) return;
-    const p = progress.current;
-    const reveal = THREE.MathUtils.smoothstep(p, 0.32, 0.5);
-    group.current.position.y = THREE.MathUtils.lerp(-30, 0, reveal);
-    group.current.rotation.y = state.clock.elapsedTime * 0.1;
-  });
-  return (
-    <group ref={group}>
-      {colors.map((c, i) => {
-        const angle = (i / colors.length) * Math.PI * 2;
-        const r = 4;
-        return (
-          <Float key={i} speed={1.2} floatIntensity={0.6} rotationIntensity={0.3}>
-            <mesh position={[Math.cos(angle) * r, 6, Math.sin(angle) * r]}>
-              <cylinderGeometry args={[0.4, 0.4, 10, 8]} />
-              <meshStandardMaterial
-                color={c}
-                emissive={c}
-                emissiveIntensity={1.2}
-                metalness={0.9}
-                roughness={0.15}
-              />
-            </mesh>
-          </Float>
-        );
-      })}
-    </group>
-  );
-}
-
-function CameraRig({ progress }: { progress: ProgressRef }) {
-  useFrame((state) => {
-    const p = progress.current;
-    const cam = state.camera;
-    // Path: pull back, then orbit higher, then climb out to "earth view"
-    const angle = p * Math.PI * 2.2;
-    const radius = THREE.MathUtils.lerp(28, 80, Math.min(1, p * 1.2));
-    const height = THREE.MathUtils.lerp(6, 70, p);
-    const tx = Math.cos(angle) * radius;
-    const tz = Math.sin(angle) * radius;
-    cam.position.x += (tx - cam.position.x) * 0.05;
-    cam.position.z += (tz - cam.position.z) * 0.05;
-    cam.position.y += (height - cam.position.y) * 0.05;
-    cam.lookAt(0, THREE.MathUtils.lerp(4, 0, p), 0);
-  });
-  return null;
 }
 
 function Scene() {
-  const progress = useScrollProgress();
+  const trees: { position: Vec3; scale: number }[] = useMemo(
+    () => [
+      { position: [-23, 0, -7], scale: 1.25 },
+      { position: [-17, 0, 5], scale: 1.08 },
+      { position: [-12, 0, -12], scale: 0.92 },
+      { position: [-9, 0, 13], scale: 0.84 },
+      { position: [0, 0, 14], scale: 0.9 },
+      { position: [17, 0, 12], scale: 1.05 },
+      { position: [22, 0, 3], scale: 1.2 },
+      { position: [19, 0, -10], scale: 0.9 },
+      { position: [-27, 0, 14], scale: 1.1 },
+      { position: [-30, 0, -4], scale: 0.9 },
+      { position: [29, 0, -3], scale: 1.05 },
+      { position: [30, 0, 13], scale: 0.9 },
+    ],
+    [],
+  );
+
   return (
     <>
-      <color attach="background" args={["#050608"]} />
-      <fog attach="fog" args={["#050608", 40, 160]} />
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[20, 40, 10]} intensity={1.2} color="#9ec5ff" />
-      <pointLight position={[0, 30, 0]} intensity={2} color="#3B82F6" distance={120} />
-      <pointLight position={[20, 8, -20]} intensity={1.5} color="#10B981" distance={80} />
-      <City progress={progress} />
-      <Pillars progress={progress} />
-      <CameraRig progress={progress} />
-      {/* The night HDR comes from a CDN — if that fetch fails (offline,
-          blocked network), fall back to the scene's own lights instead of
-          crashing the page. Skipped on phones: image-based lighting is the
-          most GPU-expensive part, and the scene's own lights look great —
-          this keeps the 3D city but makes it smooth on mobile. */}
-      {!IS_MOBILE && (
-        <SilentErrorBoundary>
-          <Suspense fallback={null}>
-            <Environment preset="night" />
-          </Suspense>
-        </SilentErrorBoundary>
+      <color attach="background" args={["#071321"]} />
+      <fog attach="fog" args={["#071321", 48, 125]} />
+      <ambientLight intensity={0.8} color="#9eb8d4" />
+      <directionalLight position={[18, 32, 16]} intensity={2.1} color="#ffd5ad" />
+      <directionalLight position={[-20, 18, -18]} intensity={0.72} color="#6b9bd5" />
+      <pointLight position={[8, 10, 7]} intensity={1.6} color="#f6bb80" distance={40} />
+
+      {/* A landscaped masterplan instead of the old abstract block field */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]} receiveShadow>
+        <planeGeometry args={[180, 180]} />
+        <meshStandardMaterial color="#0b1b20" roughness={0.96} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, -20]}>
+        <planeGeometry args={[150, 5.8]} />
+        <meshStandardMaterial color="#172431" roughness={0.85} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.045, -20]}>
+        <planeGeometry args={[150, 0.055]} />
+        <meshBasicMaterial color="#bdc9d4" transparent opacity={0.24} />
+      </mesh>
+
+      {/* Distant premium residential skyline */}
+      <Tower position={[-25, 0, -31]} height={18} width={5.4} depth={4.2} />
+      <Tower position={[-16, 0, -34]} height={23} width={6.2} depth={4.5} />
+      <Tower position={[-6, 0, -32]} height={15} width={4.8} depth={4} />
+      <Tower position={[5, 0, -35]} height={21} width={5.4} depth={4.3} />
+      <Tower position={[18, 0, -32]} height={17} width={5.2} depth={4.2} />
+      <Tower position={[28, 0, -35]} height={24} width={6} depth={4.5} />
+
+      <LuxuryVilla />
+
+      {/* Infinity pool, stone deck and illuminated garden edge */}
+      <mesh position={[8, 0.02, 8.3]} receiveShadow>
+        <boxGeometry args={[15.6, 0.22, 7.2]} />
+        <meshStandardMaterial color="#8a9697" roughness={0.58} />
+      </mesh>
+      <mesh position={[8, 0.16, 8.3]}>
+        <boxGeometry args={[14.9, 0.12, 6.55]} />
+        <meshPhysicalMaterial color="#0b4863" metalness={0.38} roughness={0.13} clearcoat={1} clearcoatRoughness={0.08} />
+      </mesh>
+      <mesh position={[8, 0.235, 5.0]}>
+        <boxGeometry args={[14.6, 0.035, 0.045]} />
+        <meshBasicMaterial color="#8bd5f2" transparent opacity={0.82} />
+      </mesh>
+      <mesh position={[8, 0.035, 13.2]}>
+        <boxGeometry args={[17.5, 0.09, 4.2]} />
+        <meshStandardMaterial color="#34404a" roughness={0.52} />
+      </mesh>
+
+      {/* Entry lane and discreet landscape lighting */}
+      <mesh position={[7, 0.015, 16.1]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[22, 3.2]} />
+        <meshStandardMaterial color="#1b2937" roughness={0.84} />
+      </mesh>
+      {[-1, 1].map((side) =>
+        [-1, 0, 1].map((step) => (
+          <mesh key={side + "-" + step} position={[7 + side * 8.3, 0.1, 8 + step * 2.25]}>
+            <boxGeometry args={[0.28, 0.09, 0.28]} />
+            <meshBasicMaterial color="#ffd09a" />
+          </mesh>
+        )),
       )}
+
+      {trees.map((tree, index) => (
+        <Tree key={index} position={tree.position} scale={tree.scale} />
+      ))}
+      {[
+        [-2, 0, 5],
+        [3, 0, 13],
+        [15, 0, 14],
+        [20, 0, -2],
+        [-16, 0, -1],
+        [-21, 0, 9],
+      ].map((position, index) => (
+        <PathLight key={index} position={position as Vec3} />
+      ))}
+
+      <mesh position={[-8, 0.18, 8]}>
+        <boxGeometry args={[7, 0.34, 4]} />
+        <meshStandardMaterial color="#243b37" roughness={0.92} />
+      </mesh>
     </>
   );
 }
 
-/** Phones / touch tablets get a lighter render (lower pixel density, no HDR
- *  environment) so the 3D city stays but runs smoothly. Computed once. */
-const IS_MOBILE =
-  typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+function CameraRig() {
+  useFrame((state, delta) => {
+    const camera = state.camera;
+    const targetX = 20 + state.pointer.x * 1.8;
+    const targetY = 15.5 + state.pointer.y * 1.1;
+    camera.position.x = THREE.MathUtils.damp(camera.position.x, targetX, 1.2, delta);
+    camera.position.y = THREE.MathUtils.damp(camera.position.y, targetY, 1.2, delta);
+    camera.position.z = THREE.MathUtils.damp(camera.position.z, 36, 1.2, delta);
+    camera.lookAt(5, 2.2, -4);
+  });
+  return null;
+}
 
-/**
- * Drives the scene on demand at a capped frame-rate instead of the default
- * ~60fps every rAF. The city is a decorative background, so ~30fps looks
- * identical but roughly halves the GPU/CPU cost — keeping it animating behind
- * every section without making the page feel laggy. Rendering fully stops while
- * the browser tab is hidden.
- */
+/** Decorative rendering is capped at 24–30fps and pauses in hidden tabs. */
 function ThrottledFrames({ fps = 30 }: { fps?: number }) {
-  const invalidate = useThree((s) => s.invalidate);
+  const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     let raf = 0;
     let last = 0;
     const interval = 1000 / fps;
 
-    const loop = (t: number) => {
+    const loop = (time: number) => {
       raf = 0;
       if (document.hidden) return;
-      if (t - last >= interval) {
-        last = t;
+      if (time - last >= interval) {
+        last = time;
         invalidate();
       }
       raf = window.requestAnimationFrame(loop);
@@ -208,30 +328,41 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [invalidate, fps]);
+
   return null;
 }
 
 export function CityCanvas() {
   return (
-    <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
-      {/* Decorative only — devices without WebGL just skip the scene */}
+    <div
+      className="pointer-events-none absolute inset-y-0 left-1/2 z-0 w-screen -translate-x-1/2 overflow-hidden"
+      aria-hidden="true"
+    >
       <SilentErrorBoundary>
         <Canvas
           frameloop="demand"
           shadows={false}
           dpr={IS_MOBILE ? 1 : [1, 1.5]}
           gl={{ antialias: false, powerPreference: "high-performance" }}
-          camera={{ position: [28, 6, 28], fov: 55, near: 0.1, far: 400 }}
+          camera={{ position: [20, 15.5, 36], fov: 43, near: 0.1, far: 240 }}
         >
           <ThrottledFrames fps={IS_MOBILE ? 24 : 30} />
           <Scene />
+          <CameraRig />
+          {!IS_MOBILE && (
+            <SilentErrorBoundary>
+              <Suspense fallback={null}>
+                <Environment preset="night" />
+              </Suspense>
+            </SilentErrorBoundary>
+          )}
         </Canvas>
       </SilentErrorBoundary>
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 100%, transparent 40%, oklch(0.06 0.005 240 / 0.85) 90%)",
+            "linear-gradient(90deg, rgba(4, 12, 23, 0.66) 0%, rgba(5, 14, 25, 0.26) 48%, rgba(5, 14, 25, 0.10) 100%), radial-gradient(ellipse at 50% 48%, rgba(5, 12, 22, 0.42), transparent 72%), linear-gradient(180deg, rgba(4, 10, 18, 0.22), transparent 35%, rgba(4, 10, 18, 0.70))",
         }}
       />
     </div>

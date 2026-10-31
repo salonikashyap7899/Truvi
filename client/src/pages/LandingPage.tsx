@@ -942,13 +942,13 @@ export default function LandingPage() {
       <CursorGlow />
       <SiteNav />
 
-      <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
-
       <main id="main-content">
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36">
+      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36 isolate overflow-hidden">
+        <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
+        <div className="relative z-10 flex w-full flex-col items-center">
         {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
             Shown to every signed-in user except Admin/Founder. */}
         {showEnrollBanner && (
@@ -985,6 +985,7 @@ export default function LandingPage() {
             <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
           </div>
         </Reveal>
+        </div>
       </Section>
 
       {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
