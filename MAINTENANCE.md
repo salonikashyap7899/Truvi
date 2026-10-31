@@ -68,11 +68,11 @@ bash deploy.sh
 
 Read the whole output. Do not assume deployment succeeded if the command exits with an error or the health check fails.
 
-The script reads `PORT` from `server/.env`; if it is absent, the script checks port `5000`. Use the same port when checking the local health endpoint:
+The script reads `PORT` from `server/.env`; if it is absent, the server and deploy script both default to port `3001`. The server binds its HTTP port before database/schema initialization; during that initialization, `/health` and database-backed `/api` requests return HTTP 503 until the database is ready. The deploy health check waits for `/health` to return HTTP 200. Use the same port when checking the local health endpoint:
 
 ```bash
 PORT="$(grep -E '^PORT=' server/.env 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')"
-PORT="${PORT:-5000}"
+PORT="${PORT:-3001}"
 curl -i --max-time 10 "http://127.0.0.1:$PORT/health"
 ```
 

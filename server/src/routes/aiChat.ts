@@ -6,35 +6,133 @@ import { retrieveContext } from "../services/askTruviService";
 
 const router = Router();
 
-// Model is configurable via env so it can be changed without a redeploy if the
-// account's available models change. Keep a sensible default.
-const AI_FALLBACK_MODEL = "gemini-3.8-flash";
-const AI_MODEL = process.env.ASK_AI_MODEL?.trim() || AI_FALLBACK_MODEL;
+// Ask Truvi should prefer the current stable Flash model and recover from short
+// Gemini outages without making the visitor manually resend the question.
+const AI_DEFAULT_MODEL = "gemini-3.8-flash";
+const AI_BACKUP_MODEL = "gemini-3.6-flash";
+const configuredModel = process.env.ASK_AI_MODEL?.trim();
+const AI_MODEL = configuredModel && !/^gen-lang-client-/i.test(configuredModel)
+  ? configuredModel
+  : AI_DEFAULT_MODEL;
 
-function isUnavailableGeminiModelError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
+if (configuredModel && /^gen-lang-client-/i.test(configuredModel)) {
+  console.warn("[AskTruvi] ASK_AI_MODEL contains a Google Cloud project ID, not a model ID; using", AI_DEFAULT_MODEL);
+}
+
+function getGeminiStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
   const record = error as {
     status?: unknown;
     statusCode?: unknown;
     code?: unknown;
-    message?: unknown;
     $metadata?: { httpStatusCode?: unknown };
   };
-  const statuses = [record.status, record.statusCode, record.code, record.$metadata?.httpStatusCode];
-  if (statuses.some((value) => value === 404 || value === "404" || value === "NOT_FOUND")) return true;
-  const message = error instanceof Error ? error.message : String(record.message ?? "");
+  for (const value of [record.status, record.statusCode, record.$metadata?.httpStatusCode, record.code]) {
+    const parsed = typeof value === "number" ? value : typeof value === "string" && /^\d{3}$/.test(value) ? Number(value) : undefined;
+    if (parsed && parsed >= 100 && parsed <= 599) return parsed;
+  }
+  return undefined;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as { message?: unknown }).message ?? "");
+  return String(error ?? "");
+}
+
+function isUnavailableGeminiModelError(error: unknown): boolean {
+  const status = getGeminiStatus(error);
+  if (status === 404) return true;
+  const message = errorMessage(error);
   return /model[^\n]{0,180}(?:not found|not available|does not exist|not supported|no longer available)|(?:not found|not available|does not exist|not supported)[^\n]{0,180}model/i.test(message);
 }
 
-/** Retry only model-availability failures; never hide authentication or quota errors. */
-async function generateWithModelFallback<T>(generate: (model: string) => Promise<T>): Promise<T> {
-  try {
-    return await generate(AI_MODEL);
-  } catch (error) {
-    if (AI_MODEL === AI_FALLBACK_MODEL || !isUnavailableGeminiModelError(error)) throw error;
-    console.warn(`[AskTruvi] Configured model "${AI_MODEL}" is unavailable; retrying with "${AI_FALLBACK_MODEL}".`);
-    return generate(AI_FALLBACK_MODEL);
+/** Retry only transient provider/network failures; invalid keys and exhausted
+ * daily quotas are configuration/account issues and must fail immediately. */
+function isRetryableGeminiError(error: unknown): boolean {
+  const status = getGeminiStatus(error);
+  const message = errorMessage(error);
+  if (status === 429) {
+    return /rate.?limit|too many requests|per minute|per second/i.test(message) &&
+      !/daily|per day|quota.?exceeded|billing|prepay/i.test(message);
   }
+  if ([408, 500, 502, 503, 504].includes(status ?? -1)) return true;
+
+  if (error && typeof error === "object" && "code" in error) {
+    const code = String((error as { code?: unknown }).code ?? "").toUpperCase();
+    return ["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN", "ENOTFOUND", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"].includes(code);
+  }
+  return /fetch failed|network error|socket hang up|connection reset|timed out/i.test(message);
+}
+
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Try the configured model, then stable fallbacks. Each model gets bounded
+ * exponential-backoff retries for transient 503/5xx/network errors. */
+async function generateWithModelFallback<T>(generate: (model: string) => Promise<T>): Promise<T> {
+  const models = [...new Set([AI_MODEL, AI_DEFAULT_MODEL, AI_BACKUP_MODEL])];
+  let lastError: unknown;
+
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await generate(model);
+      } catch (error) {
+        lastError = error;
+
+        if (isUnavailableGeminiModelError(error)) {
+          console.warn(`[AskTruvi] Model "${model}" is unavailable; moving to the next supported fallback.`);
+          break;
+        }
+
+        if (!isRetryableGeminiError(error)) throw error;
+
+        if (attempt < 3) {
+          const delayMs = Math.min(4000, 700 * (2 ** (attempt - 1))) + Math.floor(Math.random() * 250);
+          console.warn(`[AskTruvi] Gemini model "${model}" returned a temporary error; retry ${attempt}/2 in ${delayMs}ms.`);
+          await wait(delayMs);
+        } else {
+          console.warn(`[AskTruvi] Gemini model "${model}" remained temporarily unavailable after retries.`);
+        }
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Gemini service is temporarily unavailable");
+}
+
+/** Use an explicit temporary-unavailable response for provider outages so the
+ * client can display a useful message rather than a misleading generic error. */
+function getAiFailure(error: unknown): {
+  status: number;
+  body: { error: string; reply: string };
+} {
+  const status = getGeminiStatus(error);
+  if (status === 429) {
+    return {
+      status: 429,
+      body: {
+        error: "ai_rate_limited",
+        reply: "Ask Truvi has reached the AI service's current request limit. Please try again shortly.",
+      },
+    };
+  }
+  if (isRetryableGeminiError(error) || status === 503 || status === 504) {
+    return {
+      status: 503,
+      body: {
+        error: "ai_temporarily_unavailable",
+        reply: "Ask Truvi is temporarily busy. I tried the available Gemini models, but they are not responding right now. Please try again in a minute.",
+      },
+    };
+  }
+  return {
+    status: 502,
+    body: {
+      error: "ai_error",
+      reply: "Ask Truvi could not complete that request. Please try again later.",
+    },
+  };
 }
 
 /* ---------------- Sales Copilot modes ---------------- */
@@ -244,7 +342,8 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
       return res.json({ reply });
     } catch (err: unknown) {
       logGeminiError("AI copilot", err);
-      return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
+      const failure = getAiFailure(err);
+      return res.status(failure.status).json(failure.body);
     }
   }
 
@@ -354,7 +453,8 @@ router.post("/", authenticate, aiChatLimiter, aiChatDailyLimiter, async (req: Au
     });
   } catch (err: unknown) {
     logGeminiError("Ask Truvi AI", err);
-    return res.status(502).json({ error: "ai_error", reply: "I'm having trouble connecting right now. Please try again in a moment." });
+    const failure = getAiFailure(err);
+    return res.status(failure.status).json(failure.body);
   }
 });
 
