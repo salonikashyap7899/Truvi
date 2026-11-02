@@ -789,58 +789,67 @@ interface ShowcaseProject {
 function LiveProjectsShowcase() {
   const [items, setItems] = useState<ShowcaseProject[] | null>(null);
   useEffect(() => { api.get("/public/projects", { params: { limit: 24 } }).then((r) => setItems(r.data.projects)).catch(() => setItems([])); }, []);
-  if (!items || items.length === 0) return null; // hidden until the first project is live
+  if (!items || items.length === 0) return null;
 
   return (
-    <Section id="verified-projects">
-      <Reveal delay={0.1}>
-        <h2 className="max-w-3xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
-          Verified projects, <span className="text-gradient-trust">straight from developers.</span>
-        </h2>
-      </Reveal>
-      <Reveal delay={0.2}>
-        <p className="mt-4 max-w-2xl text-muted-foreground md:text-lg">
-          Every listing below was registered by a developer and appears here the moment it's approved —
-          real inventory, real photos, verified by Truvi.
-        </p>
-      </Reveal>
-
-      <div className="mt-12 grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((p, i) => (
-          <Reveal key={p._id} delay={i * 0.06}>
-            <Link to={`/inventory/${p._id}/presentation`} className="group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
-              <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
-                {p.coverImageUrl ? (
-                  <img src={p.coverImageUrl} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center p-6 text-center">
-                    <span className="font-display text-lg font-semibold text-white/80">{p.name}</span>
-                  </div>
-                )}
-                <div className="absolute left-3 top-3 flex gap-1.5">
-                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
-                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
-                </div>
-                {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
-              </div>
-              <div className="p-4">
-                <h3 className="font-display text-base font-semibold text-white">{p.name}</h3>
-                <p className="mt-0.5 text-sm text-muted-foreground">{p.location}, {p.city}</p>
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{p.developer ? `by ${p.developer}` : " "}</span>
-                  {p.minRate && <span className="text-sm font-semibold text-white">₹{p.minRate.toLocaleString("en-IN")}<span className="text-xs font-normal text-muted-foreground">/sq ft</span></span>}
-                </div>
-              </div>
-            </Link>
+    <Section id="verified-projects" className="tv-project-section">
+      <div className="tv-project-layout">
+        <div className="tv-project-intro">
+          <Reveal delay={0.1}>
+            <p className="tv-home-eyebrow">EXPLORE OUR</p>
+            <h2 className="mt-3 max-w-sm font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
+              Verified <span className="text-gradient-trust">Projects</span>
+            </h2>
           </Reveal>
-        ))}
-      </div>
-
-      <Reveal delay={0.2}>
-        <div className="mt-10">
-          <GlowButton to="/inventory">Explore all projects</GlowButton>
+          <Reveal delay={0.2}>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-200/85 md:text-base">
+              Discover residential plots, villas and premium properties listed by developers across India.
+            </p>
+          </Reveal>
+          <Reveal delay={0.25}>
+            <div className="mt-7">
+              <GlowButton variant="ghost" to="/inventory">View All Projects</GlowButton>
+            </div>
+          </Reveal>
         </div>
-      </Reveal>
+
+        <div className="grid w-full gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.slice(0, 3).map((p, i) => (
+            <Reveal key={p._id} delay={i * 0.06}>
+              <Link to={`/inventory/${p._id}/presentation`} className="tv-project-card group block h-full overflow-hidden rounded-2xl transition hover:border-sky-300/40">
+                <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
+                  {p.coverImageUrl ? (
+                    <img src={p.coverImageUrl} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center p-6 text-center">
+                      <span className="font-display text-lg font-semibold text-white/80">{p.name}</span>
+                    </div>
+                  )}
+                  <div className="absolute left-3 top-3 flex gap-1.5">
+                    {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
+                    {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
+                  </div>
+                  {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-display text-base font-semibold text-white">{p.name}</h3>
+                  <p className="mt-0.5 text-sm text-slate-300/75">{p.location}, {p.city}</p>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-xs text-slate-300/70">{p.developer ? `by ${p.developer}` : "Verified listing"}</span>
+                    <span className="shrink-0 text-sm font-semibold text-white">
+                      {p.minRate ? `₹${p.minRate.toLocaleString("en-IN")}` : "View details"}
+                      {p.minRate && <span className="text-xs font-normal text-slate-300/70">/sq ft</span>}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <span className="grid size-8 place-items-center rounded-full border border-sky-200/35 text-sky-100 transition group-hover:border-sky-200/70 group-hover:bg-sky-300/10">→</span>
+                  </div>
+                </div>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+      </div>
     </Section>
   );
 }
