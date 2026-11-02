@@ -895,7 +895,7 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <div className="truvi-homepage-backdrop" aria-hidden="true">
-        <img src="/media/truvi-homepage-backdrop.png" alt="" fetchPriority="high" decoding="async" />
+        <img src="/media/truvi-cinematic-township-bg.webp" alt="" fetchPriority="high" decoding="async" />
         <div className="truvi-homepage-backdrop__veil" />
       </div>
       <CursorGlow />
