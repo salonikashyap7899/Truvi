@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, MapPin, ShieldCheck, TrendingUp } from "lucide-react";
@@ -39,71 +39,17 @@ function Section({
   );
 }
 
-/* ---------------- Continuous cinematic scroll background ---------------- */
-function CinematicScrollBackground() {
-  const stackRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let frame = 0;
-    const docTop = (id: string, fallback: number) => {
-      const el = document.getElementById(id);
-      return el ? Math.max(0, el.getBoundingClientRect().top + window.scrollY) : fallback;
-    };
-
-    const update = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const viewport = Math.max(1, window.innerHeight);
-        const maxScroll = Math.max(1, document.documentElement.scrollHeight - viewport);
-        const y = Math.min(maxScroll, Math.max(0, window.scrollY));
-        const intelligenceTop = Math.min(maxScroll * 0.65, Math.max(viewport, docTop("intelligence", viewport * 2)));
-        const opportunityTop = Math.min(
-          maxScroll * 0.9,
-          Math.max(intelligenceTop + viewport * 0.75, docTop("opportunity", maxScroll * 0.72)),
-        );
-
-        let shiftVh = 0;
-        if (y <= intelligenceTop) {
-          shiftVh = (y / Math.max(1, intelligenceTop)) * 95;
-        } else if (y <= opportunityTop) {
-          shiftVh = 95 + ((y - intelligenceTop) / Math.max(1, opportunityTop - intelligenceTop)) * 95;
-        } else {
-          shiftVh = 190 + ((y - opportunityTop) / Math.max(1, maxScroll - opportunityTop)) * 5;
-        }
-
-        stackRef.current?.style.setProperty(
-          "transform",
-          `translate3d(0, -${Math.min(195, Math.max(0, shiftVh))}vh, 0)`,
-        );
-      });
-    };
-
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    window.addEventListener("load", update);
-    update();
-    return () => {
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-      window.removeEventListener("load", update);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, []);
-
+/* ---------------- Single continuous homepage background ---------------- */
+function SingleImageBackground() {
   return (
-    <div className="truvi-scroll-background" aria-hidden="true">
-      <div ref={stackRef} className="truvi-scroll-background__stack">
-        <div className="truvi-scroll-background__panel truvi-scroll-background__panel--one">
-          <img src="/media/ben-o-bro-wpU4veNGnHg-unsplash.jpg" alt="" fetchPriority="high" decoding="async" />
-        </div>
-        <div className="truvi-scroll-background__panel truvi-scroll-background__panel--two">
-          <img src="/media/david-rodrigo-Fr6zexbmjmc-unsplash.jpg" alt="" loading="lazy" decoding="async" />
-        </div>
-        <div className="truvi-scroll-background__panel truvi-scroll-background__panel--three">
-          <img src="/media/eric-rai-0O1Fsnw2ZBc-unsplash.jpg" alt="" loading="lazy" decoding="async" />
-        </div>
-      </div>
-      <div className="truvi-scroll-background__veil" />
+    <div className="truvi-page-background" aria-hidden="true">
+      <img
+        src="/media/chrishaun-byrom-Cvse2AZc7co-unsplash.jpg"
+        alt=""
+        fetchPriority="high"
+        decoding="async"
+      />
+      <div className="truvi-page-background__veil" />
     </div>
   );
 }
@@ -957,7 +903,7 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
-      <CinematicScrollBackground />
+      <SingleImageBackground />
       <CursorGlow />
       <SiteNav />
 
