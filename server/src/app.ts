@@ -1,5 +1,5 @@
 import express from "express";
-import { getDb } from "./config/db";
+import { getDatabaseStatus, getDb } from "./config/db";
 import { buyerDocuments } from "./db/schema";
 
 // Cache the exact filenames that legacy buyer-document rows still reference.
@@ -170,6 +170,20 @@ export function createApp() {
   app.use(express.json());
   app.use(cookieParser());
   app.use("/api/telemetry", clientTelemetryRoutes);
+
+  // Keep the public app shell reachable while the database performs boot-time
+  // schema reconciliation. API routes stay closed until DB-backed operations
+  // are safe, so startup requests receive 503 instead of a broken connection.
+  app.use("/api", (_req, res, next) => {
+    if (!getDatabaseStatus().connected) {
+      res.setHeader("Retry-After", "5");
+      return res.status(503).json({
+        error: "database_starting",
+        message: "Truvi is starting. Please retry in a few seconds.",
+      });
+    }
+    return next();
+  });
   const requestLogFormat = process.env.NODE_ENV === "production"
     ? ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":safe-referrer" ":user-agent"'
     : ':method :safe-url :status :response-time ms';
@@ -235,7 +249,12 @@ export function createApp() {
     }),
   );
 
-  app.get("/health", (_req, res) => res.json({ status: "ok" }));
+  app.get("/health", (_req, res) => {
+    if (!getDatabaseStatus().connected) {
+      return res.status(503).json({ status: "starting", database: "initializing" });
+    }
+    return res.json({ status: "ok", database: "connected" });
+  });
 
   app.use("/api/auth", authRoutes);
   // Brochure routes are mounted at /api and define their own /admin/... and
