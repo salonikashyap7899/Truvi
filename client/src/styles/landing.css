@@ -286,78 +286,47 @@
 
 
 
-/* One continuous fixed background: the three city photos blend as
-   the user scrolls from the hero, through intelligence, to the lower page. */
-.truvi-scroll-background {
+
+
+/* One sharp, fixed night-city photograph behind the entire public homepage.
+   Content and both existing video bands remain above this layer. */
+.truvi-page-background {
   position: fixed;
   inset: 0;
   z-index: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   pointer-events: none;
-  background: #061426;
   isolation: isolate;
+  background: #061426;
 }
-.truvi-scroll-background__stack {
+.truvi-page-background > img {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 295vh;
-  will-change: transform;
-  transform: translate3d(0, 0, 0);
-}
-.truvi-scroll-background__panel {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 105vh;
-  overflow: hidden;
-}
-.truvi-scroll-background__panel img {
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center center;
+  object-position: center 48%;
   filter: none;
   transform: none;
 }
-.truvi-scroll-background__panel--one {
-  top: 0;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
-}
-.truvi-scroll-background__panel--two {
-  top: 95vh;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
-}
-.truvi-scroll-background__panel--three {
-  top: 190vh;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 100%);
-}
-.truvi-scroll-background__veil {
+.truvi-page-background__veil {
   position: absolute;
   inset: 0;
-  z-index: 2;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.40) 0%, rgba(4, 12, 23, 0.18) 52%, rgba(4, 12, 23, 0.10) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.24) 0%, rgba(3, 9, 19, 0.10) 48%, rgba(3, 9, 19, 0.48) 100%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.54) 0%, rgba(4, 12, 23, 0.30) 52%, rgba(4, 12, 23, 0.22) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.36) 0%, rgba(3, 9, 19, 0.16) 48%, rgba(3, 9, 19, 0.62) 100%);
 }
 @media (max-width: 767px) {
-  .truvi-scroll-background__panel {
-    height: 105svh;
+  .truvi-page-background > img {
+    object-position: 55% center;
   }
-  .truvi-scroll-background__panel--two {
-    top: 95svh;
-  }
-  .truvi-scroll-background__panel--three {
-    top: 190svh;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .truvi-scroll-background__stack {
-    will-change: auto;
+  .truvi-page-background__veil {
+    background:
+      linear-gradient(90deg, rgba(3, 10, 21, 0.62), rgba(3, 10, 21, 0.40)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.38), rgba(3, 9, 19, 0.68));
   }
 }
