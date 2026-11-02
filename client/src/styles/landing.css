@@ -202,34 +202,27 @@
 .tv-home-hero {
   min-height: clamp(740px, 78vw, 920px);
   padding-top: clamp(9rem, 13vw, 11rem);
+  isolation: isolate;
+  overflow: hidden;
 }
-.tv-home-eyebrow {
-  color: rgba(179, 207, 240, 0.86);
-  font-family: var(--font-sans-landing);
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+.tv-home-hero::before,
+.tv-home-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
 }
-.tv-home-title {
-  max-width: 880px;
-  color: #f8fbff;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2.75rem, 5.4vw, 5.15rem);
-  font-weight: 400;
-  line-height: 1.045;
-  letter-spacing: -0.045em;
-  text-wrap: balance;
-  text-shadow: 0 3px 32px rgba(0, 0, 0, 0.32);
+.tv-home-hero::before {
+  background-image: url("/media/ben-o-bro-wpU4veNGnHg-unsplash.jpg");
+  background-size: cover;
+  background-position: center 46%;
+  background-repeat: no-repeat;
 }
-.tv-home-copy {
-  color: rgba(238, 244, 252, 0.88);
-  line-height: 1.7;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.5);
-}
-.tv-home-demo {
-  width: min(100%, 660px);
-  margin-left: clamp(0px, 15vw, 220px);
+.tv-home-hero::after {
+  background:
+    linear-gradient(90deg, rgba(3, 10, 21, 0.74) 0%, rgba(4, 12, 23, 0.38) 48%, rgba(4, 12, 23, 0.12) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.42) 0%, rgba(3, 9, 19, 0.10) 48%, rgba(3, 9, 19, 0.72) 100%);
 }
 .tv-feature-card {
   min-height: 132px;
@@ -260,12 +253,6 @@
   .tv-home-hero {
     min-height: 760px;
     padding-top: 8rem;
-  }
-  .tv-home-title {
-    font-size: clamp(2.55rem, 11vw, 4rem);
-  }
-  .tv-home-demo {
-    margin-left: 0;
   }
   .tv-feature-card {
     min-height: 142px;
@@ -311,5 +298,63 @@
 @media (max-width: 639px) {
   .tv-project-layout > .grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+/* Three user-supplied city photographs are used as crisp section backdrops.
+   The original videos and all original homepage copy/typography remain in place. */
+.tv-photo-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(167, 199, 232, 0.16);
+  border-radius: 28px;
+}
+.tv-photo-panel::before,
+.tv-photo-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tv-photo-panel::before {
+  z-index: -2;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.tv-photo-panel::after {
+  z-index: -1;
+  background:
+    linear-gradient(90deg, rgba(3, 10, 21, 0.84), rgba(4, 12, 23, 0.60)),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.24), rgba(3, 9, 19, 0.58));
+}
+.tv-photo-panel > * {
+  position: relative;
+  z-index: 1;
+}
+.tv-photo-panel--dubai::before {
+  background-image: url("/media/david-rodrigo-Fr6zexbmjmc-unsplash.jpg");
+  background-position: center 48%;
+}
+.tv-photo-panel--boulevard::before {
+  background-image: url("/media/eric-rai-0O1Fsnw2ZBc-unsplash.jpg");
+  background-position: center 52%;
+}
+.tv-final-cta.tv-photo-panel {
+  max-width: 1050px;
+  background: rgba(4, 16, 31, 0.32);
+}
+.tv-final-cta.tv-photo-panel::after {
+  background: linear-gradient(90deg, rgba(4, 16, 31, 0.80), rgba(4, 16, 31, 0.42));
+}
+@media (max-width: 767px) {
+  .tv-home-hero {
+    min-height: 760px;
+    padding-top: 8rem;
+  }
+  .tv-photo-panel {
+    border-radius: 22px;
   }
 }
