@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { BarChart3, MapPin, ShieldCheck, TrendingUp } from "lucide-react";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
@@ -8,49 +9,6 @@ import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
-
-const CityCanvas = lazy(() =>
-  import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
-);
-
-/**
- * Restore the original scroll-aware 3D city backdrop, loaded after the page
- * has settled to protect the homepage's first paint.
- */
-function useDeferredBackground() {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const idleWindow = window as IdleWindow;
-    let delayId: number | undefined;
-    let idleId: number | undefined;
-
-    const startDelay = () => {
-      delayId = window.setTimeout(() => {
-        if (idleWindow.requestIdleCallback) {
-          idleId = idleWindow.requestIdleCallback(() => setReady(true), { timeout: 3000 });
-        } else {
-          setReady(true);
-        }
-      }, 8000);
-    };
-
-    if (document.readyState === "complete") startDelay();
-    else window.addEventListener("load", startDelay, { once: true });
-
-    return () => {
-      window.removeEventListener("load", startDelay);
-      if (delayId !== undefined) window.clearTimeout(delayId);
-      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
-    };
-  }, []);
-
-  return ready;
-}
 
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
@@ -419,7 +377,7 @@ function deriveShowcase(listing: Project | null, intel: IntelSlim | null): Showc
 
 function HeroAskDemo({ s }: { s: Showcase }) {
   return (
-    <div className="relative mx-auto w-full max-w-2xl text-left">
+    <div className="relative mx-0 w-full max-w-2xl text-left">
       <div className="absolute -inset-6 -z-10 opacity-30 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
       <div className="rounded-2xl glass p-5">
         {/* Query bar */}
@@ -741,6 +699,32 @@ function Footer() {
   );
 }
 
+
+const HOMEPAGE_FEATURES = [
+  { title: "Verified Projects", desc: "Explore projects with verification context.", Icon: ShieldCheck },
+  { title: "Market Intelligence", desc: "Understand pricing, demand and growth signals.", Icon: BarChart3 },
+  { title: "Geo-Analysis", desc: "See location and infrastructure context.", Icon: MapPin },
+  { title: "Investment Guidance", desc: "Make more informed property decisions.", Icon: TrendingUp },
+];
+
+function HomepageFeatureBand() {
+  return (
+    <section className="relative z-10 mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 md:px-12">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {HOMEPAGE_FEATURES.map(({ title, desc, Icon }) => (
+          <div key={title} className="tv-feature-card group rounded-2xl p-4 sm:p-5">
+            <div className="mb-3 grid size-10 place-items-center rounded-xl border border-sky-300/20 bg-sky-400/10 text-sky-300 transition group-hover:border-sky-300/45 group-hover:bg-sky-400/15">
+              <Icon size={21} strokeWidth={1.7} />
+            </div>
+            <h3 className="font-display text-sm font-semibold text-white sm:text-base">{title}</h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-300/80 sm:text-sm">{desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ---------------- Live platform stats (real DB counts) ---------------- */
 interface PublicStats { verifiedProjects: number; liveProjects: number; developers: number; channelPartners: number; cities: number }
 
@@ -864,17 +848,6 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
-  const backgroundReady = useDeferredBackground();
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
-  );
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!query) return;
-    const update = () => setPrefersReducedMotion(query.matches);
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
-  }, []);
   const showcase = useShowcase();
   const { hash } = useLocation();
   // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
@@ -912,63 +885,61 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
+      <div className="truvi-homepage-backdrop" aria-hidden="true">
+        <img src="/media/truvi-homepage-backdrop.avif" alt="" fetchPriority="high" decoding="async" />
+        <div className="truvi-homepage-backdrop__veil" />
+      </div>
       <CursorGlow />
       <SiteNav />
-      <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
       <main id="main-content" className="relative z-10">
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36">
-        <div className="relative z-10 flex w-full flex-col items-center">
-        {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
-            Shown to every signed-in user except Admin/Founder. */}
-        {showEnrollBanner && (
-          <Reveal>
-            <Link
-              to="/cp/onboard-developers"
-              className="group mx-auto mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
-            >
-              <span aria-hidden>☁️</span>
-              <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
-              <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
-            </Link>
+      <Section className="tv-home-hero !max-w-none items-start !justify-center min-h-[780px] pb-16 pt-32 text-left sm:px-8 md:min-h-[850px] md:px-12 md:pt-36 lg:px-[7.5vw]">
+        <div className="relative z-10 flex w-full flex-col items-start">
+          {showEnrollBanner && (
+            <Reveal>
+              <Link
+                to="/cp/onboard-developers"
+                className="group mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-4 py-2 text-xs font-medium text-emerald-50 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.35)] backdrop-blur-xl transition hover:border-emerald-300/60 hover:bg-emerald-400/15 sm:text-sm"
+              >
+                <span aria-hidden>✦</span>
+                <span><b className="text-emerald-200">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
+                <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+              </Link>
+            </Reveal>
+          )}
+          <Reveal delay={0.1}>
+            <p className="tv-home-eyebrow mb-4">TRUVI VENTURES · PROPERTY INTELLIGENCE</p>
+            <h1 className="tv-home-title font-display font-medium tracking-tight">
+              The <span className="text-gradient-trust">Intelligence</span> Layer
+              <br />
+              for Indian Real Estate.
+            </h1>
           </Reveal>
-        )}
-        <Reveal delay={0.1}>
-          <h1 className="font-display text-3xl font-medium leading-[1.08] tracking-tight text-gradient-aurora sm:text-4xl md:text-5xl">
-            The Intelligence Layer<br />for Indian Real Estate.
-          </h1>
-        </Reveal>
-        <Reveal delay={0.3}>
-          <p className="mx-auto mt-8 max-w-2xl text-base text-muted-foreground md:text-lg">
-            Truvi turns property records, legal signals, geospatial data and market behaviour into
-            one answer: should you buy, and at what price.
-          </p>
-        </Reveal>
-        <Reveal delay={0.45}>
-          <div className="mt-10 w-full">
-            <HeroAskDemo s={showcase} />
-          </div>
-        </Reveal>
-        <Reveal delay={0.6}>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
-          </div>
-        </Reveal>
+          <Reveal delay={0.25}>
+            <p className="tv-home-copy mt-6 max-w-xl text-base md:text-lg">
+              Truvi turns property records, legal signals, geospatial data and market behaviour into
+              one answer: should you buy, and at what price.
+            </p>
+          </Reveal>
+          <Reveal delay={0.35}>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <GlowButton to="/inventory">Explore Projects</GlowButton>
+              <GlowButton variant="ghost" onClick={openAskTruvi}>Ask Truvi</GlowButton>
+            </div>
+          </Reveal>
+          <Reveal delay={0.5}>
+            <div className="tv-home-demo mt-9 w-full">
+              <HeroAskDemo s={showcase} />
+            </div>
+          </Reveal>
         </div>
       </Section>
 
-      {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
-      <VideoBand
-        srcMp4="/media/intro.mp4"
-        poster="/media/intro-poster.jpg"
-        title={<>TRUVI</>}
-        subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
-        muted={false}
-      />
+      {/* ---------- CINEMATIC HOMEPAGE VALUE CARDS ---------- */}
+      <HomepageFeatureBand />
 
       {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
       <LiveStatsBand />
@@ -1448,7 +1419,7 @@ export default function LandingPage() {
       </>
 
       {/* ---------- FINAL CTA ---------- */}
-      <Section id="join" className="items-center pb-32 text-center">
+      <Section id="join" className="tv-final-cta items-center pb-32 text-center">
         <Reveal>
           <h2 className="font-display text-4xl font-medium leading-[1.0] sm:text-5xl md:text-7xl lg:text-8xl">
             Don't search for property.<br />
