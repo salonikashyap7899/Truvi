@@ -483,6 +483,7 @@ function TimeAwareLighting() {
 }
 
 function Scene() {
+  const sceneRef = useRef<THREE.Group>(null);
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
 
@@ -492,6 +493,28 @@ function Scene() {
     camera.updateProjectionMatrix();
     invalidate();
   }, [camera, invalidate]);
+
+  useEffect(() => {
+    if (REDUCED_MOTION) return;
+
+    const syncScrollRotation = () => {
+      const scene = sceneRef.current;
+      if (!scene) return;
+      const maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+      const progress = Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
+      scene.rotation.y = progress * 0.42;
+      scene.rotation.x = progress * 0.045;
+      invalidate();
+    };
+
+    syncScrollRotation();
+    window.addEventListener("scroll", syncScrollRotation, { passive: true });
+    window.addEventListener("resize", syncScrollRotation, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", syncScrollRotation);
+      window.removeEventListener("resize", syncScrollRotation);
+    };
+  }, [invalidate]);
 
   return (
     <>
@@ -509,11 +532,13 @@ function Scene() {
         maxPolarAngle={Math.PI * 0.55}
         target={[0, 7.5, -16]}
       />
-      <GroundAndRoads />
-      <TowerDistrict />
-      <ResidentialDistrict />
-      <Greenery />
-      <StreetLighting />
+      <group ref={sceneRef}>
+        <GroundAndRoads />
+        <TowerDistrict />
+        <ResidentialDistrict />
+        <Greenery />
+        <StreetLighting />
+      </group>
     </>
   );
 }

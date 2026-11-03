@@ -6,6 +6,8 @@ import { ShieldCheck, Upload, Camera, RefreshCw, Loader2, Clock, XCircle } from 
 import UserMenu from "@/components/UserMenu";
 
 const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const KYC_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const KYC_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
 
 /**
  * CP identity gate. A channel partner cannot use the workspace until they
@@ -304,7 +306,7 @@ export function CpKycOnboarding() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Verification in progress</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            We&apos;ve received your Aadhaar, PAN and selfie. Our team is verifying your identity — you&apos;ll get a
+            We&apos;ve received your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie. Our team is verifying your identity — you&apos;ll get a
             notification the moment it&apos;s approved and your workspace unlocks.
           </p>
         </div>
@@ -444,13 +446,27 @@ function FileField({ label, file, onFile }: { label: string; file: File | null; 
         className="sr-only"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f && f.size > 6 * 1024 * 1024) {
+          if (!f) return;
+          const extension = `.${f.name.split(".").pop()?.toLowerCase() ?? ""}`;
+          if (!KYC_ALLOWED_MIME_TYPES.has(f.type) && !KYC_ALLOWED_EXTENSIONS.has(extension)) {
+            toast.error("Unsupported file type — upload a JPG, PNG, WEBP image, or PDF.");
+            e.currentTarget.value = "";
+            onFile(null);
+            return;
+          }
+          if (f.size === 0) {
+            toast.error("This file is empty. Please choose a different document.");
+            e.currentTarget.value = "";
+            onFile(null);
+            return;
+          }
+          if (f.size > 6 * 1024 * 1024) {
             toast.error("File too large — max 6 MB");
             onFile(null);
             e.currentTarget.value = "";
             return;
           }
-          onFile(f || null);
+          onFile(f);
         }}
       />
     </label>

@@ -65,7 +65,7 @@ function welcomeNextSteps(role: IUser["role"]): string[] {
       ];
     case "AMBASSADOR":
       return [
-        "Finish your <b>onboarding & KYC</b> to activate your ambassador dashboard.",
+        "Finish your <b>onboarding & KYC</b> (Aadhaar + live selfie) to activate your ambassador dashboard.",
         "Grab your referral code and start inviting developers and channel partners.",
       ];
     case "DEVELOPER":
@@ -160,8 +160,8 @@ export function pendingStepsFor(user: IUser, hasActivePlan: boolean): PendingSte
     if (!user.onboardingVerified && kyc !== "PENDING") {
       steps.push({
         text: kyc === "REJECTED"
-          ? "Your KYC was rejected. Please re-submit your Aadhaar, PAN and selfie so we can verify you."
-          : "You still need to complete your KYC (Aadhaar + PAN + a live selfie) to unlock your dashboard.",
+          ? `Your KYC was rejected. Please re-submit your Aadhaar${user.role === "AMBASSADOR" ? "" : ", PAN"} and selfie so we can verify you.`
+          : `You still need to complete your KYC (Aadhaar${user.role === "AMBASSADOR" ? "" : " + PAN"} + a live selfie) to unlock your dashboard.`,
         cta: { label: "Complete my KYC", href: `${url}/login` },
       });
     }

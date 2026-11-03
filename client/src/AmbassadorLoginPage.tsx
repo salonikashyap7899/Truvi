@@ -20,7 +20,7 @@ export default function AmbassadorLoginPage() {
     setError(null);
     setFeedbackTone("error");
     try {
-      const user = await login(email, password);
+      const user = await login(email.trim().toLowerCase(), password);
       navigate(dashboardPath(user));
     } catch (err: any) {
       // Unverified account: the server sent fresh OTPs — route to verification.

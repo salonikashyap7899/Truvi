@@ -10,9 +10,11 @@ import { Loader2 } from "lucide-react";
 
 const signupSchema = z
   .object({
-    name: z.string().min(2, "Name must be at least 2 characters"),
+    name: z.string().trim().min(2, "Name must be at least 2 characters"),
     email: z
       .string()
+      .trim()
+      .toLowerCase()
       .email("Enter a valid email")
       .regex(/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i, "Enter a valid email"),
     password: z
@@ -22,7 +24,14 @@ const signupSchema = z
       .regex(/[A-Z]/, "Add at least one uppercase letter")
       .regex(/[0-9]/, "Add at least one number")
       .regex(/[^A-Za-z0-9]/, "Add at least one special character"),
-    phone: z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit Indian mobile number"),
+    phone: z
+      .string()
+      .trim()
+      .transform((value) => value.replace(/[\s\-()]/g, ""))
+      .refine(
+        (value) => /^[6-9]\d{9}$/.test(value) || /^\+[1-9]\d{6,14}$/.test(value),
+        "Enter a valid mobile number — Indian 10-digit, or international with country code.",
+      ),
     role: z.literal("AMBASSADOR"),
     companyName: z.string().optional(),
   })
