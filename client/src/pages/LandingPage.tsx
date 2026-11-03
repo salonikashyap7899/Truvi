@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
+import { CityCanvas } from "@/components/landing/CityCanvas";
 import { VideoBand } from "@/components/landing/VideoBand";
 import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
@@ -931,51 +932,10 @@ export default function LandingPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const sideFill = document.querySelector<HTMLElement>(".landing-page-backdrop__side-fill");
-    if (!sideFill) return;
-
-    const desktopMotion = window.matchMedia("(min-width: 1024px) and (prefers-reduced-motion: no-preference)");
-    let animationFrame = 0;
-    let enabled = desktopMotion.matches;
-
-    const updateOffset = () => {
-      animationFrame = 0;
-      const offset = enabled ? -Math.min(window.scrollY * 0.025, 44) : 0;
-      sideFill.style.setProperty("--parallax-y", `${offset.toFixed(1)}px`);
-    };
-
-    const onScroll = () => {
-      if (!enabled || animationFrame) return;
-      animationFrame = window.requestAnimationFrame(updateOffset);
-    };
-
-    const onMotionChange = (event: MediaQueryListEvent) => {
-      enabled = event.matches;
-      if (!enabled && animationFrame) {
-        window.cancelAnimationFrame(animationFrame);
-        animationFrame = 0;
-      }
-      updateOffset();
-    };
-
-    updateOffset();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    desktopMotion.addEventListener("change", onMotionChange);
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      desktopMotion.removeEventListener("change", onMotionChange);
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      sideFill.style.removeProperty("--parallax-y");
-    };
-  }, []);
-
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <div className="landing-page-backdrop" aria-hidden="true">
-        <div className="landing-page-backdrop__side-fill" />
-        <div className="landing-page-backdrop__image" />
+        <CityCanvas />
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
