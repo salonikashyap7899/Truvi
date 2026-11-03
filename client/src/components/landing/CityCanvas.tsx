@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
@@ -387,6 +387,99 @@ function StreetLighting() {
   );
 }
 
+type LightingProfile = {
+  phase: "dawn" | "day" | "dusk" | "night";
+  background: string;
+  fog: string;
+  sky: string;
+  ground: string;
+  sun: string;
+  sunIntensity: number;
+  ambientIntensity: number;
+  blueIntensity: number;
+  tealIntensity: number;
+};
+
+function getLightingProfile(date: Date): LightingProfile {
+  const hour = date.getHours() + date.getMinutes() / 60;
+  if (hour >= 5 && hour < 8) {
+    return {
+      phase: "dawn",
+      background: "#17243b",
+      fog: "#17243b",
+      sky: "#a8b7d2",
+      ground: "#171d2d",
+      sun: "#ffc27d",
+      sunIntensity: 1.45,
+      ambientIntensity: 0.44,
+      blueIntensity: 18,
+      tealIntensity: 8,
+    };
+  }
+  if (hour >= 8 && hour < 17) {
+    return {
+      phase: "day",
+      background: "#173555",
+      fog: "#173555",
+      sky: "#d7e7ff",
+      ground: "#344457",
+      sun: "#fff0ca",
+      sunIntensity: 2.15,
+      ambientIntensity: 0.72,
+      blueIntensity: 8,
+      tealIntensity: 4,
+    };
+  }
+  if (hour >= 17 && hour < 20) {
+    return {
+      phase: "dusk",
+      background: "#241c34",
+      fog: "#241c34",
+      sky: "#e6a17f",
+      ground: "#1a1527",
+      sun: "#ff956d",
+      sunIntensity: 1.3,
+      ambientIntensity: 0.38,
+      blueIntensity: 22,
+      tealIntensity: 12,
+    };
+  }
+  return {
+    phase: "night",
+    background: "#050a16",
+    fog: "#050a16",
+    sky: "#5f75a0",
+    ground: "#070c18",
+    sun: "#6f8fff",
+    sunIntensity: 0.62,
+    ambientIntensity: 0.22,
+    blueIntensity: 28,
+    tealIntensity: 10,
+  };
+}
+
+function TimeAwareLighting() {
+  const [profile, setProfile] = useState<LightingProfile>(() => getLightingProfile(new Date()));
+
+  useEffect(() => {
+    const update = () => setProfile(getLightingProfile(new Date()));
+    const timer = window.setInterval(update, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <>
+      <color attach="background" args={[profile.background]} />
+      <fog attach="fog" args={[profile.fog, 78, 190]} />
+      <hemisphereLight args={[profile.sky, profile.ground, profile.ambientIntensity + 0.42]} />
+      <ambientLight intensity={profile.ambientIntensity} />
+      <directionalLight position={[-24, 36, 16]} intensity={profile.sunIntensity} color={profile.sun} />
+      <pointLight position={[0, 16, 8]} intensity={profile.blueIntensity} color="#496fbb" distance={120} decay={2} />
+      <pointLight position={[-36, 7, -40]} intensity={profile.tealIntensity} color="#14b8a6" distance={90} decay={2} />
+    </>
+  );
+}
+
 function Scene() {
   const pointer = useRef({ x: 0, y: 0 });
   const camera = useThree((state) => state.camera);
@@ -422,13 +515,7 @@ function Scene() {
 
   return (
     <>
-      <color attach="background" args={["#071321"]} />
-      <fog attach="fog" args={["#071321", 78, 190]} />
-      <hemisphereLight args={["#bac9e4", "#111a28", 1.2]} />
-      <ambientLight intensity={0.46} />
-      <directionalLight position={[-24, 36, 16]} intensity={1.8} color="#ffd0a2" />
-      <pointLight position={[0, 16, 8]} intensity={22} color="#496fbb" distance={120} decay={2} />
-      <pointLight position={[-36, 7, -40]} intensity={12} color="#14b8a6" distance={90} decay={2} />
+      <TimeAwareLighting />
       <GroundAndRoads />
       <TowerDistrict />
       <ResidentialDistrict />
