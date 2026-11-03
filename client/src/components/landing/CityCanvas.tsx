@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 
@@ -116,31 +116,6 @@ const STREETLIGHTS = [
     ]),
   ),
 ];
-
-function ImageBackplate() {
-  const texture = useLoader(THREE.TextureLoader, "/media/truvi-homepage-cityscape.webp");
-  const { camera, viewport } = useThree();
-  const planeSize = useMemo(() => {
-    const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : 43;
-    const distance = Math.hypot(camera.position.z + 125, camera.position.y);
-    const height = 2 * Math.tan(THREE.MathUtils.degToRad(fov / 2)) * distance;
-    return { width: height * viewport.aspect, height };
-  }, [camera, viewport.aspect]);
-
-  useEffect(() => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.needsUpdate = true;
-  }, [texture]);
-
-  return (
-    <mesh position={[0, 16, -126]} scale={[planeSize.width, planeSize.height, 1]}>
-      <planeGeometry args={[1, 1]} />
-      <meshBasicMaterial map={texture} transparent opacity={0.48} depthWrite={false} toneMapped={false} />
-    </mesh>
-  );
-}
 
 function GroundAndRoads() {
   const marks = useMemo(() => {
@@ -447,13 +422,13 @@ function Scene() {
 
   return (
     <>
-      <Suspense fallback={null}>
-        <ImageBackplate />
-      </Suspense>
+      <color attach="background" args={["#071321"]} />
+      <fog attach="fog" args={["#071321", 78, 190]} />
       <hemisphereLight args={["#bac9e4", "#111a28", 1.2]} />
-      <ambientLight intensity={0.38} />
-      <directionalLight position={[-24, 36, 16]} intensity={1.55} color="#ffd0a2" />
-      <pointLight position={[0, 16, 8]} intensity={18} color="#496fbb" distance={120} decay={2} />
+      <ambientLight intensity={0.46} />
+      <directionalLight position={[-24, 36, 16]} intensity={1.8} color="#ffd0a2" />
+      <pointLight position={[0, 16, 8]} intensity={22} color="#496fbb" distance={120} decay={2} />
+      <pointLight position={[-36, 7, -40]} intensity={12} color="#14b8a6" distance={90} decay={2} />
       <GroundAndRoads />
       <TowerDistrict />
       <ResidentialDistrict />
@@ -502,7 +477,7 @@ export function CityCanvas() {
   return (
     <div className="city-canvas-layer pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <SilentErrorBoundary
-        fallback={<img className="city-canvas-fallback" src="/media/truvi-homepage-cityscape.webp" alt="" />}
+        fallback={null}
       >
         <Canvas
           frameloop="demand"
