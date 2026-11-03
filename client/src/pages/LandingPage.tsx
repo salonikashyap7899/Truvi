@@ -933,6 +933,10 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
+      <div className="landing-page-backdrop" aria-hidden="true">
+        <img src="/media/truvi-homepage-cityscape.webp" alt="" fetchPriority="high" decoding="async" />
+        <div className="landing-page-backdrop__veil" />
+      </div>
       <CursorGlow />
       <SiteNav />
 
@@ -941,10 +945,6 @@ export default function LandingPage() {
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
       <Section className="homepage-hero-section text-left">
-        <div className="homepage-hero-backdrop" aria-hidden="true">
-          <img src="/media/truvi-hero-lucknow.webp" alt="" fetchPriority="high" decoding="async" />
-          <div className="homepage-hero-backdrop__veil" />
-        </div>
         <div className="homepage-hero-inner mx-auto w-full max-w-5xl">
           <div className="homepage-hero-copy max-w-[590px]">
             {showEnrollBanner && (
