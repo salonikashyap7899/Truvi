@@ -35,7 +35,8 @@ const VERTICAL_ROADS = [-42, -21, 0, 21, 42];
 const REDUCED_MOTION =
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 const IS_MOBILE =
-  typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
+  typeof window !== "undefined" &&
+  (window.innerWidth < 768 || window.matchMedia?.("(pointer: coarse)").matches === true);
 
 function seeded(x: number, z = 0): number {
   const value = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
@@ -100,9 +101,9 @@ function makeTreePositions(): { x: number; z: number; scale: number }[] {
   return trees;
 }
 
-const TOWER_WINDOWS = makeTowerWindows();
-const HOME_WINDOWS = makeHomeWindows();
-const TREES = makeTreePositions();
+const TOWER_WINDOWS = makeTowerWindows().filter((_, index) => !IS_MOBILE || index % 2 === 0);
+const HOME_WINDOWS = makeHomeWindows().filter((_, index) => !IS_MOBILE || index % 2 === 0);
+const TREES = makeTreePositions().filter((_, index) => !IS_MOBILE || index % 2 === 0);
 const STREETLIGHTS = [
   ...HORIZONTAL_ROADS.flatMap((z) =>
     [-72, -48, -24, 24, 48, 72].flatMap((x) => [
@@ -116,7 +117,7 @@ const STREETLIGHTS = [
       { x: x + 3.4, z },
     ]),
   ),
-];
+].filter((_, index) => !IS_MOBILE || index % 2 === 0);
 
 function GroundAndRoads() {
   const marks = useMemo(() => {
@@ -561,12 +562,12 @@ export function CityCanvas() {
         <Canvas
           frameloop="demand"
           shadows={false}
-          dpr={IS_MOBILE ? 1 : [1, 1.35]}
+          dpr={IS_MOBILE ? [0.75, 1] : [1, 1.35]}
           gl={{ antialias: false, powerPreference: "high-performance", alpha: true }}
           onCreated={({ gl }) => gl.setClearColor("#000000", 0)}
           camera={{ position: [0, 23, 54], fov: IS_MOBILE ? 48 : 43, near: 0.1, far: 340 }}
         >
-          {!REDUCED_MOTION && <ThrottledFrames fps={IS_MOBILE ? 24 : 30} />}
+          {!REDUCED_MOTION && <ThrottledFrames fps={IS_MOBILE ? 18 : 30} />}
           <Scene />
         </Canvas>
       </SilentErrorBoundary>
