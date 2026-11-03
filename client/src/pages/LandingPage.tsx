@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
@@ -10,6 +10,49 @@ import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
 
+const CityCanvas = lazy(() =>
+  import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
+);
+
+/**
+ * Load the original 3D city after the initial page load settles.
+ * This matches the previous homepage's delayed background behaviour.
+ */
+function useDeferredBackground() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const idleWindow = window as IdleWindow;
+    let delayId: number | undefined;
+    let idleId: number | undefined;
+
+    const startDelay = () => {
+      delayId = window.setTimeout(() => {
+        if (idleWindow.requestIdleCallback) {
+          idleId = idleWindow.requestIdleCallback(() => setReady(true), { timeout: 3000 });
+        } else {
+          setReady(true);
+        }
+      }, 8000);
+    };
+
+    if (document.readyState === "complete") startDelay();
+    else window.addEventListener("load", startDelay, { once: true });
+
+    return () => {
+      window.removeEventListener("load", startDelay);
+      if (delayId !== undefined) window.clearTimeout(delayId);
+      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+    };
+  }, []);
+
+  return ready;
+}
+
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
   window.dispatchEvent(new Event("open-ask-truvi"));
@@ -17,25 +60,6 @@ function openAskTruvi() {
 
 function scrollToHomepageDemo() {
   document.getElementById("homepage-demo")?.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-/**
- * The clean 8K architectural masterplan artwork spans the whole public homepage.
- * All text, cards, stats, project listings and actions remain live website UI.
- */
-function HomepageScrollBackdrop() {
-  return (
-    <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
-      <img
-        src="/media/truvi_ventures_homepage_bg_8k_tall.jpg"
-        alt=""
-        loading="eager"
-        decoding="async"
-        fetchPriority="high"
-      />
-      <div className="truvi-homepage-backdrop__veil" />
-    </div>
-  );
 }
 
 function Reveal({ children }: { children: ReactNode; delay?: number }) {
@@ -914,6 +938,17 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
+  const backgroundReady = useDeferredBackground();
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+  );
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!query) return;
+    const update = () => setPrefersReducedMotion(query.matches);
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
   const showcase = useShowcase();
   const publicStats = usePublicStats();
   const { hash } = useLocation();
@@ -953,8 +988,8 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <CursorGlow />
-      <HomepageScrollBackdrop />
       <SiteNav />
+      <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
       <main id="main-content" className="relative z-10">
       {/* ---------- 1 · HERO ---------- */}
