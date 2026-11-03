@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { SilentErrorBoundary } from "@/components/SilentErrorBoundary";
 
@@ -481,7 +482,6 @@ function TimeAwareLighting() {
 }
 
 function Scene() {
-  const pointer = useRef({ x: 0, y: 0 });
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
 
@@ -492,30 +492,22 @@ function Scene() {
     invalidate();
   }, [camera, invalidate]);
 
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      pointer.current.x = (event.clientX / window.innerWidth - 0.5) * 2;
-      pointer.current.y = (event.clientY / window.innerHeight - 0.5) * 2;
-    };
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    return () => window.removeEventListener("pointermove", onPointerMove);
-  }, []);
-
-  useFrame((state, delta) => {
-    if (REDUCED_MOTION) return;
-    const time = state.clock.elapsedTime;
-    const cameraState = state.camera;
-    const desiredX = pointer.current.x * 1.15 + Math.sin(time * 0.07) * 0.22;
-    const desiredY = 23 + pointer.current.y * 0.4 + Math.sin(time * 0.09) * 0.16;
-    cameraState.position.x = THREE.MathUtils.damp(cameraState.position.x, desiredX, 2.2, delta);
-    cameraState.position.y = THREE.MathUtils.damp(cameraState.position.y, desiredY, 2.2, delta);
-    cameraState.position.z = THREE.MathUtils.damp(cameraState.position.z, 54 + Math.cos(time * 0.06) * 0.28, 2.2, delta);
-    cameraState.lookAt(pointer.current.x * 0.35, 7.5, -16);
-  });
-
   return (
     <>
       <TimeAwareLighting />
+      <OrbitControls
+        makeDefault
+        enablePan={false}
+        enableZoom={false}
+        enableDamping
+        dampingFactor={0.08}
+        rotateSpeed={0.45}
+        minAzimuthAngle={-0.62}
+        maxAzimuthAngle={0.62}
+        minPolarAngle={Math.PI * 0.36}
+        maxPolarAngle={Math.PI * 0.55}
+        target={[0, 7.5, -16]}
+      />
       <GroundAndRoads />
       <TowerDistrict />
       <ResidentialDistrict />
@@ -562,7 +554,7 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
 
 export function CityCanvas() {
   return (
-    <div className="city-canvas-layer pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+    <div className="city-canvas-layer absolute inset-0 z-0" aria-hidden="true">
       <SilentErrorBoundary
         fallback={null}
       >

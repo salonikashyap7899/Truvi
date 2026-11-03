@@ -154,6 +154,7 @@
   inset: 0;
   z-index: 1;
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .city-canvas-layer canvas {
@@ -166,6 +167,7 @@
   position: absolute;
   inset: 0;
   z-index: 2;
+  pointer-events: none;
   background:
     linear-gradient(90deg, rgba(3, 10, 21, 0.2) 0%, rgba(3, 10, 21, 0.08) 52%, rgba(3, 10, 21, 0.2) 100%),
     linear-gradient(180deg, rgba(3, 9, 19, 0.16) 0%, rgba(3, 9, 19, 0.24) 58%, rgba(3, 9, 19, 0.4) 100%);
