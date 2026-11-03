@@ -400,11 +400,11 @@ function deriveShowcase(listing: Project | null, intel: IntelSlim | null): Showc
 
 function HeroAskDemo({ s }: { s: Showcase }) {
   return (
-    <div className="relative mx-auto w-full max-w-2xl text-left">
+    <div className="homepage-hero-intelligence-card relative w-full max-w-[610px] text-left">
       <div className="absolute -inset-6 -z-10 opacity-30 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
-      <div className="rounded-2xl glass p-5">
+      <div className="rounded-2xl glass p-4">
         {/* Query bar */}
-        <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5">
           <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--trust)]/25 text-xs">✦</span>
           <p className="text-sm text-foreground/90">{s.heroQuery}</p>
           <motion.span
@@ -415,15 +415,15 @@ function HeroAskDemo({ s }: { s: Showcase }) {
         </div>
 
         {/* Animated intelligence response */}
-        <div className="mt-4">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="mt-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
             Truvi Intelligence Engine™ · analysing signals…
           </p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             {s.heroChips.map((chip) => (
               <span
                 key={chip.label}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${chip.cls}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${chip.cls}`}
               >
                 <span className="opacity-70">{chip.label}</span>
                 <span className="font-semibold">{chip.value}</span>
@@ -432,14 +432,19 @@ function HeroAskDemo({ s }: { s: Showcase }) {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+        <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5">
           <p className="text-[11px] text-muted-foreground">Every signal traced to its source.</p>
-          <button
-            onClick={openAskTruvi}
-            className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition hover:opacity-90"
-          >
-            Ask Truvi →
-          </button>
+          <div className="flex items-center gap-3">
+            <Link to="/inventory" className="text-[10px] font-medium text-sky-200 transition hover:text-white">
+              Analyse a Property
+            </Link>
+            <button
+              onClick={openAskTruvi}
+              className="rounded-full bg-foreground px-4 py-1 text-[11px] font-semibold text-background transition hover:opacity-90"
+            >
+              Ask Truvi →
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -768,7 +773,7 @@ const HOMEPAGE_FEATURES = [
 function HomepageFeatureBand() {
   return (
     <Section className="!py-5 md:!py-7">
-      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="homepage-feature-grid grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {HOMEPAGE_FEATURES.map(({ title, description, Icon }, index) => (
           <Reveal key={title} delay={index * 0.06}>
             <article className="homepage-feature-card glass flex h-full items-center gap-4 rounded-2xl p-5">
@@ -787,35 +792,64 @@ function HomepageFeatureBand() {
   );
 }
 
-function LiveStatsBand() {
+function usePublicStats() {
   const [stats, setStats] = useState<PublicStats | null>(null);
-  useEffect(() => { api.get("/public/stats").then((r) => setStats(r.data)).catch(() => {}); }, []);
-  if (!stats) return null;
+  useEffect(() => {
+    let active = true;
+    api.get("/public/stats")
+      .then((r) => { if (active) setStats(r.data); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+  return stats;
+}
 
-  // "Verified Projects" and "Live Listings" are intentionally omitted until the
-  // numbers are meaningful at scale — the network stats below stay.
-  const tiles = [
+function publicNetworkTiles(stats: PublicStats) {
+  return [
     { label: "Developers", value: stats.developers, suffix: "+" },
     { label: "Channel Partners", value: stats.channelPartners, suffix: "+" },
     { label: "Cities", value: stats.cities, suffix: "" },
-  ].filter((t) => t.value > 0);
+  ].filter((tile) => tile.value > 0);
+}
 
+function HomepageTopStats({ stats }: { stats: PublicStats | null }) {
+  if (!stats) return null;
+  const tiles = publicNetworkTiles(stats);
   if (tiles.length === 0) return null;
 
   return (
-    <Section className="py-14">
+    <div className="homepage-top-stats" aria-label="Live Truvi network statistics">
+      {tiles.map((tile) => (
+        <div className="homepage-top-stat" key={tile.label}>
+          <span className="font-display text-xl font-semibold text-white">
+            <CountUpNum target={tile.value} />{tile.suffix}
+          </span>
+          <span className="text-[10px] uppercase tracking-[0.16em] text-slate-300">{tile.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LiveStatsBand({ stats }: { stats: PublicStats | null }) {
+  if (!stats) return null;
+  const tiles = publicNetworkTiles(stats);
+  if (tiles.length === 0) return null;
+
+  return (
+    <Section className="homepage-stats-section !py-5 md:!py-6">
       <Reveal>
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-3xl glass px-3 py-6 sm:px-6 md:px-8 md:py-8">
-          {tiles.map((t, i) => (
-            <div key={t.label} className="tv-fade-up px-2 text-center sm:px-4" style={{ animationDelay: `${i * 70}ms` }}>
-              <div className="font-display text-2xl font-semibold text-gradient-trust sm:text-3xl">
-                <CountUpNum target={t.value} />{t.suffix}
+        <div className="homepage-stats-panel glass">
+          {tiles.map((tile, i) => (
+            <div key={tile.label} className="homepage-stat-cell tv-fade-up" style={{ animationDelay: `${i * 70}ms` }}>
+              <div className="font-display text-2xl font-semibold text-white sm:text-3xl">
+                <CountUpNum target={tile.value} />{tile.suffix}
               </div>
-              <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">{t.label}</div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.15em] text-slate-300">{tile.label}</div>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-center text-[11px] text-muted-foreground/70">Live figures, computed from the Truvi platform.</p>
+        <p className="mt-2 text-center text-[10px] text-slate-400/85">Live figures, computed from the Truvi platform.</p>
       </Reveal>
     </Section>
   );
@@ -834,7 +868,7 @@ function LiveProjectsShowcase() {
   if (!items || items.length === 0) return null; // hidden until the first project is live
 
   return (
-    <Section id="verified-projects" className="!py-16 md:!py-20">
+    <Section id="verified-projects" className="homepage-project-section !py-10 md:!py-12">
       <div className="grid w-full items-center gap-8 lg:grid-cols-[minmax(220px,0.78fr)_minmax(0,2.22fr)] xl:gap-10">
         <div className="max-w-sm">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">
@@ -865,9 +899,9 @@ function LiveProjectsShowcase() {
         {items.map((p, i) => (
           <Reveal key={p._id} delay={i * 0.06}>
             <Link to={`/inventory/${p._id}/presentation`} className="homepage-project-card group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
-              <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
+              <div className="relative h-32 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
                 {p.coverImageUrl ? (
-                  <img src={p.coverImageUrl} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <img src={p.coverImageUrl} alt={p.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-opacity duration-300 group-hover:opacity-95" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center p-6 text-center">
                     <span className="font-display text-lg font-semibold text-white/80">{p.name}</span>
@@ -879,8 +913,8 @@ function LiveProjectsShowcase() {
                 </div>
                 {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
               </div>
-              <div className="p-4">
-                <h3 className="font-display text-base font-semibold text-white">{p.name}</h3>
+              <div className="p-3">
+                <h3 className="font-display text-sm font-semibold text-white">{p.name}</h3>
                 <p className="mt-0.5 text-sm text-muted-foreground">{p.location}, {p.city}</p>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{p.developer ? `by ${p.developer}` : " "}</span>
@@ -900,6 +934,7 @@ function LiveProjectsShowcase() {
 
 export default function LandingPage() {
   const showcase = useShowcase();
+  const publicStats = usePublicStats();
   const { hash } = useLocation();
   // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
   // except Admin/Founder (who have full oversight and don't refer).
@@ -944,35 +979,36 @@ export default function LandingPage() {
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="items-center !justify-center min-h-screen pb-16 pt-32 text-left md:pt-40">
-        <div className="mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[1.03fr_0.97fr] xl:gap-14">
-          <div className="max-w-2xl">
-        {showEnrollBanner && (
-          <Reveal>
-            <Link
-              to="/cp/onboard-developers"
-              className="group mx-auto mb-6 inline-flex max-w-[92vw] items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
-            >
-              <span aria-hidden>☁️</span>
-              <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
-              <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
-            </Link>
-          </Reveal>
-        )}
+      <Section className="homepage-hero-section text-left">
+        <HomepageTopStats stats={publicStats} />
+        <div className="homepage-hero-inner mx-auto w-full max-w-5xl">
+          <div className="homepage-hero-copy max-w-[590px]">
+            {showEnrollBanner && (
+              <Reveal>
+                <Link
+                  to="/cp/onboard-developers"
+                  className="group mb-4 inline-flex max-w-full items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-100 shadow-[0_8px_30px_-10px_rgba(16,185,129,0.5)] backdrop-blur transition hover:border-emerald-400/60 hover:bg-emerald-500/15 sm:text-sm"
+                >
+                  <span aria-hidden>☁️</span>
+                  <span><b className="text-emerald-300">Enroll a Developer</b> — earn 2% on every transaction by your referred developer</span>
+                  <span aria-hidden className="transition-transform group-hover:translate-x-0.5">→</span>
+                </Link>
+              </Reveal>
+            )}
             <Reveal delay={0.1}>
-              <h1 className="font-display text-4xl font-medium leading-[1.02] tracking-tight text-white sm:text-5xl md:text-6xl xl:text-7xl">
-                The <span className="text-gradient-trust">Intelligence Layer</span><br />
+              <h1 className="homepage-hero-title font-display font-medium tracking-tight text-white">
+                The <span className="text-gradient-trust">Intelligence</span> Layer<br />
                 for Indian Real Estate.
               </h1>
             </Reveal>
             <Reveal delay={0.25}>
-              <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-200/85 md:text-lg">
+              <p className="homepage-hero-copy-text mt-4 max-w-[520px] text-base leading-relaxed text-slate-200/90 md:text-[17px]">
                 Truvi turns property records, legal signals, geospatial data and market behaviour into
                 one answer: should you buy, and at what price.
               </p>
             </Reveal>
             <Reveal delay={0.4}>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 <GlowButton to="/inventory">Explore Projects</GlowButton>
                 <button
                   type="button"
@@ -986,14 +1022,9 @@ export default function LandingPage() {
             </Reveal>
           </div>
 
-          <div className="w-full max-w-2xl lg:pt-20">
+          <div className="homepage-hero-demo">
             <Reveal delay={0.2}>
               <HeroAskDemo s={showcase} />
-            </Reveal>
-            <Reveal delay={0.35}>
-              <div className="mt-4 flex justify-end">
-                <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
-              </div>
             </Reveal>
           </div>
         </div>
@@ -1003,7 +1034,7 @@ export default function LandingPage() {
       <HomepageFeatureBand />
 
       {/* ---------- LIVE PLATFORM STATS ---------- */}
-      <LiveStatsBand />
+      <LiveStatsBand stats={publicStats} />
 
       {/* ---------- LIVE VERIFIED PROJECTS ---------- */}
       <LiveProjectsShowcase />
