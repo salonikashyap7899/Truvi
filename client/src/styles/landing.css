@@ -149,22 +149,55 @@
   background: #071321;
 }
 
+.landing-page-backdrop__side-fill {
+  display: none;
+}
+
 .landing-page-backdrop__image {
   position: absolute;
   inset: 0;
   z-index: 1;
   overflow: hidden;
   pointer-events: none;
-  background-image: url("/images/layered-skyline-at-twilight.png");
+  background-image: url("/images/layered-skyline-at-twilight.webp");
   background-position: center 56%;
   background-repeat: no-repeat;
   background-size: cover;
 }
 
+@media (min-width: 1024px) {
+  .landing-page-backdrop__side-fill {
+    display: block;
+    position: absolute;
+    inset: -52px;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(7, 19, 33, 0.58) 0%, rgba(7, 19, 33, 0.14) 28%, rgba(7, 19, 33, 0.14) 72%, rgba(7, 19, 33, 0.58) 100%),
+      url("/images/layered-skyline-desktop.webp") center / cover no-repeat;
+    filter: blur(24px) brightness(0.68) saturate(1.02);
+    opacity: 0.86;
+  }
+
+  .landing-page-backdrop__image {
+    z-index: 2;
+    background-image: url("/images/layered-skyline-desktop.webp");
+    background-position: center;
+    background-size: contain;
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .landing-page-backdrop__side-fill {
+    transform: translate3d(0, var(--parallax-y, 0px), 0);
+    will-change: transform;
+  }
+}
+
 .landing-page-backdrop__veil {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
   background:
     linear-gradient(90deg, rgba(3, 10, 21, 0.34) 0%, rgba(3, 10, 21, 0.2) 52%, rgba(3, 10, 21, 0.34) 100%),

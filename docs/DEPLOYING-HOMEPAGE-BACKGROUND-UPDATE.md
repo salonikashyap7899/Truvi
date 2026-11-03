@@ -1,6 +1,6 @@
 # Deploying the Homepage Background Update
 
-This update changes only the client homepage, its CSS veil, and one static image. No API, database, or environment-variable changes are required.
+This update changes only the client homepage, its CSS veil/parallax behavior, and static image assets. No API, database, or environment-variable changes are required.
 
 The image is referenced by a same-origin URL and bundled from `client/public/images/`. Do not add a secret or environment variable for this background.
 
@@ -14,11 +14,11 @@ npm ci
 npm run build
 ```
 
-The build should finish successfully. The supplied skyline PNG is under `client/public/images/` and is copied into `client/dist/images/` unchanged during the build.
+The build should finish successfully. The full 797 × 1974 portrait is delivered as `client/public/images/layered-skyline-at-twilight.webp` (about 584 KB). Desktop uses the 797 × 448 landscape crop `client/public/images/layered-skyline-desktop.webp` (about 160 KB), contained without further cropping; a blurred copy fills any space around it. Mobile continues to use the full portrait. A small parallax moves only the desktop fill and is disabled when the visitor requests reduced motion. Vite copies both assets into `client/dist/images/`.
 
 ## Vercel / static frontend deployment
 
-1. Review and commit the homepage changes: `client/src/pages/LandingPage.tsx`, `client/src/styles/landing.css`, and `client/public/images/layered-skyline-at-twilight.png`.
+1. Review and commit the homepage changes: `client/src/pages/LandingPage.tsx`, `client/src/styles/landing.css`, and both WebP files in `client/public/images/`.
 2. Push or merge the commit to the branch configured for the existing frontend deployment (normally `main`).
 3. If configuring the Vercel project for the first time, use `client` as the Root Directory, `npm run build` as the Build Command, and `dist` as the Output Directory. The SPA rewrite is already defined in `client/vercel.json`.
 4. Wait for the hosting provider's build and deployment to succeed, then hard-refresh the homepage and check desktop, mobile, and tablet layouts.
