@@ -14,7 +14,7 @@ npm ci
 npm run build
 ```
 
-The build should finish successfully. The full 797 × 1974 portrait is delivered as `client/public/images/layered-skyline-at-twilight.webp` (about 584 KB). Desktop uses the 797 × 448 landscape crop `client/public/images/layered-skyline-desktop.webp` (about 160 KB), contained without further cropping; a blurred copy fills any space around it. Mobile continues to use the full portrait. A small parallax moves only the desktop fill and is disabled when the visitor requests reduced motion. Vite copies both assets into `client/dist/images/`.
+The build should finish successfully. The restored residential-development portrait is `client/public/images/truvi-homepage-backdrop.webp` (828 × 2048, about 256 KB). Desktop uses its 828 × 466 landscape crop, `client/public/images/truvi-homepage-backdrop-desktop.webp` (about 207 KB), contained without further cropping; a blurred copy fills the sides. Mobile and tablet use the complete portrait. A small parallax moves only the desktop fill and is disabled when the visitor requests reduced motion. Vite copies both assets into `client/dist/images/`.
 
 ## Vercel / static frontend deployment
 
