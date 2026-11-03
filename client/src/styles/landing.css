@@ -149,18 +149,16 @@
   background: #071321;
 }
 
-.city-canvas-layer {
+.landing-page-backdrop__image {
   position: absolute;
   inset: 0;
   z-index: 1;
   overflow: hidden;
-  pointer-events: auto;
-}
-
-.city-canvas-layer canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
+  pointer-events: none;
+  background-image: url("/images/layered-skyline-at-twilight.png");
+  background-position: center 56%;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .landing-page-backdrop__veil {
@@ -169,15 +167,15 @@
   z-index: 2;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.2) 0%, rgba(3, 10, 21, 0.08) 52%, rgba(3, 10, 21, 0.2) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.16) 0%, rgba(3, 9, 19, 0.24) 58%, rgba(3, 9, 19, 0.4) 100%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.34) 0%, rgba(3, 10, 21, 0.2) 52%, rgba(3, 10, 21, 0.34) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.32) 0%, rgba(3, 9, 19, 0.42) 58%, rgba(3, 9, 19, 0.56) 100%);
 }
 
 @media (max-width: 767px) {
   .landing-page-backdrop__veil {
     background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.26), rgba(3, 10, 21, 0.2)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.18), rgba(3, 9, 19, 0.42));
+      linear-gradient(90deg, rgba(3, 10, 21, 0.36), rgba(3, 10, 21, 0.28)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.36), rgba(3, 9, 19, 0.54));
   }
 }
 
@@ -383,10 +381,12 @@
   font-size: clamp(2.45rem, 3.8vw, 3.1rem);
   line-height: 1.035;
   letter-spacing: -0.035em;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .homepage-hero-copy-text {
   max-width: 520px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.78);
 }
 
 .homepage-hero-demo {

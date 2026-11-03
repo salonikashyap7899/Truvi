@@ -9,7 +9,6 @@ import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
-import { CityCanvas } from "@/components/landing/CityCanvas";
 
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
@@ -935,7 +934,7 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <div className="landing-page-backdrop" aria-hidden="true">
-        <CityCanvas />
+        <div className="landing-page-backdrop__image" />
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
