@@ -938,7 +938,7 @@ export default function LandingPage() {
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
-      <SiteNav />
+      <SiteNav transparent />
 
       <main id="main-content" className="relative z-10">
       {/* ---------- 1 · HERO ---------- */}
