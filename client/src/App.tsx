@@ -164,8 +164,8 @@ function Ambience() {
 
   // Keep decorative WebGL off touch screens and operational/data-heavy pages.
   // Those pages prioritise input latency, scrolling, tables, maps and forms over
-  // an animated background. The richer CityCanvas remains exclusive to the
-  // landing page; lightweight public/informational pages retain the ambience.
+  // an animated background. The landing page uses a static cityscape backdrop;
+  // lightweight public/informational pages retain the ambience.
   const operationalRoute =
     /^\/(admin|founder|employee|cp|developer|buyer|ambassador|habitat|crm|marketing|vault|inventory|map|projects)(\/|$)/.test(pathname) ||
     [
