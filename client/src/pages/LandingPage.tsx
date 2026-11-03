@@ -27,7 +27,7 @@ function HomepageScrollBackdrop() {
   return (
     <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
       <img
-        src="/media/truvi-homepage-backdrop.png"
+        src="/media/truvi_ventures_homepage_bg_8k_tall.jpg"
         alt=""
         loading="eager"
         decoding="async"
@@ -812,25 +812,6 @@ function publicNetworkTiles(stats: PublicStats) {
   ].filter((tile) => tile.value > 0);
 }
 
-function HomepageTopStats({ stats }: { stats: PublicStats | null }) {
-  if (!stats) return null;
-  const tiles = publicNetworkTiles(stats);
-  if (tiles.length === 0) return null;
-
-  return (
-    <div className="homepage-top-stats" aria-label="Live Truvi network statistics">
-      {tiles.map((tile) => (
-        <div className="homepage-top-stat" key={tile.label}>
-          <span className="font-display text-xl font-semibold text-white">
-            <CountUpNum target={tile.value} />{tile.suffix}
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.16em] text-slate-300">{tile.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function LiveStatsBand({ stats }: { stats: PublicStats | null }) {
   if (!stats) return null;
   const tiles = publicNetworkTiles(stats);
@@ -980,7 +961,6 @@ export default function LandingPage() {
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
       <Section className="homepage-hero-section text-left">
-        <HomepageTopStats stats={publicStats} />
         <div className="homepage-hero-inner mx-auto w-full max-w-5xl">
           <div className="homepage-hero-copy max-w-[590px]">
             {showEnrollBanner && (

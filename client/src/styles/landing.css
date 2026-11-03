@@ -163,9 +163,9 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.78) 0%, rgba(4, 12, 23, 0.48) 42%, rgba(4, 12, 23, 0.22) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.36) 0%, rgba(3, 9, 19, 0.10) 36%, rgba(3, 9, 19, 0.70) 100%),
-    radial-gradient(ellipse at 62% 36%, rgba(37, 99, 148, 0.13), transparent 68%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.48) 0%, rgba(4, 12, 23, 0.20) 42%, rgba(4, 12, 23, 0.10) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.18) 0%, rgba(3, 9, 19, 0.04) 36%, rgba(3, 9, 19, 0.48) 100%),
+    radial-gradient(ellipse at 62% 36%, rgba(37, 99, 148, 0.08), transparent 68%);
 }
 
 @media (max-width: 767px) {
@@ -175,8 +175,8 @@
 
   .truvi-homepage-backdrop__veil {
     background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.62), rgba(3, 10, 21, 0.34)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.40), rgba(3, 9, 19, 0.68));
+      linear-gradient(90deg, rgba(3, 10, 21, 0.42), rgba(3, 10, 21, 0.18)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.22), rgba(3, 9, 19, 0.48));
   }
 }
 
@@ -368,26 +368,6 @@
   justify-content: flex-start !important;
   padding-top: 138px !important;
   padding-bottom: 14px !important;
-}
-
-.homepage-top-stats {
-  position: absolute;
-  top: 70px;
-  left: 50%;
-  display: grid;
-  width: min(700px, calc(100% - 32px));
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  transform: translateX(-50%);
-  text-align: center;
-}
-
-.homepage-top-stat {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
 }
 
 .homepage-hero-inner {
@@ -615,20 +595,6 @@
 
   .homepage-hero-section {
     padding-top: 142px !important;
-  }
-
-  .homepage-top-stats {
-    top: 75px;
-    width: calc(100% - 24px);
-  }
-
-  .homepage-top-stat > span:first-child {
-    font-size: 1.05rem;
-  }
-
-  .homepage-top-stat > span:last-child {
-    font-size: 0.52rem;
-    letter-spacing: 0.08em;
   }
 
   .homepage-hero-title {
