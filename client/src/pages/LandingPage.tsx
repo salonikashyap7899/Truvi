@@ -962,7 +962,7 @@ export default function LandingPage() {
             )}
             <Reveal delay={0.1}>
               <h1 className="homepage-hero-title font-display font-medium tracking-tight text-white">
-                The <span className="text-gradient-trust">Intelligence</span> Layer<br />
+                The <span className="homepage-intelligence-highlight">Intelligence</span> Layer<br />
                 for Indian Real Estate.
               </h1>
             </Reveal>

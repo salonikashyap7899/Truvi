@@ -688,3 +688,13 @@
   image-rendering: auto;
   filter: none;
 }
+
+
+/* Bright blue emphasis for the hero's Intelligence word only. */
+.landing-page .homepage-intelligence-highlight {
+  background-image: linear-gradient(105deg, #d8efff 0%, #78c6ff 42%, #4b9dff 72%, #9bb8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
