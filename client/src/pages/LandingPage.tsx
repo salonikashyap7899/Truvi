@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { ShieldCheck, BarChart3, MapPin, TrendingUp } from "lucide-react";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
@@ -9,52 +10,28 @@ import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
 
-const CityCanvas = lazy(() =>
-  import("@/components/landing/CityCanvas").then((m) => ({ default: m.CityCanvas })),
-);
-
-/**
- * Restore the original scroll-aware 3D city backdrop, loaded after the page
- * has settled to protect the homepage's first paint.
- */
-function useDeferredBackground() {
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    const idleWindow = window as IdleWindow;
-    let delayId: number | undefined;
-    let idleId: number | undefined;
-
-    const startDelay = () => {
-      delayId = window.setTimeout(() => {
-        if (idleWindow.requestIdleCallback) {
-          idleId = idleWindow.requestIdleCallback(() => setReady(true), { timeout: 3000 });
-        } else {
-          setReady(true);
-        }
-      }, 8000);
-    };
-
-    if (document.readyState === "complete") startDelay();
-    else window.addEventListener("load", startDelay, { once: true });
-
-    return () => {
-      window.removeEventListener("load", startDelay);
-      if (delayId !== undefined) window.clearTimeout(delayId);
-      if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
-    };
-  }, []);
-
-  return ready;
-}
-
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
   window.dispatchEvent(new Event("open-ask-truvi"));
+}
+
+/**
+ * The clean 8K architectural masterplan artwork spans the whole public homepage.
+ * All text, cards, stats, project listings and actions remain live website UI.
+ */
+function HomepageScrollBackdrop() {
+  return (
+    <div className="truvi-homepage-backdrop" data-truvi-homepage-backdrop aria-hidden="true">
+      <img
+        src="/media/truvi-homepage-backdrop.png"
+        alt=""
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+      />
+      <div className="truvi-homepage-backdrop__veil" />
+    </div>
+  );
 }
 
 function Reveal({ children }: { children: ReactNode; delay?: number }) {
@@ -761,6 +738,51 @@ function CountUpNum({ target }: { target: number }) {
   return <>{n.toLocaleString("en-IN")}</>;
 }
 
+const HOMEPAGE_FEATURES = [
+  {
+    title: "Verified Projects",
+    description: "Developer-registered listings with clear project details.",
+    Icon: ShieldCheck,
+  },
+  {
+    title: "Market Intelligence",
+    description: "Data-backed context for pricing and market decisions.",
+    Icon: BarChart3,
+  },
+  {
+    title: "Geo-Analysis",
+    description: "Location, connectivity and infrastructure insights.",
+    Icon: MapPin,
+  },
+  {
+    title: "Investment Guidance",
+    description: "Compare opportunities across plots, villas and projects.",
+    Icon: TrendingUp,
+  },
+];
+
+function HomepageFeatureBand() {
+  return (
+    <Section className="!py-5 md:!py-7">
+      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {HOMEPAGE_FEATURES.map(({ title, description, Icon }, index) => (
+          <Reveal key={title} delay={index * 0.06}>
+            <article className="homepage-feature-card glass flex h-full items-center gap-4 rounded-2xl p-5">
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-sky-300/20 bg-sky-400/10 text-sky-200">
+                <Icon size={23} strokeWidth={1.7} aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-display text-base font-semibold text-white">{title}</span>
+                <span className="mt-1 block text-xs leading-relaxed text-slate-300">{description}</span>
+              </span>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 function LiveStatsBand() {
   const [stats, setStats] = useState<PublicStats | null>(null);
   useEffect(() => { api.get("/public/stats").then((r) => setStats(r.data)).catch(() => {}); }, []);
@@ -779,9 +801,9 @@ function LiveStatsBand() {
   return (
     <Section className="py-14">
       <Reveal>
-        <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-4 rounded-3xl glass p-6 sm:grid-cols-3 md:grid-cols-5 md:p-8">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-3 divide-x divide-white/10 overflow-hidden rounded-3xl glass px-3 py-6 sm:px-6 md:px-8 md:py-8">
           {tiles.map((t, i) => (
-            <div key={t.label} className="tv-fade-up text-center" style={{ animationDelay: `${i * 70}ms` }}>
+            <div key={t.label} className="tv-fade-up px-2 text-center sm:px-4" style={{ animationDelay: `${i * 70}ms` }}>
               <div className="font-display text-2xl font-semibold text-gradient-trust sm:text-3xl">
                 <CountUpNum target={t.value} />{t.suffix}
               </div>
@@ -808,23 +830,34 @@ function LiveProjectsShowcase() {
   if (!items || items.length === 0) return null; // hidden until the first project is live
 
   return (
-    <Section id="verified-projects">
-      <Reveal delay={0.1}>
-        <h2 className="max-w-3xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
-          Verified projects, <span className="text-gradient-trust">straight from developers.</span>
-        </h2>
-      </Reveal>
-      <Reveal delay={0.2}>
-        <p className="mt-4 max-w-2xl text-muted-foreground md:text-lg">
-          Every listing below was registered by a developer and appears here the moment it's approved —
-          real inventory, real photos, verified by Truvi.
-        </p>
-      </Reveal>
+    <Section id="verified-projects" className="!py-16 md:!py-20">
+      <div className="grid w-full items-center gap-8 lg:grid-cols-[minmax(220px,0.78fr)_minmax(0,2.22fr)] xl:gap-10">
+        <div className="max-w-sm">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-200/80">
+            Explore our
+          </p>
+          <Reveal delay={0.1}>
+            <h2 className="font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
+              Verified <span className="text-gradient-trust">Projects</span>
+            </h2>
+          </Reveal>
+          <Reveal delay={0.2}>
+            <p className="mt-4 text-sm leading-relaxed text-slate-300 md:text-base">
+              Every listing below was registered by a developer and appears here the moment it's approved —
+              real inventory, real photos, verified by Truvi.
+            </p>
+          </Reveal>
+          <Reveal delay={0.25}>
+            <div className="mt-7">
+              <GlowButton to="/inventory">View All Projects</GlowButton>
+            </div>
+          </Reveal>
+        </div>
 
-      <div className="mt-12 grid w-full gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((p, i) => (
           <Reveal key={p._id} delay={i * 0.06}>
-            <Link to={`/inventory/${p._id}/presentation`} className="group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
+            <Link to={`/inventory/${p._id}/presentation`} className="homepage-project-card group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
               <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-600/25 via-sky-600/15 to-transparent">
                 {p.coverImageUrl ? (
                   <img src={p.coverImageUrl} alt={p.name} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -851,12 +884,8 @@ function LiveProjectsShowcase() {
           </Reveal>
         ))}
       </div>
-
-      <Reveal delay={0.2}>
-        <div className="mt-10">
-          <GlowButton to="/inventory">Explore all projects</GlowButton>
         </div>
-      </Reveal>
+      </div>
     </Section>
   );
 }
@@ -864,17 +893,6 @@ function LiveProjectsShowcase() {
 /* ================= Landing page ================= */
 
 export default function LandingPage() {
-  const backgroundReady = useDeferredBackground();
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
-  );
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!query) return;
-    const update = () => setPrefersReducedMotion(query.matches);
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
-  }, []);
   const showcase = useShowcase();
   const { hash } = useLocation();
   // The "Enroll a Developer — earn 2%" banner shows to every signed-in user
@@ -913,17 +931,16 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <CursorGlow />
+      <HomepageScrollBackdrop />
       <SiteNav />
-      <Suspense fallback={null}>{backgroundReady && !prefersReducedMotion ? <CityCanvas /> : null}</Suspense>
 
       <main id="main-content" className="relative z-10">
       {/* ---------- 1 · HERO ---------- */}
       {/* !justify-start: the hero is taller than one screen, so vertical
           centering would push its top underneath the fixed navbar. */}
-      <Section className="items-center !justify-start min-h-screen pb-16 pt-32 text-center md:pt-36">
-        <div className="relative z-10 flex w-full flex-col items-center">
-        {/* Cloud-style CTA banner — enroll a developer, earn 2% on every txn.
-            Shown to every signed-in user except Admin/Founder. */}
+      <Section className="items-center !justify-center min-h-screen pb-16 pt-32 text-left md:pt-40">
+        <div className="mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[1.03fr_0.97fr] xl:gap-14">
+          <div className="max-w-2xl">
         {showEnrollBanner && (
           <Reveal>
             <Link
@@ -936,32 +953,49 @@ export default function LandingPage() {
             </Link>
           </Reveal>
         )}
-        <Reveal delay={0.1}>
-          <h1 className="font-display text-3xl font-medium leading-[1.08] tracking-tight text-gradient-aurora sm:text-4xl md:text-5xl">
-            The Intelligence Layer<br />for Indian Real Estate.
-          </h1>
-        </Reveal>
-        <Reveal delay={0.3}>
-          <p className="mx-auto mt-8 max-w-2xl text-base text-muted-foreground md:text-lg">
-            Truvi turns property records, legal signals, geospatial data and market behaviour into
-            one answer: should you buy, and at what price.
-          </p>
-        </Reveal>
-        <Reveal delay={0.45}>
-          <div className="mt-10 w-full">
-            <HeroAskDemo s={showcase} />
+            <Reveal delay={0.1}>
+              <h1 className="font-display text-4xl font-medium leading-[1.02] tracking-tight text-white sm:text-5xl md:text-6xl xl:text-7xl">
+                The <span className="text-gradient-trust">Intelligence Layer</span><br />
+                for Indian Real Estate.
+              </h1>
+            </Reveal>
+            <Reveal delay={0.25}>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-200/85 md:text-lg">
+                Truvi turns property records, legal signals, geospatial data and market behaviour into
+                one answer: should you buy, and at what price.
+              </p>
+            </Reveal>
+            <Reveal delay={0.4}>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <GlowButton to="/inventory">Explore Projects</GlowButton>
+                <GlowButton variant="ghost" onClick={openAskTruvi}>Ask Truvi</GlowButton>
+              </div>
+            </Reveal>
           </div>
-        </Reveal>
-        <Reveal delay={0.6}>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+
+          <div className="w-full max-w-2xl lg:pt-20">
+            <Reveal delay={0.2}>
+              <HeroAskDemo s={showcase} />
+            </Reveal>
+            <Reveal delay={0.35}>
+              <div className="mt-4 flex justify-end">
+                <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+              </div>
+            </Reveal>
           </div>
-        </Reveal>
         </div>
       </Section>
 
-      {/* ---------- 1a2 · BRAND MOTION INTRO ---------- */}
+      {/* ---------- REFERENCE-STYLE CAPABILITIES ---------- */}
+      <HomepageFeatureBand />
+
+      {/* ---------- LIVE PLATFORM STATS ---------- */}
+      <LiveStatsBand />
+
+      {/* ---------- LIVE VERIFIED PROJECTS ---------- */}
+      <LiveProjectsShowcase />
+
+      {/* Original brand motion intro retained below the project showcase. */}
       <VideoBand
         srcMp4="/media/intro.mp4"
         poster="/media/intro-poster.jpg"
@@ -969,12 +1003,6 @@ export default function LandingPage() {
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
         muted={false}
       />
-
-      {/* ---------- 1b · LIVE PLATFORM STATS ---------- */}
-      <LiveStatsBand />
-
-      {/* ---------- 1c · LIVE PROJECT SHOWCASE (self-populating) ---------- */}
-      <LiveProjectsShowcase />
 
       <>
       {/* ---------- 2 · THE PROBLEM ---------- */}

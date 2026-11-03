@@ -141,7 +141,7 @@
 }
 
 .truvi-homepage-backdrop {
-  /* Static background layer spanning the complete homepage. */
+  /* One architectural masterplan backdrop spans the complete homepage. */
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -155,9 +155,8 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  /* Preserve the source image proportions; never stretch or animate it. */
   object-fit: cover;
-  object-position: center center;
+  object-position: center top;
 }
 
 .truvi-homepage-backdrop__veil {
@@ -182,3 +181,46 @@
 }
 
 
+
+/* Deep navy glass styling, limited to the public homepage. */
+.landing-page .glass {
+  background-color: rgba(5, 18, 34, 0.76);
+  border-color: rgba(142, 194, 231, 0.18);
+  box-shadow: 0 22px 70px -38px rgba(0, 0, 0, 0.92);
+  -webkit-backdrop-filter: blur(18px) saturate(138%);
+  backdrop-filter: blur(18px) saturate(138%);
+}
+
+.homepage-feature-card {
+  min-height: 112px;
+  border: 1px solid rgba(125, 183, 224, 0.18);
+  transition: transform 240ms ease, border-color 240ms ease, background-color 240ms ease;
+}
+
+.homepage-feature-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(121, 190, 239, 0.42);
+  background-color: rgba(8, 29, 51, 0.88);
+}
+
+.homepage-project-card {
+  border: 1px solid rgba(125, 183, 224, 0.18);
+  transition: transform 240ms ease, border-color 240ms ease, box-shadow 240ms ease;
+}
+
+.homepage-project-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(121, 190, 239, 0.44);
+  box-shadow: 0 24px 60px -34px rgba(23, 126, 220, 0.48);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homepage-feature-card,
+  .homepage-project-card {
+    transition: none;
+  }
+  .homepage-feature-card:hover,
+  .homepage-project-card:hover {
+    transform: none;
+  }
+}
