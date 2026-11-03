@@ -884,7 +884,6 @@ function LiveProjectsShowcase() {
           </Reveal>
         ))}
       </div>
-        </div>
       </div>
     </Section>
   );
