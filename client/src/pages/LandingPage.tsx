@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, BarChart3, MapPin, TrendingUp } from "lucide-react";
+import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
 import { VideoBand } from "@/components/landing/VideoBand";
@@ -13,6 +13,10 @@ import type { Project } from "@/types";
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
   window.dispatchEvent(new Event("open-ask-truvi"));
+}
+
+function scrollToHomepageDemo() {
+  document.getElementById("homepage-demo")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /**
@@ -843,6 +847,9 @@ function LiveProjectsShowcase() {
           </Reveal>
           <Reveal delay={0.2}>
             <p className="mt-4 text-sm leading-relaxed text-slate-300 md:text-base">
+              Discover handpicked residential plots, villas and premium projects across India.
+            </p>
+            <p className="mt-3 text-xs leading-relaxed text-slate-400">
               Every listing below was registered by a developer and appears here the moment it's approved —
               real inventory, real photos, verified by Truvi.
             </p>
@@ -854,7 +861,7 @@ function LiveProjectsShowcase() {
           </Reveal>
         </div>
 
-        <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="homepage-projects-track w-full">
         {items.map((p, i) => (
           <Reveal key={p._id} delay={i * 0.06}>
             <Link to={`/inventory/${p._id}/presentation`} className="homepage-project-card group block h-full overflow-hidden rounded-2xl glass transition hover:border-white/20">
@@ -967,7 +974,14 @@ export default function LandingPage() {
             <Reveal delay={0.4}>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <GlowButton to="/inventory">Explore Projects</GlowButton>
-                <GlowButton variant="ghost" onClick={openAskTruvi}>Ask Truvi</GlowButton>
+                <button
+                  type="button"
+                  onClick={scrollToHomepageDemo}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:border-sky-300/55 hover:bg-sky-400/10"
+                >
+                  <PlayCircle size={18} className="text-sky-200" aria-hidden="true" />
+                  Watch Demo
+                </button>
               </div>
             </Reveal>
           </div>
@@ -994,7 +1008,23 @@ export default function LandingPage() {
       {/* ---------- LIVE VERIFIED PROJECTS ---------- */}
       <LiveProjectsShowcase />
 
+      {/* ---------- REAL ESTATE ECOSYSTEM ---------- */}
+      <Section className="!py-5 md:!py-8">
+        <div className="homepage-ecosystem-strip">
+          <div className="shrink-0">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Built for India's</p>
+            <p className="font-display text-xl font-semibold text-sky-200">Real Estate Ecosystem</p>
+          </div>
+          <div className="homepage-ecosystem-labels">
+            {["Developers", "Builders", "Channel Partners", "Investors", "Home Buyers", "Banks & NBFCs"].map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* Original brand motion intro retained below the project showcase. */}
+      <div id="homepage-demo" className="relative z-10">
       <VideoBand
         srcMp4="/media/intro.mp4"
         poster="/media/intro-poster.jpg"
@@ -1002,6 +1032,7 @@ export default function LandingPage() {
         subtitle="Know the property before you buy it — a complete real estate smart intelligence platform."
         muted={false}
       />
+      </div>
 
       <>
       {/* ---------- 2 · THE PROBLEM ---------- */}
@@ -1475,19 +1506,27 @@ export default function LandingPage() {
       </>
 
       {/* ---------- FINAL CTA ---------- */}
-      <Section id="join" className="items-center pb-32 text-center">
-        <Reveal>
-          <h2 className="font-display text-4xl font-medium leading-[1.0] sm:text-5xl md:text-7xl lg:text-8xl">
-            Don't search for property.<br />
-            <span className="text-gradient-aurora">Understand it.</span>
-          </h2>
-        </Reveal>
-        <Reveal delay={0.4}>
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-            <GlowButton onClick={openAskTruvi}>Ask Truvi</GlowButton>
-            <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+      <Section id="join" className="items-center pb-32 text-left">
+        <div className="homepage-closing-cta w-full">
+          <div className="homepage-closing-cta__content">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-200/85">The Truvi advantage</p>
+            <h2 className="mt-3 max-w-2xl font-display text-3xl font-semibold leading-[1.04] text-white sm:text-4xl md:text-5xl">
+              Smarter Real Estate Decisions.<br />
+              <span className="text-gradient-trust">Powered by Truvi.</span>
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-slate-200/85 md:text-base">
+              One intelligence platform for residential plots, villas, apartments and projects across India.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <GlowButton to="/signup">Get Started</GlowButton>
+              <GlowButton variant="ghost" onClick={openAskTruvi}>Ask Truvi</GlowButton>
+              <GlowButton variant="ghost" to="/inventory">Analyse a Property</GlowButton>
+            </div>
+            <p className="mt-8 border-t border-white/15 pt-5 text-sm text-slate-300">
+              Don't search for property. <span className="font-semibold text-white">Understand it.</span>
+            </p>
           </div>
-        </Reveal>
+        </div>
       </Section>
 
       </main>

@@ -224,3 +224,127 @@
     transform: none;
   }
 }
+
+
+/* Reference-inspired homepage refinements — all content and controls stay live. */
+.homepage-projects-track {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.25rem 1rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(130, 190, 232, 0.4) transparent;
+}
+
+.homepage-projects-track > div {
+  flex: 0 0 calc((100% - 2rem) / 3);
+  min-width: 250px;
+  scroll-snap-align: start;
+}
+
+.homepage-projects-track::-webkit-scrollbar {
+  height: 5px;
+}
+
+.homepage-projects-track::-webkit-scrollbar-thumb {
+  background: rgba(130, 190, 232, 0.32);
+  border-radius: 999px;
+}
+
+.homepage-ecosystem-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  border-top: 1px solid rgba(151, 192, 224, 0.18);
+  border-bottom: 1px solid rgba(151, 192, 224, 0.18);
+  padding: 1.35rem 0;
+}
+
+.homepage-ecosystem-labels {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.homepage-ecosystem-labels span {
+  padding: 0.55rem 1.05rem;
+  border-left: 1px solid rgba(151, 192, 224, 0.2);
+  color: rgba(231, 239, 249, 0.82);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+.homepage-closing-cta {
+  position: relative;
+  isolation: isolate;
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid rgba(140, 193, 232, 0.3);
+  border-radius: 30px;
+  background-color: #071b31;
+  background-image:
+    linear-gradient(90deg, rgba(3, 13, 28, 0.98) 0%, rgba(4, 17, 34, 0.88) 42%, rgba(4, 17, 34, 0.26) 100%),
+    linear-gradient(180deg, rgba(4, 12, 23, 0.06), rgba(4, 12, 23, 0.5)),
+    url("/media/truvi-homepage-backdrop.png");
+  background-size: cover;
+  background-position: 58% 58%;
+  box-shadow: 0 25px 80px -42px rgba(0, 0, 0, 0.9);
+}
+
+.homepage-closing-cta__content {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.homepage-feature-card {
+  background-color: rgba(5, 20, 38, 0.8);
+}
+
+.homepage-project-card {
+  background-color: rgba(5, 20, 38, 0.8);
+}
+
+@media (max-width: 1023px) {
+  .homepage-projects-track > div {
+    flex-basis: calc((100% - 1rem) / 2);
+  }
+}
+
+@media (max-width: 767px) {
+  .homepage-projects-track > div {
+    flex-basis: 86%;
+    min-width: 0;
+  }
+
+  .homepage-ecosystem-strip {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .homepage-ecosystem-labels {
+    justify-content: flex-start;
+  }
+
+  .homepage-ecosystem-labels span {
+    border-left: 0;
+    border-right: 1px solid rgba(151, 192, 224, 0.2);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .homepage-closing-cta {
+    min-height: 0;
+    border-radius: 22px;
+    background-position: 58% center;
+  }
+}
