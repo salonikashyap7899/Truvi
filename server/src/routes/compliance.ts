@@ -467,9 +467,13 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
     email: users.email,
     emailVerified: users.emailVerified,
   }).from(users).where(eq(users._id, userId)).limit(1);
-  const safeName = String(requester?.name || "there").replace(/[&<>"']/g, (ch) => ({
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[ch]!));
+  const safeName = escapeHtml(String(requester?.name || "there"));
+  const safeSubject = escapeHtml(ticket.subject);
+  const safeDescription = escapeHtml(ticket.description).replace(/\\r?\\n/g, "<br />");
+  const safeCategory = escapeHtml(ticket.category.replace(/_/g, " "));
 
   await Promise.all([
     requester?.emailVerified && requester.email
@@ -481,7 +485,11 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
             <p>Hello ${safeName},</p>
             <p>Your grievance has been registered with Truvi.</p>
             <p><strong>Case number: ${ticket.caseNumber}</strong></p>
-            <p>You can track the status and customer-visible updates in Privacy &amp; Support Centre after signing in.</p>
+            <p><strong>Copy of the complaint recorded at intake</strong></p>
+            <p><strong>Category:</strong> ${safeCategory}</p>
+            <p><strong>Subject:</strong> ${safeSubject}</p>
+            <div style="white-space:normal;border-left:3px solid #cbd5e1;padding:8px 12px;margin:12px 0">${safeDescription}</div>
+            <p>You can track the status and customer-visible updates in Privacy &amp; Support Centre after signing in. Contact Truvi if the copy above does not accurately reflect what you submitted.</p>
             <p>Our service target is to acknowledge complaints within 48 hours and resolve them within one month, subject to any different statutory deadline that applies.</p>
             <p>For follow-up, reply to this email or contact info@truviventures.com. Never send passwords, OTPs or payment authentication details.</p>
           </div>`,
