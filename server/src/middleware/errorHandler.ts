@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { PaymentsUnavailableError } from "../services/paymentService";
+import * as Sentry from "@sentry/node";
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   const requestId = String(res.locals.requestId || "unknown");
@@ -45,6 +46,13 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   }
 
   const error = err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+  Sentry.withScope((scope) => {
+    scope.setTag("request_id", requestId);
+    scope.setTag("http_method", req.method);
+    scope.setTag("http_status", "500");
+    scope.setExtra("route", req.route?.path ?? "unmatched");
+    Sentry.captureException(error);
+  });
   const isKycRequest = req.originalUrl.split("?")[0] === "/api/auth/submit-kyc";
   const errorCode = (error as Error & { code?: unknown }).code;
   console.error(JSON.stringify({
