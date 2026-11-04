@@ -165,34 +165,39 @@ export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
 export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
   const db = getDb();
   const role = p.role as Role;
-  const [user] = await db
-    .insert(users)
-    .values({
-      name: p.name,
-      email: p.email,
-      password: p.password,
-      phone: p.phone,
-      role,
-      approvalStatus: "APPROVED",
-      emailVerified: true,
-      phoneVerified: true,
-      ...(p.referredBy ? { referredBy: p.referredBy } : {}),
-      ...(role === "DEVELOPER" ? { developerProfile: { companyName: p.companyName ?? "", reraNumber: p.reraNumber ?? undefined } } : {}),
-      ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
-      ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
-      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
-    })
-    .returning();
-
-  // Store the policy versions acknowledged before account creation. These
-  // events are append-only evidence; optional marketing preference is separate.
-  const consentEvents = [
-    ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
-    ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
-    ...(p.marketingOptIn && p.marketingOptInAt ? [{ userId: user._id, policyType: "MARKETING" as const, policyVersion: CURRENT_POLICY_VERSIONS.MARKETING, action: "GRANTED" as const, source: "SIGNUP" as const, occurredAt: p.marketingOptInAt }] : []),
-  ];
-  if (consentEvents.length) await db.insert(userConsentEvents).values(consentEvents);
-  await db.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+  const user = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(users)
+      .values({
+        name: p.name,
+        email: p.email,
+        password: p.password,
+        phone: p.phone,
+        role,
+        approvalStatus: "APPROVED",
+        emailVerified: true,
+        phoneVerified: true,
+        ...(p.referredBy ? { referredBy: p.referredBy } : {}),
+        ...(role === "DEVELOPER" ? { developerProfile: { companyName: p.companyName ?? "", reraNumber: p.reraNumber ?? undefined } } : {}),
+        ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
+        ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
+        ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
+      })
+      .returning();
+  
+    // Store the policy versions acknowledged before account creation. These
+    // events are append-only evidence; optional marketing preference is separate.
+    const consentEvents = [
+      ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
+      ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
+      ...(p.marketingOptIn && p.marketingOptInAt ? [{ userId: user._id, policyType: "MARKETING" as const, policyVersion: CURRENT_POLICY_VERSIONS.MARKETING, action: "GRANTED" as const, source: "SIGNUP" as const, occurredAt: p.marketingOptInAt }] : []),
+    ];
+    if (consentEvents.length) await tx.insert(userConsentEvents).values(consentEvents);
+    await tx.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+    return user;
+  
+  
+  });
 
   // One-time WhatsApp welcome for a brand-new developer (dormant unless the
   // WhatsApp Business API is configured). Fire-and-forget — never blocks signup.
