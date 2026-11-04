@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/authStore";
 import { ShieldCheck, FileText, LifeBuoy, LockKeyhole, MessageSquareText, RefreshCw, Send, CheckCircle2, Clock3 } from "lucide-react";
 
 type ConsentEvent = { policyType: string; policyVersion: string; action: string; source: string; occurredAt: string };
@@ -16,6 +17,7 @@ type PrivacyData = {
   consentState: Record<string, { policyVersion: string; action: string; occurredAt: string }>;
   privacyRequests: PrivacyRequest[];
   grievances: Grievance[];
+  accountDeletion?: { status: string; otpExpiresAt?: string | null; requestedAt?: string | null } | null;
 };
 
 const panel = "rounded-2xl border border-white/10 bg-[#0d1420]/85 shadow-[0_18px_60px_rgba(0,0,0,0.18)]";
@@ -45,6 +47,12 @@ export default function PrivacyCenterPage() {
   const [grievanceDescription, setGrievanceDescription] = useState("");
   const [submittingPrivacy, setSubmittingPrivacy] = useState(false);
   const [submittingGrievance, setSubmittingGrievance] = useState(false);
+  const [deletionOtp, setDeletionOtp] = useState("");
+  const [deletionEmail, setDeletionEmail] = useState("");
+  const [deletionOtpSent, setDeletionOtpSent] = useState(false);
+  const [requestingDeletion, setRequestingDeletion] = useState(false);
+  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +120,37 @@ export default function PrivacyCenterPage() {
       setSubmittingGrievance(false);
     }
   }
+  async function requestAccountDeletion() {
+    setRequestingDeletion(true);
+    try {
+      const response = await api.post("/compliance/account-deletion/request", {});
+      setDeletionEmail(response.data.email ?? "");
+      setDeletionOtp("");
+      setDeletionOtpSent(true);
+      toast.success("A confirmation code has been sent to your verified email.");
+      await load();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setRequestingDeletion(false);
+    }
+  }
+
+  async function confirmAccountDeletion(event: React.FormEvent) {
+    event.preventDefault();
+    setConfirmingDeletion(true);
+    try {
+      const response = await api.post("/compliance/account-deletion/confirm", { otp: deletionOtp });
+      toast.success(response.data?.message ?? "Your account has been deactivated.");
+      useAuthStore.getState().clearAuth();
+      navigate("/", { replace: true });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setConfirmingDeletion(false);
+    }
+  }
+
 
   return (
     <main className="min-h-screen px-4 pb-20 pt-28 text-white sm:px-6">
@@ -317,6 +356,64 @@ export default function PrivacyCenterPage() {
                 ) : <p className="rounded-xl border border-dashed border-white/10 p-4 text-xs text-white/35">No grievances submitted yet.</p>}
               </div>
             </section>
+            <section className={panel + " mt-4 p-5 sm:p-6"}>
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-red-400/10 text-red-300"><LockKeyhole size={19} /></span>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-semibold text-red-100">Delete your Truvi account</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-white/50">
+                    We will send a one-time code to your verified email. After you confirm it, sign-in and existing sessions are disabled immediately.
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-white/45">
+                    You can restore your account using a single-use email link for 30 days. After that, the request moves to a review for deletion or anonymisation. Some transaction, payment, commission, KYC, tax, security and dispute records may need to be retained where lawfully required.
+                  </p>
+                  {data.accountDeletion?.status === "ERASURE_REVIEW" && (
+                    <p className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-100/80">
+                      Your recovery period has ended. Your account remains deactivated and is in Truvi's erasure/retention review queue.
+                    </p>
+                  )}
+                  {(deletionOtpSent || data.accountDeletion?.status === "OTP_SENT") ? (
+                    <form onSubmit={confirmAccountDeletion} className="mt-4 space-y-3">
+                      <p className="text-xs text-white/65">
+                        Enter the six-digit code sent to {deletionEmail || "your verified email address"}.
+                        {data.accountDeletion?.otpExpiresAt ? " Code expires " + dateLabel(data.accountDeletion.otpExpiresAt) + "." : " The code expires in 10 minutes."}
+                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          required
+                          value={deletionOtp}
+                          onChange={(e) => setDeletionOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          className={field + " sm:max-w-[220px]"}
+                          placeholder="6-digit email code"
+                        />
+                        <button type="submit" disabled={confirmingDeletion || deletionOtp.length !== 6} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50">
+                          {confirmingDeletion ? "Deactivating…" : "Confirm & deactivate"}
+                        </button>
+                      </div>
+                      <button type="button" onClick={() => { setDeletionOtpSent(false); setDeletionOtp(""); }} className="text-xs text-white/45 underline underline-offset-2 hover:text-white/70">
+                        Cancel this confirmation
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={() => void requestAccountDeletion()}
+                        disabled={requestingDeletion || data.accountDeletion?.status === "DEACTIVATED"}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/15 disabled:opacity-50"
+                      >
+                        {requestingDeletion ? "Sending code…" : "Request account deletion"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
             <p className="mt-6 text-center text-[11px] leading-relaxed text-white/30">
               Submitting an erasure request starts a review; it does not automatically delete records. Certain records may need to be retained where required by law, to complete a transaction, or to establish, exercise, or defend legal claims.
             </p>
