@@ -350,9 +350,13 @@ export function CpKycOnboarding() {
                 className="mt-0.5 size-4 shrink-0 accent-sky-400"
               />
               <span>
+                I voluntarily consent to Truvi collecting and processing this masked identity document,
+                PAN document/details where required, and selfie solely for manual onboarding and identity
+                review, with access limited to authorised reviewers as described in the Privacy Policy.
                 I confirm that the Aadhaar image is masked (first eight digits hidden), or this is another
-                identity document accepted by Truvi. I understand that Truvi reviews it manually and does
-                not perform UIDAI authentication or an automated government identity check.
+                identity document accepted by Truvi. I understand that Truvi does not perform UIDAI
+                authentication or an automated government identity check, and that I can contact Truvi
+                to ask about retention or an alternative document route.
               </span>
             </label>
           </div>
