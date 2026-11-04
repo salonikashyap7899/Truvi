@@ -12,6 +12,16 @@ function requireEnv(name: string): string {
 }
 
 export function getEnv() {
+  const gstCollectionEnabled = /^(1|true|yes|on)$/i.test(String(process.env.GST_COLLECTION_ENABLED ?? ""));
+  const gstin = String(process.env.GSTIN ?? "").trim().toUpperCase();
+  const configuredGstPercent = Number(process.env.GST_PERCENT ?? 0);
+  const gstinIsValid = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin);
+  // Fail closed: Truvi never adds GST unless the operator explicitly enables
+  // collection and supplies a syntactically valid GSTIN and a CA-approved rate.
+  const gstPercent = gstCollectionEnabled && gstinIsValid &&
+    Number.isFinite(configuredGstPercent) && configuredGstPercent > 0 && configuredGstPercent <= 100
+      ? configuredGstPercent
+      : 0;
   return {
     databaseUrl: process.env.DATABASE_URL || "",
     jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "",
@@ -47,13 +57,13 @@ export function getEnv() {
         record: /^(1|true|yes|on)$/i.test(String(process.env.EXOTEL_RECORD ?? "true")),
       },
     },
-    // GST added on top of every price. Configurable; India default is 18%.
-    // parseFloat tolerates values like "18%" or "18 " and we fall back to 18
-    // on anything non-numeric so a stray character can never make amounts NaN.
-    gstPercent: (() => {
-      const g = parseFloat(String(process.env.GST_PERCENT ?? "18"));
-      return Number.isFinite(g) ? g : 18;
-    })(),
+    // GST is not collected by default. Enable only after GST registration and
+    // CA-approved classification/rate: GST_COLLECTION_ENABLED=true, GSTIN=...,
+    // GST_PERCENT=... . Invalid/missing settings fail closed to zero here and
+    // are rejected at production startup when the collection flag is enabled.
+    gstCollectionEnabled: gstPercent > 0,
+    gstin: gstPercent > 0 ? gstin : "",
+    gstPercent,
     // ── Developer OS test access ─────────────────────────────────────────────
     // Unlock every paid developer tool for ALL developers (staging/test deploy).
     devUnlockAll: /^(1|true|yes|on)$/i.test(String(process.env.DEV_UNLOCK_ALL ?? "")),
