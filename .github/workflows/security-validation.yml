@@ -14,23 +14,25 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   automated-tests-and-dependency-audit:
     name: Typecheck, tests, builds, dependency audit
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           # Do not leave the write-capable token in .git/config while executing
           # package lifecycle scripts or other repository-controlled code.
           persist-credentials: false
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -71,22 +73,24 @@ jobs:
         if: always()
         working-directory: client
         run: npm audit --audit-level=moderate
-      - name: Refresh browser QA lockfile with compatible fixes
-        if: (github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit') || (github.event_name == 'push' && github.ref_name == 'fix/full-repo-payment-and-marketplace-audit')
+      - name: Regenerate browser QA lockfile from security overrides
+        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'compliance/2026-2027-foundation')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'compliance/2026-2027-foundation'))
         working-directory: truvi-tests
-        run: npm audit fix --package-lock-only --no-fund
+        run: npm install --package-lock-only --ignore-scripts --no-fund --no-audit
       - name: Install browser QA dependencies
         working-directory: truvi-tests
         run: npm ci
-      - name: Smoke-test browser QA tooling imports
+      - name: Smoke-test browser QA tooling imports and patched matcher
         working-directory: truvi-tests
-        run: node --input-type=module -e "await import('lighthouse'); await import('puppeteer-core'); await import('chromium-bidi');"
+        run: |
+          node --input-type=module -e "await import('lighthouse'); await import('puppeteer-core'); await import('chromium-bidi'); await import('linkinator');"
+          node --input-type=module -e "import { glob } from 'glob'; const matches = await glob('*.json', { cwd: '.', withFileTypes: false }); if (!Array.isArray(matches)) process.exit(1); console.log('glob matcher smoke test passed');"
       - name: Audit browser QA dependencies
         if: always()
         working-directory: truvi-tests
         run: npm audit --audit-level=moderate
       - name: Commit refreshed browser QA lockfile
-        if: always() && ((github.event_name == 'pull_request' && github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref_name == 'fix/full-repo-payment-and-marketplace-audit'))
+        if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'compliance/2026-2027-foundation') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'compliance/2026-2027-foundation')))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -112,17 +116,25 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           build-mode: none
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
+      - name: Analyze and save SARIF (GitHub Code Scanning upload is not enabled)
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
+          output: codeql-results
+          upload: never
+      - name: Preserve CodeQL SARIF results as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: codeql-sarif-${{ github.sha }}
+          path: codeql-results/*.sarif
+          if-no-files-found: error
+          retention-days: 14
