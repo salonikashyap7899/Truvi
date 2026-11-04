@@ -10,8 +10,8 @@ const KYC_ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp",
 const KYC_ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf"]);
 
 /**
- * CP identity gate. A channel partner cannot use the workspace until they
- * submit Aadhaar + PAN + a live selfie and an admin (or KYC provider) approves.
+ * CP identity gate. A channel partner cannot use the workspace until an
+ * authorised reviewer approves the submitted identity documents.
  * Shown in place of the CP dashboard while `onboardingVerified` is false.
  */
 export function CpKycOnboarding() {
@@ -19,13 +19,13 @@ export function CpKycOnboarding() {
   const status = user?.onboardingChecks?.kycStatus;
   const rejectionReason = user?.onboardingChecks?.kycRejectionReason;
   // PAN is NOT required for Ambassadors (many are students without one) — they
-  // verify with Aadhaar + a live selfie only. Channel Partners still need PAN.
+  // use an accepted identity document + a live selfie only. Channel Partners still need PAN.
   const isAmbassador = user?.role === "AMBASSADOR";
   const intro = isAmbassador
-    ? "Ambassadors must verify their identity before accessing tasks and earnings. Upload your Aadhaar and take a live selfie. Your documents are stored securely for verification."
-    : "Channel Partners must verify their identity before accessing projects, leads and inventory. Upload your Aadhaar and PAN, and take a live selfie. Your documents are stored securely for verification.";
+    ? "Ambassadors must complete an identity-document review before accessing tasks and earnings. Upload a properly masked identity document and take a selfie."
+    : "Channel Partners must complete an identity-document review before accessing projects, leads and inventory. Upload a properly masked identity document, PAN and a selfie.";
 
-  const [aadhaarNumber, setAadhaarNumber] = useState("");
+
   const [panNumber, setPanNumber] = useState("");
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
@@ -144,12 +144,11 @@ export function CpKycOnboarding() {
   }
 
   const panValid = PAN_RE.test(panNumber.trim().toUpperCase());
-  const aadhaarValid = /^\d{12}$/.test(aadhaarNumber.replace(/\s/g, ""));
-  // Ambassadors: Aadhaar + selfie only. Channel Partners: also PAN.
+  // Ambassadors: identity document + selfie only. Channel Partners: also PAN.
   const panReady = isAmbassador ? true : panValid && !!panFile;
   const ready = useMemo(
-    () => aadhaarValid && panReady && !!aadhaarFile && !!selfie,
-    [aadhaarValid, panReady, aadhaarFile, selfie],
+    () => panReady && !!aadhaarFile && !!selfie,
+    [panReady, aadhaarFile, selfie],
   );
 
   async function submit() {
@@ -164,7 +163,6 @@ export function CpKycOnboarding() {
       form.append("aadhaar", aadhaarFile);
       if (panFile) form.append("pan", panFile);
       form.append("selfie", new File([selfie], "selfie.jpg", { type: "image/jpeg" }));
-      form.append("aadhaarNumber", aadhaarNumber.replace(/\s/g, ""));
       if (panNumber.trim()) form.append("panNumber", panNumber.trim().toUpperCase());
       // Do not set Content-Type manually for FormData: the browser must add the
       // multipart boundary. Explicitly setting it can break uploads in browsers.
@@ -192,9 +190,8 @@ export function CpKycOnboarding() {
         setVerifying(false);
       }, 2000);
     } catch (err: any) {
-      // Surface the *specific* reason: the server's own message (e.g. "Enter a
-      // valid 12-digit Aadhaar number", "Enter a valid PAN…"), then any field
-      // validation issue, then a status-coded message, and only fall back to a
+      // Surface the server's specific validation message, then a status-coded
+      // message, and only fall back to a
       // generic line when the request never reached the server at all.
       const resp = err?.response;
       const responseRequestId = resp?.headers?.["x-request-id"] as string | undefined;
@@ -286,9 +283,8 @@ export function CpKycOnboarding() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Saving your KYC submission…</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            Your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie are being submitted securely. This step does not guarantee
-            instant approval: when manual review is needed, your status will show as pending until an authorized reviewer
-            completes the check.
+            Your identity document{isAmbassador ? "" : ", PAN"} and selfie are being submitted for restricted manual review.
+            This is not UIDAI authentication or automated government verification.
           </p>
         </div>
       </Shell>
@@ -306,8 +302,8 @@ export function CpKycOnboarding() {
           </div>
           <h1 className="mt-4 text-xl font-semibold">Verification in progress</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-            We&apos;ve received your Aadhaar{isAmbassador ? "" : ", PAN"} and selfie. Our team is verifying your identity — you&apos;ll get a
-            notification the moment it&apos;s approved and your workspace unlocks.
+            We&apos;ve received your identity document{isAmbassador ? "" : ", PAN"} and selfie. An authorised Truvi reviewer will
+            review the submission and notify you when a decision is recorded.
           </p>
         </div>
       </Shell>
@@ -334,19 +330,15 @@ export function CpKycOnboarding() {
         )}
 
         <div className="mt-6 space-y-5">
-          {/* Aadhaar */}
+          {/* Masked identity document */}
           <div>
-            <label className="text-sm font-medium">Aadhaar number</label>
-            <input
-              inputMode="numeric"
-              maxLength={12}
-              value={aadhaarNumber}
-              onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, ""))}
-              placeholder="12-digit Aadhaar number"
-              className="mt-1 h-11 w-full rounded-lg border border-white/15 bg-white/5 px-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-[var(--trust)]/50 focus:ring-2 focus:ring-[var(--trust)]/20"
-            />
-            {aadhaarNumber && !aadhaarValid && <p className="mt-1 text-xs text-red-400">Enter all 12 digits.</p>}
-            <FileField label="Aadhaar card (front)" file={aadhaarFile} onFile={setAadhaarFile} />
+            <label className="text-sm font-medium">Identity document</label>
+            <p className="mt-1 text-xs leading-relaxed text-amber-200/80">
+              Upload a masked Aadhaar (first eight digits hidden) or another government photo ID accepted by Truvi.
+              Never upload an unmasked Aadhaar, Aadhaar OTP, biometric data or a document showing more information
+              than needed. Contact support before uploading another document type if unsure.
+            </p>
+            <FileField label="Masked identity document" file={aadhaarFile} onFile={setAadhaarFile} />
           </div>
 
           {/* PAN — Channel Partners only (not required for Ambassadors) */}
