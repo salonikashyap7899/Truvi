@@ -1825,7 +1825,7 @@ async function ensureSchema(db: Db): Promise<void> {
     // Reversible, OTP-confirmed self-service account deactivation.
     `CREATE TABLE IF NOT EXISTS "account_deletion_requests" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-       "user_id" uuid NOT NULL UNIQUE REFERENCES "users"("id"),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
        "status" text NOT NULL DEFAULT 'OTP_SENT',
        "deletion_otp_hash" text,
        "otp_expires_at" timestamptz,
@@ -1836,6 +1836,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "restored_at" timestamptz,
        "updated_at" timestamptz NOT NULL DEFAULT now()
      )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "account_deletion_requests_user_unique" ON "account_deletion_requests" ("user_id")`,
     `CREATE INDEX IF NOT EXISTS "account_deletion_requests_status_idx" ON "account_deletion_requests" ("status", "restore_expires_at")`,
 
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
