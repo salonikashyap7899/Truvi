@@ -1,9 +1,10 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { Router } from "express";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
+  accountDeletionRequests,
   grievanceTickets,
   privacyRequests,
   userConsentEvents,
@@ -15,9 +16,83 @@ import { CURRENT_POLICY_VERSIONS, POLICY_DOCUMENTS } from "../config/compliance"
 import { canTransitionGrievance, canTransitionPrivacyRequest } from "../services/compliance.rules";
 import { logAudit } from "../services/audit";
 import { notifyRole, notifyUser } from "../services/notificationService";
-import { adminLimiter, complianceSubmissionLimiter } from "../middleware/security";
+import { adminLimiter, complianceSubmissionLimiter, otpSendLimiter, otpVerifyLimiter } from "../middleware/security";
+import { generateOtp, clearRefreshCookies, TOO_MANY_OTP } from "../services/authService";
+import { sendEmail, sendOtpEmail } from "../services/emailService";
+import { hashOtpForStorage, verifyStoredOtp } from "../lib/otpHash";
+import { clearOtpAttempts, otpAttemptBlocked, recordOtpFailure } from "../services/otpAttempts";
 
 const router = Router();
+
+const RESTORE_WINDOW_DAYS = 30;
+const restoreAccountSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/i) });
+
+/**
+ * The email restoration link is a single-use bearer secret. Keep the token in
+ * the URL fragment so it is not sent in HTTP requests, proxy logs or referrers.
+ */
+router.post("/account-deletion/restore", ...otpVerifyLimiter, async (req, res) => {
+  const parsed = restoreAccountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "This restoration link is invalid." });
+
+  const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
+  const db = getDb();
+  const now = new Date();
+  const [candidate] = await db.select({
+    id: accountDeletionRequests._id,
+    userId: accountDeletionRequests.userId,
+  }).from(accountDeletionRequests).where(and(
+    eq(accountDeletionRequests.status, "DEACTIVATED"),
+    eq(accountDeletionRequests.restoreTokenHash, tokenHash),
+    gt(accountDeletionRequests.restoreExpiresAt, now),
+  )).limit(1);
+
+  if (!candidate) {
+    return res.status(410).json({ error: "This restoration link has expired or has already been used. Contact Truvi support for assistance." });
+  }
+
+  const restored = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(accountDeletionRequests).set({
+      status: "RESTORED",
+      restoreTokenHash: null,
+      restoreExpiresAt: null,
+      restoredAt: now,
+      updatedAt: now,
+    }).where(and(
+      eq(accountDeletionRequests._id, candidate.id),
+      eq(accountDeletionRequests.status, "DEACTIVATED"),
+      eq(accountDeletionRequests.restoreTokenHash, tokenHash),
+      gt(accountDeletionRequests.restoreExpiresAt, now),
+    )).returning({ userId: accountDeletionRequests.userId });
+
+    if (!claimed) return null;
+    const [account] = await tx.update(users).set({
+      disabled: false,
+      authVersion: sql`auth_version + 1`,
+    }).where(eq(users._id, claimed.userId)).returning({ id: users._id, email: users.email });
+    if (!account) throw new Error("Account restoration could not update the user record.");
+    return account;
+  });
+
+  if (!restored) return res.status(409).json({ error: "This restoration link has already been used. Please sign in or contact support." });
+
+  await clearOtpAttempts("account-delete:" + restored.id);
+  await logAudit({
+    userId: String(restored.id),
+    action: "account.deletion.restore",
+    resourceType: "account_deletion_request",
+    resourceId: candidate.id,
+    metadata: { restoredThrough: "email_link" },
+  });
+  await sendEmail(
+    restored.email,
+    "Your Truvi account has been restored",
+    "<p>Your Truvi account has been restored. For your security, all previous sessions were revoked. Please sign in again.</p>",
+  ).catch(() => false);
+
+  return res.json({ ok: true, message: "Your account has been restored. Please sign in again." });
+});
+
 router.use(authenticate);
 
 const OPEN_PRIVACY_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "WAITING_FOR_USER", "APPROVED"] as const;
@@ -33,6 +108,172 @@ function currentConsentState(events: Array<{ policyType: string; policyVersion: 
   }
   return Object.fromEntries(latest.entries());
 }
+
+const deletionOtpRequestSchema = z.object({});
+router.post("/account-deletion/request", ...otpSendLimiter, complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const userId = req.user!.userId;
+  const [account] = await db.select().from(users).where(eq(users._id, userId)).limit(1);
+  if (!account || account.disabled) return res.status(404).json({ error: "Active account not found." });
+  if (!account.emailVerified) return res.status(400).json({ error: "Verify your email address before requesting account deletion." });
+
+  // Prevent the platform from losing its only active administrator.
+  if (account.role === "ADMIN") {
+    const activeAdmins = await db.select({ id: users._id }).from(users)
+      .where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+    if (activeAdmins.length <= 1) return res.status(409).json({ error: "The last active administrator cannot deactivate this account. Transfer administrator access first." });
+  }
+
+  const otp = generateOtp();
+  try {
+    const sent = await sendOtpEmail(account.email, otp);
+    if (!sent) return res.status(503).json({ error: "We could not send the confirmation code. Your account has not been deactivated." });
+  } catch {
+    return res.status(503).json({ error: "We could not send the confirmation code. Your account has not been deactivated." });
+  }
+
+  const now = new Date();
+  await db.insert(accountDeletionRequests).values({
+    userId,
+    status: "OTP_SENT",
+    deletionOtpHash: hashOtpForStorage(otp),
+    otpExpiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+    restoreTokenHash: null,
+    restoreExpiresAt: null,
+    requestedAt: now,
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: accountDeletionRequests.userId,
+    set: {
+      status: "OTP_SENT",
+      deletionOtpHash: hashOtpForStorage(otp),
+      otpExpiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+      restoreTokenHash: null,
+      restoreExpiresAt: null,
+      requestedAt: now,
+      deactivatedAt: null,
+      restoredAt: null,
+      updatedAt: now,
+    },
+  });
+  await clearOtpAttempts("account-delete:" + userId);
+  return res.json({
+    ok: true,
+    email: account.email.replace(/^(.{1,2}).*(@.*)$/, "$1••••$2"),
+    expiresInSeconds: 600,
+    message: "A six-digit confirmation code has been sent to your verified email address.",
+  });
+});
+
+const confirmDeletionSchema = z.object({ otp: z.string().trim().regex(/^\\d{6}$/) });
+router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
+  const parsed = confirmDeletionSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter the six-digit code sent to your email." });
+
+  const userId = req.user!.userId;
+  const attemptKey = "account-delete:" + userId;
+  if (await otpAttemptBlocked(attemptKey)) return res.status(429).json({ error: TOO_MANY_OTP });
+
+  const db = getDb();
+  const now = new Date();
+  const [request] = await db.select().from(accountDeletionRequests)
+    .where(and(eq(accountDeletionRequests.userId, userId), eq(accountDeletionRequests.status, "OTP_SENT")))
+    .limit(1);
+  if (!request?.deletionOtpHash || !request.otpExpiresAt) {
+    return res.status(400).json({ error: "Request a new account-deletion code first." });
+  }
+  if (request.otpExpiresAt.getTime() <= now.getTime()) {
+    return res.status(410).json({ error: "This confirmation code has expired. Request a new code." });
+  }
+  if (!verifyStoredOtp(parsed.data.otp, request.deletionOtpHash)) {
+    await recordOtpFailure(attemptKey);
+    return res.status(400).json({ error: "The confirmation code is incorrect." });
+  }
+
+  const [account] = await db.select({
+    id: users._id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    disabled: users.disabled,
+  }).from(users).where(eq(users._id, userId)).limit(1);
+  if (!account || account.disabled) return res.status(404).json({ error: "Active account not found." });
+  if (account.role === "ADMIN") {
+    const activeAdmins = await db.select({ id: users._id }).from(users)
+      .where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+    if (activeAdmins.length <= 1) return res.status(409).json({ error: "The last active administrator cannot deactivate this account." });
+  }
+
+  const rawRestoreToken = randomBytes(32).toString("hex");
+  const restoreTokenHash = createHash("sha256").update(rawRestoreToken).digest("hex");
+  const restoreExpiresAt = new Date(now.getTime() + RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const clientBase = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\\/$/, "");
+  const restoreUrl = clientBase + "/restore-account#token=" + rawRestoreToken;
+  const escapedName = account.name.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+  // Send the recovery link before disabling the account. If email delivery is
+  // unavailable, the user remains signed in and can retry rather than being
+  // locked out without a way back in.
+  try {
+    const sent = await sendEmail(
+      account.email,
+      "Your Truvi account deactivation and recovery link",
+      `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033">
+        <h2>Account deactivation confirmed</h2>
+        <p>Hello ${escapedName},</p>
+        <p>Your Truvi account has been deactivated after email OTP confirmation. You can restore it within ${RESTORE_WINDOW_DAYS} days using the secure, single-use link below.</p>
+        <p><a href="${restoreUrl}" style="display:inline-block;padding:12px 18px;background:#172033;color:#fff;text-decoration:none;border-radius:8px">Restore my Truvi account</a></p>
+        <p>This link expires on ${restoreExpiresAt.toLocaleDateString("en-IN", { dateStyle: "long", timeZone: "Asia/Kolkata" })}. If you did not request this, use the link only from the email account you control and contact support.</p>
+        <p>Account deactivation stops sign-in. Related transaction, tax, commission, KYC, security and dispute records may be retained where legally or operationally required. Permanent erasure is reviewed separately after the recovery period.</p>
+      </div>`,
+    );
+    if (!sent) return res.status(503).json({ error: "We could not send your recovery email. Your account has not been deactivated." });
+  } catch {
+    return res.status(503).json({ error: "We could not send your recovery email. Your account has not been deactivated." });
+  }
+
+  const deactivated = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(accountDeletionRequests).set({
+      status: "DEACTIVATED",
+      deletionOtpHash: null,
+      otpExpiresAt: null,
+      restoreTokenHash,
+      restoreExpiresAt,
+      deactivatedAt: now,
+      updatedAt: now,
+    }).where(and(
+      eq(accountDeletionRequests._id, request._id),
+      eq(accountDeletionRequests.status, "OTP_SENT"),
+      eq(accountDeletionRequests.deletionOtpHash, request.deletionOtpHash),
+      gt(accountDeletionRequests.otpExpiresAt, now),
+    )).returning({ id: accountDeletionRequests._id });
+
+    if (!claimed) return false;
+    const [updated] = await tx.update(users).set({
+      disabled: true,
+      authVersion: sql`auth_version + 1`,
+    }).where(and(eq(users._id, userId), eq(users.disabled, false))).returning({ id: users._id });
+    if (!updated) throw new Error("The active account changed during deactivation.");
+    return true;
+  });
+
+  if (!deactivated) return res.status(409).json({ error: "Your account state changed. Refresh and request deletion again." });
+  await clearOtpAttempts(attemptKey);
+  clearRefreshCookies(res);
+  await logAudit({
+    userId,
+    action: "account.deletion.deactivate",
+    resourceType: "account_deletion_request",
+    resourceId: request._id,
+    metadata: { restoreWindowDays: RESTORE_WINDOW_DAYS, confirmation: "email_otp" },
+  });
+  return res.json({
+    ok: true,
+    deactivated: true,
+    restoreWindowDays: RESTORE_WINDOW_DAYS,
+    message: "Your account is deactivated. A single-use restoration link has been emailed to your verified address.",
+  });
+});
 
 router.get("/me", async (req: AuthedRequest, res) => {
   const db = getDb();
@@ -243,7 +484,14 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
 
 router.get("/admin/queue", requireRole("ADMIN"), adminLimiter, async (_req: AuthedRequest, res) => {
   const db = getDb();
-  const [grievanceRows, privacyRows] = await Promise.all([
+  const now = new Date();
+  // Once the recovery link expires, move the deactivation into the manual
+  // erasure/retention review queue. The system does not hard-delete records
+  // whose ownership, finance, KYC, audit or statutory dependencies are unknown.
+  await db.update(accountDeletionRequests).set({ status: "ERASURE_REVIEW", updatedAt: now })
+    .where(and(eq(accountDeletionRequests.status, "DEACTIVATED"), lt(accountDeletionRequests.restoreExpiresAt, now)));
+
+  const [grievanceRows, privacyRows, deletionRows] = await Promise.all([
     db.select({
       ticket: grievanceTickets,
       requesterName: users.name,
@@ -262,11 +510,27 @@ router.get("/admin/queue", requireRole("ADMIN"), adminLimiter, async (_req: Auth
       .innerJoin(users, eq(privacyRequests.requesterUserId, users._id))
       .orderBy(desc(privacyRequests.requestedAt))
       .limit(100),
+    db.select({
+      request: accountDeletionRequests,
+      requesterName: users.name,
+      requesterEmail: users.email,
+      requesterRole: users.role,
+    }).from(accountDeletionRequests)
+      .innerJoin(users, eq(accountDeletionRequests.userId, users._id))
+      .where(inArray(accountDeletionRequests.status, ["DEACTIVATED", "ERASURE_REVIEW"]))
+      .orderBy(desc(accountDeletionRequests.requestedAt))
+      .limit(100),
   ]);
   res.setHeader("Cache-Control", "private, no-store");
   return res.json({
     grievances: grievanceRows.map((row) => ({ ...row.ticket, requesterName: row.requesterName, requesterEmail: row.requesterEmail, requesterRole: row.requesterRole })),
     privacyRequests: privacyRows.map((row) => ({ ...row.request, requesterName: row.requesterName, requesterEmail: row.requesterEmail, requesterRole: row.requesterRole })),
+    accountDeletions: deletionRows.map((row) => ({
+      ...row.request,
+      requesterName: row.requesterName,
+      requesterEmail: row.requesterEmail,
+      requesterRole: row.requesterRole,
+    })),
   });
 });
 
