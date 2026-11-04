@@ -1244,7 +1244,7 @@ router.get("/users/:id/profile", requireRole("ADMIN"), async (req, res) => {
     createdAt?: Date | null;
   };
   const documents: ProfileDoc[] = [];
-  if (v?.kycFiles?.aadhaar) documents.push({ category: "Aadhaar", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/aadhaar`, mime: v.kycFiles.aadhaar.mime, status: "SUBMITTED" });
+  if (v?.kycFiles?.aadhaar) documents.push({ category: "Identity document (masked)", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/aadhaar`, mime: v.kycFiles.aadhaar.mime, status: "SUBMITTED" });
   if (v?.kycFiles?.pan) documents.push({ category: "PAN", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/pan`, mime: v.kycFiles.pan.mime, status: "SUBMITTED" });
   if (v?.kycFiles?.selfie) documents.push({ category: "Selfie", kind: "KYC", streamUrl: `/admin/kyc/${userId}/file/selfie`, mime: v.kycFiles.selfie.mime, status: "SUBMITTED" });
   for (const d of userBuyerDocs) {
@@ -1948,7 +1948,7 @@ router.post("/kyc/:userId/decision", requireRole("ADMIN"), async (req: AuthedReq
   const onboardingVerified = isOnboardingComplete(onboardingChecks);
 
   // Identity documents are retained (in the kyc_documents table) after the
-  // decision so an admin can re-view a verified user's Aadhaar/PAN/selfie from
+  // decision so an admin can re-view a reviewed user's identity-document/PAN/selfie from
   // the panel. Only the review outcome changes here.
   await db
     .update(users)
