@@ -572,7 +572,6 @@ router.post("/bookings/:bookingId/payments/order", authenticate, requireRole("BU
     right.effectiveFrom.getTime() - left.effectiveFrom.getTime(),
   )[0];
   if (!selectedRule) return res.status(409).json({ error: "Habitat commission must be configured before payments can be accepted" });
-  const [settings] = await db.select().from(habitatSettings).where(eq(habitatSettings.singletonKey, "default")).limit(1);
   const taxBps = Math.round(getEnv().gstPercent * 100);
   let split;
   try {
