@@ -60,12 +60,12 @@ function welcomeNextSteps(role: IUser["role"]): string[] {
   switch (role) {
     case "CP":
       return [
-        "Complete your <b>KYC</b> (Aadhaar + PAN + a live selfie) — your dashboard unlocks the moment an admin approves it.",
+        "Complete your <b>identity-document review</b> (plus PAN where required) — your dashboard unlocks after an authorised admin approves it.",
         "Start sharing listings and adding leads to earn commission — Truvi keeps 0% of your earnings.",
       ];
     case "AMBASSADOR":
       return [
-        "Finish your <b>onboarding & KYC</b> (Aadhaar + live selfie) to activate your ambassador dashboard.",
+        "Finish your <b>identity-document review</b> and email/phone checks to activate your Ambassador dashboard.",
         "Grab your referral code and start inviting developers and channel partners.",
       ];
     case "DEVELOPER":
@@ -160,8 +160,8 @@ export function pendingStepsFor(user: IUser, hasActivePlan: boolean): PendingSte
     if (!user.onboardingVerified && kyc !== "PENDING") {
       steps.push({
         text: kyc === "REJECTED"
-          ? `Your KYC was rejected. Please re-submit your Aadhaar${user.role === "AMBASSADOR" ? "" : ", PAN"} and selfie so we can verify you.`
-          : `You still need to complete your KYC (Aadhaar${user.role === "AMBASSADOR" ? "" : " + PAN"} + a live selfie) to unlock your dashboard.`,
+          ? `Your identity-document review was not approved. Please re-submit a masked identity document${user.role === "AMBASSADOR" ? "" : ", PAN"} and selfie for manual review.`
+          : `You still need to complete your identity-document review${user.role === "AMBASSADOR" ? "" : " + PAN"} and selfie to unlock your dashboard.`,
         cta: { label: "Complete my KYC", href: `${url}/login` },
       });
     }
