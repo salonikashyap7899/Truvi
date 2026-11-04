@@ -59,7 +59,7 @@ async function main() {
     where table_schema = 'public'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
     union all
-    select grantee::text, sequence_name::text as object_name,
+    select grantee::text, object_name::text as object_name,
            'SEQUENCE'::text as object_type, privilege_type::text
     from information_schema.role_usage_grants
     where object_schema = 'public' and object_type = 'SEQUENCE'
