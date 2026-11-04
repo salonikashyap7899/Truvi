@@ -39,13 +39,13 @@ export const MAIL_FROM = process.env.SMTP_FROM?.trim() || resendFrom || "Truvi V
 
 /** Whether a provider is configured for property-match email delivery/retry. */
 export function isEmailTransportConfigured(): boolean {
-  return Boolean(resendApiKey || transporter !== null);
+  return Boolean(transporter !== null || (resendApiKey && resendFrom));
 }
 
 /**
- * Send an email. Returns `true` only when it was actually dispatched via SMTP.
- * When SMTP isn't configured it emits a non-sensitive warning and returns
- * `false`, so callers can honestly tell the user that email wasn't delivered.
+ * Send an email. Returns `true` only when an email provider accepted the message.
+ * When neither complete SMTP nor Resend configuration exists it returns `false`, so callers
+ * can honestly tell the user that email wasn't delivered.
  * OTPs, recipients and message subjects are never written to logs. Throws when
  * SMTP is configured but delivery fails.
  */
