@@ -11,8 +11,10 @@ import { getSubscriptionPlans, razorpayPeriod, withGst } from "../config/pricing
  * monthly + yearly) and stores the resulting `plan_id` in the
  * `subscription_plans` table. The plan amount includes GST.
  *
- * Idempotent: a plan that already has a stored razorpay_plan_id is skipped
- * (Razorpay plans can't be deleted, so we never recreate them).
+ * Idempotent: a stored plan is reused only when its recorded amount matches
+ * the currently approved price. If tax configuration changes, a new Razorpay
+ * plan is created and the internal mapping is moved to it. Razorpay plans cannot
+ * be deleted; existing customer subscriptions remain attached to their old plan.
  *
  * Run with:  npm --prefix server run razorpay:plans
  */
@@ -28,12 +30,11 @@ async function run() {
 
   for (const plan of getSubscriptionPlans()) {
     const [existing] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.internalPlanId, plan.id));
-    if (existing?.razorpayPlanId) {
-      console.log(`✓ ${plan.id} already mapped → ${existing.razorpayPlanId} (skipped)`);
+    const amount = withGst(plan.pricePaise, env.gstPercent);
+    if (existing?.razorpayPlanId && Number(existing.amountPaise) === amount) {
+      console.log(`✓ ${plan.id} already mapped → ${existing.razorpayPlanId} (₹${(amount / 100).toLocaleString("en-IN")}, unchanged)`);
       continue;
     }
-
-    const amount = withGst(plan.pricePaise, env.gstPercent); // incl. GST, paise
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new Error(
         `Computed a bad amount (${amount}) for ${plan.id}. Check GST_PERCENT in server/.env — it must be a plain number like 18 (no "%").`
@@ -46,7 +47,9 @@ async function run() {
         name: plan.label,
         amount, // paise
         currency: "INR",
-        description: `${plan.label} — Truvi Ventures (incl. ${env.gstPercent}% GST)`,
+        description: env.gstPercent > 0
+          ? `${plan.label} — Truvi Ventures (incl. ${env.gstPercent}% GST)`
+          : `${plan.label} — Truvi Ventures`,
       },
     });
 
@@ -59,6 +62,9 @@ async function run() {
       });
 
     console.log(`＋ ${plan.id} → ${created.id}  (₹${(amount / 100).toLocaleString("en-IN")}/${plan.interval})`);
+    if (existing?.razorpayPlanId) {
+      console.warn(`  Previous plan ${existing.razorpayPlanId} was not deleted. Existing active subscriptions remain on that plan until they are separately reviewed and migrated with appropriate customer notice/consent.`);
+    }
   }
 
   console.log("\nDone. Subscription plans are ready — the Subscribe buttons will now charge.");
