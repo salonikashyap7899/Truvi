@@ -51,7 +51,7 @@ describe("createApp production hosting", () => {
     const unknownBody = await unknownSpaRoute.text();
     expect(unknownSpaRoute.status).toBe(404);
     expect(unknownSpaRoute.headers.get("content-type")).toContain("text/html");
-    expect(unknownBody).toContain("<div id=\\"root\\">");
+    expect(unknownBody).toContain('<div id="root">');
 
     const unknownApiRoute = await fetch(`http://127.0.0.1:${address.port}/api/this-route-does-not-exist`);
     expect(unknownApiRoute.status).toBe(404);
