@@ -85,7 +85,6 @@ jobs:
           cd client
           npm audit --audit-level=moderate
       - name: Regenerate browser QA lockfile from security overrides
-        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup' || github.head_ref == 'security/compliance-hardening-validation' || github.head_ref == 'security/compliance-hardening-final-validation')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup' || github.ref_name == 'security/compliance-hardening-validation' || github.ref_name == 'security/compliance-hardening-final-validation'))
         run: |
           cd truvi-tests
           npm install --package-lock-only --ignore-scripts --no-fund --no-audit
