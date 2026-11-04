@@ -41,10 +41,11 @@ async function main() {
       do $lockdown$
       declare
         tbl record;
+        col record;
         target_role text;
       begin
         for tbl in
-          select n.nspname as schema_name, c.relname as table_name
+          select n.nspname as schema_name, c.relname as table_name, c.oid as table_oid
           from pg_class c
           join pg_namespace n on n.oid = c.relnamespace
           where n.nspname = 'public' and c.relkind in ('r', 'p')
@@ -55,6 +56,20 @@ async function main() {
             if exists (select 1 from pg_roles where rolname = target_role) then
               execute format('revoke all privileges on table %I.%I from %I', tbl.schema_name, tbl.table_name, target_role);
             end if;
+          end loop;
+
+          -- Column-level grants can survive a table-level REVOKE; remove them too.
+          for col in
+            select a.attname
+            from pg_attribute a
+            where a.attrelid = tbl.table_oid and a.attnum > 0 and not a.attisdropped
+          loop
+            execute format('revoke all privileges (%I) on table %I.%I from public', col.attname, tbl.schema_name, tbl.table_name);
+            foreach target_role in array array['anon', 'authenticated'] loop
+              if exists (select 1 from pg_roles where rolname = target_role) then
+                execute format('revoke all privileges (%I) on table %I.%I from %I', col.attname, tbl.schema_name, tbl.table_name, target_role);
+              end if;
+            end loop;
           end loop;
         end loop;
 
