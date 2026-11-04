@@ -45,6 +45,7 @@ const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const LegalPage = lazy(() => import("@/pages/LegalPage"));
 const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
 const PrivacyCenterPage = lazy(() => import("@/pages/PrivacyCenterPage"));
+const RestoreAccountPage = lazy(() => import("@/pages/RestoreAccountPage"));
 
 const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
 const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").then((m) => ({ default: m.AdminOsLayout })));
@@ -234,7 +235,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications", "/privacy-center"].includes(normalizedPath);
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications", "/privacy-center", "/restore-account"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
@@ -364,6 +365,7 @@ export default function App() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/restore-account" element={<RestoreAccountPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
