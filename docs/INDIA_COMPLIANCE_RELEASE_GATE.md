@@ -11,18 +11,21 @@ The legal pages read values from Vite build-time variables. Configure these in `
 
 - `VITE_LEGAL_ENTITY_NAME` — exact legal name from MCA/company records, not the brand name unless they are identical.
 - `VITE_REGISTERED_OFFICE_ADDRESS` — complete registered-office address from the latest company record.
+- `VITE_PRINCIPAL_OFFICE_ADDRESS` — principal geographic business/headquarters address shown to users, verified against company records.
+- `VITE_BRANCH_ADDRESSES` — one confirmed branch-office address per line; include all branches or document that there are none.
 - `VITE_COMPANY_CIN` — exact CIN from MCA master data, if the operator is a company.
 - `VITE_CUSTOMER_CARE_EMAIL` — monitored customer-care email.
 - `VITE_CUSTOMER_CARE_PHONE` — monitored customer-care phone.
 - `VITE_GRIEVANCE_OFFICER_NAME` — actual person formally designated for the applicable grievance role.
 - `VITE_GRIEVANCE_OFFICER_DESIGNATION` — their actual designation.
 - `VITE_GRIEVANCE_OFFICER_EMAIL` and `VITE_GRIEVANCE_OFFICER_PHONE` — monitored contact details.
+- `VITE_ECOMMERCE_NODAL_PERSON_NAME`, `VITE_ECOMMERCE_NODAL_PERSON_DESIGNATION`, `VITE_ECOMMERCE_NODAL_PERSON_EMAIL`, `VITE_ECOMMERCE_NODAL_PERSON_PHONE` — the India-resident nodal person / alternate senior designated functionary if Truvi is legally an e-commerce entity.
 
 The `VITE_*` values are public website disclosures, not secrets. Never put passwords, API keys, database URLs, or access tokens in them. Do not invent a CIN, registered-office address, legal name, officer name, or contact details. Verify the company identity and office from MCA records before publication.
 
 The legal pages now show a visible “not configured” warning until the required company/officer fields are supplied. Do not suppress that warning with placeholder or made-up values.
 
-Where the Consumer Protection (E-Commerce) Rules apply to Truvi's operating model, the website must publish the required entity and grievance details and operate the prescribed consumer complaint handling. The current engineering workflow records a grievance, immediately marks in-app cases acknowledged, sends a best-effort acknowledgement to verified user email, and shows the 48-hour / one-month service targets in the admin queue. Email delivery can fail; staff must still monitor the inbox and telephone channel, acknowledge complaints manually where needed, and resolve within the applicable statutory deadline. A grievance emailed or phoned by a non-account holder is not automatically created as an in-app case.
+Where the Consumer Protection (E-Commerce) Rules apply to Truvi's operating model, the website must publish the required entity and grievance details and operate the prescribed consumer complaint handling. The current engineering workflow creates a case with SUBMITTED status, sends a best-effort acknowledgement with a copy of the complaint to verified-user email, and marks it ACKNOWLEDGED only when the email provider accepts the message. Provider acceptance is not proof of inbox delivery. The admin queue shows the 48-hour / one-month targets. If email is unverified or delivery fails, authorised staff must acknowledge manually within the applicable deadline. Complaints received from non-account holders by email/phone are not automatically created as in-app cases; staff must register and track them in the organisation's grievance register. From 1 January 2027, where the 2026 E-Commerce Amendment applies, the grievance officer must also provide the complainant a copy of the complaint as recorded.
 
 ## 2. GST and tax — currently disabled in checkout
 
@@ -120,6 +123,7 @@ The Digital Personal Data Protection Act and DPDP Rules have phased commencement
 
 - [ ] MCA company legal name, CIN and registered office checked against current records.
 - [ ] Real named Grievance Officer designated if required; email/phone monitored; public disclosures completed.
+- [ ] Principal office/headquarters and all branch addresses verified and displayed where required; if Truvi is covered as an e-commerce entity, India-resident nodal person details are published.
 - [ ] Truvi's real-estate agent / marketplace / e-commerce / intermediary role assessed in writing.
 - [ ] Truvi and channel partner registration requirements checked; each project's RERA status or exemption evidenced.
 - [ ] GST registration and tax treatment signed off by CA; GST collection remains disabled unless that approval and valid GSTIN exist.
