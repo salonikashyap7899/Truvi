@@ -105,6 +105,9 @@ async function main() {
   const noRls = tables.filter((table) => !table.rls_enabled);
   const forcedRls = tables.filter((table) => table.force_rls);
   const publicApiGrants = grants;
+  // PUBLIC USAGE on schema public is the normal PostgreSQL baseline and is
+  // harmless without object privileges. CREATE is the permission to flag.
+  const riskySchemaGrants = schemaGrants.filter((grant) => grant.privilege_type !== "USAGE");
   const policyCounts = new Map(policies.map((row) => [row.table_name, row.policy_count]));
 
   console.log(JSON.stringify({
@@ -124,9 +127,10 @@ async function main() {
     },
     publicApiRoleGrants: publicApiGrants,
     publicSchemaGrants: schemaGrants,
+    riskyPublicSchemaGrants: riskySchemaGrants,
   }, null, 2));
 
-  if (publicApiGrants.length || schemaGrants.length) {
+  if (publicApiGrants.length || riskySchemaGrants.length) {
     console.error(
       "DATABASE SECURITY WARNING: anon/authenticated/PUBLIC still have table, sequence, function or schema privileges in schema public. Review and revoke unused access; RLS policies alone do not remove GRANTs.",
     );
