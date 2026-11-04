@@ -262,7 +262,7 @@ adminRouter.get("/dashboard/:userId", async (req, res) => {
   res.json(data);
 });
 
-// ── Direct / offline payments (GST charged, never bypassed) ────────────────
+// ── Direct / offline payments (server-calculated tax, disabled by default) ─
 const paymentSchema = z.object({
   userId: z.string(),
   partnerName: z.string().min(1),
@@ -355,7 +355,7 @@ adminRouter.post("/payments", async (req: AuthedRequest, res) => {
   void notifyUser(parsed.data.userId, {
     type: NotificationType.MARKETING_PAYMENT_RECORDED,
     title: "Marketing payment recorded",
-    message: `A payment of ₹${(totalPaise / 100).toLocaleString("en-IN")} (incl. GST) has been recorded on your account.`,
+    message: `A payment of ₹${(totalPaise / 100).toLocaleString("en-IN")} has been recorded on your account.`,
     data: { href: "/marketing" },
     dedupeKey: `mkt-pay:${row._id}`,
   });
