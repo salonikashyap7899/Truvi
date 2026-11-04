@@ -127,8 +127,10 @@ export function PrivacyPolicyPage() {
     ["Razorpay", "Checkout and payment processing. Razorpay receives the information required for payment and returns payment/order references and status to Truvi."],
     ["Google Maps / Places", "Map rendering, address autocomplete, place search and geocoding when a user opens or uses location/map features."],
     ["Google Gemini", "AI requests. Text prompts, selected conversation context and, for image-analysis features, images submitted to that feature may be sent to Google's AI service."],
-    ["Twilio", "SMS delivery, including phone verification codes and other configured text messages."],
-    ["Configured SMTP email provider", "Account verification, password-reset, employee invitation and transactional emails. The actual SMTP provider is selected in the deployment configuration."],
+    ["Twilio", "SMS delivery, including phone verification codes and configured lead alerts or operational text messages."],
+    ["Meta WhatsApp Business Cloud API", "WhatsApp messages when the Meta WhatsApp Business integration is configured, including configured developer notifications and lead alerts."],
+    ["AiSensy", "An alternative WhatsApp Business messaging provider. When its API key and campaign templates are configured, approved campaigns may send welcome, onboarding or lead-alert messages."],
+    ["Configured SMTP email provider", "Account verification, password-reset, employee invitation, property-match and transactional emails. The actual SMTP provider is selected in the deployment configuration."],
     ["Resend (optional)", "Used only when configured and explicitly selected by the property-match email delivery workflow; it is not the default OTP email provider."],
     ["Exotel (when configured)", "Masked/bridged business calls, call status metadata and call recordings if recording is enabled for the account/telephony setup."],
     ["Esri and CARTO", "Map tile imagery and map layers loaded by map screens; the providers may receive normal browser/network request metadata."],
@@ -280,10 +282,23 @@ export function PrivacyPolicyPage() {
         Truvi sends essential account messages such as OTPs, password-reset codes, employee invitations,
         transaction updates and support notifications. Email is sent through the SMTP provider configured for
         the application; Resend is an optional provider used by the property-match email workflow when
-        explicitly configured. SMS delivery uses Twilio when configured. Telephony features may use Exotel for
-        masked/bridged calls; call recording depends on the configured recording setting. Message and call
-        providers receive the destination contact details and message/call metadata/content required to deliver
-        the relevant communication.
+        explicitly configured. SMS delivery uses Twilio when configured. WhatsApp messages may be sent through
+        Meta's WhatsApp Business Cloud API or AiSensy when the respective credentials and approved templates
+        are configured. Depending on the event, message fields may include a user's name, phone number, project
+        or lead reference, appointment/site-visit time, and the message text or template parameters.
+      </p>
+      <p>
+        For configured new-lead alerts, information supplied about the prospective customer may be sent to
+        the lead-alert phone number and/or email configured by Truvi administrators. This can include the
+        customer's name, phone number, project, inventory, lead source, requested site-visit date/time and
+        notes. It is intended for the authorised Truvi team handling that lead. Do not submit another person's
+        contact details unless you have the permission or other lawful authority needed to share them for this
+        purpose.
+      </p>
+      <p>
+        Telephony features may use Exotel for masked/bridged calls; call recording depends on the configured
+        recording setting. Message and call providers receive the destination contact details and message/call
+        metadata/content required to deliver the relevant communication.
       </p>
       <p>
         Optional promotional communication is separate from necessary account, security and transaction
