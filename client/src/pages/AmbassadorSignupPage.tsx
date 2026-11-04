@@ -36,7 +36,7 @@ const signupSchema = z
     role: z.literal("AMBASSADOR"),
     acceptTerms: z.boolean().refine((value) => value === true, "Please accept the Terms of Service"),
     acknowledgePrivacyNotice: z.boolean().refine((value) => value === true, "Please acknowledge the Privacy Policy"),
-    marketingOptIn: z.boolean().optional().default(false),
+    marketingOptIn: z.boolean(),
     companyName: z.string().optional(),
   })
   .superRefine(() => {
