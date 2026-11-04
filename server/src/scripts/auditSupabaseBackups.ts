@@ -12,6 +12,10 @@ type BackupResponse = {
   walg_enabled?: boolean;
   pitr_enabled?: boolean;
   backups?: BackupRecord[];
+  physical_backup_data?: {
+    earliest_physical_backup_date_unix?: number;
+    latest_physical_backup_date_unix?: number;
+  };
 };
 
 async function main() {
@@ -59,18 +63,29 @@ async function main() {
     latestCompletedBackupAt: latest?.inserted_at ?? null,
     latestBackupAgeHours: ageHours,
     latestBackupType: latest ? (latest.is_physical_backup ? "physical" : "logical") : null,
+    earliestPhysicalBackupAt: payload.physical_backup_data?.earliest_physical_backup_date_unix
+      ? new Date(payload.physical_backup_data.earliest_physical_backup_date_unix * 1000).toISOString()
+      : null,
+    latestPhysicalBackupAt: payload.physical_backup_data?.latest_physical_backup_date_unix
+      ? new Date(payload.physical_backup_data.latest_physical_backup_date_unix * 1000).toISOString()
+      : null,
   }, null, 2));
 
-  // Supabase daily backups are expected to be recent. The 36-hour guard
-  // tolerates scheduling delays but fails closed when no recent restore point
-  // is reported. This is an inventory check, not a restore test.
-  if (!latest || ageHours === null || ageHours > 36) {
-    console.error("BACKUP AUDIT FAILED: no completed Supabase backup is available within the last 36 hours.");
+  if (payload.pitr_enabled) {
+    // PITR uses WAL recovery points; the most recent physical base backup can
+    // legitimately be older than 36 hours. Its timestamp is not the PITR
+    // recovery point. The dashboard must be checked for the actual recoverable
+    // time range and a restore drill must still be performed.
+    console.log("PITR is enabled. Do not judge recovery freshness from the physical base-backup timestamp alone.");
+    console.warn("Verify the available PITR recovery window in Supabase and perform a restore-to-new-project drill.");
+  } else if (!latest || ageHours === null || ageHours > 36) {
+    console.error("BACKUP AUDIT FAILED: no completed backup is listed within the last 36 hours and PITR is not enabled.");
     process.exitCode = 1;
     return;
+  } else {
+    console.log("BACKUP AUDIT PASSED: a recent completed backup is listed and PITR is not enabled.");
   }
 
-  console.log("BACKUP AUDIT PASSED: a recent completed database backup is listed.");
   console.warn("A restore-to-new-project drill and separate uploaded-file backup check are still required.");
 }
 
