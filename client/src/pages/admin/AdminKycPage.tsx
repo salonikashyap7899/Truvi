@@ -147,7 +147,7 @@ export default function AdminKycPage() {
           {reviewed.length > 0 && (
             <section className="mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300/90">Verified &amp; reviewed identities ({reviewed.length})</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Documents stay available here for reference — open to view Aadhaar, PAN and selfie.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Documents stay restricted to authorised reviewers — open the masked identity document, PAN and selfie only when required.</p>
               <div className="mt-3 space-y-5">
                 {reviewed.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} onRemove={remove} readOnly />)}
               </div>
@@ -231,7 +231,7 @@ function SubmissionCard({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <DocTile label="Aadhaar" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
+        <DocTile label="Identity document (masked)" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
         <DocTile label="PAN" userId={s._id} type="pan" present={s.hasPan} />
         <DocTile label="Selfie" userId={s._id} type="selfie" present={s.hasSelfie} />
       </div>
