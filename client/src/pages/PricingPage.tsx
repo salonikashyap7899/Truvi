@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -12,6 +12,7 @@ import CheckoutModal, { type CheckoutConfig } from "@/components/CheckoutModal";
 import { PaymentMethodsRow, RazorpayBadge } from "@/components/PaymentTrust";
 import { PRICING_TABS, type PriceItem, type PriceTab } from "@/lib/pricing";
 import { useAuth } from "@/hooks/useAuth";
+import { api } from "@/lib/api";
 
 /** Each paying role sees only its own pricing. Guests/admins see all tabs. */
 const ROLE_TAB: Record<string, PriceTab["key"]> = {
@@ -48,7 +49,23 @@ export default function PricingPage() {
 
   const [tab, setTab] = useState(0);
   const [checkout, setCheckout] = useState<CheckoutConfig | null>(null);
+  const [taxPercent, setTaxPercent] = useState<number | null>(null);
   const active = visibleTabs[tab] ?? visibleTabs[0];
+
+  useEffect(() => {
+    let activeRequest = true;
+    api.get("/payments/config")
+      .then((response) => {
+        const rate = Number(response.data?.gstPercent);
+        if (activeRequest && Number.isFinite(rate) && rate >= 0 && rate <= 100) {
+          setTaxPercent(rate);
+        }
+      })
+      .catch(() => {
+        // Do not guess a rate in marketing copy. Checkout remains authoritative.
+      });
+    return () => { activeRequest = false; };
+  }, []);
 
   function startCheckout(item: PriceItem) {
     if (!item.planId) return;
@@ -111,7 +128,7 @@ export default function PricingPage() {
         )}
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
-          {active.tagline} <span className="text-foreground/50">· Prices exclusive of 18% GST</span>
+          {active.tagline} <span className="text-foreground/50">· Applicable taxes, if any, are shown before payment</span>
         </p>
 
         {/* Cards */}
@@ -204,7 +221,7 @@ function PricingCard({ item, onBuy }: { item: PriceItem; onBuy: () => void }) {
           {item.strike && <span className="pb-1.5 text-sm text-muted-foreground/70 line-through">{item.strike}</span>}
         </div>
         {/* GST line kept in the layout for every card (invisible when free) so prices share a baseline */}
-        <p className={`mt-1 text-[11px] text-muted-foreground/70 ${isFree ? "invisible" : ""}`}>+ 18% GST at checkout</p>
+        <p className={`mt-1 text-[11px] text-muted-foreground/70 ${isFree ? "invisible" : ""}`}>{taxPercent !== null && taxPercent > 0 ? `+ ${taxPercent}% GST at checkout` : "Applicable taxes, if any, are shown at checkout"}</p>
 
         {/* CTA */}
         <div className="mt-5">
