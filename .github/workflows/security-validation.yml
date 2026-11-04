@@ -103,7 +103,7 @@ jobs:
           cd truvi-tests
           npm audit --audit-level=moderate
       - name: Commit refreshed browser QA lockfile
-        if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup')))
+        if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup' || github.head_ref == 'fix/mobile-project-detail-layout') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup' || github.ref_name == 'fix/mobile-project-detail-layout')))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
