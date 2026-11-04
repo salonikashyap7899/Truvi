@@ -54,11 +54,11 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
             <div><dt className="text-foreground/70">CIN</dt><dd>{COMPANY_CIN || "Not configured — add the CIN only after checking the MCA master data."}</dd></div>
             <div className="sm:col-span-2"><dt className="text-foreground/70">Registered office</dt><dd>{REGISTERED_OFFICE_ADDRESS || "Not configured — add the complete registered-office address from company records."}</dd></div>
             <div><dt className="text-foreground/70">Customer care email</dt><dd><a className="underline underline-offset-2" href={`mailto:${CUSTOMER_CARE_EMAIL}`}>{CUSTOMER_CARE_EMAIL}</a></dd></div>
-            <div><dt className="text-foreground/70">Customer care phone</dt><dd><a className="underline underline-offset-2" href={`tel:${CUSTOMER_CARE_PHONE.replace(/[^+\\d]/g, "")}`}>{CUSTOMER_CARE_PHONE}</a></dd></div>
+            <div><dt className="text-foreground/70">Customer care phone</dt><dd><a className="underline underline-offset-2" href={`tel:${CUSTOMER_CARE_PHONE}`}>{CUSTOMER_CARE_PHONE}</a></dd></div>
             <div><dt className="text-foreground/70">Grievance Officer</dt><dd>{GRIEVANCE_OFFICER_NAME || "Not configured — a named officer must be designated where the applicable rules require one."}</dd></div>
             <div><dt className="text-foreground/70">Designation</dt><dd>{GRIEVANCE_OFFICER_DESIGNATION}</dd></div>
             <div><dt className="text-foreground/70">Grievance email</dt><dd><a className="underline underline-offset-2" href={`mailto:${GRIEVANCE_OFFICER_EMAIL}`}>{GRIEVANCE_OFFICER_EMAIL}</a></dd></div>
-            <div><dt className="text-foreground/70">Grievance phone</dt><dd><a className="underline underline-offset-2" href={`tel:${GRIEVANCE_OFFICER_PHONE.replace(/[^+\\d]/g, "")}`}>{GRIEVANCE_OFFICER_PHONE}</a></dd></div>
+            <div><dt className="text-foreground/70">Grievance phone</dt><dd><a className="underline underline-offset-2" href={`tel:${GRIEVANCE_OFFICER_PHONE}`}>{GRIEVANCE_OFFICER_PHONE}</a></dd></div>
           </dl>
           <p className="mt-3">Signed-in users may submit and track a grievance in Privacy &amp; Support Centre. Anyone may contact the grievance channel by email or phone. Truvi's service target is to acknowledge a complaint within 48 hours and resolve it within one month; where a different statutory deadline applies, that law controls.</p>
           {(!LEGAL_ENTITY_NAME || !REGISTERED_OFFICE_ADDRESS || !COMPANY_CIN || !GRIEVANCE_OFFICER_NAME) && (
@@ -86,7 +86,7 @@ export function TermsPage() {
       <p>Truvi provides property-information, discovery, listing, verification-support, lead-coordination and related services. Truvi's legal capacity may differ by project or transaction. The relevant project page and transaction documents must identify the promoter/seller or service provider and describe Truvi's role for that transaction. A listing, field observation, badge, uploaded document, AI response or status label is not a title certificate, government endorsement, RERA certificate or guarantee of returns.</p>
       <p>Before paying or booking, users should independently verify the promoter, land title, encumbrances, land use, project permissions, applicable RERA registration and phase, any claimed exemption, and the written sale/booking agreement with the competent authority and qualified advisers. Where RERA applies, only appropriately registered projects and agents may be advertised or facilitated as required by law. A missing RERA number by itself is not a determination that a project is unlawful; the applicable registration requirement or documented statutory exemption must be checked for that project.</p>
       <h2>6. Contact</h2>
-      <p>Questions about these terms: <strong>{SUPPORT_EMAIL}</strong>.</p>
+      <p>Questions about these terms: <strong>{CUSTOMER_CARE_EMAIL}</strong>.</p>
     </PolicyShell>
   );
 }
