@@ -2,10 +2,30 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
 
-const COMPANY = "Truvi Ventures (Truston Developers Pvt. Ltd.)";
+const COMPANY = "Truvi Ventures";
 const CITY = "Lucknow, Uttar Pradesh, India";
 const SUPPORT_EMAIL = "info@truviventures.com";
-const UPDATED = "Last updated: August 2026";
+const publicEnv = import.meta.env as ImportMetaEnv & {
+  readonly VITE_LEGAL_ENTITY_NAME?: string;
+  readonly VITE_REGISTERED_OFFICE_ADDRESS?: string;
+  readonly VITE_COMPANY_CIN?: string;
+  readonly VITE_CUSTOMER_CARE_EMAIL?: string;
+  readonly VITE_CUSTOMER_CARE_PHONE?: string;
+  readonly VITE_GRIEVANCE_OFFICER_NAME?: string;
+  readonly VITE_GRIEVANCE_OFFICER_DESIGNATION?: string;
+  readonly VITE_GRIEVANCE_OFFICER_EMAIL?: string;
+  readonly VITE_GRIEVANCE_OFFICER_PHONE?: string;
+};
+const LEGAL_ENTITY_NAME = publicEnv.VITE_LEGAL_ENTITY_NAME?.trim() || "";
+const REGISTERED_OFFICE_ADDRESS = publicEnv.VITE_REGISTERED_OFFICE_ADDRESS?.trim() || "";
+const COMPANY_CIN = publicEnv.VITE_COMPANY_CIN?.trim() || "";
+const CUSTOMER_CARE_EMAIL = publicEnv.VITE_CUSTOMER_CARE_EMAIL?.trim() || SUPPORT_EMAIL;
+const CUSTOMER_CARE_PHONE = publicEnv.VITE_CUSTOMER_CARE_PHONE?.trim() || "+91 70542 80101";
+const GRIEVANCE_OFFICER_NAME = publicEnv.VITE_GRIEVANCE_OFFICER_NAME?.trim() || "";
+const GRIEVANCE_OFFICER_DESIGNATION = publicEnv.VITE_GRIEVANCE_OFFICER_DESIGNATION?.trim() || "Grievance Officer";
+const GRIEVANCE_OFFICER_EMAIL = publicEnv.VITE_GRIEVANCE_OFFICER_EMAIL?.trim() || CUSTOMER_CARE_EMAIL;
+const GRIEVANCE_OFFICER_PHONE = publicEnv.VITE_GRIEVANCE_OFFICER_PHONE?.trim() || CUSTOMER_CARE_PHONE;
+const UPDATED = "Last updated: 4 November 2026";
 
 function PolicyShell({ title, children, updated }: { title: string; children: ReactNode; updated?: string }) {
   return (
@@ -25,8 +45,26 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
           <Link to="/pricing" className="hover:text-foreground">Pricing</Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">
-          {COMPANY} · {CITY} · <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">{SUPPORT_EMAIL}</a>
+          {COMPANY} · {CITY} · <a href={`mailto:${CUSTOMER_CARE_EMAIL}`} className="hover:text-foreground">{CUSTOMER_CARE_EMAIL}</a> · {CUSTOMER_CARE_PHONE}
         </p>
+        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-relaxed text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">Company, customer-care and grievance disclosures</h2>
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div><dt className="text-foreground/70">Legal entity</dt><dd>{LEGAL_ENTITY_NAME || "Not configured — confirm the exact name against MCA records before publication."}</dd></div>
+            <div><dt className="text-foreground/70">CIN</dt><dd>{COMPANY_CIN || "Not configured — add the CIN only after checking the MCA master data."}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-foreground/70">Registered office</dt><dd>{REGISTERED_OFFICE_ADDRESS || "Not configured — add the complete registered-office address from company records."}</dd></div>
+            <div><dt className="text-foreground/70">Customer care email</dt><dd><a className="underline underline-offset-2" href={`mailto:${CUSTOMER_CARE_EMAIL}`}>{CUSTOMER_CARE_EMAIL}</a></dd></div>
+            <div><dt className="text-foreground/70">Customer care phone</dt><dd><a className="underline underline-offset-2" href={`tel:${CUSTOMER_CARE_PHONE.replace(/[^+\\d]/g, "")}`}>{CUSTOMER_CARE_PHONE}</a></dd></div>
+            <div><dt className="text-foreground/70">Grievance Officer</dt><dd>{GRIEVANCE_OFFICER_NAME || "Not configured — a named officer must be designated where the applicable rules require one."}</dd></div>
+            <div><dt className="text-foreground/70">Designation</dt><dd>{GRIEVANCE_OFFICER_DESIGNATION}</dd></div>
+            <div><dt className="text-foreground/70">Grievance email</dt><dd><a className="underline underline-offset-2" href={`mailto:${GRIEVANCE_OFFICER_EMAIL}`}>{GRIEVANCE_OFFICER_EMAIL}</a></dd></div>
+            <div><dt className="text-foreground/70">Grievance phone</dt><dd><a className="underline underline-offset-2" href={`tel:${GRIEVANCE_OFFICER_PHONE.replace(/[^+\\d]/g, "")}`}>{GRIEVANCE_OFFICER_PHONE}</a></dd></div>
+          </dl>
+          <p className="mt-3">Signed-in users may submit and track a grievance in Privacy &amp; Support Centre. Anyone may contact the grievance channel by email or phone. Truvi's service target is to acknowledge a complaint within 48 hours and resolve it within one month; where a different statutory deadline applies, that law controls.</p>
+          {(!LEGAL_ENTITY_NAME || !REGISTERED_OFFICE_ADDRESS || !COMPANY_CIN || !GRIEVANCE_OFFICER_NAME) && (
+            <p className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-amber-200">Publication setup incomplete: company identity, registered-office/CIN and named Grievance Officer fields must be completed and checked before Truvi claims compliance with any applicable e-commerce or company-disclosure requirement.</p>
+          )}
+        </section>
       </main>
     </div>
   );
@@ -39,12 +77,15 @@ export function TermsPage() {
       <h2>1. Services</h2>
       <p>Truvi provides real-estate intelligence, verification, listing and related services to buyers, channel partners and developers. Features and prices are described on our Pricing page and may change with notice.</p>
       <h2>2. Payments</h2>
-      <p>Paid services are billed in Indian Rupees and processed securely by Razorpay. All prices are exclusive of 18% GST unless stated otherwise. You are responsible for providing accurate contact and payment details.</p>
+      <p>Paid services are billed in Indian Rupees and payment instruments are processed by Razorpay. Any GST or other tax that is lawfully chargeable is calculated using the applicable tax treatment and shown before you confirm payment. The correct rate and invoice treatment depend on the service supplied, place of supply, Truvi's GST registration and applicable law; contact {SUPPORT_EMAIL} for billing questions. Do not infer a GST registration or a universal tax rate from a pricing label.</p>
       <h2>3. Acceptable use</h2>
       <p>You agree not to misuse the platform, resell data without authorisation, or use it for any unlawful purpose.</p>
       <h2>4. Limitation of liability</h2>
-      <p>Truvi's intelligence and verification outputs are provided in good faith to assist your decisions but do not constitute legal, financial or investment advice. To the extent permitted by law, our liability for any claim is limited to the amount you paid for the specific service.</p>
-      <h2>5. Contact</h2>
+      <p>Truvi's intelligence and verification outputs are provided in good faith to assist your decisions but do not constitute legal, financial or investment advice. No term in these Terms removes a statutory consumer right or limits liability to the extent that Indian law does not permit that exclusion or limitation.</p>
+      <h2>5. Property listings, project approvals and transaction roles</h2>
+      <p>Truvi provides property-information, discovery, listing, verification-support, lead-coordination and related services. Truvi's legal capacity may differ by project or transaction. The relevant project page and transaction documents must identify the promoter/seller or service provider and describe Truvi's role for that transaction. A listing, field observation, badge, uploaded document, AI response or status label is not a title certificate, government endorsement, RERA certificate or guarantee of returns.</p>
+      <p>Before paying or booking, users should independently verify the promoter, land title, encumbrances, land use, project permissions, applicable RERA registration and phase, any claimed exemption, and the written sale/booking agreement with the competent authority and qualified advisers. Where RERA applies, only appropriately registered projects and agents may be advertised or facilitated as required by law. A missing RERA number by itself is not a determination that a project is unlawful; the applicable registration requirement or documented statutory exemption must be checked for that project.</p>
+      <h2>6. Contact</h2>
       <p>Questions about these terms: <strong>{SUPPORT_EMAIL}</strong>.</p>
     </PolicyShell>
   );
@@ -54,14 +95,14 @@ export function RefundPolicyPage() {
   return (
     <PolicyShell title="Refund &amp; Cancellation Policy">
       <p>This policy explains refunds and cancellations for services purchased on truviventures.com.</p>
-      <h2>1. Digital services</h2>
-      <p>Reports, verifications, badges and other digital deliverables are generated on demand. Once a report or verification has been delivered, the fee is generally non-refundable.</p>
-      <h2>2. Failed or duplicate payments</h2>
-      <p>If you were charged but did not receive the service, or were charged more than once for the same order, contact us within 7 days for a full refund of the affected amount.</p>
-      <h2>3. Subscriptions</h2>
-      <p>Subscriptions (Pro plans) can be cancelled any time and will not renew for the next cycle. Amounts already paid for the current cycle are non-refundable.</p>
-      <h2>4. How to request</h2>
-      <p>Email <strong>{SUPPORT_EMAIL}</strong> with your payment ID. Approved refunds are returned to the original payment method within 5–7 business days via Razorpay.</p>
+      <h2>1. Digital services and service failures</h2>
+      <p>Where a digital report, verification or other deliverable has been correctly supplied as described, a change-of-mind request after delivery may not qualify for a refund where that restriction was disclosed before purchase and is permitted by law. This does not remove statutory remedies for a deficient, missing, misrepresented or undelivered service, an unauthorised charge, or any other right that cannot lawfully be excluded.</p>
+      <h2>2. Failed, duplicate or incorrect payments</h2>
+      <p>If a payment was debited but the service was not activated or delivered, a duplicate charge occurred, or the amount charged differs from the confirmed checkout, contact customer care promptly. Truvi will investigate the payment-provider record and communicate the decision and next steps. Do not send card numbers, CVV, OTPs or banking passwords.</p>
+      <h2>3. Subscription and renewal cancellation</h2>
+      <p>Where a recurring subscription is offered, the purchase/activation confirmation must identify the cancellation channel and renewal terms. You may request cancellation through the channel shown in that confirmation or by emailing customer care before the next renewal. Truvi will confirm the effective date and whether any future renewal remains scheduled. No cancellation fee will be imposed unless it is lawful and any required reciprocal treatment is provided. Refunds for an already-started billing period are assessed under the disclosed plan terms and applicable consumer law; this policy does not waive statutory rights.</p>
+      <h2>4. How to request a refund or cancellation</h2>
+      <p>Email <strong>{SUPPORT_EMAIL}</strong> with your name, order/payment reference and a short explanation, or use the signed-in Privacy &amp; Support Centre for a grievance. Never include payment authentication secrets. Where a refund is approved, Truvi will initiate it to the original payment method through the payment provider; the provider/bank settlement time may vary, and the case update will state the initiation date and reference where available.</p>
     </PolicyShell>
   );
 }
@@ -97,8 +138,8 @@ export function PrivacyPolicyPage() {
       access: "The employee can access their own permitted records. Authorised administrators, HR/finance staff and reporting managers may access the records required for their assigned responsibilities.",
     },
     {
-      category: "KYC and identity documents",
-      data: "Aadhaar details/documents, PAN details/documents, selfie image, document type, masked identifiers and verification/review status, where KYC is requested for a role.",
+      category: "Identity and KYC documents",
+      data: "A masked Aadhaar or other accepted identity document, PAN details/documents where required for a role, selfie image, document type, masked identifiers and verification/review status.",
       use: "Channel Partner/Ambassador onboarding, identity checks, fraud prevention and manual compliance review.",
       access: "Restricted to authorised verification and administrator personnel. Channel Partner/Ambassador KYC image bytes are held in restricted PostgreSQL records and served only through authenticated review routes. Buyer identity, address and income-proof files submitted through Buyer Documents are stored separately in a private server directory outside the public uploads folder; only the document owner and authorised administrators receive access through expiring signed links.",
     },
@@ -172,7 +213,7 @@ export function PrivacyPolicyPage() {
         "Employee/workforce details (for Employee accounts and staff records): work contact details, department/designation, employment and recruitment dates, attendance/check-in/check-out, leave requests, tasks, work activity, salary/payroll and manager notes.",
         "Property and project details: project name, description, locality/address, map coordinates, pricing, inventory, brochures, images, legal/approval documents and listing information.",
         "Buyer, enquiry and lead details: property preferences, budget, area, purchase purpose, timeline, contact details supplied by the buyer or by a lead submitter with the relevant client's permission, CRM notes, follow-ups and site visits.",
-        "KYC information, where required: Aadhaar number/details and document, PAN details/document, selfie image, masked identifier and verification/review state.",
+        "Identity/KYC information, where required: a masked Aadhaar or other accepted identity document, PAN details/document for applicable roles, a selfie image, masked identifiers and verification/review status.",
         "Financial information: checkout contact details, plan/product, amount and tax calculation, voucher, payment/order identifiers and status, subscription, commission, invoice and payout records.",
         "Communications: support messages, grievance and privacy-request details, notification preferences, SMS/email delivery metadata, and call metadata/recordings where telephony recording is enabled.",
         "Technical and security data: IP/network information, browser/device type, access times, routes/pages used, session and cookie data, security/audit events, rate-limit signals and error diagnostics.",
@@ -249,11 +290,14 @@ export function PrivacyPolicyPage() {
 
       <h2>6. KYC and identity verification</h2>
       <p>
-        Channel Partner and Ambassador onboarding may require identity information such as Aadhaar, PAN and
-        a selfie. The current application performs format/checksum-level validation and routes the submitted
-        documents for manual administrator review. The current KYC service code does not perform an automated
-        government-database identity check or an automated selfie/liveness match. Do not interpret an uploaded
-        document or a format check as government verification.
+        Channel Partner and Ambassador onboarding may request a masked Aadhaar or another identity document
+        accepted by Truvi's compliance process, PAN for applicable roles, and a selfie. Do not enter a full
+        Aadhaar number or upload an unmasked Aadhaar image, Aadhaar OTP, biometric information or a document
+        exposing more identity data than the verification purpose requires. Mask the first eight Aadhaar digits
+        before uploading. Contact customer care for an alternative-document route if you cannot provide a
+        properly masked document. The current application routes documents for manual administrator review;
+        it does not perform UIDAI authentication, government-database identity checks, or automated selfie
+        liveness/face matching. An uploaded document or administrator review is not a UIDAI verification.
       </p>
       <p>
         Channel Partner/Ambassador KYC image bytes are stored as restricted records in PostgreSQL and are
@@ -399,10 +443,13 @@ export function PrivacyPolicyPage() {
 
       <h2>16. Grievances and privacy support</h2>
       <p>
-        You can submit a grievance and track its case number, status and customer-visible response in Privacy
-        & Support Centre. You may also write to <strong>info@truviventures.com</strong>. Internal handling notes
-        are restricted to authorised administrators and are not displayed as public case responses.
-      </p>
+        Signed-in users may submit a grievance and track its case number, status and customer-visible response
+        in Privacy &amp; Support Centre. Users without an account may contact the Grievance Officer by email
+        or phone using the details published below. Truvi aims to acknowledge consumer complaints within
+        48 hours and redress them within one month. If a different statutory period applies, that period controls.
+        Internal handling notes are restricted to authorised administrators and are not disclosed as public
+        case responses. Please include enough information to identify the issue, but do not send passwords,
+        OTPs, full Aadhaar numbers or payment authentication data.
 
       <h2>17. Children</h2>
       <p>
@@ -421,14 +468,19 @@ export function PrivacyPolicyPage() {
 
       <h2>19. Contact</h2>
       <p>
-        <strong>TRUVI Ventures</strong><br />
+        <strong>{COMPANY}</strong><br />
         Website: www.truviventures.com<br />
-        Privacy and grievance email: <a href="mailto:info@truviventures.com" className="hover:text-foreground">info@truviventures.com</a><br />
-        Phone: +91 96366 33588
+        Legal entity: {LEGAL_ENTITY_NAME || "Not yet configured — confirm against MCA records."}<br />
+        Registered office: {REGISTERED_OFFICE_ADDRESS || "Not yet configured — add the complete address from company records."}<br />
+        CIN: {COMPANY_CIN || "Not yet configured — add the verified CIN."}<br />
+        Customer care: <a href={`mailto:${CUSTOMER_CARE_EMAIL}`} className="hover:text-foreground">{CUSTOMER_CARE_EMAIL}</a> · {CUSTOMER_CARE_PHONE}<br />
+        Grievance Officer: {GRIEVANCE_OFFICER_NAME || "Not yet designated"} ({GRIEVANCE_OFFICER_DESIGNATION})<br />
+        Grievance contact: <a href={`mailto:${GRIEVANCE_OFFICER_EMAIL}`} className="hover:text-foreground">{GRIEVANCE_OFFICER_EMAIL}</a> · {GRIEVANCE_OFFICER_PHONE}
       </p>
       <p className="text-xs text-muted-foreground">
-        This policy describes the current code-level data flows and should be checked against actual provider
-        contracts, deployment regions, retention schedules and legal requirements before publication.
+        This policy must be checked against the exact legal entity, provider contracts, deployment/data regions,
+        retention schedule and actual operations. Fields marked not configured are launch blockers where
+        applicable law requires those particulars to be published.
       </p>
     </PolicyShell>
   );
