@@ -53,9 +53,9 @@ describe("createApp production hosting", () => {
     expect(unknownSpaRoute.headers.get("content-type")).toContain("text/html");
     expect(unknownBody).toContain('<div id="root">');
 
-    const unknownApiRoute = await fetch(`http://127.0.0.1:${address.port}/api/this-route-does-not-exist`);
-    expect(unknownApiRoute.status).toBe(404);
-    expect(unknownApiRoute.headers.get("content-type") || "").toContain("application/json");
+    const apiWhileDatabaseIsUnready = await fetch(`http://127.0.0.1:${address.port}/api/this-route-does-not-exist`);
+    expect(apiWhileDatabaseIsUnready.status).toBe(503);
+    expect((await apiWhileDatabaseIsUnready.json()).error).toBe("database_starting");
 
     const telemetryResponse = await fetch(`http://127.0.0.1:${address.port}/api/telemetry/frontend-error`, {
       method: "POST",
