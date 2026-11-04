@@ -48,7 +48,7 @@ const statements: string[] = [
      partner_phone text,
      package_name text NOT NULL DEFAULT 'Marketing Access',
      amount_paise integer NOT NULL DEFAULT 0,
-     gst_percent double precision NOT NULL DEFAULT 18,
+     gst_percent double precision NOT NULL DEFAULT 0,
      gst_paise integer NOT NULL DEFAULT 0,
      total_paise integer NOT NULL DEFAULT 0,
      method text NOT NULL DEFAULT 'OTHER',
