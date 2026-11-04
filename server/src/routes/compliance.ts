@@ -142,7 +142,7 @@ const privacyRequestSchema = z.object({
   requestType: z.enum(["ACCESS", "CORRECTION", "ERASURE", "WITHDRAW_CONSENT"]),
   details: z.string().trim().min(10, "Please provide at least 10 characters of detail").max(3000),
 });
-router.post("/privacy-requests", ...complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
+router.post("/privacy-requests", complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
   const parsed = privacyRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid privacy request" });
 
@@ -188,7 +188,7 @@ const grievanceSchema = z.object({
   subject: z.string().trim().min(5).max(160),
   description: z.string().trim().min(15).max(5000),
 });
-router.post("/grievances", ...complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
+router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
   const parsed = grievanceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid grievance" });
 
