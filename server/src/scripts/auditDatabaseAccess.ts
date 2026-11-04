@@ -5,7 +5,7 @@ type RoleRow = {
   current_user: string;
   is_superuser: boolean;
   bypasses_rls: boolean;
-  owns_public_schema: boolean;
+  has_public_schema_usage: boolean;
 };
 
 type TableRow = {
@@ -34,7 +34,7 @@ async function main() {
       current_user::text as current_user,
       r.rolsuper as is_superuser,
       r.rolbypassrls as bypasses_rls,
-      has_schema_privilege(current_user, 'public', 'USAGE') as owns_public_schema
+      has_schema_privilege(current_user, 'public', 'USAGE') as has_public_schema_usage
     from pg_roles r
     where r.rolname = current_user
   `);
@@ -80,7 +80,7 @@ async function main() {
       currentUser: role.current_user,
       isSuperuser: role.is_superuser,
       bypassesRls: role.bypasses_rls,
-      publicSchemaUsage: role.owns_public_schema,
+      publicSchemaUsage: role.has_public_schema_usage,
     },
     tables: {
       total: tables.length,
