@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import { formatProjectLocation } from "@/lib/projectLocation";
 import type { Unit } from "@/types";
 import { formatDate, formatTime, istNowTime, istToday, normalizeMobile, timeSlots, type PublicOffer } from "./inventoryLeadShared";
 
@@ -187,7 +188,7 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
             <p className="truncate font-display text-sm font-semibold">{project.name}</p>
             {(project.location || project.city) && (
               <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-white/55">
-                <MapPin size={11} /> {[project.location, project.city].filter(Boolean).join(", ")}
+                <MapPin size={11} /> {formatProjectLocation(project.location, project.city)}
               </p>
             )}
           </div>
@@ -277,14 +278,14 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
               )}
 
               {/* Site visit */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
+              <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="min-w-0">
                   <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-white/70"><CalendarDays size={12} /> Site visit date</label>
-                  <input type="date" className={`${field} [color-scheme:dark]`} min={today} max={istToday(180)} value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
+                  <input type="date" className={`${field} box-border min-w-0 max-w-full [color-scheme:dark]`} min={today} max={istToday(180)} value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-white/70"><Clock size={12} /> Preferred time</label>
-                  <select className={`${field} [&>option]:bg-[#0a0d14]`} value={visitTime} onChange={(e) => setVisitTime(e.target.value)} disabled={!slots.length}>
+                  <select className={`${field} box-border min-w-0 max-w-full [&>option]:bg-[#0a0d14]`} value={visitTime} onChange={(e) => setVisitTime(e.target.value)} disabled={!slots.length}>
                     {slots.length ? slots.map((t) => <option key={t} value={t}>{formatTime(t)}</option>) : <option>No slots left today</option>}
                   </select>
                 </div>
