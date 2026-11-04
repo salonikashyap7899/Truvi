@@ -337,9 +337,16 @@ export function createApp() {
     );
     // Keep SPA navigation fallback away from missing API and file requests.
     // A missing hashed JS/CSS file must be a 404, never index.html with status 200.
-    app.get(/^\/(?!(?:api|uploads|health|assets)(?:\/|$)|.*\.[^/]+$).*/, (_req, res) => {
+    app.get(/^\/(?!(?:api|uploads|health|assets)(?:\/|$)|.*\.[^/]+$).*/, (req, res, next) => {
       res.setHeader("Cache-Control", "no-cache");
-      res.sendFile(path.join(clientDistDir, "index.html"));
+      // Preserve the React NotFoundPage UI while giving crawlers and monitors
+      // the correct status code for a route that React Router does not know.
+      res.status(isKnownSpaRoute(req.path) ? 200 : 404).sendFile(
+        path.join(clientDistDir, "index.html"),
+        (error) => {
+          if (error) next(error);
+        },
+      );
     });
   }
 
