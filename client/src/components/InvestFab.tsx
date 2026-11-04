@@ -11,7 +11,7 @@ const PUBLIC_PATHS = new Set(["/", "/home", "/about", "/intelligence", "/invento
 export default function InvestFab() {
   const { pathname } = useLocation();
   const show = PUBLIC_PATHS.has(pathname) || pathname.startsWith("/inventory");
-  const hasProjectDetailCta = /^\\/inventory\\/[^/]+\\/presentation\\/?$/.test(pathname);
+  const hasProjectDetailCta = pathname.startsWith("/inventory/") && pathname.endsWith("/presentation");
   if (!show || pathname === "/invest" || hasProjectDetailCta) return null;
 
   return (
