@@ -27,7 +27,7 @@ describe("createApp production hosting", () => {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Server did not bind to a port");
 
-    const response = await fetch(`http://127.0.0.1:${address.port}/dashboard`);
+    const response = await fetch(`http://127.0.0.1:${address.port}/admin/dashboard`);
     const body = await response.text();
     const presentationResponse = await fetch(
       `http://127.0.0.1:${address.port}/inventory/76da0eb3-4ed2-4e43-86de-ab0b5ba8ad07/presentation`,
@@ -48,8 +48,14 @@ describe("createApp production hosting", () => {
     expect(missingAssetResponse.headers.get("content-type") || "").not.toContain("text/html");
 
     const unknownSpaRoute = await fetch(`http://127.0.0.1:${address.port}/this-route-does-not-exist`);
-    expect(unknownSpaRoute.status).toBe(200);
+    const unknownBody = await unknownSpaRoute.text();
+    expect(unknownSpaRoute.status).toBe(404);
     expect(unknownSpaRoute.headers.get("content-type")).toContain("text/html");
+    expect(unknownBody).toContain("<div id=\\"root\\">");
+
+    const unknownApiRoute = await fetch(`http://127.0.0.1:${address.port}/api/this-route-does-not-exist`);
+    expect(unknownApiRoute.status).toBe(404);
+    expect(unknownApiRoute.headers.get("content-type") || "").toContain("application/json");
   });
 
   it("blocks CP ambassadors until onboarding verification is complete", () => {
