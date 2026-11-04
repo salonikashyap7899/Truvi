@@ -55,13 +55,13 @@ async function main() {
   const grants = await sql.unsafe<GrantRow[]>(`
     select grantee::text, table_name::text as object_name,
            'TABLE'::text as object_type, privilege_type::text
-    from information_schema.role_table_grants
+    from information_schema.table_privileges
     where table_schema = 'public'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
     union all
     select grantee::text, object_name::text as object_name,
            'SEQUENCE'::text as object_type, privilege_type::text
-    from information_schema.role_usage_grants
+    from information_schema.usage_privileges
     where object_schema = 'public' and object_type = 'SEQUENCE'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
     union all
@@ -70,14 +70,24 @@ async function main() {
     from information_schema.routine_privileges
     where routine_schema = 'public'
       and grantee in ('PUBLIC', 'anon', 'authenticated')
+    union all
+    select grantee::text, table_name::text || '.' || column_name::text as object_name,
+           'COLUMN'::text as object_type, privilege_type::text
+    from information_schema.column_privileges
+    where table_schema = 'public'
+      and grantee in ('PUBLIC', 'anon', 'authenticated')
     order by grantee, object_type, object_name, privilege_type
   `);
 
   const schemaGrants = await sql.unsafe<Array<{ grantee: string; privilege_type: string }>>( `
-    select grantee::text, privilege_type::text
-    from information_schema.schema_privileges
-    where schema_name = 'public'
-      and grantee in ('PUBLIC', 'anon', 'authenticated')
+    select
+      case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end::text as grantee,
+      acl.privilege_type::text as privilege_type
+    from pg_namespace n
+    cross join lateral aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) as acl
+    left join pg_roles grantee_role on grantee_role.oid = acl.grantee
+    where n.nspname = 'public'
+      and (acl.grantee = 0 or grantee_role.rolname in ('anon', 'authenticated'))
     order by grantee, privilege_type
   `);
 
