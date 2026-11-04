@@ -482,6 +482,12 @@ export const pendingSignups = pgTable(
     emailOtpExpiry: timestamp("email_otp_expiry", { withTimezone: true, mode: "date" }),
     phoneOtp: text("phone_otp"),
     phoneOtpExpiry: timestamp("phone_otp_expiry", { withTimezone: true, mode: "date" }),
+    termsVersion: text("terms_version"),
+    termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }),
+    privacyNoticeVersion: text("privacy_notice_version"),
+    privacyNoticeAcceptedAt: timestamp("privacy_notice_accepted_at", { withTimezone: true, mode: "date" }),
+    marketingOptIn: boolean("marketing_opt_in").notNull().default(false),
+    marketingOptInAt: timestamp("marketing_opt_in_at", { withTimezone: true, mode: "date" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("pending_signups_email_unique").on(t.email)]
@@ -3303,3 +3309,71 @@ export const ambassadorOsRetentionPolicies = pgTable("ambassador_os_retention_po
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 }, (t) => [uniqueIndex("ambassador_os_retention_category_version_unique").on(t.dataCategory, t.policyVersion), index("ambassador_os_retention_active_idx").on(t.active, t.dataCategory)]);
+
+
+// ---------------------------------------------------------------------------
+// Shared privacy-consent, privacy-rights, and grievance workflows
+// ---------------------------------------------------------------------------
+
+export type ConsentPolicyType = "TERMS_OF_SERVICE" | "PRIVACY_NOTICE" | "MARKETING";
+export type ConsentEventAction = "ACKNOWLEDGED" | "GRANTED" | "WITHDRAWN";
+export type ConsentEventSource = "SIGNUP" | "PRIVACY_CENTER" | "SETTINGS";
+
+/** Append-only evidence of the exact policy version and action recorded. */
+export const userConsentEvents = pgTable("user_consent_events", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id),
+  policyType: text("policy_type").$type<ConsentPolicyType>().notNull(),
+  policyVersion: text("policy_version").notNull(),
+  action: text("action").$type<ConsentEventAction>().notNull(),
+  source: text("source").$type<ConsentEventSource>().notNull().default("PRIVACY_CENTER"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  index("user_consent_events_user_policy_idx").on(t.userId, t.policyType, t.occurredAt),
+  index("user_consent_events_policy_version_idx").on(t.policyType, t.policyVersion),
+]);
+
+export type PrivacyRequestType = "ACCESS" | "CORRECTION" | "ERASURE" | "WITHDRAW_CONSENT";
+export type PrivacyRequestStatus = "SUBMITTED" | "UNDER_REVIEW" | "WAITING_FOR_USER" | "APPROVED" | "REJECTED" | "COMPLETED";
+
+/** User data-rights requests for every Truvi role (not only Ambassadors). */
+export const privacyRequests = pgTable("privacy_requests", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  requestType: text("request_type").$type<PrivacyRequestType>().notNull(),
+  details: text("details").notNull(),
+  status: text("status").$type<PrivacyRequestStatus>().notNull().default("SUBMITTED"),
+  publicResponse: text("public_response"),
+  internalNotes: text("internal_notes"),
+  reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+}, (t) => [
+  index("privacy_requests_user_idx").on(t.requesterUserId, t.requestedAt),
+  index("privacy_requests_status_idx").on(t.status, t.requestedAt),
+]);
+
+export type GrievanceCategory = "PRIVACY" | "ACCOUNT" | "PAYMENT" | "PROJECT_LISTING" | "KYC" | "TECHNICAL" | "OTHER";
+export type GrievanceStatus = "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WAITING_FOR_USER" | "RESOLVED" | "CLOSED";
+
+/** Central support/grievance register shared by buyers, developers, CPs, staff and Ambassadors. */
+export const grievanceTickets = pgTable("grievance_tickets", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  caseNumber: text("case_number").notNull(),
+  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  category: text("category").$type<GrievanceCategory>().notNull(),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  status: text("status").$type<GrievanceStatus>().notNull().default("SUBMITTED"),
+  publicResponse: text("public_response"),
+  internalNotes: text("internal_notes"),
+  reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+}, (t) => [
+  uniqueIndex("grievance_tickets_case_number_unique").on(t.caseNumber),
+  index("grievance_tickets_user_idx").on(t.requesterUserId, t.requestedAt),
+  index("grievance_tickets_status_idx").on(t.status, t.requestedAt),
+]);
