@@ -341,6 +341,12 @@ router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequ
   const env = getEnv();
   const basePaise = plan.pricePaise;
   const gstPaise = withGst(basePaise, env.gstPercent) - basePaise;
+  const configuredTotalPaise = basePaise + gstPaise;
+  if (Number(mapping.amountPaise) !== configuredTotalPaise) {
+    return res.status(409).json({
+      error: "Subscription pricing is being updated. Please contact Truvi support before starting a new recurring payment.",
+    });
+  }
 
   const [row] = await db
     .insert(subscriptions)
