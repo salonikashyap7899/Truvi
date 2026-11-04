@@ -473,6 +473,7 @@ export function PrivacyPolicyPage() {
         Internal handling notes are restricted to authorised administrators and are not disclosed as public
         case responses. Please include enough information to identify the issue, but do not send passwords,
         OTPs, full Aadhaar numbers or payment authentication data.
+      </p>
 
       <h2>17. Children</h2>
       <p>
