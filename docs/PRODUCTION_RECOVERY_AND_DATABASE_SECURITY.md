@@ -47,7 +47,7 @@ cd server
 npm run db:backup-audit
 ```
 
-It reports whether the Management API lists a completed backup within the last 36 hours and whether PITR is enabled. A pass is only evidence that a recent backup is listed; it is **not** a restore test.
+It reports completed backup inventory and whether PITR is enabled. Without PITR, it flags when no completed backup is listed within the last 36 hours. With PITR enabled, it reports the physical base-backup timestamps but does not mistake those timestamps for the latest WAL recovery point; verify the actual PITR recovery window in the Supabase dashboard. A pass is only inventory evidence; it is **not** a restore test.
 
 Required release evidence:
 - Confirm the plan's backup frequency, retention and PITR setting in the Supabase dashboard.
