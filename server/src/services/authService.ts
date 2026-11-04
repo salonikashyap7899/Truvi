@@ -298,6 +298,7 @@ export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
 export function issueSession(res: import("express").Response, user: IUser) {
   const accessToken = signAccessToken({
     userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,
