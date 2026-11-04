@@ -206,7 +206,7 @@ router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: Authed
   const rawRestoreToken = randomBytes(32).toString("hex");
   const restoreTokenHash = createHash("sha256").update(rawRestoreToken).digest("hex");
   const restoreExpiresAt = new Date(now.getTime() + RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const clientBase = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\\/$/, "");
+  const clientBase = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "");
   const restoreUrl = clientBase + "/restore-account#token=" + rawRestoreToken;
   const escapedName = account.name.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
