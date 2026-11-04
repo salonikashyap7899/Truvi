@@ -88,6 +88,7 @@ import commentRoutes from "./routes/comments";
 import ambassadorTaskRoutes from "./routes/ambassadorTasks";
 import ambassadorOperatingSystemRoutes from "./routes/ambassadorOperatingSystem";
 import legalRoutes from "./routes/legal";
+import complianceRoutes from "./routes/compliance";
 import paymentRoutes, { razorpayWebhookHandler } from "./routes/payments";
 import { resendWebhookHandler } from "./routes/resendWebhook";
 import financeRoutes from "./routes/finance";
@@ -304,6 +305,7 @@ export function createApp() {
   app.use("/api/ambassador-tasks", ambassadorTaskRoutes);
   app.use("/api/ambassador-os", ambassadorOperatingSystemRoutes);
   app.use("/api/legal", legalRoutes);
+  app.use("/api/compliance", complianceRoutes);
   app.use("/api/payments", paymentRoutes);
   app.use("/api/finance", financeRoutes);
   app.use("/api/marketing", marketingRoutes);
