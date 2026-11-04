@@ -134,7 +134,7 @@ export default function AdminPaymentsPage() {
         <StatCard label="Successful" value={totals.paid} icon={<CheckCircle2 size={16} />} tone="emerald" delay={0} />
         <StatCard label="Pending" value={totals.pending} icon={<Clock size={16} />} tone="amber" delay={60} />
         <StatCard label="Failed" value={totals.failed} icon={<XCircle size={16} />} tone="rose" delay={120} />
-        <StatCard label="Gross Collected" value={totals.gross / 100} format={(n) => "₹" + Math.round(n).toLocaleString("en-IN")} icon={<Receipt size={16} />} tone="violet" foot="incl. GST" delay={180} />
+        <StatCard label="Gross Collected" value={totals.gross / 100} format={(n) => "₹" + Math.round(n).toLocaleString("en-IN")} icon={<Receipt size={16} />} tone="violet" foot="all recorded payment amounts" delay={180} />
         <StatCard label="GST Collected" value={totals.gst / 100} format={(n) => "₹" + Math.round(n).toLocaleString("en-IN")} icon={<Receipt size={16} />} tone="sky" delay={240} />
       </div>
 
