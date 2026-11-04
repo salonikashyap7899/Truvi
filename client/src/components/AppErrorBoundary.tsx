@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { isStaleBundleError, reloadForStaleBuild } from "@/lib/staleReload";
+import { reportClientError } from "@/lib/errorTelemetry";
 
 /**
  * App-level error boundary. Without one, ANY uncaught render error unmounts the
@@ -28,6 +29,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
     // reloadForStaleBuild is time-guarded so it can never loop.
     if (isStaleBundleError(err)) reloadForStaleBuild();
     // Best-effort telemetry hook; never throws.
+    reportClientError(err, "react_boundary");
     try { console.error("App crashed:", err); } catch { /* ignore */ }
   }
 
