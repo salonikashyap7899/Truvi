@@ -80,6 +80,8 @@
     "vitest": "^4.1.9"
   },
   "overrides": {
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "glob": "14.0.3",
+    "minimatch": "11.0.4"
   }
 }
