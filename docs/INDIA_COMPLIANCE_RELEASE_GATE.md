@@ -7,7 +7,7 @@ Truvi sells/lists or helps customers discover real-estate plots and villas, coll
 
 ## 1. Public company and grievance disclosures — release blocker
 
-The legal pages read values from Vite build-time variables. Configure these in `client/.env.production` on the build host (or in the secure build environment) before the next production build:
+The legal pages read values from Vite build-time variables. Configure these in `client/.env.production` on the VPS/build host (or in the secure build environment) before the next production build. This local file is Git-ignored; do not commit it. All `VITE_*` values become public in the browser bundle, so put only public contact/legal facts here, never secrets:
 
 - `VITE_LEGAL_ENTITY_NAME` — exact legal name from MCA/company records, not the brand name unless they are identical.
 - `VITE_REGISTERED_OFFICE_ADDRESS` — complete registered-office address from the latest company record.
@@ -121,7 +121,7 @@ The Digital Personal Data Protection Act and DPDP Rules have phased commencement
 
 ## 9. Go-live approval checklist
 
-- [ ] MCA company legal name, CIN and registered office checked against current records.
+- [ ] Legal operator name, legal form, registered office, principal office and branch addresses checked against current records; add CIN only if the operator is a company, or the applicable identifier for another legal form.
 - [ ] Real named Grievance Officer designated if required; email/phone monitored; public disclosures completed.
 - [ ] Principal office/headquarters and all branch addresses verified and displayed where required; if Truvi is covered as an e-commerce entity, India-resident nodal person details are published.
 - [ ] Truvi's real-estate agent / marketplace / e-commerce / intermediary role assessed in writing.
