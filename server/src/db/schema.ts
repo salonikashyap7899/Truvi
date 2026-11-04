@@ -1959,7 +1959,7 @@ export type ILoan = typeof loans.$inferSelect;
 export const platformSettings = pgTable("platform_settings", {
   _id: uuid("id").defaultRandom().primaryKey(),
   platformFeePercent: doublePrecision("platform_fee_percent").notNull().default(0.75),
-  gstPercent: doublePrecision("gst_percent").notNull().default(18),
+  gstPercent: doublePrecision("gst_percent").notNull().default(0),
   defaultCommissionPercent: doublePrecision("default_commission_percent").notNull().default(3),
   notifyEmail: boolean("notify_email").notNull().default(true),
   notifySms: boolean("notify_sms").notNull().default(false),
