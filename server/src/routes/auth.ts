@@ -659,6 +659,7 @@ router.post(
       resourceType: "identity_document",
       metadata: {
         noticeVersion: identityNoticeVersion,
+        purposeSpecificProcessingConsent: true,
         maskedAadhaarOrAlternativeDocumentDeclared: true,
         manualReviewOnly: true,
       },
