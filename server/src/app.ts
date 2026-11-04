@@ -106,6 +106,7 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
 import { redactUrlForLogs } from "./lib/redactUrlForLogs";
 import { protectUnverifiedLegalFiles } from "./services/protectedLegalFiles";
+import { isKnownSpaRoute } from "./lib/spaRoutes";
 
 // Redact short-lived signed links and webhook credentials before access logging.
 morgan.token("safe-url", (req) => {
