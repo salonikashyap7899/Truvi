@@ -5,6 +5,7 @@ import { getDb } from "../config/db";
 import {
   users,
   pendingSignups,
+  userConsentEvents,
   IUser,
   IPendingSignup,
   Role,
@@ -181,6 +182,15 @@ export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
       ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
     })
     .returning();
+
+  // Store the policy versions acknowledged before account creation. These
+  // events are append-only evidence; optional marketing preference is separate.
+  const consentEvents = [
+    ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
+    ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
+    ...(p.marketingOptIn && p.marketingOptInAt ? [{ userId: user._id, policyType: "MARKETING" as const, policyVersion: "marketing-2026-11", action: "GRANTED" as const, source: "SIGNUP" as const, occurredAt: p.marketingOptInAt }] : []),
+  ];
+  if (consentEvents.length) await db.insert(userConsentEvents).values(consentEvents);
   await db.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
 
   // One-time WhatsApp welcome for a brand-new developer (dormant unless the
