@@ -41,54 +41,68 @@ jobs:
             server/package-lock.json
             client/package-lock.json
       - name: Install server dependencies
-        working-directory: server
-        run: npm ci
+        run: |
+          cd server
+          test -f package-lock.json
+          npm ci --package-lock=true
       - name: Server TypeScript check
-        working-directory: server
-        run: npm run typecheck
+        run: |
+          cd server
+          npm run typecheck
       - name: Smoke-test Drizzle Kit config loading
-        working-directory: server
-        run: npm run db:generate
+        run: |
+          cd server
+          npm run db:generate
       # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
-        working-directory: client
-        run: npm ci
+        run: |
+          cd client
+          test -f package-lock.json
+          npm ci --package-lock=true
       - name: Lint client code
-        working-directory: client
-        run: npm run lint
+        run: |
+          cd client
+          npm run lint
       - name: Build client for production
-        working-directory: client
-        run: npm run build
+        run: |
+          cd client
+          npm run build
       - name: Run all server tests
-        working-directory: server
-        run: npm test
+        run: |
+          cd server
+          npm test
       - name: Audit root dependencies
         if: always()
         run: npm audit --audit-level=moderate
       - name: Audit server dependencies
         if: always()
-        working-directory: server
-        run: npm audit --audit-level=moderate
+        run: |
+          cd server
+          npm audit --audit-level=moderate
       - name: Audit client dependencies
         if: always()
-        working-directory: client
-        run: npm audit --audit-level=moderate
-      - name: Regenerate browser QA lockfile from security overrides
-        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup'))
-        working-directory: truvi-tests
-        run: npm install --package-lock-only --ignore-scripts --no-fund --no-audit
-      - name: Install browser QA dependencies
-        working-directory: truvi-tests
-        run: npm ci
-      - name: Smoke-test browser QA tooling imports and patched matcher
-        working-directory: truvi-tests
         run: |
+          cd client
+          npm audit --audit-level=moderate
+      - name: Regenerate browser QA lockfile from security overrides
+        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup' || github.head_ref == 'security/compliance-hardening-validation' || github.head_ref == 'security/compliance-hardening-final-validation')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup' || github.ref_name == 'security/compliance-hardening-validation' || github.ref_name == 'security/compliance-hardening-final-validation'))
+        run: |
+          cd truvi-tests
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
+      - name: Install browser QA dependencies
+        run: |
+          cd truvi-tests
+          npm ci --package-lock=true
+      - name: Smoke-test browser QA tooling imports and patched matcher
+        run: |
+          cd truvi-tests
           node --input-type=module -e "await import('lighthouse'); await import('puppeteer-core'); await import('chromium-bidi'); await import('linkinator');"
           node --input-type=module -e "import { glob } from 'glob'; const matches = await glob('*.json', { cwd: '.', withFileTypes: false }); if (!Array.isArray(matches)) process.exit(1); console.log('glob matcher smoke test passed');"
       - name: Audit browser QA dependencies
         if: always()
-        working-directory: truvi-tests
-        run: npm audit --audit-level=moderate
+        run: |
+          cd truvi-tests
+          npm audit --audit-level=moderate
       - name: Commit refreshed browser QA lockfile
         if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup')))
         env:
