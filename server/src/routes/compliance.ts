@@ -472,7 +472,7 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
   }[ch]!));
   const safeName = escapeHtml(String(requester?.name || "there"));
   const safeSubject = escapeHtml(ticket.subject);
-  const safeDescription = escapeHtml(ticket.description).replace(/\\r?\\n/g, "<br />");
+  const safeDescription = escapeHtml(ticket.description).replace(/\r?\n/g, "<br />");
   const safeCategory = escapeHtml(ticket.category.replace(/_/g, " "));
 
   await Promise.all([
