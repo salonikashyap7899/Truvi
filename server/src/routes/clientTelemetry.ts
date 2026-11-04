@@ -57,10 +57,10 @@ const frontendErrorLimiter = rateLimit({
 
 function scrubClientText(value: string, maxLength: number): string {
   return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[email]")
-    .replace(/\\+?\\d[\\d\\s().-]{7,}\\d/g, "[phone]")
-    .replace(/([?&](?:token|password|otp|secret|key|code)=)[^&#\\s]*/gi, "$1[redacted]")
-    .replace(/\\/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "/[id]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+    .replace(/\+?\d[\d\s().-]{7,}\d/g, "[phone]")
+    .replace(/([?&](?:token|password|otp|secret|key|code)=)[^&#\s]*/gi, "$1[redacted]")
+    .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "/[id]")
     .slice(0, maxLength);
 }
 
