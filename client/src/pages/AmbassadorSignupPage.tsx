@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +7,7 @@ import { z } from "zod";
 import { useAuth } from "@/hooks/useAuth";
 import { Input, Label } from "@/components/ui/primitives";
 import { Loader2 } from "lucide-react";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 
 const signupSchema = z
   .object({
@@ -33,6 +34,9 @@ const signupSchema = z
         "Enter a valid mobile number — Indian 10-digit, or international with country code.",
       ),
     role: z.literal("AMBASSADOR"),
+    acceptTerms: z.boolean().refine((value) => value === true, "Please accept the Terms of Service"),
+    acknowledgePrivacyNotice: z.boolean().refine((value) => value === true, "Please acknowledge the Privacy Policy"),
+    marketingOptIn: z.boolean().optional().default(false),
     companyName: z.string().optional(),
   })
   .superRefine(() => {
@@ -51,7 +55,7 @@ export default function AmbassadorSignupPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { role: "AMBASSADOR", email: defaultEmail, name: "", phone: "", password: "", companyName: "" },
+    defaultValues: { role: "AMBASSADOR", email: defaultEmail, name: "", phone: "", password: "", companyName: "", acceptTerms: false, acknowledgePrivacyNotice: false, marketingOptIn: false },
   });
 
   async function onSubmit(data: SignupForm) {
@@ -60,6 +64,8 @@ export default function AmbassadorSignupPage() {
       const delivery = await signup({
         ...data,
         role: "AMBASSADOR",
+        termsVersion: POLICY_VERSIONS.TERMS_OF_SERVICE,
+        privacyNoticeVersion: POLICY_VERSIONS.PRIVACY_NOTICE,
         ...(refCode ? { referralCode: refCode } : {}),
       });
       // Keep provider delivery results through the redirect so the user can
@@ -124,6 +130,22 @@ export default function AmbassadorSignupPage() {
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">At least 8 characters with an uppercase, lowercase, number and special character.</p>
                   )}
+                </div>
+                <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                    <input type="checkbox" {...register("acceptTerms")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>I agree to the <Link to="/terms" target="_blank" className="text-sky-300 underline underline-offset-2">Terms of Service</Link>. <span className="text-red-300">*</span></span>
+                  </label>
+                  {errors.acceptTerms && <p className="pl-6 text-[11px] text-red-300">{errors.acceptTerms.message}</p>}
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                    <input type="checkbox" {...register("acknowledgePrivacyNotice")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>I have read the <Link to="/privacy-policy" target="_blank" className="text-sky-300 underline underline-offset-2">Privacy Policy</Link>. <span className="text-red-300">*</span></span>
+                  </label>
+                  {errors.acknowledgePrivacyNotice && <p className="pl-6 text-[11px] text-red-300">{errors.acknowledgePrivacyNotice.message}</p>}
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/60">
+                    <input type="checkbox" {...register("marketingOptIn")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>Send me optional promotional updates. I can withdraw this permission later.</span>
+                  </label>
                 </div>
                 {serverError && <p className="rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>}
                 <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#dbeafe] to-white py-3 text-sm font-semibold text-[#0a0d14] transition-all hover:shadow-[0_0_30px_rgba(219,234,254,0.35)] disabled:opacity-60">
