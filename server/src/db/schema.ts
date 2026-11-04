@@ -3317,7 +3317,7 @@ export const ambassadorOsRetentionPolicies = pgTable("ambassador_os_retention_po
 
 export type ConsentPolicyType = "TERMS_OF_SERVICE" | "PRIVACY_NOTICE" | "MARKETING";
 export type ConsentEventAction = "ACKNOWLEDGED" | "GRANTED" | "WITHDRAWN";
-export type ConsentEventSource = "SIGNUP" | "PRIVACY_CENTER" | "SETTINGS";
+export type ConsentEventSource = "SIGNUP" | "EMPLOYEE_ACTIVATION" | "PRIVACY_CENTER" | "SETTINGS";
 
 /** Append-only evidence of the exact policy version and action recorded. */
 export const userConsentEvents = pgTable("user_consent_events", {
