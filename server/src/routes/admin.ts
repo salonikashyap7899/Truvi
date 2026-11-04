@@ -4,6 +4,7 @@ import { sanitizeUserForClient } from "../lib/sanitizeUser";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
+import { getEnv } from "../config/env";
 import { getSqlClient } from "../db/index";
 import {
   users,
@@ -1712,7 +1713,8 @@ function settingsResponse(s: IPlatformSettings, isAdmin = false) {
         }
       : {}),
     platformFeePercent: s.platformFeePercent,
-    gstPercent: s.gstPercent,
+    gstPercent: getEnv().gstPercent,
+    gstCollectionEnabled: getEnv().gstCollectionEnabled,
     defaultCommissionPercent: s.defaultCommissionPercent,
     notifications: { email: s.notifyEmail, sms: s.notifySms, whatsapp: s.notifyWhatsapp },
     // Read-only integration status derived from server env (never the secrets),
@@ -1733,7 +1735,6 @@ router.get("/settings", requireRole("ADMIN", "DEVELOPER", "CP"), async (req: Aut
 
 const settingsPatchSchema = z.object({
   platformFeePercent: z.number().min(0).max(100).optional(),
-  gstPercent: z.number().min(0).max(100).optional(),
   defaultCommissionPercent: z.number().min(0).max(100).optional(),
   notifications: z
     .object({ email: z.boolean().optional(), sms: z.boolean().optional(), whatsapp: z.boolean().optional() })
@@ -1760,7 +1761,6 @@ router.patch("/settings", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   const current = await loadSettings();
   const update: Partial<IPlatformSettings> = { updatedAt: new Date() };
   if (d.platformFeePercent !== undefined) update.platformFeePercent = d.platformFeePercent;
-  if (d.gstPercent !== undefined) update.gstPercent = d.gstPercent;
   if (d.defaultCommissionPercent !== undefined) update.defaultCommissionPercent = d.defaultCommissionPercent;
   if (d.notifications?.email !== undefined) update.notifyEmail = d.notifications.email;
   if (d.notifications?.sms !== undefined) update.notifySms = d.notifications.sms;
