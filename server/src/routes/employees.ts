@@ -305,9 +305,12 @@ router.post("/activate", async (req, res, next) => {
     const activated = await db.transaction(async (tx) => {
       const [emp] = await tx.select().from(employees).where(eq(employees._id, invite.employeeId)).limit(1);
       if (!emp?.accountUserId || emp.status === "INACTIVE") return false;
+      const [linkedAccount] = await tx.select({ id: users._id }).from(users)
+        .where(eq(users._id, emp.accountUserId)).limit(1);
+      if (!linkedAccount) return false;
 
-      // Claim the one-time invite only after confirming the linked employee is active.
-      // The password update and the policy evidence are committed together.
+      // Claim the one-time invite only after confirming the linked employee
+      // and account exist. The password update and policy evidence commit together.
       const now = new Date();
       const [claimed] = await tx.update(employeeInvites).set({ usedAt: now })
         .where(and(eq(employeeInvites._id, invite._id), isNull(employeeInvites.usedAt), gte(employeeInvites.expiresAt, now)))
