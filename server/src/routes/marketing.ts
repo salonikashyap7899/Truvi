@@ -270,7 +270,6 @@ const paymentSchema = z.object({
   partnerPhone: z.string().optional(),
   packageName: z.string().optional(),
   amountRupees: z.number().nonnegative(),
-  gstPercent: z.number().nonnegative().optional(),
   method: z.enum(["CASH", "BANK_TRANSFER", "UPI", "CHEQUE", "CARD", "OTHER"]).optional(),
   reference: z.string().optional(),
   status: z.enum(["PENDING", "VERIFIED", "FAILED", "REFUNDED"]).optional(),
@@ -307,7 +306,9 @@ adminRouter.post("/payments", async (req: AuthedRequest, res) => {
 
   const env = getEnv();
   const basePaise = rupeesToPaise(parsed.data.amountRupees);
-  const gstPercent = parsed.data.gstPercent != null ? parsed.data.gstPercent : env.gstPercent;
+  // Tax is server-controlled and zero unless GST collection is enabled with
+  // a valid supplier GSTIN and a CA-approved rate. Ignore client-supplied rates.
+  const gstPercent = env.gstPercent;
   const gstPaise = withGst(basePaise, gstPercent) - basePaise;
   const totalPaise = basePaise + gstPaise;
 
