@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
 
 function LegalSection({ id, title, children }: { id: string; title: string; children: ReactNode }) {
@@ -53,42 +53,43 @@ export default function LegalPage() {
         <div className="mt-14 space-y-16">
           <LegalSection id="privacy-policy" title="Privacy Policy">
             <p>
-              Truvi collects only the information needed to operate the platform: account details you
-              provide (name, email, phone, role), project information submitted by developers, and
-              usage information that helps us keep the service reliable and secure.
+              Truvi's full, current Privacy Policy is published separately and describes the personal
+              information used across buyer, developer, channel partner, ambassador and employee
+              workflows; KYC documents; support; payments; analytics; and AI-assisted features.
+              This summary is not a substitute for that notice.
             </p>
             <p>
-              Personal information is never sold. Inputs from buyers and residents that inform project
-              intelligence are aggregated and anonymised before display — individual responses are not
-              exposed. You can request deletion of your account and associated personal data by
-              contacting the Truvi team.
+              <Link to="/privacy-policy" className="text-sky-300 underline underline-offset-2">
+                Read the complete Privacy Policy, data categories, provider disclosures, retention
+                approach and privacy-request process.
+              </Link>
             </p>
           </LegalSection>
 
           <LegalSection id="terms-of-use" title="Terms of Use">
             <p>
-              By using Truvi you agree to use the platform lawfully and honestly: provide accurate
-              information, respect other participants in the ecosystem, and refrain from misusing data
-              made available through the service.
+              The binding Terms of Service, payment, property-listing, verification, cancellation and
+              complaint provisions are published on the dedicated Terms page. This page is a short
+              navigation summary and does not create a separate or conflicting set of terms.
             </p>
             <p>
-              Truvi provides information services to buyers, developers, channel partners and other
-              real estate participants. Access to certain features requires an approved account.
-              Accounts that submit false information or misuse the platform may be suspended.
+              <Link to="/terms" className="text-sky-300 underline underline-offset-2">
+                Read the complete Terms of Service.
+              </Link>
             </p>
           </LegalSection>
 
           <LegalSection id="data-policy" title="Data Policy">
             <p>
-              Every data point in Truvi carries a source label so you always know its origin: Truvi
-              Verified (field-verified by our ambassador and surveyor network), Public Record
-              (government registries, RERA filings and other public documents), Builder Submitted
-              (provided by the developer, not independently verified unless noted), and User Submitted
-              (aggregated, anonymised inputs from buyers and residents).
+              Where a source label is displayed, it distinguishes information collected by Truvi,
+              information taken from public records, information supplied by a developer or other
+              contributor, and user-submitted material. A source label describes provenance; it is not
+              a legal-title opinion, government certificate or guarantee that the source remains current.
             </p>
             <p>
-              Information also carries a Last Updated date wherever available. Where data could not be
-              verified or was not found, it is labelled as such — it is never silently filled in.
+              A last-updated date and verification status are shown where available. Missing or
+              unverified information should not be treated as confirmed. Users should check original
+              records with the issuing authority before relying on a property claim.
             </p>
           </LegalSection>
 
