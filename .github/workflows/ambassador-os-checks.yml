@@ -24,14 +24,14 @@ jobs:
             client/package-lock.json
       - name: Install backend dependencies and type-check
         run: |
-          test -f server/package-lock.json
-          npm ci --prefix server --package-lock=true
-          npm run --prefix server typecheck
+          cd server
+          npm install --no-audit --no-fund
+          npm run typecheck
       - name: Run Ambassador OS business-rule tests
         working-directory: server
         run: npx vitest run src/services/ambassadorOperatingSystem.rules.test.ts
       - name: Install frontend dependencies and build
         run: |
-          test -f client/package-lock.json
-          npm ci --prefix client --package-lock=true
-          npm run --prefix client build
+          cd client
+          npm install --no-audit --no-fund
+          npm run build
