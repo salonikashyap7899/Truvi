@@ -457,7 +457,7 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
   const [ticket] = await db.insert(grievanceTickets).values({
     requesterUserId: userId,
     caseNumber,
-    status: "ACKNOWLEDGED",
+    status: "SUBMITTED",
     category: parsed.data.category,
     subject: parsed.data.subject,
     description: parsed.data.description,
@@ -485,7 +485,14 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
             <p>Our service target is to acknowledge complaints within 48 hours and resolve them within one month, subject to any different statutory deadline that applies.</p>
             <p>For follow-up, reply to this email or contact info@truviventures.com. Never send passwords, OTPs or payment authentication details.</p>
           </div>`,
-        ).catch(() => false)
+        ).then(async () => {
+          // Only mark email-acknowledged after the configured provider accepts it.
+          // Provider acceptance is not proof of inbox delivery.
+          await db.update(grievanceTickets)
+            .set({ status: "ACKNOWLEDGED", updatedAt: new Date() })
+            .where(eq(grievanceTickets._id, ticket._id));
+          return true;
+        }).catch(() => false)
       : Promise.resolve(false),
     notifyRole("ADMIN", {
       type: "grievance_submitted",
