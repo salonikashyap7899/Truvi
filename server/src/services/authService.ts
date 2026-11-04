@@ -163,6 +163,14 @@ export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
  * created, so no account can exist without passing OTP verification.
  */
 export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
+  if (
+    p.termsVersion !== CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE ||
+    !p.termsAcceptedAt ||
+    p.privacyNoticeVersion !== CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE ||
+    !p.privacyNoticeAcceptedAt
+  ) {
+    throw new Error("Pending signup is missing current Terms and Privacy acknowledgement evidence.");
+  }
   const db = getDb();
   const role = p.role as Role;
   const user = await db.transaction(async (tx) => {
