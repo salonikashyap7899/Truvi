@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowRight, CheckCircle2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
@@ -11,7 +11,6 @@ function readRestoreToken(): string {
 }
 
 export default function RestoreAccountPage() {
-  const navigate = useNavigate();
   const [token] = useState(readRestoreToken);
   const [busy, setBusy] = useState(false);
   const [restored, setRestored] = useState(false);
