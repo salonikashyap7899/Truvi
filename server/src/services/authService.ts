@@ -188,8 +188,8 @@ export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
     // Store the policy versions acknowledged before account creation. These
     // events are append-only evidence; optional marketing preference is separate.
     const consentEvents = [
-      ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
-      ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const }] : []),
+      ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const, ...(p.termsAcceptedAt ? { occurredAt: p.termsAcceptedAt } : {}) }] : []),
+      ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const, ...(p.privacyNoticeAcceptedAt ? { occurredAt: p.privacyNoticeAcceptedAt } : {}) }] : []),
       ...(p.marketingOptIn && p.marketingOptInAt ? [{ userId: user._id, policyType: "MARKETING" as const, policyVersion: CURRENT_POLICY_VERSIONS.MARKETING, action: "GRANTED" as const, source: "SIGNUP" as const, occurredAt: p.marketingOptInAt }] : []),
     ];
     if (consentEvents.length) await tx.insert(userConsentEvents).values(consentEvents);
