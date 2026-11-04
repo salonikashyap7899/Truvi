@@ -13,7 +13,11 @@ type PrivacyRequest = {
   internalNotes?: string | null; requestedAt: string; updatedAt: string;
   requesterName: string; requesterEmail: string; requesterRole: string;
 };
-type QueueData = { grievances: Grievance[]; privacyRequests: PrivacyRequest[] };
+type AccountDeletion = {
+  _id: string; status: string; requestedAt: string; deactivatedAt?: string | null; restoreExpiresAt?: string | null;
+  requesterName: string; requesterEmail: string; requesterRole: string;
+};
+type QueueData = { grievances: Grievance[]; privacyRequests: PrivacyRequest[]; accountDeletions: AccountDeletion[] };
 type Draft = { status: string; publicResponse: string; internalNote: string };
 
 const panel = "rounded-2xl border border-white/10 bg-[#0d1420]/85";
@@ -25,9 +29,9 @@ const dateLabel = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle
 const errorMessage = (error: any) => error?.response?.data?.error || "Could not update the compliance queue.";
 
 export default function AdminCompliancePage() {
-  const [data, setData] = useState<QueueData>({ grievances: [], privacyRequests: [] });
+  const [data, setData] = useState<QueueData>({ grievances: [], privacyRequests: [], accountDeletions: [] });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"GRIEVANCES" | "PRIVACY">("GRIEVANCES");
+  const [tab, setTab] = useState<"GRIEVANCES" | "PRIVACY" | "ACCOUNT_DELETIONS">("GRIEVANCES");
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -35,7 +39,7 @@ export default function AdminCompliancePage() {
     setLoading(true);
     try {
       const response = await api.get("/compliance/admin/queue");
-      setData({ grievances: response.data.grievances ?? [], privacyRequests: response.data.privacyRequests ?? [] });
+      setData({ grievances: response.data.grievances ?? [], privacyRequests: response.data.privacyRequests ?? [], accountDeletions: response.data.accountDeletions ?? [] });
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
@@ -74,7 +78,7 @@ export default function AdminCompliancePage() {
 
   const totalOpenGrievances = data.grievances.filter((item) => !["RESOLVED", "CLOSED"].includes(item.status)).length;
   const totalOpenPrivacy = data.privacyRequests.filter((item) => !["REJECTED", "COMPLETED"].includes(item.status)).length;
-  const empty = tab === "GRIEVANCES" ? data.grievances.length === 0 : data.privacyRequests.length === 0;
+  const empty = tab === "GRIEVANCES" ? data.grievances.length === 0 : tab === "PRIVACY" ? data.privacyRequests.length === 0 : data.accountDeletions.length === 0;
 
   return (
     <div className="space-y-5 text-white">
@@ -87,19 +91,21 @@ export default function AdminCompliancePage() {
         <button onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/5 disabled:opacity-50"><RefreshCw size={13} className={loading ? "animate-spin" : ""}/> Refresh queue</button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className={panel + " p-4"}><p className="text-xs text-white/45">Grievances received</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.grievances.length}</p><p className="mt-1 text-[11px] text-white/35">{totalOpenGrievances} open</p></div>
         <div className={panel + " p-4"}><p className="text-xs text-white/45">Privacy requests</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.privacyRequests.length}</p><p className="mt-1 text-[11px] text-white/35">{totalOpenPrivacy} open</p></div>
+        <div className={panel + " p-4"}><p className="text-xs text-white/45">Account deactivations</p><p className="mt-2 text-2xl font-semibold tabular-nums">{data.accountDeletions.length}</p><p className="mt-1 text-[11px] text-white/35">Recovery or erasure review</p></div>
         <div className={panel + " p-4"}><p className="text-xs text-white/45">Roles covered</p><p className="mt-2 text-2xl font-semibold">All 7</p><p className="mt-1 text-[11px] text-white/35">Admin · Verifier · Employee · Buyer · CP · Developer · Ambassador</p></div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] p-1.5">
         <button onClick={() => setTab("GRIEVANCES")} className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${tab === "GRIEVANCES" ? "bg-sky-500 text-white" : "text-white/55 hover:bg-white/5"}`}>Grievances ({data.grievances.length})</button>
         <button onClick={() => setTab("PRIVACY")} className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${tab === "PRIVACY" ? "bg-sky-500 text-white" : "text-white/55 hover:bg-white/5"}`}>Privacy requests ({data.privacyRequests.length})</button>
+        <button onClick={() => setTab("ACCOUNT_DELETIONS")} className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${tab === "ACCOUNT_DELETIONS" ? "bg-sky-500 text-white" : "text-white/55 hover:bg-white/5"}`}>Account deactivations ({data.accountDeletions.length})</button>
       </div>
 
       {loading ? <div className={panel + " p-8 text-sm text-white/45"}>Loading compliance queue…</div> : empty ? (
-        <div className={panel + " p-10 text-center text-sm text-white/40"}>No {tab === "GRIEVANCES" ? "grievances" : "privacy requests"} have been submitted.</div>
+        <div className={panel + " p-10 text-center text-sm text-white/40"}>No {tab === "GRIEVANCES" ? "grievances" : tab === "PRIVACY" ? "privacy requests" : "account deactivations"} are in this queue.</div>
       ) : tab === "GRIEVANCES" ? (
         <div className="space-y-3">
           {data.grievances.map((item) => {
@@ -144,7 +150,7 @@ export default function AdminCompliancePage() {
             );
           })}
         </div>
-      ) : (
+      ) : tab === "PRIVACY" ? (
         <div className="space-y-3">
           {data.privacyRequests.map((item) => {
             const draft = getDraft(item._id, item.status, item.publicResponse);
@@ -184,8 +190,34 @@ export default function AdminCompliancePage() {
             );
           })}
         </div>
+      ) : (
+        <div className="space-y-3">
+          {data.accountDeletions.map((item) => (
+            <article key={item._id} className={panel + " p-4 sm:p-5"}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-300">Account deletion</p>
+                  <h2 className="mt-2 text-base font-semibold">{item.requesterName}</h2>
+                  <p className="mt-1 text-xs text-white/50">{item.requesterEmail}</p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[10px] ${item.status === "ERASURE_REVIEW" ? "border-amber-400/25 text-amber-200" : "border-sky-400/25 text-sky-200"}`}>{pretty(item.status)}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-3 text-[11px] text-white/40">
+                <span className="inline-flex items-center gap-1.5"><UserRound size={12}/>{pretty(item.requesterRole)}</span>
+                <span>Requested {dateLabel(item.requestedAt)}</span>
+                {item.deactivatedAt && <span>Deactivated {dateLabel(item.deactivatedAt)}</span>}
+                {item.restoreExpiresAt && <span>Restore link expired {dateLabel(item.restoreExpiresAt)}</span>}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-white/50">
+                {item.status === "ERASURE_REVIEW"
+                  ? "The 30-day restoration period has ended. Review dependent project, payment, KYC, commission, employee, security and dispute records before approving any final erasure or legally required retention."
+                  : "The account is deactivated. The user can restore it using the single-use link sent to their verified email until the restoration deadline."}
+              </p>
+            </article>
+          ))}
+        </div>
       )}
-      <p className="text-[10px] leading-relaxed text-white/30">The admin workflow records review status and communication. It does not automatically erase production data or approve a request without the required legal and operational checks.</p>
+      <p className="text-[10px] leading-relaxed text-white/30">Account deactivation is not a physical purge. The erasure queue requires an authorised review of dependent and legally retained records before final deletion or anonymisation.</p>
     </div>
   );
 }
