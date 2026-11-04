@@ -70,7 +70,7 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
           </span>
         </div>
         <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${cfg ? cfg.badgeClass : "border-sky-400/25 bg-sky-400/10 text-sky-200"}`}>
-          {cfg ? cfg.label : "Other authority"}
+          {cfg ? cfg.label : authority ? "Other authority" : "Authority not recorded"}
         </span>
       </div>
 
