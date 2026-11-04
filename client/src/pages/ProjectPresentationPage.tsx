@@ -22,6 +22,7 @@ import NearbyAmenities from "@/components/NearbyAmenities";
 import type { Project, ProjectAsset } from "@/types";
 import SoldOutBadge from "@/components/SoldOutBadge";
 import AddLeadModal, { type SiteVisitDraft } from "@/components/leads/AddLeadModal";
+import { formatProjectLocation } from "@/lib/projectLocation";
 
 function fmtDate(v?: string | null): string | null {
   if (!v) return null;
@@ -377,7 +378,7 @@ export default function ProjectPresentationPage() {
   }
 
   return (
-    <main className="min-h-screen min-w-0 max-w-full overflow-x-clip p-4 text-white sm:p-6 md:p-10 pb-28">
+    <main className="truvi-inventory-surface min-h-screen min-w-0 max-w-full overflow-x-clip p-4 pb-28 text-white sm:p-6 md:p-10">
       {lightbox && (
         <Lightbox
           images={lightbox.images}
@@ -429,8 +430,8 @@ export default function ProjectPresentationPage() {
             </span>
           )}
         </div>
-        <p className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
-          <MapPin size={13} /> {project.location}, {project.city}
+        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-2 text-sm text-muted-foreground">
+          <MapPin size={13} className="shrink-0" /> <span className="min-w-0 break-words">{formatProjectLocation(project.location, project.city)}</span>
           {distanceKm != null && (
             <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-200">
               <Navigation size={11} /> {formatDistance(distanceKm)}
