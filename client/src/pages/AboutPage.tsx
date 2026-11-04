@@ -136,7 +136,7 @@ const AMBASSADOR_STEPS = [
   {
     icon: <ShieldCheck size={20} />,
     title: "Register & Verify",
-    desc: "Sign up, upload your Aadhaar, verify your mobile & email OTP. Your profile goes Active instantly.",
+    desc: "Sign up, submit a masked identity document, and verify your mobile and email. Access is enabled after review.",
   },
   {
     icon: <MapPin size={20} />,
@@ -623,7 +623,7 @@ export default function AboutPage() {
                 <QrCode size={15} />
                 Share QR
               </button>
-              <p className="text-xs text-white/40">Free to join · Aadhaar verification required</p>
+              <p className="text-xs text-white/40">Free to join · identity-document review required</p>
             </div>
           </Reveal>
 
