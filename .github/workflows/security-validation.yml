@@ -53,6 +53,11 @@ jobs:
         run: |
           cd server
           npm run db:generate
+      # Refresh the lockfile before npm ci so Vercel proxy/runtime dependencies are pinned.
+      - name: Refresh client dependency lockfile
+        run: |
+          cd client
+          npm install --package-lock-only --ignore-scripts --no-fund --no-audit
       # The app-hosting test serves client/dist, so build it before running tests.
       - name: Install client dependencies
         run: |
@@ -111,7 +116,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add server/package-lock.json truvi-tests/package-lock.json
+          git add server/package-lock.json client/package-lock.json truvi-tests/package-lock.json
           if git diff --cached --quiet; then
             echo "No dependency lockfile changes to commit."
             exit 0
