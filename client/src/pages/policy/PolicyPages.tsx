@@ -25,7 +25,7 @@ const publicEnv = import.meta.env as ImportMetaEnv & {
 const LEGAL_ENTITY_NAME = publicEnv.VITE_LEGAL_ENTITY_NAME?.trim() || "";
 const REGISTERED_OFFICE_ADDRESS = publicEnv.VITE_REGISTERED_OFFICE_ADDRESS?.trim() || "";
 const PRINCIPAL_OFFICE_ADDRESS = publicEnv.VITE_PRINCIPAL_OFFICE_ADDRESS?.trim() || "";
-const BRANCH_ADDRESSES = publicEnv.VITE_BRANCH_ADDRESSES?.split(/\\r?\\n/).map((value) => value.trim()).filter(Boolean) ?? [];
+const BRANCH_ADDRESSES = publicEnv.VITE_BRANCH_ADDRESSES?.split(/\r?\n/).map((value) => value.trim()).filter(Boolean) ?? [];
 const COMPANY_CIN = publicEnv.VITE_COMPANY_CIN?.trim() || "";
 const CUSTOMER_CARE_EMAIL = publicEnv.VITE_CUSTOMER_CARE_EMAIL?.trim() || SUPPORT_EMAIL;
 const CUSTOMER_CARE_PHONE = publicEnv.VITE_CUSTOMER_CARE_PHONE?.trim() || "+91 70542 80101";
