@@ -3,6 +3,7 @@ import { Router, type RequestHandler } from "express";
 import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
+import { getEnv } from "../config/env";
 import {
   habitatBookingStatusHistory,
   habitatBookings,
