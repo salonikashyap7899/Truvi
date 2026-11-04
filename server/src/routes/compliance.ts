@@ -457,6 +457,7 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
   const [ticket] = await db.insert(grievanceTickets).values({
     requesterUserId: userId,
     caseNumber,
+    status: "ACKNOWLEDGED",
     category: parsed.data.category,
     subject: parsed.data.subject,
     description: parsed.data.description,
