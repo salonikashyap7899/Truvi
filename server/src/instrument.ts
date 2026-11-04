@@ -7,7 +7,6 @@ Sentry.init({
   dsn: dsn || undefined,
   enabled: Boolean(dsn),
   environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "production",
-  sendDefaultPii: false,
   tracesSampleRate: 0,
   beforeSend(event) {
     if (event.request) {
