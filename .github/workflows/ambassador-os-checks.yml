@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -23,15 +23,15 @@ jobs:
             server/package-lock.json
             client/package-lock.json
       - name: Install backend dependencies and type-check
-        working-directory: server
         run: |
-          npm ci
+          cd server
+          npm install --no-audit --no-fund
           npm run typecheck
       - name: Run Ambassador OS business-rule tests
         working-directory: server
         run: npx vitest run src/services/ambassadorOperatingSystem.rules.test.ts
       - name: Install frontend dependencies and build
-        working-directory: client
         run: |
-          npm ci
+          cd client
+          npm install --no-audit --no-fund
           npm run build
