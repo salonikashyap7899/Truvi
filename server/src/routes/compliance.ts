@@ -164,7 +164,7 @@ router.post("/account-deletion/request", ...otpSendLimiter, complianceSubmission
   });
 });
 
-const confirmDeletionSchema = z.object({ otp: z.string().trim().regex(/^\\d{6}$/) });
+const confirmDeletionSchema = z.object({ otp: z.string().trim().regex(/^\d{6}$/) });
 router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: AuthedRequest, res) => {
   const parsed = confirmDeletionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter the six-digit code sent to your email." });
