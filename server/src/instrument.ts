@@ -3,6 +3,14 @@ import * as Sentry from "@sentry/node";
 
 const dsn = process.env.SENTRY_DSN?.trim();
 
+function scrubErrorText(value: string): string {
+  return value
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[email]")
+    .replace(/\\+?\\d[\\d\\s().-]{7,}\\d/g, "[phone]")
+    .replace(/([?&](?:token|password|otp|secret|key|code)=)[^&#\\s]*/gi, "$1[redacted]")
+    .replace(/\\/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "/[id]");
+}
+
 Sentry.init({
   dsn: dsn || undefined,
   enabled: Boolean(dsn),
@@ -22,9 +30,16 @@ Sentry.init({
         }
       }
       if (typeof event.request.url === "string") {
-        event.request.url = event.request.url.split("?")[0].split("#")[0];
+        event.request.url = scrubErrorText(event.request.url.split("?")[0].split("#")[0]);
       }
     }
+    for (const exception of event.exception?.values ?? []) {
+      if (typeof exception.value === "string") exception.value = scrubErrorText(exception.value);
+    }
+    if (typeof event.message === "string") event.message = scrubErrorText(event.message);
+    if (event.logentry?.message) event.logentry.message = scrubErrorText(event.logentry.message);
+    // Breadcrumb messages can include arbitrary console output and form values.
+    delete event.breadcrumbs;
     delete event.user;
     return event;
   },
