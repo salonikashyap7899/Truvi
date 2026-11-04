@@ -4,14 +4,14 @@
  * locality/state in `city`; keep the most complete value in that case.
  */
 export function formatProjectLocation(location?: string | null, city?: string | null): string {
-  const cleanLocation = (location ?? "").trim().replace(/\\s+/g, " ");
-  const cleanCity = (city ?? "").trim().replace(/\\s+/g, " ");
+  const cleanLocation = (location ?? "").trim().replace(/\s+/g, " ");
+  const cleanCity = (city ?? "").trim().replace(/\s+/g, " ");
 
   if (!cleanLocation) return cleanCity;
   if (!cleanCity) return cleanLocation;
 
   const normalize = (value: string) =>
-    value.normalize("NFKC").toLowerCase().replace(/[.,\\s]+/g, " ").trim();
+    value.normalize("NFKC").toLowerCase().replace(/[.,\s]+/g, " ").trim();
   const normalizedLocation = normalize(cleanLocation);
   const normalizedCity = normalize(cleanCity);
 
