@@ -51,7 +51,7 @@ export const signup = async (req: Request, res: Response) => {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
-  const { name, email, password, phone, role, companyName, reraNumber, referralCode } = parsed.data;
+  const { name, email, password, phone, role, companyName, reraNumber, referralCode, termsVersion, privacyNoticeVersion, marketingOptIn } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
   const db = getDb();
@@ -98,6 +98,12 @@ export const signup = async (req: Request, res: Response) => {
     emailOtpExpiry: otpExpiry,
     phoneOtp: hashOtpForStorage(phoneOtp),
     phoneOtpExpiry: otpExpiry,
+    termsVersion,
+    termsAcceptedAt: new Date(),
+    privacyNoticeVersion,
+    privacyNoticeAcceptedAt: new Date(),
+    marketingOptIn: Boolean(marketingOptIn),
+    marketingOptInAt: marketingOptIn ? new Date() : null,
   };
   await db
     .insert(pendingSignups)
