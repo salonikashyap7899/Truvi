@@ -8,6 +8,8 @@ const SUPPORT_EMAIL = "info@truviventures.com";
 const publicEnv = import.meta.env as ImportMetaEnv & {
   readonly VITE_LEGAL_ENTITY_NAME?: string;
   readonly VITE_REGISTERED_OFFICE_ADDRESS?: string;
+  readonly VITE_PRINCIPAL_OFFICE_ADDRESS?: string;
+  readonly VITE_BRANCH_ADDRESSES?: string;
   readonly VITE_COMPANY_CIN?: string;
   readonly VITE_CUSTOMER_CARE_EMAIL?: string;
   readonly VITE_CUSTOMER_CARE_PHONE?: string;
@@ -15,9 +17,15 @@ const publicEnv = import.meta.env as ImportMetaEnv & {
   readonly VITE_GRIEVANCE_OFFICER_DESIGNATION?: string;
   readonly VITE_GRIEVANCE_OFFICER_EMAIL?: string;
   readonly VITE_GRIEVANCE_OFFICER_PHONE?: string;
+  readonly VITE_ECOMMERCE_NODAL_PERSON_NAME?: string;
+  readonly VITE_ECOMMERCE_NODAL_PERSON_DESIGNATION?: string;
+  readonly VITE_ECOMMERCE_NODAL_PERSON_EMAIL?: string;
+  readonly VITE_ECOMMERCE_NODAL_PERSON_PHONE?: string;
 };
 const LEGAL_ENTITY_NAME = publicEnv.VITE_LEGAL_ENTITY_NAME?.trim() || "";
 const REGISTERED_OFFICE_ADDRESS = publicEnv.VITE_REGISTERED_OFFICE_ADDRESS?.trim() || "";
+const PRINCIPAL_OFFICE_ADDRESS = publicEnv.VITE_PRINCIPAL_OFFICE_ADDRESS?.trim() || "";
+const BRANCH_ADDRESSES = publicEnv.VITE_BRANCH_ADDRESSES?.split(/\\r?\\n/).map((value) => value.trim()).filter(Boolean) ?? [];
 const COMPANY_CIN = publicEnv.VITE_COMPANY_CIN?.trim() || "";
 const CUSTOMER_CARE_EMAIL = publicEnv.VITE_CUSTOMER_CARE_EMAIL?.trim() || SUPPORT_EMAIL;
 const CUSTOMER_CARE_PHONE = publicEnv.VITE_CUSTOMER_CARE_PHONE?.trim() || "+91 70542 80101";
@@ -25,6 +33,10 @@ const GRIEVANCE_OFFICER_NAME = publicEnv.VITE_GRIEVANCE_OFFICER_NAME?.trim() || 
 const GRIEVANCE_OFFICER_DESIGNATION = publicEnv.VITE_GRIEVANCE_OFFICER_DESIGNATION?.trim() || "Grievance Officer";
 const GRIEVANCE_OFFICER_EMAIL = publicEnv.VITE_GRIEVANCE_OFFICER_EMAIL?.trim() || CUSTOMER_CARE_EMAIL;
 const GRIEVANCE_OFFICER_PHONE = publicEnv.VITE_GRIEVANCE_OFFICER_PHONE?.trim() || CUSTOMER_CARE_PHONE;
+const ECOMMERCE_NODAL_PERSON_NAME = publicEnv.VITE_ECOMMERCE_NODAL_PERSON_NAME?.trim() || "";
+const ECOMMERCE_NODAL_PERSON_DESIGNATION = publicEnv.VITE_ECOMMERCE_NODAL_PERSON_DESIGNATION?.trim() || "";
+const ECOMMERCE_NODAL_PERSON_EMAIL = publicEnv.VITE_ECOMMERCE_NODAL_PERSON_EMAIL?.trim() || "";
+const ECOMMERCE_NODAL_PERSON_PHONE = publicEnv.VITE_ECOMMERCE_NODAL_PERSON_PHONE?.trim() || "";
 const UPDATED = "Last updated: 4 November 2026";
 
 function PolicyShell({ title, children, updated }: { title: string; children: ReactNode; updated?: string }) {
@@ -53,15 +65,24 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
             <div><dt className="text-foreground/70">Legal entity</dt><dd>{LEGAL_ENTITY_NAME || "Not configured — confirm the exact name against MCA records before publication."}</dd></div>
             <div><dt className="text-foreground/70">CIN</dt><dd>{COMPANY_CIN || "Not configured — add the CIN only after checking the MCA master data."}</dd></div>
             <div className="sm:col-span-2"><dt className="text-foreground/70">Registered office</dt><dd>{REGISTERED_OFFICE_ADDRESS || "Not configured — add the complete registered-office address from company records."}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-foreground/70">Principal office / headquarters</dt><dd>{PRINCIPAL_OFFICE_ADDRESS || "Not configured — confirm the principal business address and branches for the operating entity."}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-foreground/70">Other branch offices</dt><dd>{BRANCH_ADDRESSES.length ? <ul className="list-disc pl-5">{BRANCH_ADDRESSES.map((address) => <li key={address}>{address}</li>)}</ul> : "No branch addresses configured — confirm whether the operating entity has any branches."}</dd></div>
             <div><dt className="text-foreground/70">Customer care email</dt><dd><a className="underline underline-offset-2" href={`mailto:${CUSTOMER_CARE_EMAIL}`}>{CUSTOMER_CARE_EMAIL}</a></dd></div>
             <div><dt className="text-foreground/70">Customer care phone</dt><dd><a className="underline underline-offset-2" href={`tel:${CUSTOMER_CARE_PHONE}`}>{CUSTOMER_CARE_PHONE}</a></dd></div>
             <div><dt className="text-foreground/70">Grievance Officer</dt><dd>{GRIEVANCE_OFFICER_NAME || "Not configured — a named officer must be designated where the applicable rules require one."}</dd></div>
             <div><dt className="text-foreground/70">Designation</dt><dd>{GRIEVANCE_OFFICER_DESIGNATION}</dd></div>
             <div><dt className="text-foreground/70">Grievance email</dt><dd><a className="underline underline-offset-2" href={`mailto:${GRIEVANCE_OFFICER_EMAIL}`}>{GRIEVANCE_OFFICER_EMAIL}</a></dd></div>
             <div><dt className="text-foreground/70">Grievance phone</dt><dd><a className="underline underline-offset-2" href={`tel:${GRIEVANCE_OFFICER_PHONE}`}>{GRIEVANCE_OFFICER_PHONE}</a></dd></div>
+            <div className="sm:col-span-2 border-t border-white/10 pt-2">
+              <dt className="text-foreground/70">E-commerce nodal contact (where applicable)</dt>
+              <dd>{ECOMMERCE_NODAL_PERSON_NAME || "Not configured — confirm applicability and appoint an India-resident nodal person or alternate senior designated functionary if required."}</dd>
+              {ECOMMERCE_NODAL_PERSON_DESIGNATION && <dd>{ECOMMERCE_NODAL_PERSON_DESIGNATION}</dd>}
+              {ECOMMERCE_NODAL_PERSON_EMAIL && <dd><a className="underline underline-offset-2" href={`mailto:${ECOMMERCE_NODAL_PERSON_EMAIL}`}>{ECOMMERCE_NODAL_PERSON_EMAIL}</a></dd>}
+              {ECOMMERCE_NODAL_PERSON_PHONE && <dd><a className="underline underline-offset-2" href={`tel:${ECOMMERCE_NODAL_PERSON_PHONE}`}>{ECOMMERCE_NODAL_PERSON_PHONE}</a></dd>}
+            </div>
           </dl>
-          <p className="mt-3">Signed-in users may submit and track a grievance in Privacy &amp; Support Centre. Anyone may contact the grievance channel by email or phone. Truvi's service target is to acknowledge a complaint within 48 hours and resolve it within one month; where a different statutory deadline applies, that law controls.</p>
-          {(!LEGAL_ENTITY_NAME || !REGISTERED_OFFICE_ADDRESS || !COMPANY_CIN || !GRIEVANCE_OFFICER_NAME) && (
+          <p className="mt-3">Signed-in users may submit and track a grievance in Privacy &amp; Support Centre. Anyone may contact the grievance channel by email or phone. Truvi's service target is to acknowledge a complaint within 48 hours and resolve it within one month; where a different statutory deadline applies, that law controls. Where the 2026 E-Commerce Amendment Rules apply from 1 January 2027, the applicable grievance officer process must also provide the complainant a copy of the complaint as recorded.</p>
+          {(!LEGAL_ENTITY_NAME || !REGISTERED_OFFICE_ADDRESS || !PRINCIPAL_OFFICE_ADDRESS || !COMPANY_CIN || !GRIEVANCE_OFFICER_NAME) && (
             <p className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-amber-200">Publication setup incomplete: company identity, registered-office/CIN and named Grievance Officer fields must be completed and checked before Truvi claims compliance with any applicable e-commerce or company-disclosure requirement.</p>
           )}
         </section>
