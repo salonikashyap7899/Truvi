@@ -3354,6 +3354,29 @@ export const privacyRequests = pgTable("privacy_requests", {
   index("privacy_requests_status_idx").on(t.status, t.requestedAt),
 ]);
 
+export type AccountDeletionStatus = "OTP_SENT" | "DEACTIVATED" | "RESTORED" | "ERASURE_REVIEW";
+
+/**
+ * Reversible account deactivation and erasure-review lifecycle.
+ * OTPs and restoration tokens are stored only as keyed/cryptographic hashes.
+ */
+export const accountDeletionRequests = pgTable("account_deletion_requests", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id),
+  status: text("status").$type<AccountDeletionStatus>().notNull().default("OTP_SENT"),
+  deletionOtpHash: text("deletion_otp_hash"),
+  otpExpiresAt: timestamp("otp_expires_at", { withTimezone: true, mode: "date" }),
+  restoreTokenHash: text("restore_token_hash"),
+  restoreExpiresAt: timestamp("restore_expires_at", { withTimezone: true, mode: "date" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true, mode: "date" }),
+  restoredAt: timestamp("restored_at", { withTimezone: true, mode: "date" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("account_deletion_requests_user_unique").on(t.userId),
+  index("account_deletion_requests_status_idx").on(t.status, t.restoreExpiresAt),
+]);
+
 export type GrievanceCategory = "PRIVACY" | "ACCOUNT" | "PAYMENT" | "PROJECT_LISTING" | "KYC" | "TECHNICAL" | "OTHER";
 export type GrievanceStatus = "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WAITING_FOR_USER" | "RESOLVED" | "CLOSED";
 
