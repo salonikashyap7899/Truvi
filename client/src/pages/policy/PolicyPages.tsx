@@ -100,7 +100,7 @@ export function PrivacyPolicyPage() {
       category: "KYC and identity documents",
       data: "Aadhaar details/documents, PAN details/documents, selfie image, document type, masked identifiers and verification/review status, where KYC is requested for a role.",
       use: "Channel Partner/Ambassador onboarding, identity checks, fraud prevention and manual compliance review.",
-      access: "Restricted, authorised verification and administrator personnel. KYC document bytes are held in private database storage and are not intended as public file URLs.",
+      access: "Restricted to authorised verification and administrator personnel. Channel Partner/Ambassador KYC image bytes are held in restricted PostgreSQL records and served only through authenticated review routes. Buyer identity, address and income-proof files submitted through Buyer Documents are stored separately in a private server directory outside the public uploads folder; only the document owner and authorised administrators receive access through expiring signed links.",
     },
     {
       category: "Projects, property and files",
@@ -129,7 +129,8 @@ export function PrivacyPolicyPage() {
   ];
 
   const providers = [
-    ["Supabase PostgreSQL", "Core Truvi account, project, CRM, consent, privacy-request, grievance and transaction records."],
+    ["Supabase PostgreSQL", "Core Truvi account, project, CRM, consent, privacy-request, grievance and transaction records, including restricted KYC document records."],
+    ["Hostinger VPS (current production application hosting)", "Runs the deployed Truvi web/API application and hosts its configured server-side upload directories and application logs. Public listing/profile media and restricted buyer-document files are stored on the application host in separate upload locations."],
     ["Razorpay", "Checkout and payment processing. Razorpay receives the information required for payment and returns payment/order references and status to Truvi."],
     ["Google Maps / Places", "Map rendering, address autocomplete, place search and geocoding when a user opens or uses location/map features."],
     ["Google Gemini", "AI requests. Text prompts, selected conversation context and, for image-analysis features, images submitted to that feature may be sent to Google's AI service."],
@@ -222,6 +223,17 @@ export function PrivacyPolicyPage() {
         ))}
       </div>
       <p>
+        File storage depends on the document type. Project brochures, listing media, profile images and other
+        ordinary uploads are held in the application's configured upload directory and may be viewable by users
+        or the public when deliberately attached to a published profile or listing. Sensitive buyer identity,
+        address and income-proof files submitted through Buyer Documents are held in a separate private directory
+        on the application server, outside the public uploads directory; the database stores their references and
+        status, and access is limited to the document owner and authorised administrators through expiring signed
+        links. Channel Partner/Ambassador KYC image bytes are stored as restricted records in PostgreSQL and are
+        available only through authenticated review routes. The production application currently runs on a
+        Hostinger VPS; the database is hosted separately on Supabase PostgreSQL.
+      </p>
+      <p>
         The email, hosting, database and telephony provider settings may be changed by Truvi's operators. Some
         providers may process information in locations outside your state or country. The exact location,
         subprocessors and transfer arrangements depend on the configured provider and its contract. You may
@@ -244,10 +256,14 @@ export function PrivacyPolicyPage() {
         document or a format check as government verification.
       </p>
       <p>
-        KYC document images are stored in private database storage and are served through authenticated
-        administrator review routes rather than public document URLs. Access is restricted to authorised
-        verification/admin personnel. KYC data may be retained where needed for onboarding, fraud prevention,
-        partner obligations, disputes or legal requirements.
+        Channel Partner/Ambassador KYC image bytes are stored as restricted records in PostgreSQL and are
+        served through authenticated administrator review routes rather than public document URLs. Buyer
+        identity, address and income-proof files submitted through the Buyer Documents workflow are stored in a
+        separate private directory on the application host; the database stores their file references/status,
+        and files are not served through the public uploads directory. The app issues expiring signed links only
+        to the document owner or an authorised administrator. Access is restricted to the people who need the
+        documents for verification or review. KYC data may be retained where needed for onboarding, fraud
+        prevention, partner obligations, disputes or legal requirements.
       </p>
 
       <h2>7. AI-assisted features</h2>
