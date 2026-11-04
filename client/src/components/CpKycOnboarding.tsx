@@ -29,6 +29,7 @@ export function CpKycOnboarding() {
   const [panNumber, setPanNumber] = useState("");
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
+  const [identityNoticeAccepted, setIdentityNoticeAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Brief "verifying…" state shown for ~2s after submit before access unlocks.
   const [verifying, setVerifying] = useState(false);
@@ -147,12 +148,12 @@ export function CpKycOnboarding() {
   // Ambassadors: identity document + selfie only. Channel Partners: also PAN.
   const panReady = isAmbassador ? true : panValid && !!panFile;
   const ready = useMemo(
-    () => panReady && !!aadhaarFile && !!selfie,
-    [panReady, aadhaarFile, selfie],
+    () => panReady && !!aadhaarFile && !!selfie && identityNoticeAccepted,
+    [panReady, aadhaarFile, selfie, identityNoticeAccepted],
   );
 
   async function submit() {
-    if (!ready || !aadhaarFile || !selfie || !user) return;
+    if (!ready || !aadhaarFile || !selfie || !identityNoticeAccepted || !user) return;
     setSubmitting(true);
     const requestId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -161,6 +162,8 @@ export function CpKycOnboarding() {
     try {
       const form = new FormData();
       form.append("aadhaar", aadhaarFile);
+      form.append("identityNoticeAccepted", "true");
+      form.append("identityNoticeVersion", "identity-kyc-2026-11-04");
       if (panFile) form.append("pan", panFile);
       form.append("selfie", new File([selfie], "selfie.jpg", { type: "image/jpeg" }));
       if (panNumber.trim()) form.append("panNumber", panNumber.trim().toUpperCase());
@@ -339,6 +342,19 @@ export function CpKycOnboarding() {
               than needed. Contact support before uploading another document type if unsure.
             </p>
             <FileField label="Masked identity document" file={aadhaarFile} onFile={setAadhaarFile} />
+            <label className="mt-3 flex items-start gap-2.5 text-xs leading-relaxed text-white/75">
+              <input
+                type="checkbox"
+                checked={identityNoticeAccepted}
+                onChange={(event) => setIdentityNoticeAccepted(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-sky-400"
+              />
+              <span>
+                I confirm that the Aadhaar image is masked (first eight digits hidden), or this is another
+                identity document accepted by Truvi. I understand that Truvi reviews it manually and does
+                not perform UIDAI authentication or an automated government identity check.
+              </span>
+            </label>
           </div>
 
           {/* PAN — Channel Partners only (not required for Ambassadors) */}
