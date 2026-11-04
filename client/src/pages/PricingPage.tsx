@@ -157,7 +157,7 @@ export default function PricingPage() {
             <Link to="/refund-policy" className="hover:text-foreground">Refund &amp; Cancellation</Link>
             <Link to="/privacy" className="hover:text-foreground">Privacy Policy</Link>
           </div>
-          <p className="mt-4">Truvi Ventures · Truston Developers Pvt. Ltd., Lucknow, India</p>
+          <p className="mt-4">Truvi Ventures · Lucknow, India</p>
         </footer>
       </main>
 
