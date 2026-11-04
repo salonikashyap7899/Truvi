@@ -30,7 +30,7 @@ import { authenticate, AuthedRequest } from "../middleware/auth";
 import { loginLimiter, otpSendLimiter, otpVerifyLimiter } from "../middleware/security";
 import { sendOtpEmail, sendPhoneOtpViaSms, sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
-import { isValidPan, isValidAadhaar, maskPan, runProviderKyc } from "../services/kycService";
+import { isValidPan, maskPan, runProviderKyc } from "../services/kycService";
 import { emitNotification } from "../sockets";
 import { sendDeveloperWelcome, sendWhatsAppCampaign } from "../services/whatsappService";
 import { notifyUser, notifyRole } from "../services/notificationService";
@@ -42,10 +42,9 @@ import { hashOtpForStorage, verifyStoredOtp } from "../lib/otpHash";
 
 const router = Router();
 
-// KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP/Ambassador
-// identity. Held in memory (not on disk) and persisted durably to the
-// `kyc_documents` table as bytea — identity documents must never be publicly
-// reachable by URL; they are streamed only to admins via an authenticated route.
+// KYC bundle upload (masked identity document + optional PAN + selfie) for
+// CP/Ambassador identity review. Held in memory (not on disk) and persisted
+// durably in the private kyc_documents table; never served from public URLs.
 const kycUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 6 * 1024 * 1024 }, // 6MB per file
@@ -625,7 +624,7 @@ router.post(
     }
 
     // PAN is optional for Ambassadors — many are students without a PAN card.
-    // Channel Partners still require Aadhaar + PAN + selfie.
+    // Channel Partners require an identity document + PAN + selfie.
     const isAmbassador = req.user!.role === "AMBASSADOR";
 
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -634,15 +633,13 @@ router.post(
     const selfieFile = files?.selfie?.[0];
     if (!aadhaarFile || !selfieFile || (!isAmbassador && !panFile)) {
       return res.status(400).json({
-        error: isAmbassador ? "Aadhaar and a live selfie are required" : "Aadhaar, PAN and a selfie are all required",
+        error: isAmbassador ? "An identity document and a live selfie are required" : "An identity document, PAN and a selfie are all required",
       });
     }
 
-    const aadhaarNumber = String(req.body?.aadhaarNumber || "").replace(/\s/g, "");
+    // Do not accept or persist a full Aadhaar number. The uploaded identity
+    // image must be masked before submission; admin review remains manual.
     const panNumber = String(req.body?.panNumber || "").trim().toUpperCase();
-    if (!isValidAadhaar(aadhaarNumber)) {
-      return res.status(400).json({ error: "Please enter a correct 12-digit Aadhaar number." });
-    }
     // Validate PAN only when it applies (CP always; Ambassador only if supplied).
     if ((!isAmbassador || panNumber) && !isValidPan(panNumber)) {
       return res.status(400).json({ error: "Please enter a correct PAN number, like ABCDE1234F." });
@@ -675,7 +672,6 @@ router.post(
     // result of APPROVED may unlock access; MANUAL_REVIEW stays pending until an
     // authorized admin reviews the submission.
     const provider = await runProviderKyc({
-      aadhaarNumber,
       panNumber,
       aadhaarDocumentUrl: "",
       panDocumentUrl: "",
@@ -714,7 +710,7 @@ router.post(
     // Tell the user the outcome in real time — their workspace unlocks on approval.
     try {
       const message = approved
-        ? "Your identity has been verified — full access is now unlocked."
+        ? "Your identity documents have been reviewed and approved by Truvi — full access is now unlocked. This is not UIDAI authentication."
         : rejected
           ? `Your identity verification was rejected. ${onboardingChecks.kycRejectionReason ?? ""} Please re-submit.`
           : "Your KYC documents were received and are awaiting manual review.";
@@ -726,7 +722,7 @@ router.post(
 
     return res.json({
       message: approved
-        ? "Identity verified — full access is now unlocked."
+        ? "Identity documents reviewed and approved — full access is now unlocked. This is not UIDAI authentication."
         : rejected
           ? `Verification failed. ${onboardingChecks.kycRejectionReason ?? ""}`.trim()
           : "Documents submitted successfully and are awaiting KYC review.",
