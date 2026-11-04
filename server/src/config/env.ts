@@ -170,4 +170,14 @@ export function assertRequiredEnvForProduction(): void {
   if (accessSecret === refreshSecret) {
     throw new Error("Refusing to start: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different values.");
   }
+  if (/^(1|true|yes|on)$/i.test(String(process.env.GST_COLLECTION_ENABLED ?? ""))) {
+    const gstin = requireEnv("GSTIN").trim().toUpperCase();
+    const gstPercent = Number(process.env.GST_PERCENT ?? NaN);
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin)) {
+      throw new Error("GST_COLLECTION_ENABLED is true but GSTIN is missing or invalid. Do not collect GST without the supplier's valid GSTIN.");
+    }
+    if (!Number.isFinite(gstPercent) || gstPercent <= 0 || gstPercent > 100) {
+      throw new Error("GST_COLLECTION_ENABLED is true but GST_PERCENT is missing or invalid. Set the rate only after CA approval.");
+    }
+  }
 }
