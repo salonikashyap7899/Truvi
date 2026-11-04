@@ -37,7 +37,7 @@ async function run() {
     }
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new Error(
-        `Computed a bad amount (${amount}) for ${plan.id}. Check GST_PERCENT in server/.env — it must be a plain number like 18 (no "%").`
+        `Computed a bad amount (${amount}) for ${plan.id}. Check the approved GST_COLLECTION_ENABLED, GSTIN and GST_PERCENT server configuration.`
       );
     }
     const created = await rzp.plans.create({
