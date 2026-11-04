@@ -22,6 +22,7 @@ const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
 interface Settings {
   platformFeePercent: number;
   gstPercent: number;
+  gstCollectionEnabled: boolean;
   defaultCommissionPercent: number;
   notifications: { email: boolean; sms: boolean; whatsapp: boolean };
   integrations: { razorpay: boolean; email: boolean; sms: boolean; whatsapp?: boolean; ai: boolean };
@@ -168,12 +169,24 @@ export default function AdminSettingsPage() {
               {tab === "gst" && (
                 <Card className="border-white/10 glass text-white">
                   <div className="flex items-center gap-2"><Landmark size={18} className="text-violet-300" /><h3 className="font-display text-lg font-semibold">GST & Tax</h3></div>
-                  <Label className="mt-4 text-foreground/90">Default GST rate (%)</Label>
-                  <Input type="number" step="1" min={0} max={100} value={s.gstPercent}
-                    onChange={(e) => setLocal({ gstPercent: Number(e.target.value) })}
-                    className="max-w-xs border-white/15 bg-card text-white" />
-                  <p className="mt-1 text-xs text-muted-foreground">Used across invoices, payments and the finance ledger. India standard is 18%.</p>
-                  <Button className="mt-5" disabled={saving} onClick={() => save({ gstPercent: s.gstPercent })}>{saving ? "Saving…" : "Save GST"}</Button>
+                  <div className="mt-4 flex items-center gap-3">
+                    <StatusBadge ok={s.gstCollectionEnabled && s.gstPercent > 0} />
+                    <span className="text-sm text-white/80">
+                      {s.gstCollectionEnabled && s.gstPercent > 0
+                        ? `Server checkout tax: ${s.gstPercent}%`
+                        : "GST collection is disabled — no GST is added by Truvi checkout."}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    Tax collection is intentionally disabled unless the operating legal entity has an active GST registration,
+                    a valid supplier GSTIN, and a CA-approved service classification and rate. Do not use a generic 18% rate
+                    or collect GST without registration.
+                  </p>
+                  <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                    To enable tax collection after professional approval, configure GST_COLLECTION_ENABLED=true,
+                    GSTIN and GST_PERCENT in the server environment, then restart the backend. This control is read-only
+                    so a browser user cannot change the tax rate.
+                  </p>
                 </Card>
               )}
 
