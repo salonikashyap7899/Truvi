@@ -2228,7 +2228,7 @@ export const marketingPayments = pgTable(
     packageName: text("package_name").notNull().default("Marketing Access"),
     // Money — all paise. total = amount + gst.
     amountPaise: integer("amount_paise").notNull().default(0),
-    gstPercent: doublePrecision("gst_percent").notNull().default(18),
+    gstPercent: doublePrecision("gst_percent").notNull().default(0),
     gstPaise: integer("gst_paise").notNull().default(0),
     totalPaise: integer("total_paise").notNull().default(0),
     method: text("method").$type<"CASH" | "BANK_TRANSFER" | "UPI" | "CHEQUE" | "CARD" | "OTHER">().notNull().default("OTHER"),
