@@ -2,16 +2,21 @@ import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
-const hasSmtpConfig = !!process.env.SMTP_HOST;
+const smtpHost = process.env.SMTP_HOST?.trim() || "";
+const smtpUser = process.env.SMTP_USER?.trim() || "";
+const smtpPassword = process.env.SMTP_PASSWORD || "";
+const hasSmtpConfig = Boolean(smtpHost && smtpUser && smtpPassword);
+const hasPartialSmtpConfig = Boolean(smtpHost || smtpUser || smtpPassword) && !hasSmtpConfig;
 const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
+const resendFrom = process.env.RESEND_FROM?.trim() || process.env.SMTP_FROM?.trim() || "";
 
 const transporter = hasSmtpConfig
   ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
+      host: smtpHost,
       port: Number(process.env.SMTP_PORT) || 587,
       // Port 465 uses implicit TLS; 587/others use STARTTLS.
       secure: Number(process.env.SMTP_PORT) === 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      auth: { user: smtpUser, pass: smtpPassword },
       // Keep invitation/OTP requests from hanging indefinitely on an unresponsive SMTP host.
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
@@ -19,29 +24,28 @@ const transporter = hasSmtpConfig
     })
   : null;
 
-if (!hasSmtpConfig) {
-  console.warn(
-    "[email] SMTP is not configured — existing OTP/account transactional email calls will NOT be delivered. " +
-      (resendApiKey
-        ? "Resend is configured for property-match emails only."
-        : "Set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD (and SMTP_FROM) to enable those emails."),
-  );
+if (hasPartialSmtpConfig) {
+  console.warn("[email] SMTP configuration is incomplete; SMTP requires SMTP_HOST, SMTP_USER and SMTP_PASSWORD.");
+}
+if (!transporter && !resendApiKey) {
+  console.error("[email] No transactional email provider is configured. OTP, password-reset and account emails cannot be delivered.");
+} else if (!transporter && resendApiKey && !resendFrom) {
+  console.error("[email] RESEND_API_KEY is set but RESEND_FROM is missing; configure a sender address on a verified domain.");
 }
 
-// All outbound mail is sent as Truvi Ventures. Override the display/address via
-// SMTP_FROM (e.g. when a dedicated domain sender is configured); otherwise it
-// defaults to the Truvi Ventures Gmail identity.
-export const MAIL_FROM = process.env.SMTP_FROM || "Truvi Ventures <truviventures@gmail.com>";
+// SMTP may continue to use the existing Gmail sender. Resend must use a sender
+// address verified in Resend; its sender is selected separately below.
+export const MAIL_FROM = process.env.SMTP_FROM?.trim() || resendFrom || "Truvi Ventures <truviventures@gmail.com>";
 
 /** Whether a provider is configured for property-match email delivery/retry. */
 export function isEmailTransportConfigured(): boolean {
-  return Boolean(resendApiKey || transporter !== null);
+  return Boolean(transporter !== null || (resendApiKey && resendFrom));
 }
 
 /**
- * Send an email. Returns `true` only when it was actually dispatched via SMTP.
- * When SMTP isn't configured it emits a non-sensitive warning and returns
- * `false`, so callers can honestly tell the user that email wasn't delivered.
+ * Send an email. Returns `true` only when an email provider accepted the message.
+ * When neither complete SMTP nor Resend configuration exists it returns `false`, so callers
+ * can honestly tell the user that email wasn't delivered.
  * OTPs, recipients and message subjects are never written to logs. Throws when
  * SMTP is configured but delivery fails.
  */
@@ -57,15 +61,19 @@ export async function sendEmailWithStatus(
   to: string,
   subject: string,
   html: string,
-  from: string = MAIL_FROM,
+  from?: string,
   options?: { idempotencyKey?: string; preferResend?: boolean; replyTo?: string },
 ): Promise<EmailDispatchResult> {
-  // Preserve Truvi's existing SMTP path for OTP, password reset, approval,
-  // and other pre-existing transactional email calls. Resend is selected only
-  // by the property-match worker through the explicit preferResend option.
-  // If a selected Resend attempt fails, never fall back to SMTP: that could
-  // deliver the same property recommendation twice.
-  if (options?.preferResend && resendApiKey) {
+  // Keep SMTP as the primary provider when fully configured. If SMTP is absent,
+  // Resend becomes the transactional fallback for OTP, password-reset, account
+  // and requirement notifications too. Explicit preferResend remains available
+  // for the property-match worker to keep its provider/idempotency behaviour.
+  const useResend = Boolean(resendApiKey && (options?.preferResend || !transporter));
+  if (useResend) {
+    const sender = from?.trim() || resendFrom;
+    if (!sender) {
+      throw new Error("RESEND_FROM_REQUIRED");
+    }
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -76,11 +84,11 @@ export async function sendEmailWithStatus(
           // repeated retries of the same message are deduped by Resend, while a
           // materially changed message gets a new key instead of a 409 mismatch.
           "Idempotency-Key": `truvi-${createHash("sha256")
-            .update([options.idempotencyKey, from, to, subject, html].join("\\0"))
+            .update([options.idempotencyKey, sender, to, subject, html].join("\\0"))
             .digest("hex")}`,
         } : {}),
       },
-      body: JSON.stringify({ from, to: [to], subject, html, ...(options?.replyTo ? { reply_to: options.replyTo } : {}) }),
+      body: JSON.stringify({ from: sender, to: [to], subject, html, ...(options?.replyTo ? { reply_to: options.replyTo } : {}) }),
       signal: AbortSignal.timeout(15_000),
     }).catch(() => {
       throw new Error("RESEND_REQUEST_FAILED");
@@ -101,13 +109,13 @@ export async function sendEmailWithStatus(
     console.warn("[email] Not delivered because no email provider is configured.");
     return { status: "UNCONFIGURED", messageId: null };
   }
-  const info = await transporter.sendMail({ from, to, subject, html, ...(options?.replyTo ? { replyTo: options.replyTo } : {}) });
+  const info = await transporter.sendMail({ from: from || MAIL_FROM, to, subject, html, ...(options?.replyTo ? { replyTo: options.replyTo } : {}) });
   const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
   if (acceptedCount === 0) throw new Error("SMTP did not accept the recipient");
   return { status: "SENT_TO_PROVIDER", messageId: typeof info.messageId === "string" ? info.messageId : null };
 }
 
-export async function sendEmail(to: string, subject: string, html: string, from: string = MAIL_FROM): Promise<boolean> {
+export async function sendEmail(to: string, subject: string, html: string, from?: string): Promise<boolean> {
   const result = await sendEmailWithStatus(to, subject, html, from);
   return result.status === "SENT_TO_PROVIDER";
 }

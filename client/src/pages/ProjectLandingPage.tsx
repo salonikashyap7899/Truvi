@@ -9,6 +9,7 @@ import {
   Calculator, ChevronDown, Ruler, Route, Gauge,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatProjectLocation } from "@/lib/projectLocation";
 import { toast } from "sonner";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { PROJECT_TYPE_LABELS, categoryLabel } from "@/lib/assetCategories";
@@ -498,7 +499,7 @@ export default function ProjectLandingPage() {
 
   // Key highlights: Location · Price · Plot Sizes · Connectivity · Verification.
   const highlights = [
-    { icon: <MapPin size={16} />, label: "Location", value: `${project.location}, ${project.city}` },
+    { icon: <MapPin size={16} />, label: "Location", value: formatProjectLocation(project.location, project.city) },
     priceRange ? { icon: <Gauge size={16} />, label: "Price", value: priceRange, hint: "+ GST & charges" } : null,
     plotSizeLabel ? { icon: <Ruler size={16} />, label: "Plot Sizes", value: plotSizeLabel } : null,
     info?.connectivityNotes ? { icon: <Route size={16} />, label: "Connectivity", value: info.connectivityNotes } : null,
@@ -554,7 +555,7 @@ export default function ProjectLandingPage() {
               {approval && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200">{approval}</span>}
             </div>
             <h1 className="mt-4 max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight sm:text-6xl">{project.name}</h1>
-            <p className="mt-3 flex items-center gap-1.5 text-base text-white/80"><MapPin size={16} /> {project.location}, {project.city}</p>
+            <p className="mt-3 flex items-center gap-1.5 text-base text-white/80"><MapPin size={16} className="shrink-0" /> {formatProjectLocation(project.location, project.city)}</p>
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-white/75">
               {priceRange && <span>Starting <b className="text-white">{priceRange}</b></span>}
               {possession && <span className="inline-flex items-center gap-1.5"><CalendarClock size={14} /> Possession {possession}</span>}

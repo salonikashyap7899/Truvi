@@ -1,4 +1,5 @@
-import "dotenv/config";
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import { createServer } from "http";
 import { createApp } from "./app";
 import { connectDB, disconnectDB } from "./config/db";
@@ -11,20 +12,57 @@ import { startPropertyRequirementBackgroundWorkers } from "./services/propertyRe
 import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
 import { startHabitatPayoutScheduler } from "./routes/habitatFinance";
 
-// Last-line safety net: a single stray async error (an unawaited promise, a
-// driver-level throw) must never take the whole API process down — that is what
-// surfaces as a 502 Bad Gateway at the edge for EVERY user. Express already
-// routes request errors to the error handler; these catch anything that escapes
-// it. We log loudly and keep serving; the process manager still restarts the
-// process on a genuinely fatal exit.
+// An uncaught exception or unhandled rejection leaves process state unknown.
+// Stop accepting traffic, close active connections, flush monitoring, release
+// the DB pool, and exit non-zero so PM2/systemd can restart a clean process.
+let shuttingDown = false;
+let httpServer: ReturnType<typeof createServer> | null = null;
+
+async function finishShutdown(exitCode: number, reason: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.error(`[shutdown] ${reason}; exiting with code ${exitCode}.`);
+
+  const forceExit = setTimeout(() => {
+    console.error("[shutdown] Graceful shutdown timed out; forcing process exit.");
+    process.exit(exitCode);
+  }, 10_000);
+
+  try {
+    if (httpServer?.listening) {
+      httpServer.closeIdleConnections?.();
+      await new Promise<void>((resolve) => httpServer!.close(() => resolve()));
+    }
+  } catch (error) {
+    console.error("[shutdown] HTTP server close failed:", error);
+  }
+
+  try {
+    await disconnectDB();
+  } catch (error) {
+    console.error("[shutdown] Database disconnect failed:", error);
+  }
+
+  try {
+    await Sentry.flush(2_000);
+  } catch {
+    // Monitoring must never prevent process termination.
+  }
+
+  clearTimeout(forceExit);
+  process.exit(exitCode);
+}
+
 process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled promise rejection (kept alive):", reason);
-});
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught exception (kept alive):", err);
+  const error = reason instanceof Error ? reason : new Error(String(reason ?? "Unhandled promise rejection"));
+  Sentry.captureException(error, { tags: { process_failure: "unhandled_rejection" } });
+  void finishShutdown(1, "Unhandled promise rejection");
 });
 
-let shuttingDown = false;
+process.on("uncaughtException", (error) => {
+  Sentry.captureException(error, { tags: { process_failure: "uncaught_exception" } });
+  void finishShutdown(1, "Uncaught exception");
+});
 
 async function connectDatabaseWithRetry(databaseUrl: string): Promise<boolean> {
   if (!databaseUrl.trim()) {
@@ -67,14 +105,15 @@ async function main() {
   // SPA can then be served during startup; /health and /api return 503 until
   // connectDB finishes, allowing the deploy health check to wait for readiness.
   const app = createApp();
-  const httpServer = createServer(app);
-  initSocket(httpServer);
+  httpServer = createServer(app);
+  const server = httpServer;
+  initSocket(server);
 
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => reject(error);
-    httpServer.once("error", onError);
-    httpServer.listen(PORT, HOST, () => {
-      httpServer.off("error", onError);
+    server.once("error", onError);
+    server.listen(PORT, HOST, () => {
+      server.off("error", onError);
       console.log(`Truvi HTTP server listening on ${HOST}:${PORT}; database initialization starting.`);
       const waMode = isAiSensyEnabled() ? "AiSensy" : isWhatsAppEnabled() ? "Meta Cloud API" : "disabled";
       console.log(`[whatsapp] provider: ${waMode}`);
@@ -82,21 +121,10 @@ async function main() {
     });
   });
 
-  // Install shutdown handlers before the retry loop so deploys/reboots can
-  // stop the server even if the database is temporarily unavailable.
-  const shutdown = (signal: string) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log(`${signal} received, shutting down gracefully`);
-    httpServer.close(async () => {
-      await disconnectDB();
-      process.exit(0);
-    });
-    setTimeout(() => process.exit(1), 10_000).unref();
-  };
-
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  // Deploys and reboots use a graceful zero-exit shutdown; fatal errors use
+  // the same drain path but exit non-zero so the process manager restarts us.
+  process.on("SIGTERM", () => void finishShutdown(0, "SIGTERM received"));
+  process.on("SIGINT", () => void finishShutdown(0, "SIGINT received"));
 
   const databaseReady = await connectDatabaseWithRetry(DATABASE_URL);
   if (!databaseReady) {
@@ -111,6 +139,6 @@ async function main() {
   startHabitatPayoutScheduler();
 }
 main().catch((err) => {
-  console.error("Failed to start server:", err);
-  process.exit(1);
+  Sentry.captureException(err, { tags: { process_failure: "startup" } });
+  void finishShutdown(1, "Server startup failed");
 });

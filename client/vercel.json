@@ -15,5 +15,11 @@
         }
       ]
     }
-  ]
+  ],
+  "proxy": {
+    "entrypoint": "proxy.ts",
+    "matcher": [
+      "/((?!api(?:/|$)|assets(?:/|$)|.*\\.[^/]+$).*)"
+    ]
+  }
 }
