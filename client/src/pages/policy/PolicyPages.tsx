@@ -70,93 +70,329 @@ export function PrivacyPolicyPage() {
   const L = ({ items }: { items: string[] }) => (
     <ul className="ml-1 list-disc space-y-1 pl-5">{items.map((t, i) => <li key={i}>{t}</li>)}</ul>
   );
+
+  const dataFlows = [
+    {
+      category: "Account, identity and contact",
+      data: "Name, email, phone, role, login/OTP verification state, profile photo, bio and account settings.",
+      use: "Registration, login, account recovery, role permissions, support, service notices and account security.",
+      access: "The account owner and authorised Truvi personnel who administer accounts or provide support.",
+    },
+    {
+      category: "Developer and partner business profile",
+      data: "Company details, business contacts, project ownership, referral relationships, partner tier, payout instructions and onboarding information.",
+      use: "Developer/Channel Partner/Ambassador workspaces, project management, referrals, commissions, invoicing and payout administration.",
+      access: "The account owner, relevant authorised finance/operations staff and counterparties where needed for a requested transaction.",
+    },
+    {
+      category: "Buyer enquiries, leads and requirements",
+      data: "Property preferences, city/locality, budget, area, purpose, buying timeline, client name/contact details where supplied, notes, follow-ups and site-visit details.",
+      use: "Requirement matching, property recommendations, lead routing, CRM, contact coordination, site visits and transaction support.",
+      access: "The submitter, assigned/authorised team members and relevant project/developer/partner participants when needed to respond to the enquiry. The public/role-based requirement board uses privacy-filtered summaries rather than exposing private client contacts.",
+    },
+    {
+      category: "KYC and identity documents",
+      data: "Aadhaar details/documents, PAN details/documents, selfie image, document type, masked identifiers and verification/review status, where KYC is requested for a role.",
+      use: "Channel Partner/Ambassador onboarding, identity checks, fraud prevention and manual compliance review.",
+      access: "Restricted, authorised verification and administrator personnel. KYC document bytes are held in private database storage and are not intended as public file URLs.",
+    },
+    {
+      category: "Projects, property and files",
+      data: "Project descriptions, addresses/coordinates, inventory, pricing, brochures, photographs, floor plans, legal/approval/RERA documents and uploaded supporting files.",
+      use: "Project publishing, map display, inventory management, legal-document review, property discovery, due diligence and buyer/developer workflows.",
+      access: "Developers manage their own projects; authorised reviewers/admins review submitted evidence; approved listing details and files may be shown to users or the public as part of the listing.",
+    },
+    {
+      category: "Payments and financial records",
+      data: "Checkout name, email and phone, plan/product, amount, GST calculation, voucher, order/payment identifiers, payment status, subscription records, commissions and payout details.",
+      use: "Checkout, payment confirmation, subscriptions/entitlements, refunds, invoices, commissions, accounting, fraud prevention and dispute handling.",
+      access: "Razorpay processes the payment transaction. Truvi stores its own order, payment reference, amount, status and related account/finance records; authorised finance/admin personnel can access the records needed for operations.",
+    },
+    {
+      category: "Usage, security and device information",
+      data: "IP/network data, browser/device characteristics, request and access times, pages/routes, session/refresh-cookie events, rate-limit events, audit records and error/security telemetry.",
+      use: "Authentication, abuse prevention, session revocation, troubleshooting, platform reliability, security investigations and required recordkeeping.",
+      access: "Restricted infrastructure, security and authorised administrator personnel.",
+    },
+    {
+      category: "Messages, AI and communications",
+      data: "Support/grievance messages, notification preferences, emails/SMS delivery events, call metadata/recordings where call recording is enabled, and prompts/context sent to AI features.",
+      use: "Support, account/transaction notifications, OTP delivery, masked calling, call follow-up, AI answers, project/lead analysis and operational assistance.",
+      access: "The intended recipient and authorised Truvi personnel; the relevant external provider receives the content or metadata needed to deliver the specific feature.",
+    },
+  ];
+
+  const providers = [
+    ["Supabase PostgreSQL", "Core Truvi account, project, CRM, consent, privacy-request, grievance and transaction records."],
+    ["Razorpay", "Checkout and payment processing. Razorpay receives the information required for payment and returns payment/order references and status to Truvi."],
+    ["Google Maps / Places", "Map rendering, address autocomplete, place search and geocoding when a user opens or uses location/map features."],
+    ["Google Gemini", "AI requests. Text prompts, selected conversation context and, for image-analysis features, images submitted to that feature may be sent to Google's AI service."],
+    ["Twilio", "SMS delivery, including phone verification codes and other configured text messages."],
+    ["Configured SMTP email provider", "Account verification, password-reset, employee invitation and transactional emails. The actual SMTP provider is selected in the deployment configuration."],
+    ["Resend (optional)", "Used only when configured and explicitly selected by the property-match email delivery workflow; it is not the default OTP email provider."],
+    ["Exotel (when configured)", "Masked/bridged business calls, call status metadata and call recordings if recording is enabled for the account/telephony setup."],
+    ["Esri and CARTO", "Map tile imagery and map layers loaded by map screens; the providers may receive normal browser/network request metadata."],
+  ];
+
   return (
-    <PolicyShell title="Privacy Policy" updated="Last Updated: 2 September 2026 · Effective Date: 2 September 2026">
+    <PolicyShell title="Privacy Policy" updated="Last Updated: 4 November 2026 · Effective Date: 4 November 2026">
       <p>
-        TRUVI Ventures ("TRUVI", "we", "us", or "our") respects your privacy and is committed to protecting the
-        personal information you share with us. This Privacy Policy explains how TRUVI collects, uses, stores, processes,
-        and protects information when you visit our website, use our platform, submit an enquiry or lead form, register
-        as a real estate developer or channel partner, communicate with us, or use our services.
+        TRUVI Ventures ("TRUVI", "we", "us", or "our") explains here what personal information we collect,
+        why we use it, which Truvi features use it, which service providers may receive it, and how you can
+        exercise your privacy choices. This notice applies when you visit truviventures.com, register, submit
+        an enquiry or requirement, list/manage a project, communicate with Truvi, or use any Truvi workspace.
       </p>
-      <p>By accessing or using our website, platform, or services, you acknowledge that you have read and understood this Privacy Policy.</p>
+      <p>
+        This notice is intended to describe the current product and its configured integrations. A feature may
+        send data to a provider only when that feature is used and the relevant provider is enabled. Please do
+        not submit information that is not required for the feature you are using.
+      </p>
 
-      <h2>1. About TRUVI</h2>
-      <p>TRUVI is a real-estate growth platform and business support service designed to help real estate developers and industry professionals with solutions including:</p>
-      <L items={["Digital Marketing", "Lead Generation", "Sales Support", "Channel Partner Network", "Project Visibility", "Property & Inventory Support", "Business/Market Insights", "AI-powered insights and assistance", "Real Estate Growth Solutions"]} />
-      <p>TRUVI may also facilitate communication between developers, channel partners, prospective customers and other real-estate ecosystem participants.</p>
+      <h2>1. Who handles your information</h2>
+      <p>
+        TRUVI Ventures operates the Truvi real-estate platform and related services. The support contact for
+        privacy questions and grievances is <strong>info@truviventures.com</strong>. The website is
+        <strong> truviventures.com</strong>. Company identity, registered office and statutory disclosure details
+        should be checked against the current company records and shown in the website footer.
+      </p>
 
-      <h2>2. Information We Collect</h2>
-      <p>Depending on how you interact with TRUVI, we may collect the following information.</p>
-      <p><strong>A. Information You Provide</strong> — when you submit a form, register, contact us, or request our services, we may collect:</p>
-      <L items={["Full name", "Mobile/telephone number", "Email address", "Company/developer name", "Business information", "Project details", "Project location", "Number of projects", "Real-estate business requirements", "Channel partner/business information", "Information you voluntarily provide in messages or enquiries"]} />
-      <p><strong>B. Automatically Collected Information</strong> — when you visit our website, certain technical information may be collected automatically, including:</p>
-      <L items={["IP address", "Browser type", "Device type", "Operating system", "Pages visited", "Date and time of access", "Referring website", "General website usage information", "Cookies and similar technologies"]} />
-      <p><strong>C. Information from Marketing Platforms</strong> — if you interact with TRUVI through advertising platforms such as Meta/Facebook/Instagram, Google, LinkedIn or other marketing platforms, we may receive information that you choose to submit through those platforms. For example, if you submit a TRUVI lead form, we may receive the information you provide in that form.</p>
+      <h2>2. Information we collect</h2>
+      <p>Depending on your role and the features you use, we may collect:</p>
+      <L items={[
+        "Account details: name, email, phone number, password hash, role, email/phone verification state, login and account settings.",
+        "Profile and business details: profile image, bio, company/developer details, partner/referral information, employee profile and role permissions.",
+        "Property and project details: project name, description, locality/address, map coordinates, pricing, inventory, brochures, images, legal/approval documents and listing information.",
+        "Buyer, enquiry and lead details: property preferences, budget, area, purchase purpose, timeline, contact details supplied by the buyer or by a lead submitter with the relevant client's permission, CRM notes, follow-ups and site visits.",
+        "KYC information, where required: Aadhaar number/details and document, PAN details/document, selfie image, masked identifier and verification/review state.",
+        "Financial information: checkout contact details, plan/product, amount and tax calculation, voucher, payment/order identifiers and status, subscription, commission, invoice and payout records.",
+        "Communications: support messages, grievance and privacy-request details, notification preferences, SMS/email delivery metadata, and call metadata/recordings where telephony recording is enabled.",
+        "Technical and security data: IP/network information, browser/device type, access times, routes/pages used, session and cookie data, security/audit events, rate-limit signals and error diagnostics.",
+        "AI feature content: prompts, chat history and selected project/lead/property context that you choose to submit to Ask Truvi or another AI-assisted feature.",
+      ]} />
+      <p>
+        We may also receive information you choose to provide through a referral, partner, developer, authorised
+        lead submitter or an external form/advertising platform. A person submitting another individual's contact
+        information must have the authority or permission required to share it with Truvi for the stated enquiry.
+      </p>
 
-      <h2>3. How We Use Your Information</h2>
-      <p>We may use the information collected to:</p>
-      <L items={["Respond to your enquiries", "Contact you regarding TRUVI services", "Provide requested services", "Evaluate business requirements", "Onboard developers and channel partners", "Generate and manage leads", "Provide marketing and sales support", "Improve project visibility", "Provide relevant real-estate information", "Provide AI-powered insights and assistance", "Improve our website, platform and services", "Understand user behaviour and website performance", "Communicate service updates", "Send relevant business/marketing communications where permitted", "Prevent fraud, misuse or unauthorized activity", "Maintain security", "Comply with applicable laws and regulations"]} />
+      <h2>3. How your information is used inside Truvi</h2>
+      <p>The table below explains the main product areas where information is used. Access is intended to be role-based and limited to people who need it for the relevant task.</p>
+      <div className="not-prose my-5 space-y-3">
+        {dataFlows.map((item) => (
+          <section key={item.category} className="rounded-xl border border-white/10 bg-white/[0.025] p-4">
+            <h3 className="text-sm font-semibold text-foreground">{item.category}</h3>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground/80">Information:</strong> {item.data}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground/80">Used in:</strong> {item.use}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground"><strong className="text-foreground/80">Who may access it:</strong> {item.access}</p>
+          </section>
+        ))}
+      </div>
 
-      <h2>4. Lead Generation and Enquiries</h2>
-      <p>If you submit your information through a TRUVI website form, Meta Lead Form, Google form, social-media form, advertisement or any other enquiry channel, we may use the information to contact you regarding your enquiry. By submitting your information, you acknowledge that TRUVI and its authorized representatives may contact you through appropriate communication channels, including Phone, SMS, WhatsApp, Email, or other business communication channels.</p>
-      <p>You may request that we stop sending marketing communications at any time, subject to applicable legal requirements.</p>
+      <h2>4. Role-based access and sharing with other Truvi users</h2>
+      <L items={[
+        "Buyers can access their own account, saved requirements, enquiries, documents and transaction history.",
+        "Developers can manage their own company/project information and see enquiries or leads routed to their projects where the workflow permits.",
+        "Channel Partners, Ambassadors and Employees can access their assigned/submitted leads, tasks, follow-ups, site visits and commission or work information relevant to their role and permissions.",
+        "Verifiers and authorised administrators may review submitted KYC, project, legal and compliance evidence. Access to identity documents is restricted to authorised review routes.",
+        "A requirement noticeboard may show privacy-filtered property need summaries. It is not intended to publish the submitter's private notes, user ID or client contact details.",
+        "When you ask Truvi to connect you with a developer, partner, service provider or prospective customer, relevant contact or requirement information may be shared with that recipient to fulfil your request.",
+      ]} />
+      <p>Information is not made available to every Truvi user merely because an account exists. Exact access depends on the user's role, permissions, assignment and the feature being used.</p>
 
-      <h2>5. Real Estate Developer Information</h2>
-      <p>If you register or provide information as a real estate developer, builder, project owner or authorized representative, TRUVI may collect and process information relating to:</p>
-      <L items={["Developer/company details", "Project details", "Project location", "Property/inventory information", "Business contact details", "Project documentation provided for verification", "Marketing requirements", "Sales requirements", "Channel partner requirements"]} />
-      <p>Such information may be used to evaluate, verify, market, manage or provide services relating to the relevant real-estate project.</p>
+      <h2>5. Service providers and external data flows</h2>
+      <p>
+        Truvi uses external providers to host data, deliver communications, process payments, render maps and
+        provide optional AI or telephony features. The providers currently present in the application code and
+        their feature purposes include:
+      </p>
+      <div className="not-prose my-5 overflow-hidden rounded-xl border border-white/10">
+        {providers.map(([name, purpose]) => (
+          <div key={name} className="border-b border-white/10 p-4 last:border-b-0">
+            <p className="text-sm font-semibold text-foreground">{name}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{purpose}</p>
+          </div>
+        ))}
+      </div>
+      <p>
+        The email, hosting, database and telephony provider settings may be changed by Truvi's operators. Some
+        providers may process information in locations outside your state or country. The exact location,
+        subprocessors and transfer arrangements depend on the configured provider and its contract. You may
+        contact us to ask for current provider information relevant to your account.
+      </p>
+      <p>
+        Truvi does not sell personal information as a standalone product. We may disclose it to authorised
+        service providers acting for Truvi, relevant project/transaction participants where you request a
+        service, professional advisers, auditors, financial institutions, regulators or government authorities
+        where required or permitted by law, and in connection with a business reorganisation subject to
+        applicable protections.
+      </p>
 
-      <h2>6. Project Verification and Documents</h2>
-      <p>Where applicable, TRUVI may request or process documents and information relating to a real-estate project for verification, due diligence, listing, compliance assessment or related business purposes. Such information may include, where applicable: RERA-related information, project approvals, title/property documents, developer/company information, project status, construction-related information, and other documents voluntarily provided by the developer.</p>
-      <p>TRUVI will use such information for legitimate business purposes related to its platform and services. Submission of documents does not automatically mean that TRUVI guarantees the legal validity, title, quality, financial performance, profitability, or future performance of a project unless expressly stated otherwise.</p>
+      <h2>6. KYC and identity verification</h2>
+      <p>
+        Channel Partner and Ambassador onboarding may require identity information such as Aadhaar, PAN and
+        a selfie. The current application performs format/checksum-level validation and routes the submitted
+        documents for manual administrator review. The current KYC service code does not perform an automated
+        government-database identity check or an automated selfie/liveness match. Do not interpret an uploaded
+        document or a format check as government verification.
+      </p>
+      <p>
+        KYC document images are stored in private database storage and are served through authenticated
+        administrator review routes rather than public document URLs. Access is restricted to authorised
+        verification/admin personnel. KYC data may be retained where needed for onboarding, fraud prevention,
+        partner obligations, disputes or legal requirements.
+      </p>
 
-      <h2>7. AI-Powered Services</h2>
-      <p>TRUVI may use artificial intelligence and automated technologies to provide features such as business insights, market insights, lead analysis, project analysis, recommendations, marketing assistance, sales insights and automated support. Information processed through AI-powered features may be used to generate relevant insights and recommendations. TRUVI will take reasonable measures to protect information processed through such systems and will use information in accordance with this Privacy Policy and applicable law.</p>
+      <h2>7. AI-assisted features</h2>
+      <p>
+        Ask Truvi and other AI-assisted features may send the prompt you enter, relevant conversation history,
+        and selected project/property/lead context to Google Gemini for generating a response, summary, score
+        or analysis. Image-analysis features may send the specific image you submit for that analysis. Do not
+        enter passwords, OTPs, full Aadhaar/PAN numbers, bank credentials or other highly sensitive data into
+        an AI prompt. AI responses may be inaccurate and should be checked before you rely on them.
+      </p>
+      <p>
+        The external AI provider processes the submitted prompt/context under its own terms and privacy
+        documentation. Truvi uses the returned result to provide the feature; whether the provider retains or
+        uses submitted content is governed by the provider's current settings and terms, not by a guarantee
+        made in this policy.
+      </p>
 
-      <h2>8. Cookies and Tracking Technologies</h2>
-      <p>TRUVI may use cookies, pixels, analytics tools and similar technologies to improve website functionality, understand website usage, measure advertising performance, analyze traffic, improve user experience, and support marketing and remarketing activities. You may be able to control cookies through your browser settings. Disabling certain cookies may affect some website functionality.</p>
+      <h2>8. Maps, location and property searches</h2>
+      <p>
+        If you use map, address autocomplete, nearby-place or geocoding features, the search text, address or
+        coordinates needed for that request may be sent to Google Maps/Places. Map screens may also load
+        imagery or tiles from Esri and CARTO. A project or site address/coordinate may be shown in a listing
+        when the developer or authorised user has added it. Browser/network requests to those providers may
+        disclose normal technical information such as IP address and device/browser details.
+      </p>
 
-      <h2>9. Advertising and Analytics</h2>
-      <p>TRUVI may use third-party advertising and analytics platforms, including platforms such as Meta, Facebook, Instagram, Google, LinkedIn or other analytics or advertising providers. These platforms may use cookies, pixels or similar technologies according to their own privacy policies. TRUVI may use information received through these platforms to measure campaign performance, understand enquiries and improve marketing activities.</p>
+      <h2>9. Payments and financial records</h2>
+      <p>
+        When you check out, Truvi sends the checkout contact and order information required by Razorpay to
+        process the payment. Razorpay handles the payment instrument and payment-processing flow. Truvi stores
+        the purchase/order record, customer contact details submitted at checkout, amount/tax/discount
+        calculations, provider order/payment identifiers and the resulting payment status. Truvi may separately
+        store commission, invoice, subscription and payout records needed for its business and accounting.
+      </p>
 
-      <h2>10. Sharing of Information</h2>
-      <p>TRUVI does not sell your personal information as a standalone product. We may share information with authorized third parties where reasonably necessary to operate our business and provide services, including service providers, technology providers, CRM providers, marketing and advertising platforms, communication providers, analytics providers, authorized TRUVI team members, professional advisors, business partners where necessary to provide requested services, and government authorities or regulators where legally required. Third parties receiving information may be subject to contractual, legal or organizational obligations regarding the handling of such information.</p>
+      <h2>10. Email, SMS, WhatsApp and telephone communications</h2>
+      <p>
+        Truvi sends essential account messages such as OTPs, password-reset codes, employee invitations,
+        transaction updates and support notifications. Email is sent through the SMTP provider configured for
+        the application; Resend is an optional provider used by the property-match email workflow when
+        explicitly configured. SMS delivery uses Twilio when configured. Telephony features may use Exotel for
+        masked/bridged calls; call recording depends on the configured recording setting. Message and call
+        providers receive the destination contact details and message/call metadata/content required to deliver
+        the relevant communication.
+      </p>
+      <p>
+        Optional promotional communication is separate from necessary account, security and transaction
+        messages. You can withdraw the optional marketing permission in Privacy & Support Centre. Withdrawing
+        promotional permission does not stop essential account or transaction messages.
+      </p>
 
-      <h2>11. Data Security</h2>
-      <p>TRUVI takes reasonable technical and organizational measures to protect personal information against unauthorized access, misuse, alteration, disclosure or destruction. However, no internet transmission or electronic storage system can be guaranteed to be completely secure. Therefore, while we take reasonable precautions, we cannot guarantee absolute security of information transmitted to or stored by us.</p>
+      <h2>11. Cookies, sessions and technical logs</h2>
+      <p>
+        Truvi uses an in-memory access token and an HTTP-only refresh cookie for signed-in sessions. The cookie
+        is used to restore and maintain authentication and is not intended to be available to ordinary page
+        scripts. Truvi also processes IP/network information, request metadata, access times, audit events and
+        technical diagnostics to protect accounts, enforce rate limits, investigate misuse, troubleshoot
+        problems and keep the platform reliable. Your browser may also store limited functional preferences.
+      </p>
+      <p>
+        Map, payment and other embedded third-party features may set or read their own technologies subject
+        to their respective provider settings. You can manage browser cookie controls, but disabling essential
+        session cookies may prevent sign-in or checkout from working.
+      </p>
 
-      <h2>12. Data Retention</h2>
-      <p>We retain personal information only for as long as reasonably necessary for the purposes described in this Privacy Policy, including providing services, managing business relationships, maintaining records, resolving disputes, preventing fraud, complying with legal obligations and protecting legitimate business interests. When information is no longer reasonably required, we may delete, anonymize or securely dispose of it, subject to applicable legal and operational requirements.</p>
+      <h2>12. Security</h2>
+      <p>
+        Truvi uses measures including server-side role checks, private file routes for restricted documents,
+        encrypted transport where supported, hashed passwords and OTPs, session revocation, rate limits,
+        audit events and restricted administrative access. No internet service can guarantee absolute security.
+        Please do not share passwords, OTPs, recovery links, payment authentication codes or identity-document
+        numbers in support messages.
+      </p>
 
-      <h2>13. Your Rights and Choices</h2>
-      <p>Subject to applicable law, you may have rights regarding your personal information, including the ability to request access to certain personal information, request correction of inaccurate information, request deletion where legally applicable, withdraw consent where processing is based on consent, request information about how your data is processed, and opt out of certain marketing communications. To exercise applicable rights, you can contact us using the details provided below.</p>
+      <h2>13. Retention</h2>
+      <p>
+        Truvi retains information for the period reasonably needed to provide the feature, maintain the
+        account, support property/partner transactions, operate commissions and payouts, resolve grievances,
+        prevent fraud, preserve security/audit evidence and meet legal, tax, accounting or regulatory
+        requirements. Different categories may have different retention periods. When information no longer
+        needs to be retained, Truvi will delete, anonymise or securely dispose of it where technically and
+        legally appropriate. Backups, security logs, financial evidence and records linked to other people or
+        active transactions may not be removed immediately when an account is deactivated.
+      </p>
 
-      <h2>14. Marketing Communications</h2>
-      <p>If you provide your contact information to TRUVI, we may contact you regarding TRUVI services, real-estate opportunities, developer services, channel partner opportunities, product updates, business solutions and marketing-related communications. You can request to stop receiving promotional communications by contacting us. Please note that you may still receive essential service-related communications where necessary.</p>
+      <h2>14. Your privacy choices and requests</h2>
+      <p>
+        Subject to applicable law, you may ask Truvi for access to your personal information, correction of
+        inaccurate information, erasure where available, information about relevant processing, or withdrawal
+        of an optional consent. You can submit and track these requests in the signed-in <strong>Privacy &
+        Support Centre</strong>, or contact <strong>info@truviventures.com</strong>. Truvi may need to verify
+        your identity before acting on a request and may ask for clarification.
+      </p>
 
-      <h2>15. Third-Party Websites</h2>
-      <p>Our website or communications may contain links to third-party websites, platforms or services. TRUVI is not responsible for the privacy practices, security or content of third-party websites. We recommend reviewing the privacy policies of third-party websites before providing them with personal information.</p>
+      <h2>15. Account deletion and restoration by email</h2>
+      <p>
+        You can start account deletion from Privacy & Support Centre. Truvi sends a six-digit OTP to the
+        verified email address on the account. The account is deactivated only after the OTP is correctly
+        confirmed. Deactivation blocks sign-in and revokes existing sessions.
+      </p>
+      <p>
+        After deactivation, Truvi emails a single-use restoration link to the same verified email address.
+        The link expires after 30 days. Opening the link does not restore the account automatically; you must
+        confirm the restore action on the recovery page. Successful restoration re-enables the account and
+        requires you to sign in again.
+      </p>
+      <p>
+        When the 30-day restoration period ends, the account remains deactivated and the case moves to an
+        authorised erasure/retention review. Deactivation is not the same as immediate physical deletion of
+        every linked record. Truvi reviews data linked to projects, leads, KYC, employee/payroll, payments,
+        taxes, commissions, payouts, fraud/security logs, grievances and other users before final deletion
+        or anonymisation. Records that must be retained by law or are needed for an active transaction,
+        payment, dispute, fraud investigation or the rights of another person may be retained for the
+        applicable period. This is why some records may remain after the account itself is disabled.
+      </p>
+      <p>
+        If you cannot access the email account or the restore link has expired, contact
+        <strong> info@truviventures.com</strong> and provide enough information for us to verify your request.
+      </p>
 
-      <h2>16. Children's Privacy</h2>
-      <p>TRUVI's services are intended for businesses, real-estate professionals and general users capable of legally using such services. We do not knowingly collect personal information from children where prohibited by applicable law. If you believe that a child has provided personal information to us, please contact us so that we can take appropriate action.</p>
+      <h2>16. Grievances and privacy support</h2>
+      <p>
+        You can submit a grievance and track its case number, status and customer-visible response in Privacy
+        & Support Centre. You may also write to <strong>info@truviventures.com</strong>. Internal handling notes
+        are restricted to authorised administrators and are not displayed as public case responses.
+      </p>
 
-      <h2>17. Changes to This Privacy Policy</h2>
-      <p>TRUVI may update this Privacy Policy from time to time to reflect changes in our services, technology, legal or regulatory requirements, or our privacy practices. The updated version will be published on this page with a revised "Last Updated" date.</p>
+      <h2>17. Children</h2>
+      <p>
+        Truvi is designed for property buyers, businesses and real-estate professionals. It is not intended
+        for children under 18. Please do not create an account or submit a child's personal information.
+        Contact us if you believe a child has provided information and we will review the situation under
+        applicable law.
+      </p>
 
-      <h2>18. Consent</h2>
-      <p>By using our website, submitting an enquiry, registering with TRUVI, or providing personal information to us, you acknowledge that you have read and understood this Privacy Policy. Where consent is required under applicable law, TRUVI will seek appropriate consent before processing personal information for the relevant purpose.</p>
+      <h2>18. Changes to this policy</h2>
+      <p>
+        We may update this policy when features, providers, data uses or legal requirements change. The
+        current version and effective date will be shown on this page. Where required, we will seek a fresh
+        acknowledgement or consent for a material change.
+      </p>
 
-      <h2>19. Contact Us</h2>
-      <p>If you have questions, concerns, requests or complaints regarding this Privacy Policy or the processing of your personal information, please contact us:</p>
+      <h2>19. Contact</h2>
       <p>
         <strong>TRUVI Ventures</strong><br />
         Website: www.truviventures.com<br />
-        Email: <a href="mailto:info@truviventures.com" className="hover:text-foreground">info@truviventures.com</a><br />
+        Privacy and grievance email: <a href="mailto:info@truviventures.com" className="hover:text-foreground">info@truviventures.com</a><br />
         Phone: +91 96366 33588
       </p>
-
-      <h2>20. Grievance / Privacy Requests</h2>
-      <p>For privacy-related requests, corrections, deletion requests or concerns regarding your personal information, please contact: <strong>info@truviventures.com</strong>. Please include sufficient information to help us understand and respond to your request.</p>
+      <p className="text-xs text-muted-foreground">
+        This policy describes the current code-level data flows and should be checked against actual provider
+        contracts, deployment regions, retention schedules and legal requirements before publication.
+      </p>
     </PolicyShell>
   );
 }
