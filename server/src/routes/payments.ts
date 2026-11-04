@@ -162,7 +162,7 @@ router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, re
 
   try {
     const order = await razorpay.orders.create({
-      amount: totalPaise, // paise, incl. GST
+      amount: totalPaise, // paise, server-calculated total
       currency: "INR",
       receipt: row._id,
       notes: { planId: plan.id, paymentRowId: row._id },
@@ -613,7 +613,7 @@ async function sendPaymentConfirmation(to: string, name: string, planLabel: stri
           <tr><td style="padding:4px 12px 4px 0;color:#555">Amount paid</td><td style="padding:4px 0"><strong>₹${rupees(totalPaise)}</strong></td></tr>
           <tr><td style="padding:4px 12px 4px 0;color:#555">Payment ID</td><td style="padding:4px 0">${paymentId}</td></tr>
         </table>
-        <p style="color:#555;font-size:13px">Truvi Ventures · Truston Developers Pvt. Ltd., Lucknow</p>
+        <p style="color:#555;font-size:13px">Truvi Ventures · truviventures.com</p>
       </div>`
     );
   } catch {
