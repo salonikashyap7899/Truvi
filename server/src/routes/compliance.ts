@@ -178,13 +178,14 @@ router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: Authed
   const [request] = await db.select().from(accountDeletionRequests)
     .where(and(eq(accountDeletionRequests.userId, userId), eq(accountDeletionRequests.status, "OTP_SENT")))
     .limit(1);
-  if (!request?.deletionOtpHash || !request.otpExpiresAt) {
+  if (!request || typeof request.deletionOtpHash !== "string" || !request.otpExpiresAt) {
     return res.status(400).json({ error: "Request a new account-deletion code first." });
   }
+  const deletionOtpHash = request.deletionOtpHash;
   if (request.otpExpiresAt.getTime() <= now.getTime()) {
     return res.status(410).json({ error: "This confirmation code has expired. Request a new code." });
   }
-  if (!verifyStoredOtp(parsed.data.otp, request.deletionOtpHash)) {
+  if (!verifyStoredOtp(parsed.data.otp, deletionOtpHash)) {
     await recordOtpFailure(attemptKey);
     return res.status(400).json({ error: "The confirmation code is incorrect." });
   }
@@ -243,7 +244,7 @@ router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: Authed
     }).where(and(
       eq(accountDeletionRequests._id, request._id),
       eq(accountDeletionRequests.status, "OTP_SENT"),
-      eq(accountDeletionRequests.deletionOtpHash, request.deletionOtpHash),
+      eq(accountDeletionRequests.deletionOtpHash, deletionOtpHash),
       gt(accountDeletionRequests.otpExpiresAt, now),
     )).returning({ id: accountDeletionRequests._id });
 
