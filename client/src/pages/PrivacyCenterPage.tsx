@@ -50,6 +50,7 @@ export default function PrivacyCenterPage() {
   const [deletionOtp, setDeletionOtp] = useState("");
   const [deletionEmail, setDeletionEmail] = useState("");
   const [deletionOtpSent, setDeletionOtpSent] = useState(false);
+  const [hideDeletionOtp, setHideDeletionOtp] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
   const navigate = useNavigate();
@@ -72,6 +73,11 @@ export default function PrivacyCenterPage() {
   const requiredPolicies = useMemo(() => (data?.policies ?? []).filter((p) => p.required), [data?.policies]);
   const marketingGranted = consentState.MARKETING?.action === "GRANTED" &&
     consentState.MARKETING?.policyVersion === data?.currentVersions?.MARKETING;
+  const serverOtpPending = data?.accountDeletion?.status === "OTP_SENT" &&
+    Boolean(data.accountDeletion.otpExpiresAt) &&
+    new Date(data.accountDeletion.otpExpiresAt!).getTime() > Date.now();
+  const showDeletionOtp = !hideDeletionOtp && (deletionOtpSent || serverOtpPending) &&
+    (!data?.accountDeletion?.otpExpiresAt || new Date(data.accountDeletion.otpExpiresAt).getTime() > Date.now());
 
   async function recordPolicy(policy: PolicyDocument, action: "ACKNOWLEDGED" | "GRANTED" | "WITHDRAWN") {
     setSavingPolicy(policy.type);
@@ -127,6 +133,7 @@ export default function PrivacyCenterPage() {
       setDeletionEmail(response.data.email ?? "");
       setDeletionOtp("");
       setDeletionOtpSent(true);
+      setHideDeletionOtp(false);
       toast.success("A confirmation code has been sent to your verified email.");
       await load();
     } catch (error) {
@@ -372,7 +379,7 @@ export default function PrivacyCenterPage() {
                       Your recovery period has ended. Your account remains deactivated and is in Truvi's erasure/retention review queue.
                     </p>
                   )}
-                  {(deletionOtpSent || data.accountDeletion?.status === "OTP_SENT") ? (
+                  {showDeletionOtp ? (
                     <form onSubmit={confirmAccountDeletion} className="mt-4 space-y-3">
                       <p className="text-xs text-white/65">
                         Enter the six-digit code sent to {deletionEmail || "your verified email address"}.
@@ -394,7 +401,7 @@ export default function PrivacyCenterPage() {
                           {confirmingDeletion ? "Deactivating…" : "Confirm & deactivate"}
                         </button>
                       </div>
-                      <button type="button" onClick={() => { setDeletionOtpSent(false); setDeletionOtp(""); }} className="text-xs text-white/45 underline underline-offset-2 hover:text-white/70">
+                      <button type="button" onClick={() => { setDeletionOtpSent(false); setDeletionOtp(""); setHideDeletionOtp(true); }} className="text-xs text-white/45 underline underline-offset-2 hover:text-white/70">
                         Cancel this confirmation
                       </button>
                     </form>
