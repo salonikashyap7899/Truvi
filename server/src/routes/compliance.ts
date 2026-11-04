@@ -15,6 +15,7 @@ import { CURRENT_POLICY_VERSIONS, POLICY_DOCUMENTS } from "../config/compliance"
 import { canTransitionGrievance, canTransitionPrivacyRequest } from "../services/compliance.rules";
 import { logAudit } from "../services/audit";
 import { notifyRole, notifyUser } from "../services/notificationService";
+import { adminLimiter, complianceSubmissionLimiter } from "../middleware/security";
 
 const router = Router();
 router.use(authenticate);
@@ -141,7 +142,7 @@ const privacyRequestSchema = z.object({
   requestType: z.enum(["ACCESS", "CORRECTION", "ERASURE", "WITHDRAW_CONSENT"]),
   details: z.string().trim().min(10, "Please provide at least 10 characters of detail").max(3000),
 });
-router.post("/privacy-requests", async (req: AuthedRequest, res) => {
+router.post("/privacy-requests", ...complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
   const parsed = privacyRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid privacy request" });
 
@@ -187,7 +188,7 @@ const grievanceSchema = z.object({
   subject: z.string().trim().min(5).max(160),
   description: z.string().trim().min(15).max(5000),
 });
-router.post("/grievances", async (req: AuthedRequest, res) => {
+router.post("/grievances", ...complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
   const parsed = grievanceSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid grievance" });
 
@@ -220,7 +221,7 @@ router.post("/grievances", async (req: AuthedRequest, res) => {
   return res.status(201).json({ ticket });
 });
 
-router.get("/admin/queue", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {
+router.get("/admin/queue", requireRole("ADMIN"), adminLimiter, async (_req: AuthedRequest, res) => {
   const db = getDb();
   const [grievanceRows, privacyRows] = await Promise.all([
     db.select({
@@ -254,7 +255,7 @@ const grievanceReviewSchema = z.object({
   publicResponse: z.string().trim().max(3000).optional(),
   internalNote: z.string().trim().max(3000).optional(),
 });
-router.patch("/admin/grievances/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/grievances/:id", requireRole("ADMIN"), adminLimiter, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   if (!isValidId(id)) return res.status(400).json({ error: "Invalid case ID" });
   const parsed = grievanceReviewSchema.safeParse(req.body);
@@ -309,7 +310,7 @@ const privacyReviewSchema = z.object({
   publicResponse: z.string().trim().max(3000).optional(),
   internalNote: z.string().trim().max(3000).optional(),
 });
-router.patch("/admin/privacy-requests/:id", requireRole("ADMIN"), async (req: AuthedRequest, res) => {
+router.patch("/admin/privacy-requests/:id", requireRole("ADMIN"), adminLimiter, async (req: AuthedRequest, res) => {
   const id = String(req.params.id);
   if (!isValidId(id)) return res.status(400).json({ error: "Invalid request ID" });
   const parsed = privacyReviewSchema.safeParse(req.body);
