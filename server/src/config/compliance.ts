@@ -5,7 +5,7 @@
  */
 export const CURRENT_POLICY_VERSIONS = {
   TERMS_OF_SERVICE: "terms-2026-08",
-  PRIVACY_NOTICE: "privacy-2026-09-02",
+  PRIVACY_NOTICE: "privacy-2026-11-04",
   MARKETING: "marketing-2026-11",
 } as const;
 
