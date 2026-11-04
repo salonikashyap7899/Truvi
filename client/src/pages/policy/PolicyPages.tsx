@@ -152,10 +152,9 @@ export function PrivacyPolicyPage() {
 
       <h2>1. Who handles your information</h2>
       <p>
-        TRUVI Ventures operates the Truvi real-estate platform and related services. The support contact for
-        privacy questions and grievances is <strong>info@truviventures.com</strong>. The website is
-        <strong> truviventures.com</strong>. Company identity, registered office and statutory disclosure details
-        should be checked against the current company records and shown in the website footer.
+        {COMPANY} ("Truvi", "we", "us" or "our"), based in {CITY}, operates the Truvi real-estate
+        platform and related services. The support contact for privacy questions and grievances is
+        <strong> {SUPPORT_EMAIL}</strong>. The website is <strong> truviventures.com</strong>.
       </p>
 
       <h2>2. Information we collect</h2>
