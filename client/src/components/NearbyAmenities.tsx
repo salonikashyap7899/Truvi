@@ -93,7 +93,7 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 glass p-5">
+    <div className="w-full min-w-0 rounded-2xl border border-white/10 glass p-5">
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm font-semibold text-white">Nearby Amenities</p>
         {editing ? (
@@ -178,7 +178,7 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
           Nearby schools, hospitals, transit and shopping will appear once verified location data is added for this project.
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {CATEGORY_ORDER.map((cat) => {
             const items = grouped[cat];
             if (!items.length) return null;
@@ -186,7 +186,7 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
             const { Icon } = meta;
 
             return (
-              <div key={cat}>
+              <div key={cat} className="min-w-0">
                 {/* Category header */}
                 <div className="mb-2 flex items-center gap-2">
                   <span className={`inline-flex items-center justify-center rounded-lg p-1.5 ${meta.bg}`}>
@@ -200,9 +200,9 @@ export default function NearbyAmenities({ amenities, projectId, editable, onSave
                   {items.map((item, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between rounded-lg border border-white/10 bg-card/50 px-3 py-2"
+                      className="flex w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-white/10 bg-card/50 px-3 py-2"
                     >
-                      <span className="truncate pr-2 text-xs text-foreground/90">{item.name}</span>
+                      <span className="min-w-0 flex-1 break-words whitespace-normal pr-2 text-xs text-foreground/90 [overflow-wrap:anywhere]">{item.name}</span>
                       {item.distance && (
                         <span className="shrink-0 text-[11px] font-medium text-muted-foreground">{item.distance}</span>
                       )}
