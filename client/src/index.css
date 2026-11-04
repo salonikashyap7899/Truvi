@@ -66,6 +66,28 @@ html, body {
   overflow-x: clip;
 }
 
+/* A still, CSS-only ambient backdrop for inventory and project details.
+   The animated WebGL city scene is intentionally disabled on touch devices
+   to protect scrolling and form responsiveness. */
+.truvi-inventory-surface {
+  background-color: #05070c;
+  background-image:
+    radial-gradient(ellipse 82% 42% at 50% 0%, rgba(37, 99, 235, 0.20), transparent 72%),
+    radial-gradient(ellipse 48% 34% at 100% 38%, rgba(16, 185, 129, 0.075), transparent 70%),
+    linear-gradient(180deg, #080d17 0%, #05070c 58%, #05070c 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+@media (max-width: 767px) {
+  .truvi-inventory-surface {
+    background-image:
+      radial-gradient(ellipse 115% 34% at 50% 0%, rgba(37, 99, 235, 0.17), transparent 72%),
+      radial-gradient(ellipse 70% 24% at 100% 36%, rgba(16, 185, 129, 0.06), transparent 70%),
+      linear-gradient(180deg, #080d17 0%, #05070c 62%, #05070c 100%);
+  }
+}
+
 /* Keep long URLs, emails and IDs from forcing horizontal overflow. */
 body {
   overflow-wrap: break-word;
