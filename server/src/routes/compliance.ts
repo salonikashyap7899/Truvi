@@ -109,7 +109,6 @@ function currentConsentState(events: Array<{ policyType: string; policyVersion: 
   return Object.fromEntries(latest.entries());
 }
 
-const deletionOtpRequestSchema = z.object({});
 router.post("/account-deletion/request", ...otpSendLimiter, complianceSubmissionLimiter, async (req: AuthedRequest, res) => {
   const db = getDb();
   const userId = req.user!.userId;
@@ -278,7 +277,7 @@ router.post("/account-deletion/confirm", ...otpVerifyLimiter, async (req: Authed
 router.get("/me", async (req: AuthedRequest, res) => {
   const db = getDb();
   const userId = req.user!.userId;
-  const [events, requests, tickets] = await Promise.all([
+  const [events, requests, tickets, deletionState] = await Promise.all([
     db.select({
       policyType: userConsentEvents.policyType,
       policyVersion: userConsentEvents.policyVersion,
@@ -316,6 +315,13 @@ router.get("/me", async (req: AuthedRequest, res) => {
       .where(eq(grievanceTickets.requesterUserId, userId))
       .orderBy(desc(grievanceTickets.requestedAt))
       .limit(50),
+    db.select({
+      status: accountDeletionRequests.status,
+      otpExpiresAt: accountDeletionRequests.otpExpiresAt,
+      requestedAt: accountDeletionRequests.requestedAt,
+    }).from(accountDeletionRequests)
+      .where(eq(accountDeletionRequests.userId, userId))
+      .limit(1),
   ]);
 
   res.setHeader("Cache-Control", "private, no-store");
@@ -327,6 +333,7 @@ router.get("/me", async (req: AuthedRequest, res) => {
     consentState: currentConsentState(events),
     privacyRequests: requests,
     grievances: tickets,
+    accountDeletion: deletionState[0] ?? null,
   });
 });
 
