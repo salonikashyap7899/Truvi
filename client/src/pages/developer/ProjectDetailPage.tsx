@@ -214,7 +214,7 @@ export default function ProjectDetailPage() {
     reraNumber: project.reraNumber ?? "",
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
     reraValidityDate: project.reraValidityDate ?? null,
-    approvalAuthority: project.approvalAuthority ?? "RERA",
+    approvalAuthority: project.approvalAuthority ?? null,
   };
 
   return (
