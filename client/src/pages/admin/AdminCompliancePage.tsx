@@ -137,6 +137,7 @@ export default function AdminCompliancePage() {
                 <div className="mt-3">
                   <label className="mb-1.5 block text-[11px] text-white/55">Internal note (not visible to the user)</label>
                   <textarea rows={2} className={field + " resize-y"} value={draft.internalNote} onChange={(e) => patchDraft(item._id, { internalNote: e.target.value }, item.status, item.publicResponse)} placeholder="Add an internal handling note…" />
+                  {item.internalNotes && <div className="mt-2 rounded-lg border border-white/10 bg-black/15 p-3"><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Internal note history</p><p className="whitespace-pre-wrap text-xs leading-relaxed text-white/55">{item.internalNotes}</p></div>}
                 </div>
                 <div className="mt-3 flex justify-end"><button onClick={() => void save("GRIEVANCE", item._id, item.status, item.publicResponse)} disabled={saving === item._id} className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-400 disabled:opacity-50"><MessageSquareText size={13}/>{saving === item._id ? "Saving…" : "Save update"}</button></div>
               </article>
@@ -176,6 +177,7 @@ export default function AdminCompliancePage() {
                 <div className="mt-3">
                   <label className="mb-1.5 block text-[11px] text-white/55">Internal note (not visible to the user)</label>
                   <textarea rows={2} className={field + " resize-y"} value={draft.internalNote} onChange={(e) => patchDraft(item._id, { internalNote: e.target.value }, item.status, item.publicResponse)} placeholder="Record verification steps, legal hold, or data-system checks…" />
+                  {item.internalNotes && <div className="mt-2 rounded-lg border border-white/10 bg-black/15 p-3"><p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">Internal note history</p><p className="whitespace-pre-wrap text-xs leading-relaxed text-white/55">{item.internalNotes}</p></div>}
                 </div>
                 <div className="mt-3 flex justify-end"><button onClick={() => void save("PRIVACY", item._id, item.status, item.publicResponse)} disabled={saving === item._id} className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-400 disabled:opacity-50"><MessageSquareText size={13}/>{saving === item._id ? "Saving…" : "Save update"}</button></div>
               </article>
