@@ -56,6 +56,32 @@ describe("createApp production hosting", () => {
     const unknownApiRoute = await fetch(`http://127.0.0.1:${address.port}/api/this-route-does-not-exist`);
     expect(unknownApiRoute.status).toBe(404);
     expect(unknownApiRoute.headers.get("content-type") || "").toContain("application/json");
+
+    const telemetryResponse = await fetch(`http://127.0.0.1:${address.port}/api/telemetry/frontend-error`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "window_error",
+        name: "Error",
+        message: "Test error",
+        stack: "Error: Test error",
+        page: "/inventory",
+      }),
+    });
+    expect(telemetryResponse.status).toBe(202);
+    expect(await telemetryResponse.json()).toEqual({ received: true });
+
+    const invalidTelemetryResponse = await fetch(`http://127.0.0.1:${address.port}/api/telemetry/frontend-error`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        kind: "window_error",
+        name: "Error",
+        message: "Test error",
+        cookies: "must-not-be-accepted",
+      }),
+    });
+    expect(invalidTelemetryResponse.status).toBe(400);
   });
 
   it("blocks CP ambassadors until onboarding verification is complete", () => {
