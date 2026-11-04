@@ -1805,7 +1805,7 @@ async function ensureSchema(db: Db): Promise<void> {
     // Central grievance queue across Buyers, Developers, CPs, Ambassadors, Employees and Verifiers.
     `CREATE TABLE IF NOT EXISTS "grievance_tickets" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-       "case_number" text NOT NULL UNIQUE,
+       "case_number" text NOT NULL,
        "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
        "category" text NOT NULL,
        "subject" text NOT NULL,
@@ -1818,6 +1818,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "updated_at" timestamptz NOT NULL DEFAULT now(),
        "resolved_at" timestamptz
      )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "grievance_tickets_case_number_unique" ON "grievance_tickets" ("case_number")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_user_idx" ON "grievance_tickets" ("requester_user_id", "requested_at")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_status_idx" ON "grievance_tickets" ("status", "requested_at")`,
 
