@@ -9,7 +9,7 @@ import { getSubscriptionPlans, razorpayPeriod, withGst } from "../config/pricing
 /**
  * Creates a Razorpay Plan for every subscription tier (Buyer/CP/Developer Pro,
  * monthly + yearly) and stores the resulting `plan_id` in the
- * `subscription_plans` table. The plan amount includes GST.
+ * `subscription_plans` table. The amount uses configured tax treatment (zero unless enabled and approved).
  *
  * Idempotent: a stored plan is reused only when its recorded amount matches
  * the currently approved price. If tax configuration changes, a new Razorpay
