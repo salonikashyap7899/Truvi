@@ -9,7 +9,7 @@ import {
 } from "drizzle-orm";
 import { getDb } from "../config/db";
 import {
-  users, employees, employeeInvites, employeeTasks, employeeTaskHistory,
+  users, employees, employeeInvites, userConsentEvents, employeeTasks, employeeTaskHistory,
   employeeTaskComments, employeeTaskAssignments, employeeTaskAttachments, employeeLeaveRequests,
   employeeAttendance, employeeSalaryRecords, projects, leads, leadActivities, leadFollowUps,
   siteVisits, notifications,
@@ -22,6 +22,7 @@ import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
 import { auditLogs } from "../db/verificationSchema";
 import { DUPLICATE_LEAD_WINDOW_DAYS } from "../config/constants";
+import { CURRENT_POLICY_VERSIONS } from "../config/compliance";
 import { canAccessEmployeeLead, hasEmployeePermission as hasPermission } from "../lib/employeeAccess";
 import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib/employeeLeaveRules";
 import { aggregateAssignedTaskStatus } from "../lib/employeeTaskRules";
@@ -153,6 +154,11 @@ const activateSchema = z.object({
     .regex(/[A-Z]/, "Use an uppercase letter")
     .regex(/[0-9]/, "Use a number")
     .regex(/[^A-Za-z0-9]/, "Use a symbol"),
+  acceptTerms: z.boolean().refine((value) => value === true, "You must accept the Terms of Service"),
+  acknowledgePrivacyNotice: z.boolean().refine((value) => value === true, "You must acknowledge the Privacy Policy"),
+  termsVersion: z.literal(CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE),
+  privacyNoticeVersion: z.literal(CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE),
+  marketingOptIn: z.boolean().optional().default(false),
 });
 const taskCreateSchema = z.object({
   employeeId: z.string().optional(),
@@ -297,16 +303,50 @@ router.post("/activate", async (req, res, next) => {
     }
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     const activated = await db.transaction(async (tx) => {
-      const [claimed] = await tx.update(employeeInvites).set({ usedAt: new Date() })
-        .where(and(eq(employeeInvites._id, invite._id), isNull(employeeInvites.usedAt), gte(employeeInvites.expiresAt, new Date())))
-        .returning();
-      if (!claimed) return false;
       const [emp] = await tx.select().from(employees).where(eq(employees._id, invite.employeeId)).limit(1);
       if (!emp?.accountUserId || emp.status === "INACTIVE") return false;
-      await tx.update(users).set({
+
+      // Claim the one-time invite only after confirming the linked employee is active.
+      // The password update and the policy evidence are committed together.
+      const now = new Date();
+      const [claimed] = await tx.update(employeeInvites).set({ usedAt: now })
+        .where(and(eq(employeeInvites._id, invite._id), isNull(employeeInvites.usedAt), gte(employeeInvites.expiresAt, now)))
+        .returning();
+      if (!claimed) return false;
+
+      const [account] = await tx.update(users).set({
         password: passwordHash, disabled: false, emailVerified: true,
         phoneVerified: !emp.phone, authVersion: sql`auth_version + 1`,
-      }).where(eq(users._id, emp.accountUserId));
+      }).where(eq(users._id, emp.accountUserId)).returning({ id: users._id });
+      if (!account) return false;
+
+      const consentEvents = [
+        {
+          userId: account.id,
+          policyType: "TERMS_OF_SERVICE" as const,
+          policyVersion: parsed.data.termsVersion,
+          action: "ACKNOWLEDGED" as const,
+          source: "EMPLOYEE_ACTIVATION" as const,
+          occurredAt: now,
+        },
+        {
+          userId: account.id,
+          policyType: "PRIVACY_NOTICE" as const,
+          policyVersion: parsed.data.privacyNoticeVersion,
+          action: "ACKNOWLEDGED" as const,
+          source: "EMPLOYEE_ACTIVATION" as const,
+          occurredAt: now,
+        },
+        ...(parsed.data.marketingOptIn ? [{
+          userId: account.id,
+          policyType: "MARKETING" as const,
+          policyVersion: CURRENT_POLICY_VERSIONS.MARKETING,
+          action: "GRANTED" as const,
+          source: "EMPLOYEE_ACTIVATION" as const,
+          occurredAt: now,
+        }] : []),
+      ];
+      await tx.insert(userConsentEvents).values(consentEvents);
       return true;
     });
     if (!activated) return res.status(400).json({ error: "This account could not be activated. Contact your administrator." });
