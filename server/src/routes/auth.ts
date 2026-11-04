@@ -636,6 +636,11 @@ router.post(
         error: isAmbassador ? "An identity document and a live selfie are required" : "An identity document, PAN and a selfie are all required",
       });
     }
+    const identityNoticeAccepted = String(req.body?.identityNoticeAccepted || "") === "true";
+    const identityNoticeVersion = String(req.body?.identityNoticeVersion || "");
+    if (!identityNoticeAccepted || identityNoticeVersion !== "identity-kyc-2026-11-04") {
+      return res.status(400).json({ error: "Please confirm the masked identity-document notice before submitting KYC." });
+    }
 
     // Do not accept or persist a full Aadhaar number. The uploaded identity
     // image must be masked before submission; admin review remains manual.
@@ -647,6 +652,17 @@ router.post(
 
     const user = await findUserById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    await logAudit({
+      userId,
+      action: "kyc.identity_document_notice.accept",
+      resourceType: "identity_document",
+      metadata: {
+        noticeVersion: identityNoticeVersion,
+        maskedAadhaarOrAlternativeDocumentDeclared: true,
+        manualReviewOnly: true,
+      },
+    });
 
     // Document bytes are stored durably in Postgres (kyc_documents) — never on
     // disk or a public URL. Only admins can retrieve them, via an authenticated
