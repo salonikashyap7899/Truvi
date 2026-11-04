@@ -209,9 +209,9 @@ export function PrivacyPolicyPage() {
   return (
     <PolicyShell title="Privacy Policy" updated="Last Updated: 4 November 2026 · Effective Date: 4 November 2026">
       <p>
-        TRUVI Ventures ("TRUVI", "we", "us", or "our") explains here what personal information we collect,
-        why we use it, which Truvi features use it, which service providers may receive it, and how you can
-        exercise your privacy choices. This notice applies when you visit truviventures.com, register, submit
+        This Privacy Policy explains what personal information is collected through the Truvi platform,
+        why it is used, which features use it, which service providers may receive it, and how people can
+        exercise their privacy choices. This notice applies when you visit truviventures.com, register, submit
         an enquiry or requirement, list/manage a project, communicate with Truvi, or use any Truvi workspace.
       </p>
       <p>
