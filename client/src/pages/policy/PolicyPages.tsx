@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
 
 const COMPANY = "Truvi Ventures";
-const telHref = (value: string) => `tel:${value.replace(/[^\\d+]/g, "")}`;
+const telHref = (value: string) => `tel:${value.replace(/[^\d+]/g, "")}`;
 const CITY = "Lucknow, Uttar Pradesh, India";
 const SUPPORT_EMAIL = "info@truviventures.com";
 const publicEnv = import.meta.env as ImportMetaEnv & {
