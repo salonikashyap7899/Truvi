@@ -47,7 +47,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
-  const authority = info.approvalAuthority ?? "RERA";
+  const authority = info.approvalAuthority ?? null;
   const isReraRecord = authority === "RERA";
   const cfg = isReraRecord ? STATUS_CONFIG[info.reraStatus] : null;
   const Icon = cfg?.Icon ?? BadgeCheck;
@@ -56,7 +56,9 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
       ? "District Panchayat"
       : authority === "DTCP"
         ? "Development Authority (DTCP)"
-        : "RERA";
+        : authority === "RERA"
+          ? "RERA"
+          : "Not specified";
 
   return (
     <div className="rounded-2xl border glass p-5 border-white/10">
