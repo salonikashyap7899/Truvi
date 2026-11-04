@@ -58,20 +58,24 @@ async function main() {
           end loop;
         end loop;
 
+        execute 'revoke all privileges on schema public from public';
         execute 'revoke all privileges on all sequences in schema public from public';
         execute 'revoke execute on all functions in schema public from public';
 
         foreach target_role in array array['anon', 'authenticated'] loop
           if exists (select 1 from pg_roles where rolname = target_role) then
+            execute format('revoke all privileges on schema public from %I', target_role);
             execute format('revoke all privileges on all sequences in schema public from %I', target_role);
             execute format('revoke execute on all functions in schema public from %I', target_role);
             execute format('alter default privileges for role %I in schema public revoke all on tables from %I', current_user, target_role);
             execute format('alter default privileges for role %I in schema public revoke all on sequences from %I', current_user, target_role);
+            execute format('alter default privileges for role %I in schema public revoke execute on functions from %I', current_user, target_role);
           end if;
         end loop;
 
         execute format('alter default privileges for role %I in schema public revoke all on tables from public', current_user);
         execute format('alter default privileges for role %I in schema public revoke all on sequences from public', current_user);
+        execute format('alter default privileges for role %I in schema public revoke execute on functions from public', current_user);
       end
       $lockdown$;
     `);
