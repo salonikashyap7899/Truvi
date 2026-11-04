@@ -91,6 +91,12 @@ export function PrivacyPolicyPage() {
       access: "The submitter, assigned/authorised team members and relevant project/developer/partner participants when needed to respond to the enquiry. The public/role-based requirement board uses privacy-filtered summaries rather than exposing private client contacts.",
     },
     {
+      category: "Employee and workforce records",
+      data: "Employee code, official work email and phone, department, designation, employment type, reporting manager, recruitment source, application/interview/joining dates, attendance and check-in/check-out timestamps, leave requests/reasons, assigned tasks, work activity, salary/payroll and manager notes.",
+      use: "Employee account provisioning, permissions, HR administration, task allocation, attendance/leave management, performance and workload reporting, salary calculations and payroll records.",
+      access: "The employee can access their own permitted records. Authorised administrators, HR/finance staff and reporting managers may access the records required for their assigned responsibilities.",
+    },
+    {
       category: "KYC and identity documents",
       data: "Aadhaar details/documents, PAN details/documents, selfie image, document type, masked identifiers and verification/review status, where KYC is requested for a role.",
       use: "Channel Partner/Ambassador onboarding, identity checks, fraud prevention and manual compliance review.",
@@ -161,7 +167,8 @@ export function PrivacyPolicyPage() {
       <p>Depending on your role and the features you use, we may collect:</p>
       <L items={[
         "Account details: name, email, phone number, password hash, role, email/phone verification state, login and account settings.",
-        "Profile and business details: profile image, bio, company/developer details, partner/referral information, employee profile and role permissions.",
+        "Profile and business details: profile image, bio, company/developer details, partner/referral information and role permissions.",
+        "Employee/workforce details (for Employee accounts and staff records): work contact details, department/designation, employment and recruitment dates, attendance/check-in/check-out, leave requests, tasks, work activity, salary/payroll and manager notes.",
         "Property and project details: project name, description, locality/address, map coordinates, pricing, inventory, brochures, images, legal/approval documents and listing information.",
         "Buyer, enquiry and lead details: property preferences, budget, area, purchase purpose, timeline, contact details supplied by the buyer or by a lead submitter with the relevant client's permission, CRM notes, follow-ups and site visits.",
         "KYC information, where required: Aadhaar number/details and document, PAN details/document, selfie image, masked identifier and verification/review state.",
