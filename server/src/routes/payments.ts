@@ -35,6 +35,7 @@ router.get("/config", (_req, res) => {
   res.json({
     keyId: env.razorpayKeyId || null,
     gstPercent: env.gstPercent,
+    gstCollectionEnabled: env.gstCollectionEnabled,
     configured: isRazorpayConfigured(),
   });
 });
@@ -609,7 +610,7 @@ async function sendPaymentConfirmation(to: string, name: string, planLabel: stri
         <h2 style="color:#0B1F3A">Thank you, ${name}!</h2>
         <p>We've received your payment for <strong>${planLabel}</strong>.</p>
         <table style="border-collapse:collapse;margin:12px 0">
-          <tr><td style="padding:4px 12px 4px 0;color:#555">Amount paid</td><td style="padding:4px 0"><strong>₹${rupees(totalPaise)}</strong> (incl. GST)</td></tr>
+          <tr><td style="padding:4px 12px 4px 0;color:#555">Amount paid</td><td style="padding:4px 0"><strong>₹${rupees(totalPaise)}</strong></td></tr>
           <tr><td style="padding:4px 12px 4px 0;color:#555">Payment ID</td><td style="padding:4px 0">${paymentId}</td></tr>
         </table>
         <p style="color:#555;font-size:13px">Truvi Ventures · Truston Developers Pvt. Ltd., Lucknow</p>
