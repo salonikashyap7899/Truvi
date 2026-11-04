@@ -187,8 +187,8 @@ export default function AddLeadModal({ project, offer, onClose, initialDraft }: 
             </p>
             <p className="truncate font-display text-sm font-semibold">{project.name}</p>
             {(project.location || project.city) && (
-              <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-white/55">
-                <MapPin size={11} /> {formatProjectLocation(project.location, project.city)}
+              <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[11px] text-white/55">
+                <MapPin size={11} className="shrink-0" /> <span className="min-w-0 truncate">{formatProjectLocation(project.location, project.city)}</span>
               </p>
             )}
           </div>
