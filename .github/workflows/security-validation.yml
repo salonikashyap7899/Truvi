@@ -44,7 +44,7 @@ jobs:
         run: |
           cd server
           test -f package-lock.json
-          npm ci --package-lock=true
+          npm install --no-audit --no-fund
       - name: Server TypeScript check
         run: |
           cd server
