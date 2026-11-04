@@ -524,6 +524,7 @@ export const refresh = async (req: Request, res: Response) => {
 
   const accessToken = signAccessToken({
     userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,
