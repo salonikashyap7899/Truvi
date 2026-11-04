@@ -196,7 +196,7 @@ export default function AdminUserProfilePage() {
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <Field label="Status" value={<KycBadge status={p.kycStatus} />} />
             <Field label="PAN (masked)" value={p.verification.panNumberMasked || "—"} />
-            <Field label="Aadhaar verified" value={p.onboardingChecks?.aadhaarVerified ? "Yes" : "No"} />
+            <Field label="Identity document reviewed" value={p.onboardingChecks?.aadhaarVerified ? "Approved by Truvi reviewer" : "Not approved"} />
             <Field label="PAN verified" value={p.onboardingChecks?.panVerified ? "Yes" : "No"} />
             <Field label="Submitted" value={p.verification.kycSubmittedAt ? formatDate(p.verification.kycSubmittedAt) : "—"} />
             <Field label="Onboarding" value={p.onboardingVerified ? "Complete" : "Incomplete"} />
