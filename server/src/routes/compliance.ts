@@ -453,15 +453,39 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
 
   const userId = req.user!.userId;
   const caseNumber = "TRV-" + Date.now().toString(36).toUpperCase() + "-" + randomBytes(3).toString("hex").toUpperCase();
-  const [ticket] = await getDb().insert(grievanceTickets).values({
+  const db = getDb();
+  const [ticket] = await db.insert(grievanceTickets).values({
     requesterUserId: userId,
     caseNumber,
     category: parsed.data.category,
     subject: parsed.data.subject,
     description: parsed.data.description,
   }).returning();
+  const [requester] = await db.select({
+    name: users.name,
+    email: users.email,
+    emailVerified: users.emailVerified,
+  }).from(users).where(eq(users._id, userId)).limit(1);
+  const safeName = String(requester?.name || "there").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[ch]!));
 
   await Promise.all([
+    requester?.emailVerified && requester.email
+      ? sendEmail(
+          requester.email,
+          "Truvi received your grievance · " + ticket.caseNumber,
+          `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033">
+            <h2>We received your grievance</h2>
+            <p>Hello ${safeName},</p>
+            <p>Your grievance has been registered with Truvi.</p>
+            <p><strong>Case number: ${ticket.caseNumber}</strong></p>
+            <p>You can track the status and customer-visible updates in Privacy &amp; Support Centre after signing in.</p>
+            <p>Our service target is to acknowledge complaints within 48 hours and resolve them within one month, subject to any different statutory deadline that applies.</p>
+            <p>For follow-up, reply to this email or contact info@truviventures.com. Never send passwords, OTPs or payment authentication details.</p>
+          </div>`,
+        ).catch(() => false)
+      : Promise.resolve(false),
     notifyRole("ADMIN", {
       type: "grievance_submitted",
       title: "New grievance received",
