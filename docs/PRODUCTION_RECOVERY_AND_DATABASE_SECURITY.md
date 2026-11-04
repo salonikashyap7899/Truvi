@@ -88,7 +88,7 @@ If direct PostgREST access is needed, design and test table-specific policies ba
 
 The Express/VPS host now serves the SPA shell for known React routes with HTTP 200 and serves the same branded shell with HTTP 404 for unknown extensionless routes. Missing assets and API endpoints retain real 404 responses. Keep `server/src/lib/spaRoutes.ts` synchronized with routes in `client/src/App.tsx` when adding pages.
 
-The repository also contains `client/vercel.json` with a catch-all SPA rewrite. That hosting configuration is separate from the Express fallback; if Vercel is used to serve production, run a live 404 status check on the Vercel deployment too and configure equivalent edge routing before relying on this fix there.
+The Vercel deployment also has `client/proxy.ts` registered through `client/vercel.json`. It lets known routes continue into the SPA rewrite and returns the React shell with HTTP 404 for unknown extensionless paths; API and asset paths are excluded from the proxy matcher. After a Vercel deployment, verify that a known deep link returns 200, a random unknown path returns 404 HTML, and assets/API routes retain their expected status codes.
 
 ## 6. Fatal process failures
 
