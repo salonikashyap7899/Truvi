@@ -164,15 +164,25 @@ router.post("/privacy-requests", complianceSubmissionLimiter, async (req: Authed
     details: parsed.data.details,
   }).returning();
 
-  await notifyRole("ADMIN", {
-    type: "privacy_request_submitted",
-    title: "New privacy request",
-    message: "A user submitted a " + request.requestType.toLowerCase().replace(/_/g, " ") + " request.",
-    data: { href: "/admin/compliance", requestId: request._id },
-    actorUserId: userId,
-    priority: "high",
-    dedupeKey: "privacy-request:" + request._id,
-  }).catch(() => []);
+  await Promise.all([
+    notifyRole("ADMIN", {
+      type: "privacy_request_submitted",
+      title: "New privacy request",
+      message: "A user submitted a " + request.requestType.toLowerCase().replace(/_/g, " ") + " request.",
+      data: { href: "/admin/compliance", requestId: request._id },
+      actorUserId: userId,
+      priority: "high",
+      dedupeKey: "privacy-request:" + request._id,
+    }).catch(() => []),
+    notifyUser(userId, {
+      type: "privacy_request_received",
+      title: "Privacy request received",
+      message: "We received your " + request.requestType.toLowerCase().replace(/_/g, " ") + " request. You can follow its progress in Privacy & Support Centre.",
+      data: { href: "/privacy-center", requestId: request._id },
+      priority: "normal",
+      dedupeKey: "privacy-request-received:" + request._id,
+    }).catch(() => []),
+  ]);
   await logAudit({
     userId,
     action: "compliance.privacy_request.submit",
@@ -202,15 +212,25 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
     description: parsed.data.description,
   }).returning();
 
-  await notifyRole("ADMIN", {
-    type: "grievance_submitted",
-    title: "New grievance received",
-    message: ticket.caseNumber + " · " + ticket.category.replace(/_/g, " "),
-    data: { href: "/admin/compliance", grievanceId: ticket._id },
-    actorUserId: userId,
-    priority: "high",
-    dedupeKey: "grievance:" + ticket._id,
-  }).catch(() => []);
+  await Promise.all([
+    notifyRole("ADMIN", {
+      type: "grievance_submitted",
+      title: "New grievance received",
+      message: ticket.caseNumber + " · " + ticket.category.replace(/_/g, " "),
+      data: { href: "/admin/compliance", grievanceId: ticket._id },
+      actorUserId: userId,
+      priority: "high",
+      dedupeKey: "grievance:" + ticket._id,
+    }).catch(() => []),
+    notifyUser(userId, {
+      type: "grievance_received",
+      title: "Grievance received",
+      message: "We received your case " + ticket.caseNumber + ". You can track its progress in Privacy & Support Centre.",
+      data: { href: "/privacy-center", caseNumber: ticket.caseNumber, grievanceId: ticket._id },
+      priority: "normal",
+      dedupeKey: "grievance-received:" + ticket._id,
+    }).catch(() => []),
+  ]);
   await logAudit({
     userId,
     action: "compliance.grievance.submit",
