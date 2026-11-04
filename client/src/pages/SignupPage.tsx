@@ -12,6 +12,7 @@ import { AuthCard } from "@/components/auth/AuthShell";
 import { VoiceGuideButton } from "@/components/VoiceGuideButton";
 import { User, Handshake, Building2, Loader2, ArrowRight, ChevronDown, Search, Mail, Phone, Lock, Gift } from "lucide-react";
 import { COUNTRY_CODES } from "@/lib/countryCodes";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 
 /** Searchable country dial-code picker (native <select> can't be searched).
  *  Defined at module scope so the search input keeps focus across renders. */
@@ -137,6 +138,9 @@ const signupSchema = z
     countryCode: z.string(),
     phone: z.string(),
     role: z.enum(["DEVELOPER", "CP", "BUYER"]),
+    acceptTerms: z.boolean().refine((value) => value === true, "Please accept the Terms of Service"),
+    acknowledgePrivacyNotice: z.boolean().refine((value) => value === true, "Please acknowledge the Privacy Policy"),
+    marketingOptIn: z.boolean(),
     companyName: z.string().optional(),
     referralCode: z.string().optional(),
   })
@@ -207,7 +211,7 @@ export default function SignupPage() {
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SignupForm>({
     resolver: zodResolver(signupSchema),
-    defaultValues: { role: initialRole, countryCode: "+91", referralCode: searchParams.get("ref") ?? "" },
+    defaultValues: { role: initialRole, countryCode: "+91", referralCode: searchParams.get("ref") ?? "", acceptTerms: false, acknowledgePrivacyNotice: false, marketingOptIn: false },
   });
 
   const role = watch("role");
@@ -229,7 +233,7 @@ export default function SignupPage() {
     const national = (data.phone || "").replace(/\D/g, "");
     const phoneToSend = data.countryCode === "+91" ? national : `${data.countryCode}${national}`;
     try {
-      const delivery = await signup({ ...data, phone: phoneToSend });
+      const delivery = await signup({ ...data, phone: phoneToSend, termsVersion: POLICY_VERSIONS.TERMS_OF_SERVICE, privacyNoticeVersion: POLICY_VERSIONS.PRIVACY_NOTICE });
       setInitialDelivery({
         emailSent: typeof delivery?.emailSent === "boolean" ? delivery.emailSent : undefined,
         smsSent: typeof delivery?.smsSent === "boolean" ? delivery.smsSent : undefined,
@@ -352,6 +356,22 @@ export default function SignupPage() {
                 >
                   <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${FIELD_INPUT} uppercase placeholder:normal-case`} />
                 </Field>
+                <div className="sm:col-span-2 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                    <input type="checkbox" {...register("acceptTerms")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>I agree to the <Link to="/terms" target="_blank" className="text-sky-300 underline underline-offset-2">Terms of Service</Link>. <span className="text-red-300">*</span></span>
+                  </label>
+                  {errors.acceptTerms && <p className="pl-6 text-[11px] text-red-300">{errors.acceptTerms.message}</p>}
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                    <input type="checkbox" {...register("acknowledgePrivacyNotice")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>I have read the <Link to="/privacy-policy" target="_blank" className="text-sky-300 underline underline-offset-2">Privacy Policy</Link> and acknowledge how my information is handled. <span className="text-red-300">*</span></span>
+                  </label>
+                  {errors.acknowledgePrivacyNotice && <p className="pl-6 text-[11px] text-red-300">{errors.acknowledgePrivacyNotice.message}</p>}
+                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/60">
+                    <input type="checkbox" {...register("marketingOptIn")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                    <span>I'd like to receive optional promotional updates from Truvi. I can withdraw this permission later in Privacy Centre.</span>
+                  </label>
+                </div>
                 {serverError && (
                   <p className="sm:col-span-2 rounded-lg border border-red-500/25 bg-red-950/40 px-3 py-2 text-sm text-red-300">{serverError}</p>
                 )}

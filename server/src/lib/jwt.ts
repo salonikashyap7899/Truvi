@@ -8,6 +8,8 @@ export interface TokenPayload {
   /** Channel Partners only: has the compulsory CP joining been completed?
    *  Absent on tokens issued before this flag existed (treated as joined). */
   cpJoined?: boolean;
+  /** Versioned session revocation; checked against the current user row. */
+  authVersion?: number;
 }
 
 /**

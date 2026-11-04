@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { LayoutDashboard, LogOut, Home, ChevronDown, Video, BellRing } from "lucide-react";
+import { LayoutDashboard, LogOut, Home, ChevronDown, Video, BellRing, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/authStore";
 import { dashboardPath, roleDisplayLabel } from "@/lib/rolePaths";
@@ -125,6 +125,15 @@ export function UserMenu() {
             >
               <BellRing size={14} className="text-teal-300" />
               Notification preferences
+            </Link>
+            <Link
+              to="/privacy-center"
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground/90 transition hover:bg-white/5"
+            >
+              <ShieldCheck size={14} className="text-sky-300" />
+              Privacy & Support Centre
             </Link>
             {user.role !== "ADMIN" && (
               <Link

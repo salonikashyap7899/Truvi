@@ -27,20 +27,50 @@ function touchActive(userId: string) {
  * every protected route relies on — the frontend's stored role is never
  * trusted on its own.
  */
-export function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
+async function resolveActiveSession(token: string): Promise<TokenPayload | null> {
+  const payload = verifyAccessToken(token);
+  const [account] = await getDb().select({
+    role: users.role,
+    approvalStatus: users.approvalStatus,
+    disabled: users.disabled,
+    authVersion: users.authVersion,
+    onboardingVerified: users.onboardingVerified,
+    cpJoinedAt: users.cpJoinedAt,
+  }).from(users).where(eq(users._id, payload.userId)).limit(1);
+
+  if (!account || account.disabled) return null;
+  if ((payload.authVersion ?? 0) !== (account.authVersion ?? 0)) return null;
+
+  // Role and onboarding permissions are refreshed from the database on every
+  // protected request; a stale JWT cannot retain a role after it is changed.
+  return {
+    ...payload,
+    role: account.role,
+    approvalStatus: account.approvalStatus,
+    onboardingVerified: account.onboardingVerified,
+    ...(account.role === "CP" ? { cpJoined: Boolean(account.cpJoinedAt) } : {}),
+    authVersion: account.authVersion ?? 0,
+  };
+}
+
+/**
+ * Verify the bearer token AND the current account state. The DB check makes
+ * account deactivation, password changes and admin access revocation immediate
+ * instead of waiting for the 15-minute access token to expire.
+ */
+export async function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-
-  if (!token) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
+  if (!token) return res.status(401).json({ error: "Not authenticated" });
 
   try {
-    req.user = verifyAccessToken(token);
-    touchActive(req.user.userId);
-    next();
+    const session = await resolveActiveSession(token);
+    if (!session) return res.status(401).json({ error: "Your session is no longer active. Please sign in again." });
+    req.user = session;
+    touchActive(session.userId);
+    return next();
   } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    return res.status(401).json({ error: "Invalid, expired, or unavailable session" });
   }
 }
 
@@ -50,16 +80,18 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
  * continue as a guest. A token that is expired or invalid → 401, so the app
  * refreshes its session and retries instead of silently acting as a guest.
  */
-export function optionalAuthenticate(req: AuthedRequest, res: Response, next: NextFunction) {
+export async function optionalAuthenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return next();
   try {
-    req.user = verifyAccessToken(token);
-    touchActive(req.user.userId);
-    next();
+    const session = await resolveActiveSession(token);
+    if (!session) return res.status(401).json({ error: "Your session is no longer active. Please sign in again." });
+    req.user = session;
+    touchActive(session.userId);
+    return next();
   } catch {
-    return res.status(401).json({ error: "Invalid or expired token" });
+    return res.status(401).json({ error: "Invalid, expired, or unavailable session" });
   }
 }
 

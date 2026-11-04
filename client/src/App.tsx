@@ -44,6 +44,8 @@ const UnauthorizedPage = lazy(() => import("@/pages/UnauthorizedPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const LegalPage = lazy(() => import("@/pages/LegalPage"));
 const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
+const PrivacyCenterPage = lazy(() => import("@/pages/PrivacyCenterPage"));
+const RestoreAccountPage = lazy(() => import("@/pages/RestoreAccountPage"));
 
 const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
 const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").then((m) => ({ default: m.AdminOsLayout })));
@@ -61,6 +63,7 @@ const MeetPage = lazy(() => import("@/pages/MeetPage"));
 const AdminProjectManagePage = lazy(() => import("@/pages/admin/AdminProjectManagePage"));
 const AdminRevenuePage = lazy(() => import("@/pages/admin/AdminRevenuePage"));
 const AdminSettingsPage = lazy(() => import("@/pages/admin/AdminSettingsPage"));
+const AdminCompliancePage = lazy(() => import("@/pages/admin/AdminCompliancePage"));
 const FounderDashboardPage = lazy(() => import("@/pages/FounderDashboardPage"));
 const AmbassadorSignupPage = lazy(() => import("@/pages/AmbassadorSignupPage"));
 const AmbassadorLoginPage = lazy(() => import("@/AmbassadorLoginPage"));
@@ -232,7 +235,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications"].includes(normalizedPath);
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications", "/privacy-center", "/restore-account"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
@@ -362,6 +365,7 @@ export default function App() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/restore-account" element={<RestoreAccountPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -400,6 +404,7 @@ export default function App() {
           <Route path="vouchers" element={<ProtectedRoute roles={["ADMIN"]}><AdminVouchersPage /></ProtectedRoute>} />
           <Route path="revenue" element={<ProtectedRoute roles={["ADMIN"]}><AdminRevenuePage /></ProtectedRoute>} />
           <Route path="settings" element={<ProtectedRoute roles={["ADMIN"]}><AdminSettingsPage /></ProtectedRoute>} />
+          <Route path="compliance" element={<ProtectedRoute roles={["ADMIN"]}><AdminCompliancePage /></ProtectedRoute>} />
           <Route path="ambassador-tasks" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorTasksPage /></ProtectedRoute>} />
           <Route path="ambassador-operating-system" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorOperatingSystemPage /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
@@ -457,6 +462,10 @@ export default function App() {
         <Route
           path="/requirements"
           element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE"]}><RequirementsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/privacy-center"
+          element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "EMPLOYEE", "VERIFIER"]}><PrivacyCenterPage /></ProtectedRoute>}
         />
         <Route
           path="/settings/notifications"

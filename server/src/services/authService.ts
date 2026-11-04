@@ -2,9 +2,11 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "../config/db";
+import { CURRENT_POLICY_VERSIONS } from "../config/compliance";
 import {
   users,
   pendingSignups,
+  userConsentEvents,
   IUser,
   IPendingSignup,
   Role,
@@ -161,27 +163,49 @@ export async function issueVerificationOtps(user: IUser): Promise<{ emailSent: b
  * created, so no account can exist without passing OTP verification.
  */
 export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
+  if (
+    p.termsVersion !== CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE ||
+    !p.termsAcceptedAt ||
+    p.privacyNoticeVersion !== CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE ||
+    !p.privacyNoticeAcceptedAt
+  ) {
+    throw new Error("Pending signup is missing current Terms and Privacy acknowledgement evidence.");
+  }
   const db = getDb();
   const role = p.role as Role;
-  const [user] = await db
-    .insert(users)
-    .values({
-      name: p.name,
-      email: p.email,
-      password: p.password,
-      phone: p.phone,
-      role,
-      approvalStatus: "APPROVED",
-      emailVerified: true,
-      phoneVerified: true,
-      ...(p.referredBy ? { referredBy: p.referredBy } : {}),
-      ...(role === "DEVELOPER" ? { developerProfile: { companyName: p.companyName ?? "", reraNumber: p.reraNumber ?? undefined } } : {}),
-      ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
-      ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
-      ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
-    })
-    .returning();
-  await db.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+  const user = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(users)
+      .values({
+        name: p.name,
+        email: p.email,
+        password: p.password,
+        phone: p.phone,
+        role,
+        approvalStatus: "APPROVED",
+        emailVerified: true,
+        phoneVerified: true,
+        ...(p.referredBy ? { referredBy: p.referredBy } : {}),
+        ...(role === "DEVELOPER" ? { developerProfile: { companyName: p.companyName ?? "", reraNumber: p.reraNumber ?? undefined } } : {}),
+        ...(role === "CP" ? { cpProfile: { ...DEFAULT_CP_PROFILE } } : {}),
+        ...(role === "BUYER" ? { buyerProfile: { ...DEFAULT_BUYER_PROFILE } } : {}),
+        ...(role === "AMBASSADOR" ? { onboardingChecks: { ...DEFAULT_ONBOARDING_CHECKS, emailVerified: true, phoneVerified: true } } : {}),
+      })
+      .returning();
+  
+    // Store the policy versions acknowledged before account creation. These
+    // events are append-only evidence; optional marketing preference is separate.
+    const consentEvents = [
+      ...(p.termsVersion ? [{ userId: user._id, policyType: "TERMS_OF_SERVICE" as const, policyVersion: p.termsVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const, ...(p.termsAcceptedAt ? { occurredAt: p.termsAcceptedAt } : {}) }] : []),
+      ...(p.privacyNoticeVersion ? [{ userId: user._id, policyType: "PRIVACY_NOTICE" as const, policyVersion: p.privacyNoticeVersion, action: "ACKNOWLEDGED" as const, source: "SIGNUP" as const, ...(p.privacyNoticeAcceptedAt ? { occurredAt: p.privacyNoticeAcceptedAt } : {}) }] : []),
+      ...(p.marketingOptIn && p.marketingOptInAt ? [{ userId: user._id, policyType: "MARKETING" as const, policyVersion: CURRENT_POLICY_VERSIONS.MARKETING, action: "GRANTED" as const, source: "SIGNUP" as const, occurredAt: p.marketingOptInAt }] : []),
+    ];
+    if (consentEvents.length) await tx.insert(userConsentEvents).values(consentEvents);
+    await tx.delete(pendingSignups).where(eq(pendingSignups._id, p._id));
+    return user;
+  
+  
+  });
 
   // One-time WhatsApp welcome for a brand-new developer (dormant unless the
   // WhatsApp Business API is configured). Fire-and-forget — never blocks signup.
@@ -274,6 +298,7 @@ export async function createUserFromPending(p: IPendingSignup): Promise<IUser> {
 export function issueSession(res: import("express").Response, user: IUser) {
   const accessToken = signAccessToken({
     userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,

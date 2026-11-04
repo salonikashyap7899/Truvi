@@ -1764,6 +1764,81 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_marketing_material_status_idx" ON "ambassador_os_marketing_materials" ("status", "campaign_id")`,
     `CREATE INDEX IF NOT EXISTS "ambassador_os_marketing_material_dates_idx" ON "ambassador_os_marketing_materials" ("valid_from", "valid_to")`,
+    // Signup policy versions are stored before the verified user is created.
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "terms_version" text`,
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "terms_accepted_at" timestamptz`,
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "privacy_notice_accepted_at" timestamptz`,
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "marketing_opt_in" boolean NOT NULL DEFAULT false`,
+    `ALTER TABLE "pending_signups" ADD COLUMN IF NOT EXISTS "marketing_opt_in_at" timestamptz`,
+
+    // Shared, append-only consent evidence for every account role.
+    `CREATE TABLE IF NOT EXISTS "user_consent_events" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "policy_type" text NOT NULL,
+       "policy_version" text NOT NULL,
+       "action" text NOT NULL,
+       "source" text NOT NULL DEFAULT 'PRIVACY_CENTER',
+       "occurred_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "user_consent_events_user_policy_idx" ON "user_consent_events" ("user_id", "policy_type", "occurred_at")`,
+    `CREATE INDEX IF NOT EXISTS "user_consent_events_policy_version_idx" ON "user_consent_events" ("policy_type", "policy_version")`,
+
+    // Role-independent data-rights request register.
+    `CREATE TABLE IF NOT EXISTS "privacy_requests" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "request_type" text NOT NULL,
+       "details" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'SUBMITTED',
+       "public_response" text,
+       "internal_notes" text,
+       "reviewer_user_id" uuid REFERENCES "users"("id"),
+       "requested_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       "completed_at" timestamptz
+     )`,
+    `CREATE INDEX IF NOT EXISTS "privacy_requests_user_idx" ON "privacy_requests" ("requester_user_id", "requested_at")`,
+    `CREATE INDEX IF NOT EXISTS "privacy_requests_status_idx" ON "privacy_requests" ("status", "requested_at")`,
+
+    // Central grievance queue across Buyers, Developers, CPs, Ambassadors, Employees and Verifiers.
+    `CREATE TABLE IF NOT EXISTS "grievance_tickets" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "case_number" text NOT NULL,
+       "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "category" text NOT NULL,
+       "subject" text NOT NULL,
+       "description" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'SUBMITTED',
+       "public_response" text,
+       "internal_notes" text,
+       "reviewer_user_id" uuid REFERENCES "users"("id"),
+       "requested_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now(),
+       "resolved_at" timestamptz
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "grievance_tickets_case_number_unique" ON "grievance_tickets" ("case_number")`,
+    `CREATE INDEX IF NOT EXISTS "grievance_tickets_user_idx" ON "grievance_tickets" ("requester_user_id", "requested_at")`,
+    `CREATE INDEX IF NOT EXISTS "grievance_tickets_status_idx" ON "grievance_tickets" ("status", "requested_at")`,
+
+    // Reversible, OTP-confirmed self-service account deactivation.
+    `CREATE TABLE IF NOT EXISTS "account_deletion_requests" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "status" text NOT NULL DEFAULT 'OTP_SENT',
+       "deletion_otp_hash" text,
+       "otp_expires_at" timestamptz,
+       "restore_token_hash" text,
+       "restore_expires_at" timestamptz,
+       "requested_at" timestamptz NOT NULL DEFAULT now(),
+       "deactivated_at" timestamptz,
+       "restored_at" timestamptz,
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS "account_deletion_requests_user_unique" ON "account_deletion_requests" ("user_id")`,
+    `CREATE INDEX IF NOT EXISTS "account_deletion_requests_status_idx" ON "account_deletion_requests" ("status", "restore_expires_at")`,
+
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];

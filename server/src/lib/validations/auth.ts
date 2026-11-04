@@ -1,3 +1,4 @@
+import { CURRENT_POLICY_VERSIONS } from "../../config/compliance";
 import { z } from "zod";
 
 // A stricter email check than a bare format test: the domain must have a dot
@@ -42,6 +43,11 @@ export const signupSchema = z
     password: strongPassword,
     phone: phoneField,
     role: z.enum(["DEVELOPER", "CP", "BUYER", "AMBASSADOR"], { error: "Select a role" }),
+    acceptTerms: z.boolean().refine((value) => value === true, "You must accept the Terms of Service"),
+    acknowledgePrivacyNotice: z.boolean().refine((value) => value === true, "Please acknowledge the Privacy Policy"),
+    termsVersion: z.literal(CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE),
+    privacyNoticeVersion: z.literal(CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE),
+    marketingOptIn: z.boolean().optional().default(false),
     companyName: z.string().optional(),
     reraNumber: z.string().optional(),
     // Optional referral code — links the new account to the referring

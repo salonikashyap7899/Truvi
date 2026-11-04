@@ -196,3 +196,6 @@ export const aiChatDailyLimiter = makeLimiter(150, 24 * 60 * 60_000); // 150 mes
 // per-IP volume: plenty for a real person, useless for flooding the inbox or
 // filling the server's disk.
 export const enquiryLimiter = makeLimiter(20, 60 * 60_000); // 20 submissions / hour
+
+// Signed-in privacy and support submissions: discourage spam without blocking normal account use.
+export const complianceSubmissionLimiter = makeLimiter(5, 60 * 60_000); // 5 cases / hour per account

@@ -124,6 +124,7 @@ router.post("/cp-joining/complete", authenticate, async (req: AuthedRequest, res
   }
   const accessToken = signAccessToken({
     userId,
+    authVersion: user.authVersion ?? 0,
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,

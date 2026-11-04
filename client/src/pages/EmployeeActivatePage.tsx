@@ -2,12 +2,16 @@ import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 
 export default function EmployeeActivatePage() {
   const [search] = useSearchParams();
   const token = search.get("token") ?? "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acknowledgePrivacyNotice, setAcknowledgePrivacyNotice] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [complete, setComplete] = useState(false);
 
@@ -15,9 +19,21 @@ export default function EmployeeActivatePage() {
     e.preventDefault();
     if (!token) { toast.error("This invitation link is missing its token."); return; }
     if (password !== confirm) { toast.error("Passwords do not match."); return; }
+    if (!acceptTerms || !acknowledgePrivacyNotice) {
+      toast.error("Please accept the Terms of Service and acknowledge the Privacy Policy.");
+      return;
+    }
     setBusy(true);
     try {
-      const response = await api.post("/employees/activate", { token, password });
+      const response = await api.post("/employees/activate", {
+        token,
+        password,
+        acceptTerms,
+        acknowledgePrivacyNotice,
+        termsVersion: POLICY_VERSIONS.TERMS_OF_SERVICE,
+        privacyNoticeVersion: POLICY_VERSIONS.PRIVACY_NOTICE,
+        marketingOptIn,
+      });
       setComplete(true);
       toast.success(response.data?.message ?? "Your employee account is activated.");
     } catch (error: any) {
@@ -51,6 +67,20 @@ export default function EmployeeActivatePage() {
               <input required minLength={12} maxLength={128} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="w-full rounded-xl border border-white/15 bg-background px-3 py-3 outline-none focus:border-primary" placeholder="Re-enter your password" />
             </label>
             <p className="text-xs leading-5 text-muted-foreground">Use at least 12 characters, including uppercase and lowercase letters, a number, and a symbol. This one-time invitation expires 48 hours after issue.</p>
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <label className="flex items-start gap-2.5 text-xs leading-relaxed">
+                <input type="checkbox" required checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                <span>I agree to the <Link to="/terms" target="_blank" className="text-sky-300 underline underline-offset-2">Terms of Service</Link>. <span className="text-red-300">*</span></span>
+              </label>
+              <label className="flex items-start gap-2.5 text-xs leading-relaxed">
+                <input type="checkbox" required checked={acknowledgePrivacyNotice} onChange={(e) => setAcknowledgePrivacyNotice(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                <span>I have read the <Link to="/privacy-policy" target="_blank" className="text-sky-300 underline underline-offset-2">Privacy Policy</Link> and acknowledge how my information is handled. <span className="text-red-300">*</span></span>
+              </label>
+              <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/60">
+                <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+                <span>Send me optional promotional updates. This is not required for account activation and can be withdrawn later in Privacy Centre.</span>
+              </label>
+            </div>
             <button disabled={busy} className="w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50" type="submit">{busy ? "Activating…" : "Set password and activate"}</button>
           </form>
         )}

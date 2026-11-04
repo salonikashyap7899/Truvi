@@ -25,6 +25,7 @@ import { AuthedRequest } from "../middleware/auth";
 import { sendPasswordResetEmail } from "../services/emailService";
 import { sendWelcomeEmailOnce } from "../services/lifecycleEmails";
 import { isFounderEmail } from "../config/env";
+import { CURRENT_POLICY_VERSIONS } from "../config/compliance";
 import { otpAttemptBlocked, recordOtpFailure, clearOtpAttempts } from "../services/otpAttempts";
 import {
   TOO_MANY_OTP,
@@ -51,7 +52,7 @@ export const signup = async (req: Request, res: Response) => {
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
 
-  const { name, email, password, phone, role, companyName, reraNumber, referralCode } = parsed.data;
+  const { name, email, password, phone, role, companyName, reraNumber, referralCode, termsVersion, privacyNoticeVersion, marketingOptIn } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
   const db = getDb();
@@ -98,6 +99,12 @@ export const signup = async (req: Request, res: Response) => {
     emailOtpExpiry: otpExpiry,
     phoneOtp: hashOtpForStorage(phoneOtp),
     phoneOtpExpiry: otpExpiry,
+    termsVersion,
+    termsAcceptedAt: new Date(),
+    privacyNoticeVersion,
+    privacyNoticeAcceptedAt: new Date(),
+    marketingOptIn: Boolean(marketingOptIn),
+    marketingOptInAt: marketingOptIn ? new Date() : null,
   };
   await db
     .insert(pendingSignups)
@@ -261,6 +268,20 @@ export const verifyAccount = async (req: Request, res: Response) => {
   // ── New path: verify the pending signup and CREATE the account now ─────────
   const [pending] = await db.select().from(pendingSignups).where(eq(pendingSignups.email, normalizedEmail));
   if (!pending) return res.status(404).json({ error: "No pending signup found. Please sign up again." });
+  // Pending signups created before the versioned-consent rollout must not
+  // complete account creation without the required current acknowledgements.
+  if (
+    pending.termsVersion !== CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE ||
+    !pending.termsAcceptedAt ||
+    pending.privacyNoticeVersion !== CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE ||
+    !pending.privacyNoticeAcceptedAt
+  ) {
+    await db.delete(pendingSignups).where(eq(pendingSignups._id, pending._id));
+    return res.status(409).json({
+      error: "Please restart signup and review the current Terms of Service and Privacy Policy before verifying your account.",
+      code: "POLICY_ACKNOWLEDGEMENT_REQUIRED",
+    });
+  }
   if (!pending.emailOtp || !pending.emailOtpExpiry || !pending.phoneOtp || !pending.phoneOtpExpiry) {
     return res.status(400).json({ error: "No codes requested. Please resend new codes." });
   }
@@ -503,6 +524,7 @@ export const refresh = async (req: Request, res: Response) => {
 
   const accessToken = signAccessToken({
     userId: String(user._id),
+    authVersion: user.authVersion ?? 0,
     role: user.role,
     approvalStatus: user.approvalStatus,
     onboardingVerified: user.onboardingVerified,
