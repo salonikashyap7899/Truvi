@@ -74,7 +74,7 @@ jobs:
         working-directory: client
         run: npm audit --audit-level=moderate
       - name: Regenerate browser QA lockfile from security overrides
-        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'compliance/2026-2027-foundation')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'compliance/2026-2027-foundation'))
+        if: (github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup')) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup'))
         working-directory: truvi-tests
         run: npm install --package-lock-only --ignore-scripts --no-fund --no-audit
       - name: Install browser QA dependencies
@@ -90,7 +90,7 @@ jobs:
         working-directory: truvi-tests
         run: npm audit --audit-level=moderate
       - name: Commit refreshed browser QA lockfile
-        if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'compliance/2026-2027-foundation') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'compliance/2026-2027-foundation')))
+        if: success() && ((github.event_name == 'pull_request' && (github.head_ref == 'fix/full-repo-payment-and-marketplace-audit' || github.head_ref == 'security/compliance-hardening-followup') && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'fix/full-repo-payment-and-marketplace-audit' || github.ref_name == 'security/compliance-hardening-followup')))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
