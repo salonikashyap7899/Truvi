@@ -73,11 +73,14 @@ export default function PrivacyCenterPage() {
   const requiredPolicies = useMemo(() => (data?.policies ?? []).filter((p) => p.required), [data?.policies]);
   const marketingGranted = consentState.MARKETING?.action === "GRANTED" &&
     consentState.MARKETING?.policyVersion === data?.currentVersions?.MARKETING;
+  const deletionOtpExpiresAt = data?.accountDeletion?.otpExpiresAt
+    ? new Date(data.accountDeletion.otpExpiresAt).getTime()
+    : null;
   const serverOtpPending = data?.accountDeletion?.status === "OTP_SENT" &&
-    Boolean(data.accountDeletion.otpExpiresAt) &&
-    new Date(data.accountDeletion.otpExpiresAt!).getTime() > Date.now();
+    deletionOtpExpiresAt !== null &&
+    deletionOtpExpiresAt > Date.now();
   const showDeletionOtp = !hideDeletionOtp && (deletionOtpSent || serverOtpPending) &&
-    (!data?.accountDeletion?.otpExpiresAt || new Date(data.accountDeletion.otpExpiresAt).getTime() > Date.now());
+    (deletionOtpExpiresAt === null || deletionOtpExpiresAt > Date.now());
 
   async function recordPolicy(policy: PolicyDocument, action: "ACKNOWLEDGED" | "GRANTED" | "WITHDRAWN") {
     setSavingPolicy(policy.type);
