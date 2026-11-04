@@ -49,6 +49,8 @@ The applicable GST registration threshold and compulsory-registration exceptions
 
 The old database platform-setting field is no longer the checkout tax source; admin settings show the server-side tax state read-only. Marketing/offline payment records also use the server tax rate, not a client-submitted percentage. Check any separate payment, referral, commission, subscription or manual ledger flow with the CA before launch.
 
+After changing the approved tax configuration, run `cd server && npm run razorpay:plans` before reopening new recurring subscriptions. The script creates new Razorpay plan IDs when the mapped amount differs and updates the internal mapping. Razorpay does not delete old plans. Existing active subscriptions remain on their old provider plan/amount; do not silently change or cancel them. Review each affected contract, disclose any price/tax changes, obtain any required customer consent, and use a provider-supported migration/cancellation flow. The API returns a conflict instead of starting a new subscription while its stored Razorpay plan amount is stale.
+
 ## 3. Real-estate and RERA — project-by-project legal verification
 
 Before listing, advertising, referring, booking or facilitating a property transaction, obtain a written legal determination of Truvi's role and any role played by channel partners/ambassadors. If Truvi or a partner is acting as a real-estate agent for a project requiring registration, verify the required agent registration (including UP RERA where applicable). Verify each project’s promoter, phase, RERA registration and validity, or document the legal basis and evidence for any exemption/other competent-authority approval.
