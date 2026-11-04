@@ -26,6 +26,28 @@ const grievanceStatuses = ["SUBMITTED", "ACKNOWLEDGED", "IN_PROGRESS", "WAITING_
 const privacyStatuses = ["SUBMITTED", "UNDER_REVIEW", "WAITING_FOR_USER", "APPROVED", "REJECTED", "COMPLETED"];
 const pretty = (s: string) => s.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const dateLabel = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+function grievanceSla(item: Grievance): { label: string; overdue: boolean } {
+  const submitted = new Date(item.requestedAt);
+  if (!Number.isFinite(submitted.getTime())) return { label: "SLA date unavailable", overdue: false };
+  const acknowledgementDue = new Date(submitted.getTime() + 48 * 60 * 60 * 1000);
+  const resolutionDue = new Date(submitted);
+  resolutionDue.setMonth(resolutionDue.getMonth() + 1);
+  const now = Date.now();
+  const closed = ["RESOLVED", "CLOSED"].includes(item.status);
+  if (item.status === "SUBMITTED" && now > acknowledgementDue.getTime()) {
+    return { label: "Acknowledgement overdue", overdue: true };
+  }
+  if (!closed && now > resolutionDue.getTime()) {
+    return { label: "Resolution overdue", overdue: true };
+  }
+  if (item.status === "SUBMITTED") {
+    return { label: "Acknowledge by " + dateLabel(acknowledgementDue.toISOString()), overdue: false };
+  }
+  if (!closed) {
+    return { label: "Resolve by " + dateLabel(resolutionDue.toISOString()), overdue: false };
+  }
+  return { label: item.status === "RESOLVED" ? "Resolved" : "Closed", overdue: false };
+}
 const errorMessage = (error: any) => error?.response?.data?.error || "Could not update the compliance queue.";
 
 export default function AdminCompliancePage() {
@@ -127,6 +149,7 @@ export default function AdminCompliancePage() {
                   <span className="inline-flex items-center gap-1.5"><UserRound size={12}/>{item.requesterName} · {pretty(item.requesterRole)}</span>
                   <span>{item.requesterEmail}</span>
                   <span className="inline-flex items-center gap-1.5"><Clock3 size={12}/>{dateLabel(item.requestedAt)}</span>
+                  <span className={grievanceSla(item).overdue ? "font-semibold text-red-300" : "text-emerald-200/70"}>{grievanceSla(item).label}</span>
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div>
