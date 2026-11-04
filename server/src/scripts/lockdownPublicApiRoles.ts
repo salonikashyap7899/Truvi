@@ -42,6 +42,7 @@ async function main() {
       declare
         tbl record;
         col record;
+        obj record;
         target_role text;
       begin
         for tbl in
@@ -73,13 +74,44 @@ async function main() {
           end loop;
         end loop;
 
-        execute 'revoke all privileges on schema public from public';
+        -- Retain PUBLIC USAGE so server roles inheriting the standard schema
+        -- permission keep working; remove the ability to create public objects.
+        execute 'revoke create on schema public from public';
+        -- Views, materialized views and foreign tables do not support
+        -- ENABLE ROW LEVEL SECURITY. Remove direct API-role grants on them so
+        -- they cannot act as alternate data exposure paths.
+        for obj in
+          select n.nspname as schema_name, c.relname as object_name, c.oid as object_oid
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public' and c.relkind in ('v', 'm', 'f')
+        loop
+          execute format('revoke all privileges on table %I.%I from public', obj.schema_name, obj.object_name);
+          foreach target_role in array array['anon', 'authenticated'] loop
+            if exists (select 1 from pg_roles where rolname = target_role) then
+              execute format('revoke all privileges on table %I.%I from %I', obj.schema_name, obj.object_name, target_role);
+            end if;
+          end loop;
+          for col in
+            select a.attname
+            from pg_attribute a
+            where a.attrelid = obj.object_oid and a.attnum > 0 and not a.attisdropped
+          loop
+            execute format('revoke all privileges (%I) on table %I.%I from public', col.attname, obj.schema_name, obj.object_name);
+            foreach target_role in array array['anon', 'authenticated'] loop
+              if exists (select 1 from pg_roles where rolname = target_role) then
+                execute format('revoke all privileges (%I) on table %I.%I from %I', col.attname, obj.schema_name, obj.object_name, target_role);
+              end if;
+            end loop;
+          end loop;
+        end loop;
+
         execute 'revoke all privileges on all sequences in schema public from public';
         execute 'revoke execute on all functions in schema public from public';
 
         foreach target_role in array array['anon', 'authenticated'] loop
           if exists (select 1 from pg_roles where rolname = target_role) then
-            execute format('revoke all privileges on schema public from %I', target_role);
+            execute format('revoke create on schema public from %I', target_role);
             execute format('revoke all privileges on all sequences in schema public from %I', target_role);
             execute format('revoke execute on all functions in schema public from %I', target_role);
             execute format('alter default privileges for role %I in schema public revoke all on tables from %I', current_user, target_role);
@@ -97,7 +129,7 @@ async function main() {
   });
 
   console.log(
-    "Database lockdown applied: RLS enabled on public tables and PUBLIC/anon/authenticated table, sequence and function privileges revoked. Backend app-role access was left unchanged.",
+    "Database lockdown applied: RLS enabled on public tables; PUBLIC/anon/authenticated table, view, foreign-table, column, sequence and function privileges revoked; public-schema CREATE revoked while PUBLIC USAGE is retained. Backend app-role grants were left unchanged.",
   );
   console.warn(
     "Run npm run db:security-audit again, then execute staging tests for signup, inventory, requirements, leads, site visits, admin, employee and payment workflows before production rollout.",
