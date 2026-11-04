@@ -80,7 +80,7 @@ cd server
 APPLY_PUBLIC_API_ROLE_LOCKDOWN=true npm run db:lockdown-public-api
 ```
 
-**Do not run this against production as a first step.** It enables RLS on public tables and revokes table/sequence/function privileges from `PUBLIC`, `anon` and `authenticated`; it deliberately leaves the backend role's privileges unchanged. It does not create per-user policies. It is only appropriate if all user data access is through the authorised Express API and the verified backend connection bypasses RLS. Direct browser/PostgREST clients or integrations may stop working. Test on a staging clone and run the complete journey suite before any production change. Do not grant service-role credentials to a browser.
+**Do not run this against production as a first step.** It enables RLS on public tables; revokes table, view, foreign-table, column, sequence and function privileges from `PUBLIC`, `anon` and `authenticated`; and revokes public-schema `CREATE` while retaining the standard `PUBLIC USAGE` permission. It deliberately leaves the backend role's direct grants unchanged. It does not create per-user policies. It is only appropriate if all user data access is through the authorised Express API and the verified backend connection bypasses RLS. Direct browser/PostgREST clients or integrations may stop working. Test on a staging clone and run the complete journey suite before any production change. Do not grant service-role credentials to a browser.
 
 If direct PostgREST access is needed, design and test table-specific policies based on the actual JWT claims and ownership model; do not apply a blanket `USING (true)` policy.
 
