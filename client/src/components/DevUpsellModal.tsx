@@ -61,7 +61,7 @@ const PITCHES: Record<DevUpsellPlan, PlanPitch> = {
     price: "₹999",
     strike: "₹4,999",
     benefits: [
-      { icon: ShieldCheck, text: "Verified trust badge on every listing" },
+      { icon: ShieldCheck, text: "Eligibility for a trust badge after evidence review" },
       { icon: TrendingUp, text: "Prime placement & higher search ranking" },
       { icon: Users, text: "Featured developer profile" },
       { icon: Sparkles, text: "Higher buyer confidence → more enquiries" },
