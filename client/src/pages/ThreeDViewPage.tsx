@@ -2,7 +2,6 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
-import { POLICY_VERSIONS } from "@/lib/compliance";
 import { formatINR } from "@/lib/utils";
 import {
   ArrowLeft, Box, Loader2, MapPin, Maximize2,
@@ -689,8 +688,8 @@ function PlotPanel({
         message:
           `BOOKING REQUEST — ${kind} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft, ${formatINR(unit.price)}, facing ${facing}) ` +
           `at ${project.name}, ${project.location}, ${project.city}. Phone: ${form.phone.trim()}.` +
-          (form.note.trim() ? ` Note: ${form.note.trim()}` : "") +
-          ` Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for this plot booking enquiry.`,
+          (form.note.trim() ? ` Note: ${form.note.trim()}` : ""),
+        privacyNoticeAcknowledged: true,
       });
       setView("done");
     } catch (err: any) {
