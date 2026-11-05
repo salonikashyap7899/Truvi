@@ -116,7 +116,7 @@ function escapeEmailHtml(value: string): string {
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;",
-  }[character]!);
+  }[character]!));
 }
 
 async function sendGrievanceReceipt(
