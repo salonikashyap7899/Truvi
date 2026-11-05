@@ -1571,6 +1571,35 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     }
 
     update.verificationDetails = merged;
+
+    // If an administrator removes or changes a required approval check, an
+    // existing verified badge must be revoked in the same database update.
+    const authority = existing.approvalAuthority ?? "RERA";
+    const hasReference = Boolean(existing.reraNumber?.trim());
+    const hasSourceAndDate = Boolean(merged.verificationSource?.trim() && merged.lastVerifiedAt);
+    const exemptionReviewed =
+      merged.reraExemptionVerified === true &&
+      Boolean(merged.reraExemptionBasis?.trim()) &&
+      hasSourceAndDate;
+    const reraRegistrationChecked =
+      authority === "RERA" &&
+      existing.reraStatus === "REGISTERED" &&
+      hasReference &&
+      merged.reraVerified === true &&
+      hasSourceAndDate;
+    const otherAuthorityChecked =
+      authority !== "RERA" &&
+      hasReference &&
+      merged.approvalVerified === true &&
+      exemptionReviewed;
+    const reraExemptionOnlyChecked =
+      authority === "RERA" &&
+      existing.reraStatus === "NOT_REGISTERED" &&
+      exemptionReviewed;
+    if (existing.isVerified && !(reraRegistrationChecked || otherAuthorityChecked || reraExemptionOnlyChecked)) {
+      update.isVerified = false;
+      update.verifiedAt = null;
+    }
   }
 
   if (Object.keys(update).length === 0) {
