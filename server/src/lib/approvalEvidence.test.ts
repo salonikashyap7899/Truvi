@@ -63,8 +63,21 @@ describe("project approval evidence", () => {
       ...base,
       approvalAuthority: "DTCP",
       reraStatus: "NOT_REGISTERED",
-      verificationDetails: { ...base.verificationDetails, reraVerified: false, approvalVerified: true },
+      verificationDetails: {
+        ...base.verificationDetails,
+        reraVerified: false,
+        approvalVerified: true,
+        reraExemptionVerified: true,
+        reraExemptionBasis: "Documented review of RERA applicability and the relevant statutory exemption",
+      },
     }, now)).toBe(true);
+    // A planning-authority approval alone cannot prove that the project is outside RERA.
+    expect(isApprovalEvidenceVerified({
+      ...base,
+      approvalAuthority: "DTCP",
+      reraStatus: "NOT_REGISTERED",
+      verificationDetails: { ...base.verificationDetails, reraVerified: false, approvalVerified: true },
+    }, now)).toBe(false);
     expect(isApprovalEvidenceVerified({
       ...base,
       approvalAuthority: "DTCP",
