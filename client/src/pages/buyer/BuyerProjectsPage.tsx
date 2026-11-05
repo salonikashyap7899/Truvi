@@ -152,7 +152,7 @@ function ProjectCard({
         <p className="text-sm text-foreground/90 line-clamp-2">{project.description}</p>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
+          {project.reraNumber && <span>{project.approvalAuthority === "RERA" || !project.approvalAuthority ? "Developer-submitted RERA reference" : "Developer-submitted approval reference"}: {project.reraNumber}</span>}
           <span>Commission: {project.commissionPercent}%</span>
           {project.priceListUrl && <span>Price list available</span>}
         </div>
