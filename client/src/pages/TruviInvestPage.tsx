@@ -4,7 +4,6 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
-import { POLICY_VERSIONS } from "@/lib/compliance";
 import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
 import {
   TrendingUp, ShieldCheck, MapPin, Building2, Trees, Store,
@@ -859,6 +858,7 @@ function InvestorClubForm({ offersEnabled }: { offersEnabled: boolean }) {
       fd.append("name", form.name.trim());
       fd.append("email", form.email.trim());
       fd.append("purposeType", "GUEST");
+      fd.append("privacyNoticeAcknowledged", "true");
       const parts = [
         ...(offersEnabled ? [
           `Range: ${form.range}`,
@@ -868,7 +868,6 @@ function InvestorClubForm({ offersEnabled }: { offersEnabled: boolean }) {
         ] : []),
         form.phone ? `Phone: ${form.phone}` : "",
         form.message ? form.message : "",
-        `Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for response to this expression of interest.`,
       ].filter(Boolean);
       fd.append("message", `[${offersEnabled ? "Investor Club" : "Investor information request only"}] ${parts.join(" · ")}`);
       await api.post("/enquiries", fd);
