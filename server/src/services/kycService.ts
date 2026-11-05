@@ -59,6 +59,135 @@ export function maskPan(pan: string): string {
   return `${p.slice(0, 2)}XXXX${p.slice(6)}`;
 }
 
+
+/**
+ * Hosted automated KYC using IDfy Profile Gateway. Truvi must receive the
+ * API key, account ID and a provider-configured workflow ID from IDfy before
+ * this can be enabled. The workflow must perform the required document,
+ * identity and liveness checks and return an explicit approved/rejected
+ * decision; document upload or a syntactically valid number is never approval.
+ */
+export function isHostedKycConfigured(role?: string): boolean {
+  const workflowId = role
+    ? process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}`]?.trim() || process.env.IDFY_KYC_WORKFLOW_ID?.trim()
+    : process.env.IDFY_KYC_WORKFLOW_ID?.trim() ||
+      ["BUYER", "CP", "DEVELOPER", "AMBASSADOR"].some((r) => Boolean(process.env[`IDFY_KYC_WORKFLOW_ID_${r}`]?.trim()));
+  return Boolean(
+    process.env.IDFY_KYC_API_KEY?.trim() &&
+    process.env.IDFY_KYC_ACCOUNT_ID?.trim() &&
+    workflowId
+  );
+}
+
+export interface HostedKycSession {
+  profileId: string;
+  referenceId: string;
+  captureLink: string;
+}
+
+export interface HostedKycProfileStatus {
+  profileId: string;
+  referenceId: string;
+  status: string;
+  reviewerAction: string;
+  statusDetail?: string;
+}
+
+function idfyHeaders(): Record<string, string> {
+  const apiKey = process.env.IDFY_KYC_API_KEY?.trim();
+  const accountId = process.env.IDFY_KYC_ACCOUNT_ID?.trim();
+  if (!apiKey || !accountId) {
+    throw new Error("Hosted KYC provider is not configured");
+  }
+  return {
+    "Content-Type": "application/json",
+    "api-key": apiKey,
+    "account-id": accountId,
+  };
+}
+
+async function idfyRequest(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
+  const headers = new Headers(idfyHeaders());
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  }
+  const response = await fetch(`https://api.kyc.idfy.com${path}`, {
+    ...init,
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    // Do not log provider response bodies; they may include identity data.
+    throw new Error(`KYC provider request failed (HTTP ${response.status})`);
+  }
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("KYC provider returned an invalid response");
+  }
+  return payload as Record<string, unknown>;
+}
+
+function safeCaptureLink(value: unknown): string {
+  if (typeof value !== "string") throw new Error("KYC provider did not return a capture link");
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("KYC provider returned an invalid capture link");
+  }
+  if (
+    url.protocol !== "https:" ||
+    !["capture.kyc.idfy.com", "capture.idfy.com"].includes(url.hostname.toLowerCase())
+  ) {
+    throw new Error("KYC provider returned an untrusted capture link");
+  }
+  return url.toString();
+}
+
+/** Create a hosted KYC journey; the customer completes capture with IDfy. */
+export async function createHostedKycSession(referenceId: string, role: string): Promise<HostedKycSession> {
+  const workflowId =
+    process.env[`IDFY_KYC_WORKFLOW_ID_${role.toUpperCase()}`]?.trim() ||
+    process.env.IDFY_KYC_WORKFLOW_ID?.trim();
+  if (!workflowId) throw new Error("Hosted KYC provider is not configured");
+  const payload = await idfyRequest("/sync/profiles", {
+    method: "POST",
+    body: JSON.stringify({
+      reference_id: referenceId,
+      config: { id: workflowId },
+      data: {},
+    }),
+  });
+  const profileId = typeof payload.profile_id === "string" ? payload.profile_id : "";
+  const returnedReference = typeof payload.reference_id === "string" ? payload.reference_id : referenceId;
+  if (!profileId) throw new Error("KYC provider did not return a profile ID");
+  return {
+    profileId,
+    referenceId: returnedReference,
+    captureLink: safeCaptureLink(payload.capture_link),
+  };
+}
+
+/** Resume an unfinished provider journey without creating a duplicate profile. */
+export async function getHostedKycCaptureLink(profileId: string): Promise<string> {
+  if (!/^[0-9a-f-]{36}$/i.test(profileId)) throw new Error("Invalid KYC provider profile ID");
+  const payload = await idfyRequest(`/profiles/${encodeURIComponent(profileId)}/capture`);
+  return safeCaptureLink(payload.capture_link);
+}
+
+/** Retrieve only the decision fields needed by Truvi; never return raw provider data. */
+export async function getHostedKycProfileStatus(profileId: string): Promise<HostedKycProfileStatus> {
+  if (!/^[0-9a-f-]{36}$/i.test(profileId)) throw new Error("Invalid KYC provider profile ID");
+  const payload = await idfyRequest(`/profiles/${encodeURIComponent(profileId)}?status_only=true`);
+  return {
+    profileId,
+    referenceId: typeof payload.reference_id === "string" ? payload.reference_id : "",
+    status: typeof payload.status === "string" ? payload.status.toLowerCase() : "",
+    reviewerAction: typeof payload.reviewer_action === "string" ? payload.reviewer_action.toLowerCase() : "",
+    statusDetail: typeof payload.status_detail === "string" ? payload.status_detail.slice(0, 300) : undefined,
+  };
+}
+
 export type KycOutcome = "APPROVED" | "REJECTED" | "MANUAL_REVIEW";
 
 /**
