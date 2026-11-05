@@ -4,7 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { legalDisclosure, missingLegalDisclosures } from "@/config/legalDisclosure";
 
 const COMPANY = "Truvi Ventures";
-const CITY = "Lucknow, Uttar Pradesh, India";
+const CITY = "India";
 const SUPPORT_EMAIL = "info@truviventures.com";
 const UPDATED = "Last updated: 5 November 2026";
 
