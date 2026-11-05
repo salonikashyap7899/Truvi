@@ -767,7 +767,7 @@ function PlotPanel({
               />
               <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65">
                 <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#e8c877]" />
-                <span>I have read the <Link to="/privacy-policy" className="text-[#e8c877] underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to this plot booking enquiry. This is not consent to unrelated marketing messages. *</span>
+                <span>I consent to Truvi using these details to respond to this plot booking enquiry. I have read the <Link to="/privacy-policy" className="text-[#e8c877] underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
               </label>
               {formError && (
                 <p className="rounded-xl border border-rose-500/25 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">{formError}</p>
