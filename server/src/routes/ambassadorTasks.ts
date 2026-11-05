@@ -48,7 +48,7 @@ async function requireVerifiedAmbassador(req: AuthedRequest, res: Response, next
   if (!user) return res.status(404).json({ error: "User not found" });
   if (!user.onboardingVerified) {
     return res.status(403).json({
-      error: "Complete verification (Aadhaar, phone, email) to access ambassador tasks",
+      error: "Complete identity-document review, phone verification and email verification to access Ambassador tasks",
     });
   }
   next();
