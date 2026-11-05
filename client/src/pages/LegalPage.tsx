@@ -103,8 +103,8 @@ export default function LegalPage() {
 
         <p className="mt-8 text-xs leading-relaxed text-muted-foreground">
           General support: <a href="mailto:info@truviventures.com" className="text-sky-300 underline">info@truviventures.com</a>.
-          The statutory operating-entity and Grievance Officer particulars must be completed from verified
-          company records in the Privacy Policy disclosures.
+          The statutory operating-entity and Grievance Officer particulars are shown above and must be
+          completed from verified company records before the applicable disclosure requirements take effect.
         </p>
       </div>
     </main>
