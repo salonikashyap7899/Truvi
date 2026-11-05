@@ -61,7 +61,7 @@ export default function HomePage() {
           </span>
           <h2 className="mt-4 font-display text-3xl font-semibold">Transact with confidence</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
-            Every project on Truvi is RERA-checked, legally screened, and trust-scored — so you always know what you're buying into.
+            Review developer-submitted information and Truvi's recorded checks for each project. Confirm current registration, approvals and title documents with the competent authorities before booking.
           </p>
           <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {[
