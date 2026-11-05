@@ -6,7 +6,8 @@ import { ShieldCheck, RefreshCw, MessageSquareText, UserRound, Clock3 } from "lu
 type Grievance = {
   _id: string; caseNumber: string; category: string; subject: string; description: string; status: string;
   publicResponse?: string | null; internalNotes?: string | null; requestedAt: string; updatedAt: string;
-  requesterName: string; requesterEmail: string; requesterRole: string;
+  requesterName: string; requesterEmail: string; requesterRole: string; requesterPhone?: string | null;
+  acknowledgedAt?: string | null; responseDueAt?: string | null;
 };
 type PrivacyRequest = {
   _id: string; requestType: string; details: string; status: string; publicResponse?: string | null;
@@ -86,7 +87,7 @@ export default function AdminCompliancePage() {
         <div>
           <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300"><ShieldCheck size={14} /> Governance & support</div>
           <h1 className="font-display text-2xl font-semibold sm:text-3xl">Compliance Centre</h1>
-          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/45">Review user privacy requests and grievances. Internal notes are for authorised administrators; only public responses are sent to users.</p>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/45">Review public and account-linked grievances, privacy requests and account deactivations. Public complaints are acknowledged by email with a case number and complaint copy. Internal notes are restricted to authorised administrators.</p>
         </div>
         <button onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/5 disabled:opacity-50"><RefreshCw size={13} className={loading ? "animate-spin" : ""}/> Refresh queue</button>
       </div>
@@ -126,7 +127,10 @@ export default function AdminCompliancePage() {
                 <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-white/10 pt-3 text-[11px] text-white/40">
                   <span className="inline-flex items-center gap-1.5"><UserRound size={12}/>{item.requesterName} · {pretty(item.requesterRole)}</span>
                   <span>{item.requesterEmail}</span>
+                  {item.requesterPhone && <span>{item.requesterPhone}</span>}
                   <span className="inline-flex items-center gap-1.5"><Clock3 size={12}/>{dateLabel(item.requestedAt)}</span>
+                  {item.acknowledgedAt && <span>Acknowledged {dateLabel(item.acknowledgedAt)}</span>}
+                  {item.responseDueAt && <span className={new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? "font-semibold text-rose-300" : ""}>Internal response target {dateLabel(item.responseDueAt)}{new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? " · overdue" : ""}</span>}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div>
