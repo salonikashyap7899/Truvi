@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatProjectLocation } from "@/lib/projectLocation";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { toast } from "sonner";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { PROJECT_TYPE_LABELS, categoryLabel } from "@/lib/assetCategories";
@@ -491,16 +492,9 @@ export default function ProjectLandingPage() {
   const approvalAuthority = project.approvalAuthority ?? "RERA";
   const approval = approvalAuthority ? APPROVAL_LABEL[approvalAuthority] : null;
   const hasApprovalNumber = Boolean(project.reraNumber?.trim());
-  const hasApprovalVerificationRecord = Boolean(
-    project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt,
-  );
-  const reraExemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) && hasApprovalVerificationRecord;
-  const approvalIndependentlyVerified = approvalAuthority === "RERA"
-    ? (project.reraStatus === "REGISTERED" && hasApprovalNumber &&
-      project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord) ||
-      (project.reraStatus === "NOT_REGISTERED" && reraExemptionReviewed)
-    : hasApprovalNumber && project.verificationDetails?.approvalVerified === true &&
-      reraExemptionReviewed;
+  const approvalIndependentlyVerified = isApprovalEvidenceVerified(project);
+  const reraExemptionReviewed = approvalAuthority === "RERA" &&
+    project.reraStatus === "NOT_REGISTERED" && approvalIndependentlyVerified;
   const listingIndependentlyReviewed = project.isVerified === true && approvalIndependentlyVerified;
   const hasMap = typeof project.lat === "number" && typeof project.lng === "number";
   const waHi = waLink(`Hi, I am interested in ${project.name}. Please share the latest price and availability.`);
