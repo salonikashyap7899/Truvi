@@ -15,6 +15,7 @@ import type { Project } from "@/types";
 interface VerificationDetails {
   reraVerified: boolean;
   approvalVerified: boolean;
+  reraExemptionVerified: boolean;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
@@ -26,6 +27,7 @@ interface VerificationDetails {
 const DEFAULT_VD: VerificationDetails = {
   reraVerified: false,
   approvalVerified: false,
+  reraExemptionVerified: false,
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
@@ -183,6 +185,7 @@ export default function AdminListingsPage() {
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
       approvalVerified: existing.approvalVerified ?? false,
+      reraExemptionVerified: existing.reraExemptionVerified ?? false,
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
@@ -497,7 +500,7 @@ export default function AdminListingsPage() {
                   </div>
 
                   <p className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Verification Details</p>
-                  <p className="text-xs leading-relaxed text-amber-200/80">Only tick RERA Register Checked after checking the project's exact phase and number on the official State RERA register. For a non-RERA planning authority, use Other Authority Approval Checked only after checking the issuing authority's evidence. A developer-entered number alone is not verification.</p>
+                  <p className="text-xs leading-relaxed text-amber-200/80">Only tick RERA Register Checked after checking the exact project phase and number on the official State RERA register. For a non-RERA authority, check both the authority document and the separate RERA Applicability / Exemption Evidence. DTCP or Panchayat approval alone does not establish a RERA exemption. Record an official source/document and the review date.</p>
 
                   {/* Checkboxes */}
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
@@ -505,6 +508,7 @@ export default function AdminListingsPage() {
                       [
                         ["reraVerified", "RERA Register Checked"],
                         ["approvalVerified", "Other Authority Approval Checked"],
+                        ["reraExemptionVerified", "RERA Applicability / Exemption Evidence Checked"],
                         ["titleClearance", "Title Clearance"],
                         ["encumbranceFree", "Encumbrance Free"],
                         ["constructionApproval", "Construction Approval"],
