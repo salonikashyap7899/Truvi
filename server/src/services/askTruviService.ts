@@ -327,13 +327,11 @@ async function buildCatalog(): Promise<CatalogItem[]> {
       city: p.city,
       location: p.location,
       projectType: p.projectType ?? null,
-      isVerified: !!p.isVerified,
+      isVerified: p.isVerified === true && isApprovalEvidenceVerified(p),
       trustScore: p.trustScore ?? null,
       rera: (p.approvalAuthority ?? "RERA") === "RERA" &&
         p.reraStatus === "REGISTERED" &&
-        Boolean(p.reraNumber?.trim()) &&
-        p.verificationDetails?.reraVerified === true &&
-        Boolean(p.verificationDetails?.verificationSource?.trim() && p.verificationDetails?.lastVerifiedAt),
+        isApprovalEvidenceVerified(p),
       priceMin: num(a?.min),
       priceMax: num(a?.max),
       availableUnits: Number(a?.avail ?? 0),
@@ -370,7 +368,7 @@ async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]>
       name: d.name,
       companyName: d.developerProfile?.companyName,
       projectCount: devProjects.length,
-      verifiedProjectCount: devProjects.filter((p) => p.isVerified).length,
+      verifiedProjectCount: devProjects.filter((p) => p.isVerified === true && isApprovalEvidenceVerified(p)).length,
       avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
       projects: devProjects.map((p) => p.name).slice(0, 8),
       source: "TRUVI_VERIFIED",
@@ -404,7 +402,7 @@ async function buildLocationFacts(city: string): Promise<LocationFacts> {
   return {
     query: city,
     projectCount: cityProjects.length,
-    verifiedCount: cityProjects.filter((p) => p.isVerified).length,
+    verifiedCount: cityProjects.filter((p) => p.isVerified === true && isApprovalEvidenceVerified(p)).length,
     avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
     priceRange: prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null,
     projectNames: cityProjects.map((p) => p.name).slice(0, 10),
