@@ -494,11 +494,13 @@ export default function ProjectLandingPage() {
   const hasApprovalVerificationRecord = Boolean(
     project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt,
   );
+  const reraExemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && hasApprovalVerificationRecord;
   const approvalIndependentlyVerified = approvalAuthority === "RERA"
-    ? project.reraStatus === "REGISTERED" && hasApprovalNumber &&
-      project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord
+    ? (project.reraStatus === "REGISTERED" && hasApprovalNumber &&
+      project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord) ||
+      (project.reraStatus !== "REGISTERED" && reraExemptionReviewed)
     : hasApprovalNumber && project.verificationDetails?.approvalVerified === true &&
-      hasApprovalVerificationRecord;
+      reraExemptionReviewed;
   const listingIndependentlyReviewed = project.isVerified === true && approvalIndependentlyVerified;
   const hasMap = typeof project.lat === "number" && typeof project.lng === "number";
   const waHi = waLink(`Hi, I am interested in ${project.name}. Please share the latest price and availability.`);
@@ -526,11 +528,13 @@ export default function ProjectLandingPage() {
       a: approvalAuthority === "RERA"
         ? approvalIndependentlyVerified
           ? `Truvi has checked the supplied RERA registration details against the recorded source ${project.verificationDetails?.verificationSource}. Registration number: ${project.reraNumber}. You should still confirm the project's exact phase, current status and disclosures on the official State RERA portal before booking.`
-          : hasApprovalNumber
-            ? `The developer has supplied RERA details (${project.reraNumber}), but Truvi has not independently confirmed them against the official register. Do not treat this as RERA verification. Check the exact project phase and current status on the official State RERA portal before paying or signing.`
-            : "No RERA registration number is currently displayed. The project may be pending, exempt or require another approval; ask for the competent authority's documents and independently verify the project's legal status before paying or signing."
+          : reraExemptionReviewed
+            ? `Truvi has reviewed evidence concerning the project's RERA applicability / exemption assessment from ${project.verificationDetails?.verificationSource}. This is not a RERA registration or a legal opinion. Confirm the exemption basis and all planning approvals with the competent authority and a qualified professional before paying or signing.`
+            : hasApprovalNumber
+              ? `The developer has supplied RERA details (${project.reraNumber}), but Truvi has not independently confirmed them against the official register. Do not treat this as RERA verification. Check the exact project phase and current status on the official State RERA portal before paying or signing.`
+              : "No RERA registration number is currently displayed and Truvi has not recorded a verified exemption assessment. Ask for official documents and independently confirm the project's legal status before paying or signing."
         : approvalIndependentlyVerified
-          ? `Truvi has reviewed the ${approval?.toLowerCase() ?? "planning authority"} reference against the recorded source ${project.verificationDetails?.verificationSource}. Reference: ${project.reraNumber}. This is not a RERA registration; confirm the applicable approvals and any RERA requirement with the competent authority.`
+          ? `Truvi has reviewed the ${approval?.toLowerCase() ?? "planning authority"} reference against the recorded source ${project.verificationDetails?.verificationSource}. RERA applicability / exemption evidence has also been reviewed. Reference: ${project.reraNumber}. This is not a RERA registration; confirm the applicable approvals and exemption basis with the competent authority.`
           : hasApprovalNumber
             ? `The developer has supplied a ${approval?.toLowerCase() ?? "planning authority"} reference (${project.reraNumber}), but it has not been independently confirmed by Truvi. A non-RERA approval reference is not a RERA registration. Verify the documents and whether RERA applies to this project before paying or signing.`
             : `No ${approval?.toLowerCase() ?? "planning authority"} reference is displayed. Ask for official approval / exemption evidence and verify it with the competent authority before paying or signing.`
