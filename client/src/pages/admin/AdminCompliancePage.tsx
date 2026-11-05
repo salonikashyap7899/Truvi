@@ -7,7 +7,7 @@ type Grievance = {
   _id: string; caseNumber: string; category: string; subject: string; description: string; status: string;
   publicResponse?: string | null; internalNotes?: string | null; requestedAt: string; updatedAt: string;
   requesterName: string; requesterEmail: string; requesterRole: string; requesterPhone?: string | null;
-  acknowledgedAt?: string | null; responseDueAt?: string | null;
+  acknowledgedAt?: string | null; acknowledgementDueAt?: string | null; responseDueAt?: string | null;
 };
 type PrivacyRequest = {
   _id: string; requestType: string; details: string; status: string; publicResponse?: string | null;
@@ -130,7 +130,8 @@ export default function AdminCompliancePage() {
                   {item.requesterPhone && <span>{item.requesterPhone}</span>}
                   <span className="inline-flex items-center gap-1.5"><Clock3 size={12}/>{dateLabel(item.requestedAt)}</span>
                   {item.acknowledgedAt && <span>Acknowledged {dateLabel(item.acknowledgedAt)}</span>}
-                  {item.responseDueAt && <span className={new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? "font-semibold text-rose-300" : ""}>Internal response target {dateLabel(item.responseDueAt)}{new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? " · overdue" : ""}</span>}
+                  {!item.acknowledgedAt && item.acknowledgementDueAt && <span className={new Date(item.acknowledgementDueAt).getTime() < Date.now() ? "font-semibold text-rose-300" : "text-amber-200"}>48-hour acknowledgement due {dateLabel(item.acknowledgementDueAt)}{new Date(item.acknowledgementDueAt).getTime() < Date.now() ? " · overdue" : ""}</span>}
+                  {item.responseDueAt && <span className={new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? "font-semibold text-rose-300" : ""}>Internal 15-day response target {dateLabel(item.responseDueAt)}{new Date(item.responseDueAt).getTime() < Date.now() && !["RESOLVED", "CLOSED"].includes(item.status) ? " · overdue" : ""}</span>}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div>
