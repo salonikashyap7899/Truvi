@@ -457,7 +457,7 @@ function ListingCard({
           <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
             {isPrime && (
               <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
-                <Star size={9} fill="currentColor" /> Sponsored
+                <Star size={9} fill="currentColor" /> Prime
               </span>
             )}
             {project.reraNumber && (
