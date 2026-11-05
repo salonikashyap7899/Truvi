@@ -176,7 +176,7 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
   const approvalAuthority = project.approvalAuthority ?? "RERA";
   const hasApprovalNumber = Boolean(project.reraNumber?.trim());
   const hasVerificationRecord = Boolean(project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt);
-  const exemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && hasVerificationRecord;
+  const exemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) && hasVerificationRecord;
   const authorityVerified = approvalAuthority === "RERA"
     ? (project.reraStatus === "REGISTERED" && hasApprovalNumber && project.verificationDetails?.reraVerified === true && hasVerificationRecord) ||
       (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed)
