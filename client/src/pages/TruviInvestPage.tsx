@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatINR } from "@/lib/utils";
 import { useAuthStore } from "@/store/authStore";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 import { loadRazorpay, openRazorpayCheckout } from "@/lib/razorpay";
 import {
   TrendingUp, ShieldCheck, MapPin, Building2, Trees, Store,
@@ -272,7 +273,7 @@ export default function TruviInvestPage() {
       )}
 
       {/* ----------------------------------------------- Verified opportunities */}
-      <Section id="opportunities" title="Verified Investment Opportunities" sub="Live, approved projects on Truvi — each with a transparent Truvi Score from real verification signals.">
+      {investmentOffersEnabled && <Section id="opportunities" title="Verified Investment Opportunities" sub="Live, approved projects on Truvi — each with a transparent Truvi Score from real verification signals.">
         {opps.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-sm text-muted-foreground">
             New verified opportunities are being onboarded. <button onClick={() => goToClub()} className="text-emerald-300 underline-offset-4 hover:underline">Join the Investor Club</button> for early access.
@@ -329,24 +330,31 @@ export default function TruviInvestPage() {
             })}
           </div>
         )}
-      </Section>
+      </Section>}
 
       {/* ------------------------------------------- Investment Return Simulator */}
+      {investmentOffersEnabled && (
       <Section title="Investment Return Simulator" sub="Model an illustrative outcome across amount, structure, project type and horizon. Illustrative projection only — actual returns depend on project performance and structure.">
         <ReturnSimulator />
       </Section>
+      )}
 
       {/* --------------------------------------------- Truvi Investment Score™ */}
+      {investmentOffersEnabled && (
       <Section title="Truvi Investment Score™" sub="Truvi's data and verification advantage, turned into an investment-decision engine. Every opportunity is scored across the signals that actually drive real-estate outcomes.">
         <InvestmentScoreCard />
       </Section>
+      )}
 
       {/* ------------------------------------------------ Capital transparency */}
+      {investmentOffersEnabled && (
       <Section title="Where Your Money Goes — Capital Transparency" sub="For each investment, your dashboard tracks capital from received to exit. Below is an illustrative view of live project progress.">
         <CapitalTransparency />
       </Section>
+      )}
 
       {/* -------------------------------------------------- AI Investment Insights */}
+      {investmentOffersEnabled && (
       <Section title="AI Investment Insights" sub="Intelligence-led analysis behind every deployment decision — infrastructure, growth drivers and comparable prices.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <InsightCard icon={<Building2 size={18} />} title="Nearby infrastructure" desc="Metro, highways, airports, SEZs and social infrastructure around each asset." />
@@ -359,9 +367,10 @@ export default function TruviInvestPage() {
           <button onClick={() => goToClub()} className="ml-auto shrink-0 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Request a report</button>
         </div>
       </Section>
+      )}
 
       {/* ------------------------------------------------- Portfolio dashboard */}
-      <Section title="My Truvi Portfolio" sub={portfolio && portfolio.items.length > 0 ? "Your capital, projected exit value and each investment's status." : "Once you invest, track capital, project progress and returns in one place."}>
+      {(investmentOffersEnabled || (portfolio?.items.length ?? 0) > 0) && <Section title="My Truvi Portfolio" sub="Your existing portfolio records and project updates.">
         {portfolio && portfolio.items.length > 0 ? (
           <>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -407,18 +416,18 @@ export default function TruviInvestPage() {
             <p className="mt-3 text-xs text-muted-foreground">Invested capital, projected exit value, monthly income, capital-deployment progress, title documents and updates appear here after your first investment.</p>
           </>
         )}
-      </Section>
+      </Section>}
 
       {/* ---------------------------------------------------- Investor Club */}
       <section id="investor-club" className="px-6 py-14 md:px-10">
         <div className="mx-auto max-w-3xl rounded-3xl border border-emerald-500/25 bg-emerald-950/10 p-6 md:p-10">
           <div className="text-center">
             <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300"><Crown size={13} /> Investor Club</span>
-            <h2 className="mt-3 font-display text-2xl font-semibold md:text-3xl">Join the Truvi Investor Club</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Tell us how you invest. After you join, our team completes your investor profile, KYC and mandate — then shares matched, verified opportunities.</p>
+            <h2 className="mt-3 font-display text-2xl font-semibold md:text-3xl">{investmentOffersEnabled ? "Join the Truvi Investor Club" : "Register your interest with Truvi"}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{investmentOffersEnabled ? "Share your preferences to receive information about opportunities made available under the approved legal structure." : "This form records a non-binding request for information only. No investment commitment, investor mandate, KYC onboarding or capital payment is being accepted while the legal and regulatory review is pending."}</p>
           </div>
-          <InvestorClubForm />
-          <div className="mt-8">
+          <InvestorClubForm offersEnabled={investmentOffersEnabled} />
+          {investmentOffersEnabled && <div className="mt-8">
             <p className="text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">The Investor Journey</p>
             <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {INVESTOR_FUNNEL.map((step, i) => (
@@ -429,7 +438,7 @@ export default function TruviInvestPage() {
               ))}
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">You start at step 1 — the Truvi team guides you through the rest. Capital is deployed only after your approval and the signed investment agreement.</p>
-          </div>
+          </div>}
         </div>
       </section>
 
@@ -819,8 +828,9 @@ const CLUB_STRATEGIES = ["Capital Appreciation", "Development Projects", "Rental
 const CLUB_HORIZONS = ["< 2 years", "2–3 years", "3–5 years", "5+ years"];
 const CLUB_RISK = ["Conservative", "Balanced", "Growth"];
 
-function InvestorClubForm() {
+function InvestorClubForm({ offersEnabled }: { offersEnabled: boolean }) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", range: CLUB_RANGES[1], horizon: CLUB_HORIZONS[1], risk: CLUB_RISK[1], message: "" });
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [strategies, setStrategies] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
@@ -839,6 +849,10 @@ function InvestorClubForm() {
       toast.error("Please enter your name and a valid email");
       return;
     }
+    if (!privacyAcknowledged) {
+      toast.error("Please acknowledge the Privacy Policy before submitting.");
+      return;
+    }
     setSaving(true);
     try {
       const fd = new FormData();
@@ -846,14 +860,17 @@ function InvestorClubForm() {
       fd.append("email", form.email.trim());
       fd.append("purposeType", "GUEST");
       const parts = [
-        `Range: ${form.range}`,
-        `Horizon: ${form.horizon}`,
-        `Risk: ${form.risk}`,
-        strategies.length ? `Strategy: ${strategies.join(", ")}` : "",
+        ...(offersEnabled ? [
+          `Range: ${form.range}`,
+          `Horizon: ${form.horizon}`,
+          `Risk: ${form.risk}`,
+          strategies.length ? `Strategy: ${strategies.join(", ")}` : "",
+        ] : []),
         form.phone ? `Phone: ${form.phone}` : "",
         form.message ? form.message : "",
+        `Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for response to this expression of interest.`,
       ].filter(Boolean);
-      fd.append("message", `[Investor Club] ${parts.join(" · ")}`);
+      fd.append("message", `[${offersEnabled ? "Investor Club" : "Investor information request only"}] ${parts.join(" · ")}`);
       await api.post("/enquiries", fd);
       setDone(true);
       toast.success("Request received — our team will reach out.");
@@ -872,7 +889,7 @@ function InvestorClubForm() {
       <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.08] p-6 text-center">
         <BadgeCheck size={28} className="mx-auto text-emerald-300" />
         <p className="mt-2 font-semibold">You&apos;re on the list!</p>
-        <p className="mt-1 text-sm text-muted-foreground">Our investment team will complete your investor profile, KYC and mandate, then share matched verified opportunities.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{offersEnabled ? "Your request has been recorded. The team will respond using the information you provided." : "Your request for information has been recorded. No investment profile, KYC process or capital commitment has been created."}</p>
       </div>
     );
   }
@@ -882,35 +899,42 @@ function InvestorClubForm() {
         <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Full name *</span><input className={field} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" /></label>
         <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Email *</span><input type="email" className={field} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" /></label>
         <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Phone</span><input className={field} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="10-digit mobile" /></label>
-        <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Investment range</span>
+        {offersEnabled && <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Investment range</span>
           <select className={field} value={form.range} onChange={(e) => setForm({ ...form, range: e.target.value })}>{CLUB_RANGES.map((r) => <option key={r} value={r} className="bg-[#0a0d14]">{r}</option>)}</select>
-        </label>
+        </label>}
       </div>
 
-      <div>
-        <span className="mb-1.5 block text-xs text-muted-foreground">Preferred strategy (select any)</span>
-        <div className="flex flex-wrap gap-1.5">
-          {CLUB_STRATEGIES.map((s) => <button type="button" key={s} onClick={() => toggleStrategy(s)} className={chip(strategies.includes(s))}>{s}</button>)}
+      {offersEnabled && <>
+        <div>
+          <span className="mb-1.5 block text-xs text-muted-foreground">Preferred strategy (select any)</span>
+          <div className="flex flex-wrap gap-1.5">
+            {CLUB_STRATEGIES.map((s) => <button type="button" key={s} onClick={() => toggleStrategy(s)} className={chip(strategies.includes(s))}>{s}</button>)}
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <span className="mb-1.5 block text-xs text-muted-foreground">Preferred horizon</span>
-          <div className="flex flex-wrap gap-1.5">{CLUB_HORIZONS.map((h) => <button type="button" key={h} onClick={() => setForm({ ...form, horizon: h })} className={chip(form.horizon === h)}>{h}</button>)}</div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <span className="mb-1.5 block text-xs text-muted-foreground">Preferred horizon</span>
+            <div className="flex flex-wrap gap-1.5">{CLUB_HORIZONS.map((h) => <button type="button" key={h} onClick={() => setForm({ ...form, horizon: h })} className={chip(form.horizon === h)}>{h}</button>)}</div>
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs text-muted-foreground">Risk preference</span>
+            <div className="flex flex-wrap gap-1.5">{CLUB_RISK.map((rk) => <button type="button" key={rk} onClick={() => setForm({ ...form, risk: rk })} className={chip(form.risk === rk)}>{rk}</button>)}</div>
+          </div>
         </div>
-        <div>
-          <span className="mb-1.5 block text-xs text-muted-foreground">Risk preference</span>
-          <div className="flex flex-wrap gap-1.5">{CLUB_RISK.map((rk) => <button type="button" key={rk} onClick={() => setForm({ ...form, risk: rk })} className={chip(form.risk === rk)}>{rk}</button>)}</div>
-        </div>
-      </div>
+      </>}
 
       <label className="block"><span className="mb-1 block text-xs text-muted-foreground">Message (optional)</span><input className={field} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Anything specific you're looking for?" /></label>
 
+      <label className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+        <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-emerald-400" />
+        <span>I have read the <Link to="/privacy-policy" className="text-emerald-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to this request. This is not consent to unrelated marketing messages and is not an investment commitment. *</span>
+      </label>
+
       <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60">
-        {saving ? <Loader2 size={16} className="animate-spin" /> : <Crown size={16} />} Join Investor Club
+        {saving ? <Loader2 size={16} className="animate-spin" /> : <Crown size={16} />} {offersEnabled ? "Join Investor Club" : "Register interest only"}
       </button>
-      <p className="text-center text-[11px] text-muted-foreground">Joining the club is an expression of interest only — not an investment or a commitment to invest.</p>
+      <p className="text-center text-[11px] text-muted-foreground">This is an expression of interest only — not an investment offer or a commitment to invest. No capital is accepted through this form.</p>
     </form>
   );
 }
