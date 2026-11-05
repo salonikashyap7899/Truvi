@@ -25,6 +25,8 @@ Populate these in the **client build environment** (for a VPS build, client/.env
 | VITE_LEGAL_ENTITY_NAME | Exact legal name from MCA/LLP records or other constituting document |
 | VITE_REGISTERED_OFFICE_ADDRESS | Exact registered office from current statutory record |
 | VITE_COMPANY_CIN_OR_LLPIN | CIN/LLPIN where applicable; otherwise obtain advice on correct entity disclosure |
+| VITE_COMPANY_GSTIN | Current GSTIN only if the disclosed supplier is registered for GST |
+| VITE_COMPANY_BRANCH_ADDRESSES | Current branches relevant to customer service / statutory disclosures, if any |
 | VITE_CUSTOMER_CARE_PHONE | Monitored customer-care number |
 | VITE_GRIEVANCE_OFFICER_NAME | Person formally appointed and authorised to handle grievances |
 | VITE_GRIEVANCE_OFFICER_DESIGNATION | Correct designation |
@@ -33,6 +35,18 @@ Populate these in the **client build environment** (for a VPS build, client/.env
 | VITE_UP_RERA_AGENT_REGISTRATION | Verified registration number only if counsel confirms Truvi acts as an agent and registration is required |
 
 The site must not publish placeholder values. If a variable is not known, obtain the evidence first; do not enter a made-up value or another person's details without appointment/authority.
+
+### Server-side GST configuration (keep disabled until CA approval)
+
+The backend deliberately defaults tax collection to 0%. Do not infer that 18% applies to every Truvi service. Until the company has a valid GST registration and its CA has confirmed the service-wise classification, rate, place of supply, invoice treatment and who is the supplier, keep these in `server/.env`:
+
+```env
+GST_REGISTERED=false
+GSTIN=
+GST_PERCENT=
+```
+
+Only change these after written CA confirmation. `GSTIN` must be the registered supplier's valid GSTIN; `GST_PERCENT` must be the CA-approved rate for every service that uses this global configuration. If rates differ by service or transaction type, do not use one global percentage—implement and test a service-wise tax matrix first. Existing Razorpay recurring plan mappings may need to be refreshed after an approved amount/tax change; the new subscription route blocks a mismatch, and the plan-refresh script creates a new Razorpay plan rather than modifying existing active subscriptions.
 
 ## Legal and business decisions that code cannot make
 
@@ -43,7 +57,7 @@ The site must not publish placeholder values. If a variable is not known, obtain
 5. **KYC/Aadhaar:** have counsel/UIDAI-specialist confirm lawful collection and offline verification route, necessity, masking, consent, access and retention. The app's manual KYC review is not government Aadhaar authentication.
 6. **Privacy:** approve purposes, legal bases, processor/subprocessor contracts, hosting/data locations, retention schedule, erasure exceptions, rights handling and breach communications.
 7. **CERT-In:** name a Point of Contact; verify required ICT logs are securely retained for 180 days within India; maintain a 24x7 escalation process and six-hour reportability assessment for specified incidents.
-8. **Consumer/e-commerce classification:** if covered by the Consumer Protection (E-Commerce) Rules, confirm disclosures, complaint acknowledgement and redressal handling, seller/project information, rankings and sponsored listing labels, checkout consent, cancellation/refunds and dark-pattern review. The 2026 amendment takes effect on 1 January 2027.
+8. **Consumer/e-commerce classification:** if covered by the Consumer Protection (E-Commerce) Rules, confirm entity/seller disclosures, complaint acknowledgement within 48 hours and redress within one month, seller/project information, rankings and sponsored-listing labels, checkout consent, cancellation/refunds and dark-pattern review. The 2026 amendment takes effect on 1 January 2027. The public grievance form in this branch creates a case and acknowledgement; staff must actually operate the queue and meet the legally applicable response timeline.
 9. **Intermediary classification:** if user-provided listing/noticeboard content makes Truvi an intermediary, obtain counsel's Rule 3 assessment and operate the applicable 24-hour acknowledgement / 15-day grievance response process, including legal-order/takedown handling.
 10. **Employment, POSH, TDS/PMLA and telecom:** applicability depends on workforce size/location, actual relationship/transactions and commercial messaging setup. Obtain professional review and operational evidence.
 
@@ -57,7 +71,7 @@ The site must not publish placeholder values. If a variable is not known, obtain
 
 - Review this branch and merge only after CI passes.
 - Configure the public legal disclosures before production release.
-- After deployment, submit a test grievance from a non-logged-in browser using an address controlled by Truvi; confirm the case number, receipt email and administrator queue.
+- After deployment, submit a test grievance from a non-logged-in browser using an address controlled by Truvi; confirm the case number, acknowledgement email, support inbox notification and administrator queue. Test public replies/updates and case closure.
 - Confirm no email/phone/complaint details appear in public logs or telemetry.
 - Verify RERA details and project approval evidence in UP RERA / the relevant State authority.
 - Run database permission and backup audits separately. Do not run the public API role lockdown on production until staging has passed all workflows.
