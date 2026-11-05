@@ -688,7 +688,7 @@ function Footer() {
             <Link to="/intelligence" className={link}>Truvi Intelligence Engine™</Link>
             <a href="#truvi-score" className={link}>Truvi Score™</a>
             <a href="#passport" className={link}>Property Passport™</a>
-            <Link to="/legal#verification-methodology" className={link}>Verification Methodology</Link>
+            <Link to="/legal" className={link}>Legal information &amp; verification methodology</Link>
           </div>
         </div>
         <div>
