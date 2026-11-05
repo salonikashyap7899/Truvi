@@ -9,6 +9,7 @@ import {
   Calculator, ChevronDown, Ruler, Route, Gauge,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 import { formatProjectLocation } from "@/lib/projectLocation";
 import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { toast } from "sonner";
@@ -243,17 +244,20 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
   const [form, setForm] = useState({ name: "", phone: "", email: "", size: "", budget: "", visitDate: "", message: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Please enter your name.");
     if (!/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(form.phone.trim())) return toast.error("Please enter a valid 10-digit mobile number.");
+    if (!privacyAcknowledged) return toast.error("Please acknowledge the Privacy Policy before submitting.");
     setBusy(true);
     const extras = [
       form.size && `Preferred size: ${form.size}`,
       form.budget && `Budget: ${form.budget}`,
       form.visitDate && `Preferred site-visit date: ${form.visitDate}`,
       form.message && `Message: ${form.message}`,
+      `Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for this project enquiry and callback.`,
     ].filter(Boolean).join("\n");
     try {
       await api.post("/enquiries/lead", {
@@ -293,6 +297,10 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
         </div>}
       </div>
       <textarea className={`${field} mt-3`} rows={3} placeholder="Anything specific you're looking for? (optional)" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+      <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-white/60">
+        <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
+        <span>I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to my project enquiry and arrange the requested callback/site visit. This is not consent to unrelated marketing messages. *</span>
+      </label>
       {soldOut && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">This project is currently sold out. You can still contact our team for project information.</p>}
       <button type="submit" disabled={busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
         {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Submitting…" : soldOut ? "Request Project Information" : "Book a Site Visit"}
@@ -315,17 +323,20 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
 }) {
   const [form, setForm] = useState({ name: "", phone: "" });
   const [busy, setBusy] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const field = "w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[var(--trust)]/60";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Please enter your name.");
     if (!/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(form.phone.trim())) return toast.error("Please enter a valid 10-digit mobile number.");
+    if (!privacyAcknowledged) return toast.error("Please acknowledge the Privacy Policy before submitting.");
     setBusy(true);
     try {
       await api.post("/enquiries/lead", {
         name: form.name.trim(), phone: form.phone.trim(),
-        projectId, projectName, message: "Quick enquiry from the landing page",
+        projectId, projectName,
+        message: `Quick enquiry from the landing page. Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for this callback request.`,
       });
       markLeadDone(projectId);
       toast.success("Thank you! Our team will call you shortly.");
@@ -353,6 +364,10 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
         <form onSubmit={submit} className="mt-4 space-y-3">
           <input className={field} placeholder="Your name*" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className={field} placeholder="Mobile number*" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <label className="flex items-start gap-2 text-xs leading-relaxed text-white/60">
+            <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
+            <span>I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to this callback request. This is not consent to unrelated marketing messages. *</span>
+          </label>
           <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Sending…" : "Request a callback"}
           </button>
