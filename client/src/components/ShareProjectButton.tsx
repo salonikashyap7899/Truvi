@@ -26,7 +26,7 @@ function shareSummary(project: Project): string {
   if (devName) lines.push(`🏗 By ${devName}`);
 
   if (project.isVerified) lines.push(`✅ Truvi Verified`);
-  if (project.reraNumber) lines.push(`📄 RERA: ${project.reraNumber}`);
+  if (project.reraNumber) lines.push(`📄 Developer-submitted ${project.approvalAuthority === "RERA" || !project.approvalAuthority ? "RERA" : "approval"} reference: ${project.reraNumber}`);
   if (project.minRate) lines.push(`💰 From ₹${project.minRate.toLocaleString("en-IN")}/sq ft`);
   if (typeof project.unitCount === "number" && project.unitCount > 0) {
     lines.push(`🔑 ${project.unitCount} unit${project.unitCount === 1 ? "" : "s"} available`);
