@@ -25,9 +25,10 @@ Populate these in the **client build environment** (for a VPS build, client/.env
 |---|---|
 | VITE_LEGAL_ENTITY_NAME | Exact legal name from MCA/LLP records or other constituting document |
 | VITE_REGISTERED_OFFICE_ADDRESS | Exact registered office from current statutory record |
+| VITE_COMPANY_HEADQUARTERS_ADDRESS | Current principal/headquarters geographic address; do not assume it is identical to the registered office |
 | VITE_COMPANY_CIN_OR_LLPIN | CIN/LLPIN where applicable; otherwise obtain advice on correct entity disclosure |
 | VITE_COMPANY_GSTIN | Current GSTIN only if the disclosed supplier is registered for GST |
-| VITE_COMPANY_BRANCH_ADDRESSES | Current branches relevant to customer service / statutory disclosures, if any |
+| VITE_COMPANY_BRANCH_ADDRESSES | All current branch geographic addresses; enter an explicit “No branch offices” only after management confirms that none exist |
 | VITE_CUSTOMER_CARE_PHONE | Monitored customer-care mobile number |
 | VITE_CUSTOMER_CARE_LANDLINE | Monitored customer-care landline number |
 | VITE_GRIEVANCE_OFFICER_NAME | Person formally appointed and authorised to handle grievances |
@@ -63,12 +64,13 @@ Only change these after written CA confirmation. `GSTIN` must be the registered 
 8. **Consumer/e-commerce classification:** if covered by the Consumer Protection (E-Commerce) Rules, confirm entity/seller disclosures, complaint acknowledgement within 48 hours and redress within one month, seller/project information, rankings and sponsored-listing labels, checkout consent, cancellation/refunds and dark-pattern review. The 2026 amendment takes effect on 1 January 2027. The public grievance form in this branch creates a case and acknowledgement; staff must actually operate the queue and meet the legally applicable response timeline.
 9. **Intermediary classification:** if user-provided listing/noticeboard content makes Truvi an intermediary, obtain counsel's Rule 3 assessment and operate the applicable 24-hour acknowledgement / 15-day grievance response process, including legal-order/takedown handling.
 10. **Employment, POSH, TDS/PMLA and telecom:** applicability depends on workforce size/location, actual relationship/transactions and commercial messaging setup. Obtain professional review and operational evidence.
+11. **Investor capital / returns:** before enabling or accepting any investor money, obtain a written Indian securities/regulatory opinion on the actual structure and solicitation model. Review potential SEBI AIF/CIS/REIT/securities, Companies Act, deposit-taking, collective pooling, investment-adviser and intermediary implications. Confirm the issuer, custodian/escrow, investor eligibility, disclosures, agreements, marketing claims, return mechanics and required registrations/approvals. A “not guaranteed” disclaimer does not replace this classification. Keep public capital acceptance and return marketing disabled until the responsible lawyer/regulatory counsel signs off.
 
 ## Consumer grievance deadlines and amendment readiness
 
 - For an e-commerce entity to which Rule 4 applies, acknowledge consumer complaints within 48 hours and redress them within one month. This branch records an internal 15-calendar-day response target and a 48-hour acknowledgement deadline; it does not change the statutory one-month outer deadline.
 - Truvi must obtain counsel's written view on whether it is an inventory-owning seller, marketplace, other e-commerce entity, intermediary, real-estate agent, advertising/lead platform or a combination by workflow. The duties differ by classification.
-- The Consumer Protection (E-Commerce) (Amendment) Rules, 2026 take effect on 1 January 2027. The PIB summary identifies complaint-copy delivery, search-result integrity, sponsored-listing labels, 30-day prior-price disclosure for reductions, annual dark-pattern self-audit/certificate, marketplace information disclosures, and express affirmative consent for specified uses of consumer information. Assess the detailed Gazette text against every Truvi customer journey before that date.
+- The Consumer Protection (E-Commerce) (Amendment) Rules, 2026 take effect on 1 January 2027. The official Gazette requires covered e-commerce entities to prominently show their legal name, headquarters and branch addresses, website details, customer-care contacts and Grievance Officer email/landline/mobile; acknowledge consumer complaints within 48 hours; provide the complainant a copy of the complaint as recorded by the Grievance Officer; and redress it within one month. It also addresses search-result manipulation, prominent sponsored-listing labels, the lowest price in the preceding 30 days when a price reduction is announced, seller disclosures, ranking-parameter explanations, annual dark-pattern self-audit/certification, affirmative consent for specified uses of marketplace-collected information, and unrelated bundled fees. This branch emails the complainant the recorded complaint copy and tracks a 15-day internal response target; management must still confirm Truvi's legal classification, operate the queue and prepare every affected journey before the effective date.
 
 ## Regulatory timing to track
 
