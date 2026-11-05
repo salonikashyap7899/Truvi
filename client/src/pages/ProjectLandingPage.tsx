@@ -52,9 +52,9 @@ interface UnitSummary {
 }
 
 const APPROVAL_LABEL: Record<string, string> = {
-  RERA: "RERA Registered",
-  DISTRICT_PANCHAYAT: "District Panchayat Approved",
-  DTCP: "DTCP Approved",
+  RERA: "RERA registration details",
+  DISTRICT_PANCHAYAT: "District Panchayat reference",
+  DTCP: "Development Authority (DTCP) reference",
 };
 
 function fmtPossession(v?: string | null): string | null {
@@ -499,6 +499,7 @@ export default function ProjectLandingPage() {
       project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord
     : hasApprovalNumber && project.verificationDetails?.approvalVerified === true &&
       hasApprovalVerificationRecord;
+  const listingIndependentlyReviewed = project.isVerified === true && approvalIndependentlyVerified;
   const hasMap = typeof project.lat === "number" && typeof project.lng === "number";
   const waHi = waLink(`Hi, I am interested in ${project.name}. Please share the latest price and availability.`);
   const plotSizeLabel = plotSizes.length ? `${plotSizes[0].toLocaleString("en-IN")}${plotSizes.length > 1 ? `–${plotSizes[plotSizes.length - 1].toLocaleString("en-IN")}` : ""} sq.ft` : null;
@@ -514,7 +515,7 @@ export default function ProjectLandingPage() {
     plotSizeLabel ? { icon: <Ruler size={16} />, label: "Plot Sizes", value: plotSizeLabel } : null,
     info?.connectivityNotes ? { icon: <Route size={16} />, label: "Connectivity", value: info.connectivityNotes } : null,
     (project.isVerified || typeof project.truviScore === "number")
-      ? { icon: <ShieldCheck size={16} />, label: "Verification", value: project.isVerified ? "Truvi Verified" : "Under review", hint: typeof project.truviScore === "number" ? `Score ${project.truviScore}/100` : undefined }
+      ? { icon: <ShieldCheck size={16} />, label: "Verification", value: listingIndependentlyReviewed ? "Truvi Verified" : "Under review", hint: typeof project.truviScore === "number" ? `Score ${project.truviScore}/100` : undefined }
       : null,
   ].filter(Boolean) as { icon: React.ReactNode; label: string; value: string; hint?: string }[];
 
@@ -538,7 +539,7 @@ export default function ProjectLandingPage() {
     plotSizeLabel ? { q: "What plot sizes are available?", a: `Plots are available in ${plotSizeLabel}. Live availability is shown in the Inventory section above — it updates as plots are booked.` } : null,
     { q: "When is possession?", a: possession ? `Possession is planned for ${possession}. Construction milestones and the latest status are shared during your site visit.` : "Please contact our team for the current possession timeline." },
     { q: "Can I visit the site?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and is not accepting new site-visit bookings." : "Yes — book a free site visit using the form on this page. Our team arranges the visit and walks you through the project, plots and paperwork." },
-    { q: "Why should I trust this listing?", a: project.isVerified ? "This project is Truvi Verified — independently checked across legal, approval, on-ground and location data (see the Truvi Verification section above)." : "Truvi independently reviews every listing across legal, approval and on-ground checks. See the Truvi Verification section above for the current status." },
+    { q: "Why should I trust this listing?", a: listingIndependentlyReviewed ? "This project is marked Truvi Verified after an internal review. Review the source and date for each check above and independently verify title, registration, approvals and current project disclosures before paying or signing." : "This listing has passed the platform's publication review, but not all project evidence is independently verified. Developer-submitted and pending items are identified in the verification section. Confirm original documents with the competent authority before paying or signing." },
     { q: "How do I book?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and cannot accept new bookings. You can contact our team for more information." : "Share your details on this page or WhatsApp us. Our team confirms availability, arranges a site visit, and guides you through the booking and payment process end-to-end." },
   ].filter(Boolean) as { q: string; a: string }[];
 
