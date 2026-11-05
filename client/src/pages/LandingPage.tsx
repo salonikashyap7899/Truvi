@@ -847,8 +847,8 @@ function LiveProjectsShowcase() {
               Discover handpicked residential plots, villas and premium projects across India.
             </p>
             <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              Every listing below was registered by a developer and appears here the moment it's approved —
-              real inventory, real photos, verified by Truvi.
+              Project listings are submitted by developers and published after Truvi's listing review.
+              Each project shows its own information sources and verification status.
             </p>
           </Reveal>
           <Reveal delay={0.25}>
