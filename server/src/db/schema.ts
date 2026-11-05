@@ -369,6 +369,8 @@ export const DEFAULT_BUYER_PROFILE: BuyerProfile = {
 export const DEFAULT_VERIFICATION_DETAILS: VerificationDetails = {
   reraVerified: false,
   approvalVerified: false,
+  reraExemptionVerified: false,
+  reraExemptionBasis: "",
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
