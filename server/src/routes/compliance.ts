@@ -122,13 +122,12 @@ function escapeEmailHtml(value: string): string {
 async function sendGrievanceReceipt(
   email: string,
   name: string,
-  ticket: { caseNumber: string; category: string; subject: string; description: string },
+  ticket: { caseNumber: string; category: string; subject: string },
 ): Promise<boolean> {
   const safeName = escapeEmailHtml(name);
   const safeCase = escapeEmailHtml(ticket.caseNumber);
   const safeCategory = escapeEmailHtml(ticket.category.replace(/_/g, " "));
   const safeSubject = escapeEmailHtml(ticket.subject);
-  const safeDescription = escapeEmailHtml(ticket.description).replace(/\r?\n/g, "<br>");
   try {
     return await sendEmail(
       email,
@@ -138,10 +137,9 @@ async function sendGrievanceReceipt(
         "<p>Hello " + safeName + ",</p>" +
         "<p>Your grievance has been recorded and acknowledged. Keep this case number for future communication:</p>" +
         "<p style=\"font-size:18px;font-weight:bold\">" + safeCase + "</p>" +
-        "<h3>Copy of your complaint</h3>" +
         "<p><strong>Category:</strong> " + safeCategory + "</p>" +
         "<p><strong>Subject:</strong> " + safeSubject + "</p>" +
-        "<p>" + safeDescription + "</p>" +
+        "<p>For your privacy, the email receipt contains your case reference and summary only. The full complaint remains in Truvi's restricted case system for authorised review.</p>" +
         "<p>For follow-up, reply to this email or write to info@truviventures.com and mention the case number.</p>" +
         "<p>Truvi Support</p></div>",
     );
@@ -196,7 +194,6 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
     caseNumber: ticket.caseNumber,
     category: parsed.data.category,
     subject: parsed.data.subject,
-    description: parsed.data.description,
   });
   const adminNoticePromise = notifyRole("ADMIN", {
     type: "grievance_submitted",
@@ -640,7 +637,6 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
       caseNumber: ticket.caseNumber,
       category: parsed.data.category,
       subject: parsed.data.subject,
-      description: parsed.data.description,
     });
   }
   await logAudit({
