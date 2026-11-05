@@ -168,12 +168,18 @@ export default function AdminSettingsPage() {
               {tab === "gst" && (
                 <Card className="border-white/10 glass text-white">
                   <div className="flex items-center gap-2"><Landmark size={18} className="text-violet-300" /><h3 className="font-display text-lg font-semibold">GST & Tax</h3></div>
-                  <Label className="mt-4 text-foreground/90">Default GST rate (%)</Label>
-                  <Input type="number" step="1" min={0} max={100} value={s.gstPercent}
-                    onChange={(e) => setLocal({ gstPercent: Number(e.target.value) })}
-                    className="max-w-xs border-white/15 bg-card text-white" />
-                  <p className="mt-1 text-xs text-muted-foreground">Used across invoices, payments and the finance ledger. India standard is 18%.</p>
-                  <Button className="mt-5" disabled={saving} onClick={() => save({ gstPercent: s.gstPercent })}>{saving ? "Saving…" : "Save GST"}</Button>
+                  <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
+                    <p className="text-sm font-medium text-amber-200">Tax collection is controlled by verified server configuration</p>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      This legacy admin setting does not enable GST collection. Checkout GST is disabled unless the
+                      server has GST_REGISTERED=true, a valid business GSTIN and a CA-approved GST_PERCENT. Do not
+                      configure a rate until your registration, service classification and applicable rate have been
+                      confirmed by your CA.
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Stored finance setting: {s.gstPercent}% (not used to activate checkout tax).
+                    </p>
+                  </div>
                 </Card>
               )}
 
