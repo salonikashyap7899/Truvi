@@ -340,6 +340,12 @@ router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequ
   const env = getEnv();
   const basePaise = plan.pricePaise;
   const gstPaise = withGst(basePaise, env.gstPercent) - basePaise;
+  const expectedProviderAmount = basePaise + gstPaise;
+  if (mapping.amountPaise !== expectedProviderAmount) {
+    return res.status(409).json({
+      error: "The recurring payment plan does not match Truvi's current approved price and tax configuration. An administrator must refresh the Razorpay plan mapping before new subscriptions can start.",
+    });
+  }
 
   const [row] = await db
     .insert(subscriptions)
