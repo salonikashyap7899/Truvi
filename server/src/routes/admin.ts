@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import { sanitizeUserForClient } from "../lib/sanitizeUser";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -1517,29 +1518,10 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
       ...(existing.verificationDetails ?? {}),
       ...(data.verificationDetails ?? {}),
     } as VerificationDetails;
-    const authority = existing.approvalAuthority ?? "RERA";
-    const hasReference = Boolean(existing.reraNumber?.trim());
-    const hasSourceAndDate = Boolean(verification.verificationSource?.trim() && verification.lastVerifiedAt);
-    const reraRegistrationChecked =
-      authority === "RERA" &&
-      existing.reraStatus === "REGISTERED" &&
-      hasReference &&
-      verification.reraVerified === true &&
-      hasSourceAndDate;
-    const exemptionReviewed =
-      verification.reraExemptionVerified === true &&
-      Boolean(verification.reraExemptionBasis?.trim()) &&
-      hasSourceAndDate;
-    const otherAuthorityChecked =
-      authority !== "RERA" &&
-      hasReference &&
-      verification.approvalVerified === true &&
-      exemptionReviewed;
-    const reraExemptionOnlyChecked =
-      authority === "RERA" &&
-      existing.reraStatus === "NOT_REGISTERED" &&
-      exemptionReviewed;
-    const approvalChecked = reraRegistrationChecked || otherAuthorityChecked || reraExemptionOnlyChecked;
+    const approvalChecked = isApprovalEvidenceVerified({
+      ...existing,
+      verificationDetails: verification,
+    });
     if (!approvalChecked) {
       return res.status(400).json({
         error: "This listing cannot be marked Truvi Verified until its RERA registration is checked, or its applicable planning approval and RERA applicability/exemption evidence are both reviewed. Record the source and review date.",
