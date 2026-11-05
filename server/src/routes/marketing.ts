@@ -262,7 +262,7 @@ adminRouter.get("/dashboard/:userId", async (req, res) => {
   res.json(data);
 });
 
-// ── Direct / offline payments (GST charged, never bypassed) ────────────────
+// ── Direct / offline payments (only apply tax when server-side GST configuration permits) ──
 const paymentSchema = z.object({
   userId: z.string(),
   partnerName: z.string().min(1),
@@ -270,8 +270,7 @@ const paymentSchema = z.object({
   partnerPhone: z.string().optional(),
   packageName: z.string().optional(),
   amountRupees: z.number().nonnegative(),
-  gstPercent: z.number().nonnegative().optional(),
-  method: z.enum(["CASH", "BANK_TRANSFER", "UPI", "CHEQUE", "CARD", "OTHER"]).optional(),
+   method: z.enum(["CASH", "BANK_TRANSFER", "UPI", "CHEQUE", "CARD", "OTHER"]).optional(),
   reference: z.string().optional(),
   status: z.enum(["PENDING", "VERIFIED", "FAILED", "REFUNDED"]).optional(),
   paidAt: z.string().optional(),
@@ -307,7 +306,7 @@ adminRouter.post("/payments", async (req: AuthedRequest, res) => {
 
   const env = getEnv();
   const basePaise = rupeesToPaise(parsed.data.amountRupees);
-  const gstPercent = parsed.data.gstPercent != null ? parsed.data.gstPercent : env.gstPercent;
+  const gstPercent = env.gstPercent;
   const gstPaise = withGst(basePaise, gstPercent) - basePaise;
   const totalPaise = basePaise + gstPaise;
 
@@ -354,7 +353,7 @@ adminRouter.post("/payments", async (req: AuthedRequest, res) => {
   void notifyUser(parsed.data.userId, {
     type: NotificationType.MARKETING_PAYMENT_RECORDED,
     title: "Marketing payment recorded",
-    message: `A payment of ₹${(totalPaise / 100).toLocaleString("en-IN")} (incl. GST) has been recorded on your account.`,
+    message: `A payment of ₹${(totalPaise / 100).toLocaleString("en-IN")} has been recorded on your account.${gstPaise > 0 ? " Applicable GST is included." : ""}`,
     data: { href: "/marketing" },
     dedupeKey: `mkt-pay:${row._id}`,
   });
