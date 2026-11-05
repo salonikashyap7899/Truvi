@@ -299,7 +299,7 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
       <textarea className={`${field} mt-3`} rows={3} placeholder="Anything specific you're looking for? (optional)" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
       <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-white/60">
         <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
-        <span>I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to my project enquiry and arrange the requested callback/site visit. This is not consent to unrelated marketing messages. *</span>
+        <span>I consent to Truvi using these details for the specific project enquiry and to arrange the callback/site visit I requested. I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
       </label>
       {soldOut && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">This project is currently sold out. You can still contact our team for project information.</p>}
       <button type="submit" disabled={busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
@@ -366,7 +366,7 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
           <input className={field} placeholder="Mobile number*" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <label className="flex items-start gap-2 text-xs leading-relaxed text-white/60">
             <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
-            <span>I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to this callback request. This is not consent to unrelated marketing messages. *</span>
+            <span>I consent to Truvi using these details solely to respond to this callback request. I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
           </label>
           <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Sending…" : "Request a callback"}
