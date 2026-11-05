@@ -1475,6 +1475,7 @@ const verificationDetailsSchema = z.object({
   reraVerified: z.boolean().optional(),
   approvalVerified: z.boolean().optional(),
   reraExemptionVerified: z.boolean().optional(),
+  reraExemptionBasis: z.string().trim().max(1500).optional(),
   titleClearance: z.boolean().optional(),
   encumbranceFree: z.boolean().optional(),
   constructionApproval: z.boolean().optional(),
@@ -1525,7 +1526,10 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
       hasReference &&
       verification.reraVerified === true &&
       hasSourceAndDate;
-    const exemptionReviewed = verification.reraExemptionVerified === true && hasSourceAndDate;
+    const exemptionReviewed =
+      verification.reraExemptionVerified === true &&
+      Boolean(verification.reraExemptionBasis?.trim()) &&
+      hasSourceAndDate;
     const otherAuthorityChecked =
       authority !== "RERA" &&
       hasReference &&
