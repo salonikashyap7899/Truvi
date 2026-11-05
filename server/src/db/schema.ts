@@ -232,7 +232,10 @@ export interface BuyerProfile {
 }
 
 export interface VerificationDetails {
+  /** RERA number checked against the relevant official RERA register by an admin. */
   reraVerified: boolean;
+  /** Non-RERA planning / layout approval checked against its issuing authority. */
+  approvalVerified: boolean;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
@@ -361,6 +364,7 @@ export const DEFAULT_BUYER_PROFILE: BuyerProfile = {
 
 export const DEFAULT_VERIFICATION_DETAILS: VerificationDetails = {
   reraVerified: false,
+  approvalVerified: false,
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
