@@ -1533,7 +1533,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
       exemptionReviewed;
     const reraExemptionOnlyChecked =
       authority === "RERA" &&
-      existing.reraStatus !== "REGISTERED" &&
+      existing.reraStatus === "NOT_REGISTERED" &&
       exemptionReviewed;
     const approvalChecked = reraRegistrationChecked || otherAuthorityChecked || reraExemptionOnlyChecked;
     if (!approvalChecked) {
