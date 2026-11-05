@@ -218,7 +218,7 @@ function MiniCard({ project, showPrime }: { project: Project; showPrime?: boolea
         )}
         {showPrime && project.isPrimeListing && (
           <span className="absolute left-1.5 top-1.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-1.5 py-0.5 text-[8px] font-bold text-black">
-            <Star size={7} className="mr-0.5 inline" fill="currentColor" />SPONSORED
+            <Star size={7} className="mr-0.5 inline" fill="currentColor" />PRIME
           </span>
         )}
         {project.isVerified && (
