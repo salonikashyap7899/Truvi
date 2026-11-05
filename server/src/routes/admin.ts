@@ -1510,6 +1510,23 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.approvalStatus) update.approvalStatus = data.approvalStatus;
   if (data.listingTier) update.listingTier = data.listingTier;
   if (data.featuredUntil !== undefined) update.featuredUntil = data.featuredUntil ? new Date(data.featuredUntil) : null;
+  if (data.isVerified === true) {
+    const verification = {
+      ...(existing.verificationDetails ?? {}),
+      ...(data.verificationDetails ?? {}),
+    } as VerificationDetails;
+    const authority = existing.approvalAuthority ?? "RERA";
+    const hasReference = Boolean(existing.reraNumber?.trim());
+    const hasSourceAndDate = Boolean(verification.verificationSource?.trim() && verification.lastVerifiedAt);
+    const approvalChecked = authority === "RERA"
+      ? existing.reraStatus === "REGISTERED" && hasReference && verification.reraVerified === true && hasSourceAndDate
+      : hasReference && verification.approvalVerified === true && hasSourceAndDate;
+    if (!approvalChecked) {
+      return res.status(400).json({
+        error: "This listing cannot be marked Truvi Verified until its RERA registration or applicable planning approval has been independently checked and the source and review date are recorded.",
+      });
+    }
+  }
   if (data.isVerified !== undefined) {
     update.isVerified = data.isVerified;
     update.verifiedAt = data.isVerified ? new Date() : null;
