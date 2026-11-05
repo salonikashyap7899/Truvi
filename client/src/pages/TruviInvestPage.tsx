@@ -286,7 +286,7 @@ export default function TruviInvestPage() {
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                       {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Verified</span>}
                       {o.reraNumber && <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300"><ShieldCheck size={11} /> RERA</span>}
-                      {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Prime</span>}
+                      {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Sponsored</span>}
                     </div>
 
                     <div className="mt-4 flex gap-2 pt-1">
