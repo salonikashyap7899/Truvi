@@ -182,7 +182,9 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
       (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed)
     : hasApprovalNumber && project.verificationDetails?.approvalVerified === true && exemptionReviewed;
   const approvalSource: SourceLabel = authorityVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED";
-  const isReraRegistered = approvalAuthority === "RERA" && authorityVerified;
+  const isReraRegistered = approvalAuthority === "RERA" && project.reraStatus === "REGISTERED" &&
+    hasApprovalNumber && project.verificationDetails?.reraVerified === true && hasVerificationRecord;
+  const reraExemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && hasVerificationRecord;
   const projectIndependentlyVerified = project.isVerified === true && authorityVerified;
 
   const facts: Record<string, FactValue> = {
@@ -199,7 +201,20 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
     floodRiskLevel: { value: project.floodRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     crimeIndexLevel: { value: project.crimeIndexLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     approvalAuthority: { value: approvalAuthority, source: "BUILDER_SUBMITTED" },
-    approvalVerificationStatus: { value: authorityVerified ? "CHECKED_BY_TRUVI" : "DEVELOPER_SUBMITTED_NOT_VERIFIED", source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    approvalVerificationStatus: {
+      value: isReraRegistered
+        ? "RERA_REGISTRATION_CHECKED"
+        : approvalAuthority === "RERA" && reraExemptionReviewed
+          ? "RERA_APPLICABILITY_OR_EXEMPTION_REVIEWED"
+          : authorityVerified ? "PLANNING_APPROVAL_AND_RERA_APPLICABILITY_REVIEWED" : "DEVELOPER_SUBMITTED_NOT_VERIFIED",
+      source: approvalSource,
+      ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}),
+    },
+    reraApplicabilityAssessment: {
+      value: reraExemptionReviewed ? "REVIEWED_BY_TRUVI_NOT_A_GOVERNMENT_CERTIFICATE" : "NOT_INDEPENDENTLY_REVIEWED",
+      source: reraExemptionReviewed ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED",
+      ...(reraExemptionReviewed && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}),
+    },
     reraStatus: { value: project.reraStatus ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
     reraNumber: { value: project.reraNumber ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
     reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
