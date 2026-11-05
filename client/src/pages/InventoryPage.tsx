@@ -455,11 +455,6 @@ function ListingCard({
                 <Star size={9} fill="currentColor" /> Prime
               </span>
             )}
-            {project.reraNumber && (
-              <span className="inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
-                {project.approvalAuthority === "RERA" || !project.approvalAuthority ? "Developer-submitted RERA ref" : "Developer-submitted approval ref"}
-              </span>
-            )}
           </div>
 
           {/* Shortlist heart */}
