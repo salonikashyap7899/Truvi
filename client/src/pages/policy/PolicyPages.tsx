@@ -418,6 +418,13 @@ export function PrivacyPolicyPage() {
         Support Centre</strong>, or contact <strong>info@truviventures.com</strong>. Truvi may need to verify
         your identity before acting on a request and may ask for clarification.
       </p>
+      <p>
+        India's Digital Personal Data Protection Act, 2023 and the 2025 Rules have notified phased commencement.
+        Certain provisions commence on 13 November 2026 and the principal processing obligations are scheduled
+        to commence on 13 May 2027. This notice describes Truvi's current product data flows; it is not a claim
+        that every future statutory requirement has already commenced or that a policy alone fulfils operational
+        duties. Truvi will update its systems, notices and processes as the relevant provisions become effective.
+      </p>
 
       <h2>15. Account deletion and restoration by email</h2>
       <p>
@@ -447,9 +454,12 @@ export function PrivacyPolicyPage() {
 
       <h2>16. Grievances and privacy support</h2>
       <p>
-        You can submit a grievance and track its case number, status and customer-visible response in Privacy
-        & Support Centre. You may also write to <strong>info@truviventures.com</strong>. Internal handling notes
-        are restricted to authorised administrators and are not displayed as public case responses.
+        You can submit a general complaint without signing in through the <Link to="/grievance" className="text-sky-300 underline">public grievance form</Link>
+        and receive a case reference. Signed-in users can also submit and track privacy requests and account-linked
+        grievances in the Privacy &amp; Support Centre. You may alternatively write to <strong>info@truviventures.com</strong>.
+        Internal handling notes are restricted to authorised administrators and are not displayed as public case responses.
+        Truvi will acknowledge and redress complaints within the timelines that apply to its legally confirmed
+        e-commerce / intermediary classification.
       </p>
 
       <h2>17. Children</h2>
