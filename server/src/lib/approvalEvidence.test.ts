@@ -34,6 +34,30 @@ describe("project approval evidence", () => {
     expect(isApprovalEvidenceVerified({ ...base, reraValidityDate: "2026-11-04T00:00:00.000Z" }, now)).toBe(false);
   });
 
+  it("allows a documented RERA non-applicability review without calling it a registration", () => {
+    expect(isApprovalEvidenceVerified({
+      ...base,
+      reraStatus: "NOT_REGISTERED",
+      reraNumber: null,
+      verificationDetails: {
+        ...base.verificationDetails,
+        reraVerified: false,
+        reraExemptionVerified: true,
+        reraExemptionBasis: "Documented statutory exemption reviewed against official records",
+      },
+    }, now)).toBe(true);
+    expect(isApprovalEvidenceVerified({
+      ...base,
+      reraStatus: "NOT_REGISTERED",
+      reraNumber: null,
+      verificationDetails: {
+        ...base.verificationDetails,
+        reraExemptionVerified: true,
+        reraExemptionBasis: "",
+      },
+    }, now)).toBe(false);
+  });
+
   it("does not treat non-RERA planning approval as a RERA registration", () => {
     expect(isApprovalEvidenceVerified({
       ...base,
