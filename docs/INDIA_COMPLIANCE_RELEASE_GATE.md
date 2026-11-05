@@ -51,6 +51,8 @@ GST_PERCENT=
 
 Only change these after written CA confirmation. `GSTIN` must be the registered supplier's valid GSTIN; `GST_PERCENT` must be the CA-approved rate for every service that uses this global configuration. If rates differ by service or transaction type, do not use one global percentage—implement and test a service-wise tax matrix first. Existing Razorpay recurring plan mappings may need to be refreshed after an approved amount/tax change; the new subscription route blocks a mismatch, and the plan-refresh script creates a new Razorpay plan rather than modifying existing active subscriptions.
 
+Habitat commission tax now uses the same server-side `getEnv().gstPercent` value for new payment orders. The Habitat admin screen displays the effective rate read-only; an administrator cannot set a separate commission tax percentage. Legacy `habitat_settings.commission_tax_rate_bps` values are ignored for new payment calculations, while existing booking/payment snapshots remain historical records and must not be rewritten. Marketing payment migrations set the default GST rate to 0 for new rows and update the column default without changing historical payment amounts.
+
 ## Legal and business decisions that code cannot make
 
 1. **Operating model:** obtain a written legal classification for Truvi's own plot/villa sales, third-party developer listings, buyer leads, CP/ambassador referrals, and any transaction facilitation. The RERA promoter, real-estate-agent and platform obligations differ.
