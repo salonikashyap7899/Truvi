@@ -526,7 +526,7 @@ export default function ProjectLandingPage() {
     {
       q: "Is this project approved / RERA registered?",
       a: approvalAuthority === "RERA"
-        ? approvalIndependentlyVerified
+        ? project.reraStatus === "REGISTERED" && approvalIndependentlyVerified
           ? `Truvi has checked the supplied RERA registration details against the recorded source ${project.verificationDetails?.verificationSource}. Registration number: ${project.reraNumber}. You should still confirm the project's exact phase, current status and disclosures on the official State RERA portal before booking.`
           : reraExemptionReviewed
             ? `Truvi has reviewed evidence concerning the project's RERA applicability / exemption assessment from ${project.verificationDetails?.verificationSource}. This is not a RERA registration or a legal opinion. Confirm the exemption basis and all planning approvals with the competent authority and a qualified professional before paying or signing.`
