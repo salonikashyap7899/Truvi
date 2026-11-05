@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Lock, Loader2 } from "lucide-react";
@@ -29,7 +29,23 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
   const [coupon, setCoupon] = useState("");
   const [couponBusy, setCouponBusy] = useState(false);
   const [applied, setApplied] = useState<{ code: string; discountPaise: number; finalBasePaise: number; label: string } | null>(null);
+  const [gstPercent, setGstPercent] = useState(0);
 
+  useEffect(() => {
+    let active = true;
+    api.get("/payments/config")
+      .then(({ data }) => {
+        if (active && Number.isFinite(Number(data.gstPercent))) {
+          setGstPercent(Math.max(0, Math.min(100, Number(data.gstPercent))));
+        }
+      })
+      .catch(() => {
+        if (active) setGstPercent(0);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const taxLabel = gstPercent > 0 ? `+ ${gstPercent}% GST` : "No GST added to this checkout";
   const isSub = config.kind === "subscription";
   const activePlanId = isSub && cycle === "yearly" && config.yearlyPlanId ? config.yearlyPlanId : config.planId;
   const activePrice = isSub && cycle === "yearly" && config.yearlyPrice ? config.yearlyPrice : config.priceLabel;
@@ -143,7 +159,7 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
               <p className="mt-0.5 text-sm text-[var(--trust)]">
                 {activePrice}
                 {isSub && <span className="text-muted-foreground">/{cycle === "yearly" ? "year" : "month"}</span>}{" "}
-                <span className="text-muted-foreground">+ 18% GST</span>
+                <span className="text-muted-foreground">{taxLabel}</span>
               </p>
             </div>
             <button onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-full border border-white/15 text-foreground/80 hover:bg-white/10">
@@ -208,7 +224,7 @@ export default function CheckoutModal({ config, onClose }: { config: CheckoutCon
               <p className="text-right text-sm text-foreground/80">
                 <span className="text-muted-foreground line-through">{activePrice}</span>{" "}
                 <span className="font-semibold text-emerald-300">{inr(applied.finalBasePaise)}</span>
-                <span className="text-muted-foreground"> + 18% GST</span>
+                <span className="text-muted-foreground"> {taxLabel}</span>
               </p>
             )}
 
