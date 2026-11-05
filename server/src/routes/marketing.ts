@@ -6,8 +6,8 @@
  *   • adminRouter → `/api/admin/marketing` (admin/founder management)
  *
  * The module is fully self-contained: it never touches the Developer pricing
- * catalog, `payments`, or `subscriptions`. GST on direct/offline payments is
- * charged on top of the base amount and stored explicitly — never bypassed.
+ * catalog, `payments`, or `subscriptions`. Tax is applied only when the
+ * server has a validated GST registration and CA-approved configured rate.
  */
 import { Router } from "express";
 import { z } from "zod";
@@ -270,7 +270,7 @@ const paymentSchema = z.object({
   partnerPhone: z.string().optional(),
   packageName: z.string().optional(),
   amountRupees: z.number().nonnegative(),
-   method: z.enum(["CASH", "BANK_TRANSFER", "UPI", "CHEQUE", "CARD", "OTHER"]).optional(),
+  method: z.enum(["CASH", "BANK_TRANSFER", "UPI", "CHEQUE", "CARD", "OTHER"]).optional(),
   reference: z.string().optional(),
   status: z.enum(["PENDING", "VERIFIED", "FAILED", "REFUNDED"]).optional(),
   paidAt: z.string().optional(),
