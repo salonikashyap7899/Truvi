@@ -238,6 +238,8 @@ export interface VerificationDetails {
   approvalVerified: boolean;
   /** Evidence that RERA applicability was assessed and an exemption / non-applicability basis reviewed. */
   reraExemptionVerified: boolean;
+  /** Specific statutory basis / document reference for the RERA applicability assessment. */
+  reraExemptionBasis?: string;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
