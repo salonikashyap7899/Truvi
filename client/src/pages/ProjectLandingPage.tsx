@@ -9,7 +9,6 @@ import {
   Calculator, ChevronDown, Ruler, Route, Gauge,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { POLICY_VERSIONS } from "@/lib/compliance";
 import { formatProjectLocation } from "@/lib/projectLocation";
 import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { toast } from "sonner";
@@ -257,12 +256,12 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
       form.budget && `Budget: ${form.budget}`,
       form.visitDate && `Preferred site-visit date: ${form.visitDate}`,
       form.message && `Message: ${form.message}`,
-      `Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for this project enquiry and callback.`,
     ].filter(Boolean).join("\n");
     try {
       await api.post("/enquiries/lead", {
         name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || undefined,
         projectId, projectName, message: extras || undefined,
+        privacyNoticeAcknowledged: true,
       });
       setDone(true);
       markLeadDone(projectId);
@@ -336,7 +335,8 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
       await api.post("/enquiries/lead", {
         name: form.name.trim(), phone: form.phone.trim(),
         projectId, projectName,
-        message: `Quick enquiry from the landing page. Privacy notice ${POLICY_VERSIONS.PRIVACY_NOTICE} acknowledged at ${new Date().toISOString()} for this callback request.`,
+        message: "Quick enquiry from the landing page",
+        privacyNoticeAcknowledged: true,
       });
       markLeadDone(projectId);
       toast.success("Thank you! Our team will call you shortly.");
