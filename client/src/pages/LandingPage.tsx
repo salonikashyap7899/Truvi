@@ -872,8 +872,8 @@ function LiveProjectsShowcase() {
                   </div>
                 )}
                 <div className="absolute left-3 top-3 flex gap-1.5">
-                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
-                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
+                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">Approval checked</span>}
+                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Sponsored</span>}
                 </div>
                 {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
               </div>
