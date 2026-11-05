@@ -183,11 +183,15 @@ export function PrivacyPolicyPage() {
             ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
             ["GSTIN (if registered)", legalDisclosure.gstin],
             ["Branch addresses (if any)", legalDisclosure.branchAddresses],
-            ["Customer care phone", legalDisclosure.customerCarePhone],
+            ["Website", "https://truviventures.com"],
+            ["Customer care email", SUPPORT_EMAIL],
+            ["Customer care mobile", legalDisclosure.customerCarePhone],
+            ["Customer care landline", legalDisclosure.customerCareLandline],
             ["Grievance Officer name", legalDisclosure.grievanceOfficerName],
             ["Grievance Officer designation", legalDisclosure.grievanceOfficerDesignation],
             ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
-            ["Grievance Officer phone", legalDisclosure.grievanceOfficerPhone],
+            ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
+            ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
             ["UP RERA agent registration (where required)", legalDisclosure.upReraAgentRegistration],
           ] as Array<[string, string | null]>).map(([label, value]) => (
             <div key={label}>
