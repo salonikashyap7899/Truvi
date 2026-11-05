@@ -157,7 +157,7 @@ async function seed() {
         approvalStatus: "APPROVED",
         emailVerified: true,
         phone: randomPhone(),
-        developerProfile: { companyName: d.company, reraNumber: `RERA-${Math.floor(100000 + Math.random() * 899999)}` },
+        developerProfile: { companyName: d.company },
       })
       .returning();
     developers.push(user);
@@ -216,14 +216,14 @@ async function seed() {
           : `${pick(["Emerald", "Sapphire", "Crest", "Meridian", "Solace"])} ${pick(["Heights", "Residency", "Enclave", "Towers"])}`,
         description: isPrime
           ? "A premium plotted township at Kasmandi, Lucknow — residential plots, premium villas, farmhouses, a central park with water bodies, clubhouse and sports facilities. Explore the full master plan in 3D."
-          : "A thoughtfully designed residential development with modern amenities, verified RERA compliance, and flexible unit configurations.",
+          : "A sample residential development with modern amenities and flexible unit configurations. Registration and approval details must be verified with the competent authority.",
         city: cityInfo.city,
         location,
         masterPlanUrl: isPrime ? "/masterplans/prime-estate-kasmandi.jpg" : null,
         // Satellite embed of the real locality so "View in 3D" works out of
         // the box; admins replace this with a Matterport/Sketchfab link.
         threeDModelUrl: `https://maps.google.com/maps?q=${encodeURIComponent(`${location}, ${cityInfo.city}`)}&t=k&z=17&output=embed`,
-        reraNumber: `RERA-${Math.floor(100000 + Math.random() * 899999)}`,
+        reraNumber: null,
         approvalStatus: "APPROVED",
         listingTier: i === 0 ? "FEATURED" : "STANDARD",
         featuredUntil: i === 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
