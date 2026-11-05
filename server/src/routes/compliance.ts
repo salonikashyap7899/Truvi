@@ -253,7 +253,6 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
       acknowledgedAt: grievanceTickets.acknowledgedAt,
       acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
       responseDueAt: grievanceTickets.responseDueAt,
-      acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
     });
     if (acknowledgedTicket) recordedTicket = acknowledgedTicket;
   }
