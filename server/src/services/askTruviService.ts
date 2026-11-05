@@ -173,6 +173,14 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
   const available = unitRows.filter((u) => u.status === "AVAILABLE").length;
   const types = [...new Set(unitRows.map((u) => u.type))];
   const verifiedDate = fmtDate(project.verifiedAt) ?? fmtDate(project.createdAt);
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
+  const hasApprovalNumber = Boolean(project.reraNumber?.trim());
+  const hasVerificationRecord = Boolean(project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt);
+  const authorityVerified = approvalAuthority === "RERA"
+    ? project.reraStatus === "REGISTERED" && hasApprovalNumber && project.verificationDetails?.reraVerified === true && hasVerificationRecord
+    : hasApprovalNumber && project.verificationDetails?.approvalVerified === true && hasVerificationRecord;
+  const approvalSource: SourceLabel = authorityVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED";
+  const isReraRegistered = approvalAuthority === "RERA" && authorityVerified;
 
   const facts: Record<string, FactValue> = {
     city: { value: project.city, source: "BUILDER_SUBMITTED" },
@@ -183,9 +191,11 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
     legalRiskLevel: { value: project.legalRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     floodRiskLevel: { value: project.floodRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     crimeIndexLevel: { value: project.crimeIndexLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
-    reraStatus: { value: project.reraStatus ?? null, source: "PUBLIC_RECORD" },
-    reraNumber: { value: project.reraNumber ?? null, source: "PUBLIC_RECORD" },
-    reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: "PUBLIC_RECORD" },
+    approvalAuthority: { value: approvalAuthority, source: "BUILDER_SUBMITTED" },
+    approvalVerificationStatus: { value: authorityVerified ? "CHECKED_BY_TRUVI" : "DEVELOPER_SUBMITTED_NOT_VERIFIED", source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    reraStatus: { value: project.reraStatus ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    reraNumber: { value: project.reraNumber ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
     unitTypes: { value: types.join(", ") || null, source: "BUILDER_SUBMITTED" },
     priceMin: { value: prices.length ? Math.min(...prices) : null, source: "BUILDER_SUBMITTED" },
     priceMax: { value: prices.length ? Math.max(...prices) : null, source: "BUILDER_SUBMITTED" },
@@ -300,7 +310,11 @@ async function buildCatalog(): Promise<CatalogItem[]> {
       projectType: p.projectType ?? null,
       isVerified: !!p.isVerified,
       trustScore: p.trustScore ?? null,
-      rera: !!p.reraNumber,
+      rera: (p.approvalAuthority ?? "RERA") === "RERA" &&
+        p.reraStatus === "REGISTERED" &&
+        Boolean(p.reraNumber?.trim()) &&
+        p.verificationDetails?.reraVerified === true &&
+        Boolean(p.verificationDetails?.verificationSource?.trim() && p.verificationDetails?.lastVerifiedAt),
       priceMin: num(a?.min),
       priceMax: num(a?.max),
       availableUnits: Number(a?.avail ?? 0),
