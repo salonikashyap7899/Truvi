@@ -11,6 +11,8 @@ export const legalDisclosure = {
   legalEntityName: clean(import.meta.env.VITE_LEGAL_ENTITY_NAME),
   registeredOfficeAddress: clean(import.meta.env.VITE_REGISTERED_OFFICE_ADDRESS),
   cinOrLlpNumber: clean(import.meta.env.VITE_COMPANY_CIN_OR_LLPIN),
+  gstin: clean(import.meta.env.VITE_COMPANY_GSTIN),
+  branchAddresses: clean(import.meta.env.VITE_COMPANY_BRANCH_ADDRESSES),
   customerCarePhone: clean(import.meta.env.VITE_CUSTOMER_CARE_PHONE),
   grievanceOfficerName: clean(import.meta.env.VITE_GRIEVANCE_OFFICER_NAME),
   grievanceOfficerDesignation: clean(import.meta.env.VITE_GRIEVANCE_OFFICER_DESIGNATION),
