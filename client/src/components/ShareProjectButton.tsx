@@ -1,6 +1,7 @@
 import { Share2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Project } from "@/types";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 
 /**
  * Share a property listing. Uses the device's native share sheet
@@ -25,7 +26,7 @@ function shareSummary(project: Project): string {
     : null;
   if (devName) lines.push(`🏗 By ${devName}`);
 
-  if (project.isVerified) lines.push(`✅ Truvi Verified`);
+  if (project.isVerified && isApprovalEvidenceVerified(project)) lines.push(`✅ Truvi approval evidence checked — review source and date on the listing`);
   if (project.reraNumber) lines.push(`📄 Developer-submitted ${project.approvalAuthority === "RERA" || !project.approvalAuthority ? "RERA" : "approval"} reference: ${project.reraNumber}`);
   if (project.minRate) lines.push(`💰 From ₹${project.minRate.toLocaleString("en-IN")}/sq ft`);
   if (typeof project.unitCount === "number" && project.unitCount > 0) {
