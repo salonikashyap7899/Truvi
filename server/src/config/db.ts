@@ -1834,6 +1834,7 @@ async function ensureSchema(db: Db): Promise<void> {
      `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
      `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "privacy_notice_acknowledged_at" timestamptz`,
     `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "acknowledged_at" timestamptz`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "acknowledgement_due_at" timestamptz`,
     `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "response_due_at" timestamptz`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "grievance_tickets_case_number_unique" ON "grievance_tickets" ("case_number")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_user_idx" ON "grievance_tickets" ("requester_user_id", "requested_at")`,
