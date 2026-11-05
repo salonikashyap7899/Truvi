@@ -9,7 +9,7 @@ import { getSubscriptionPlans, razorpayPeriod, withGst } from "../config/pricing
 /**
  * Creates a Razorpay Plan for every subscription tier (Buyer/CP/Developer Pro,
  * monthly + yearly) and stores the resulting `plan_id` in the
- * `subscription_plans` table. The plan amount includes GST.
+ * `subscription_plans` table. The amount includes only tax configured after CA review.
  *
  * Idempotent: a plan that already has a stored razorpay_plan_id is skipped
  * (Razorpay plans can't be deleted, so we never recreate them).
@@ -33,10 +33,10 @@ async function run() {
       continue;
     }
 
-    const amount = withGst(plan.pricePaise, env.gstPercent); // incl. GST, paise
+    const amount = withGst(plan.pricePaise, env.gstPercent); // paise, including configured tax only
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new Error(
-        `Computed a bad amount (${amount}) for ${plan.id}. Check GST_PERCENT in server/.env — it must be a plain number like 18 (no "%").`
+        `Computed a bad amount (${amount}) for ${plan.id}. Check the plan price and approved GST configuration.`
       );
     }
     const created = await rzp.plans.create({
@@ -46,7 +46,7 @@ async function run() {
         name: plan.label,
         amount, // paise
         currency: "INR",
-        description: `${plan.label} — Truvi Ventures (incl. ${env.gstPercent}% GST)`,
+        description: `${plan.label} — Truvi Ventures`,
       },
     });
 
