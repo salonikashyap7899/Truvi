@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, leads, users, projectAssets, IProject } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
@@ -109,8 +110,11 @@ router.get("/", async (req: AuthedRequest, res) => {
       buyerProfile?.compareProjectIds?.some((id) => String(id) === String(project._id)),
     );
 
+    const privilegedProjectViewer = user.role === "ADMIN" || String(project.developerId) === user.userId;
     return {
       ...withoutPrivateProjectFields(project, user, project.developerId),
+      isVerified: project.isVerified === true &&
+        (privilegedProjectViewer || isApprovalEvidenceVerified(project)),
       developerId: developer,
       unitCount: unitCountMap.get(String(project._id)) || 0,
       leadCount: leadCountMap.get(String(project._id)) || 0,
@@ -151,8 +155,14 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .where(eq(units.projectId, project._id))
     .orderBy(asc(units.unitNumber));
 
+  const privilegedProjectViewer = userRole === "ADMIN" || isOwner;
   res.json({
-    project: { ...withoutPrivateProjectFields(project, req.user, project.developerId), developerId: developer || project.developerId },
+    project: {
+      ...withoutPrivateProjectFields(project, req.user, project.developerId),
+      isVerified: project.isVerified === true &&
+        (privilegedProjectViewer || isApprovalEvidenceVerified(project)),
+      developerId: developer || project.developerId,
+    },
     units: unitRows,
   });
 });
