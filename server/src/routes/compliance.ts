@@ -206,7 +206,26 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
     priority: "high",
     dedupeKey: "grievance:" + ticket._id,
   }).catch(() => []);
-  const [emailSent] = await Promise.all([emailPromise, adminNoticePromise]);
+  const safeAdminName = escapeEmailHtml(parsed.data.name);
+  const safeAdminEmail = escapeEmailHtml(parsed.data.email);
+  const safeAdminPhone = escapeEmailHtml(parsed.data.phone || "Not provided");
+  const safeAdminSubject = escapeEmailHtml(parsed.data.subject);
+  const safeAdminDescription = escapeEmailHtml(parsed.data.description).replace(/\r?\n/g, "<br>");
+  const teamEmailPromise = sendEmail(
+    "info@truviventures.com",
+    "New Truvi grievance — " + ticket.caseNumber,
+    '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#172033">' +
+      "<h2>New public grievance received</h2>" +
+      "<p><strong>Case:</strong> " + escapeEmailHtml(ticket.caseNumber) + "</p>" +
+      "<p><strong>Name:</strong> " + safeAdminName + "</p>" +
+      "<p><strong>Email:</strong> " + safeAdminEmail + "</p>" +
+      "<p><strong>Phone:</strong> " + safeAdminPhone + "</p>" +
+      "<p><strong>Category:</strong> " + escapeEmailHtml(ticket.category.replace(/_/g, " ")) + "</p>" +
+      "<p><strong>Subject:</strong> " + safeAdminSubject + "</p>" +
+      "<p><strong>Complaint:</strong><br>" + safeAdminDescription + "</p>" +
+      "<p>Review this case in the Truvi Admin Compliance Centre.</p></div>",
+  ).catch(() => false);
+  const [emailSent] = await Promise.all([emailPromise, adminNoticePromise, teamEmailPromise]);
 
   await logAudit({
     userId: null,
