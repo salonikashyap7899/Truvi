@@ -47,12 +47,20 @@ export function getEnv() {
         record: /^(1|true|yes|on)$/i.test(String(process.env.EXOTEL_RECORD ?? "true")),
       },
     },
-    // GST added on top of every price. Configurable; India default is 18%.
-    // parseFloat tolerates values like "18%" or "18 " and we fall back to 18
-    // on anything non-numeric so a stray character can never make amounts NaN.
+    // GST is opt-in, not assumed. Do not collect GST unless management has
+    // confirmed active GST registration and supplied the registered GSTIN plus
+    // a CA-approved rate for these services. Missing/invalid configuration
+    // fails closed at 0%; do not use this single rate where service-wise rates
+    // differ — obtain a service tax matrix before enabling online collection.
+    gstin: process.env.GSTIN?.trim().toUpperCase() || "",
+    gstRegistered: /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? "")),
     gstPercent: (() => {
-      const g = parseFloat(String(process.env.GST_PERCENT ?? "18"));
-      return Number.isFinite(g) ? g : 18;
+      const registered = /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? ""));
+      const gstin = process.env.GSTIN?.trim() || "";
+      const rawRate = process.env.GST_PERCENT;
+      if (!registered || !gstin || rawRate === undefined || rawRate.trim() === "") return 0;
+      const rate = Number(rawRate.replace(/%$/, "").trim());
+      return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0;
     })(),
     // ── Developer OS test access ─────────────────────────────────────────────
     // Unlock every paid developer tool for ALL developers (staging/test deploy).
