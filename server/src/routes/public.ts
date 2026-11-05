@@ -16,7 +16,7 @@ function approvalEvidenceVerified(project: typeof projects.$inferSelect): boolea
   const hasReference = Boolean(project.reraNumber?.trim());
   const hasSourceAndDate = Boolean(evidence?.verificationSource?.trim() && evidence?.lastVerifiedAt);
   if (!hasSourceAndDate) return false;
-  const exemptionReviewed = evidence?.reraExemptionVerified === true;
+  const exemptionReviewed = evidence?.reraExemptionVerified === true && Boolean(evidence?.reraExemptionBasis?.trim());
   if (authority === "RERA") {
     return (project.reraStatus === "REGISTERED" && hasReference && evidence?.reraVerified === true) ||
       (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed);
