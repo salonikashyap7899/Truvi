@@ -9,6 +9,7 @@ export interface ReraInfo {
   reraStatus: ReraStatus;
   reraValidityDate: string | null;
   reraExemptionVerified: boolean;
+  reraExemptionBasis?: string;
   verified: boolean;
 }
 
@@ -78,6 +79,11 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
           </div>
         )}
       </dl>
+      {info.verified && info.reraExemptionVerified && info.reraExemptionBasis && (
+        <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs leading-relaxed text-muted-foreground">
+          RERA applicability / exemption basis reviewed: {info.reraExemptionBasis}
+        </p>
+      )}
     </div>
   );
 }
