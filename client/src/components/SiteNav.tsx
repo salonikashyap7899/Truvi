@@ -55,9 +55,8 @@ function WhatsAppNavIcon() {
   );
 }
 
-/** Nav links. Hash links live on the landing page — from other routes they
- *  navigate back to "/" with the hash (the landing page scrolls to it). */
-export type NavLink = { label: string; to?: string; hash?: string };
+/** Every primary navbar item points to a real route, not a homepage hash. */
+export type NavLink = { label: string; to: string };
 
 // Pricing is intentionally NOT here — it's gated behind sign-in and only shown
 // to authenticated roles (see navLinksForRole).
@@ -65,7 +64,7 @@ const NAV_LINKS: NavLink[] = [
   { label: "Intelligence", to: "/intelligence" },
   { label: "Ask Truvi", to: "/ask-truvi" },
   { label: "Inventory", to: "/inventory" },
-  { label: "For Developers", hash: "#developer-intelligence" },
+  { label: "For Developers", to: "/for-developers" },
   { label: "About", to: "/about" },
 ];
 
@@ -91,7 +90,7 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
       return [
         dash("My Tasks"),
         { label: "Inventory", to: "/inventory" },
-        { label: "For Developers", hash: "#developer-intelligence" },
+        { label: "For Developers", to: "/for-developers" },
       ];
     case "EMPLOYEE":
       // Employee links are deliberately limited to their dashboard and About.
@@ -119,7 +118,7 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
         dash("Dashboard"),
         { label: "Inventory", to: "/inventory" },
         { label: "Pricing", to: "/pricing" },
-        { label: "For Developers", hash: "#developer-intelligence" },
+        { label: "For Developers", to: "/for-developers" },
       ];
     case "ADMIN":
     case "VERIFIER":
@@ -142,24 +141,8 @@ function NavItem({
   onNavigate: () => void;
   className: string;
 }) {
-  const { pathname } = useLocation();
-  if (link.to) {
-    return (
-      <Link to={link.to} onClick={onNavigate} className={className}>
-        {link.label}
-      </Link>
-    );
-  }
-  // Hash target: plain anchor on the landing page, route + hash elsewhere
-  if (pathname === "/") {
-    return (
-      <a href={link.hash} onClick={onNavigate} className={className}>
-        {link.label}
-      </a>
-    );
-  }
   return (
-    <Link to={`/${link.hash}`} onClick={onNavigate} className={className}>
+    <Link to={link.to} onClick={onNavigate} className={className}>
       {link.label}
     </Link>
   );

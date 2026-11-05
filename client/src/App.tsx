@@ -32,6 +32,7 @@ import { TermsPage, RefundPolicyPage, PrivacyPolicyPage } from "@/pages/policy/P
 // the app opens fast; each page's code is fetched only when its route opens.
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const IntelligencePage = lazy(() => import("@/pages/IntelligencePage"));
+const ForDevelopersPage = lazy(() => import("@/pages/ForDevelopersPage"));
 const AskTruviPage = lazy(() => import("@/pages/AskTruviPage"));
 const HomePage = lazy(() => import("@/pages/HomePage"));
 const JoinPage = lazy(() => import("@/pages/JoinPage"));
@@ -345,6 +346,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/welcome" element={<WelcomeRoute />} />
         <Route path="/intelligence" element={<IntelligencePage />} />
+        <Route path="/for-developers" element={<ForDevelopersPage />} />
         <Route path="/ask-truvi" element={<AskTruviPage />} />
         <Route path="/help/meet" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "EMPLOYEE"]}><MeetPage /></ProtectedRoute>} />
         <Route path="/home" element={<HomePage />} />
