@@ -225,11 +225,13 @@ export default function ProjectDetailPage() {
       ? (project.reraStatus === "REGISTERED" && Boolean(project.reraNumber?.trim()) &&
         project.verificationDetails?.reraVerified === true ||
         project.reraStatus === "NOT_REGISTERED" &&
-        project.verificationDetails?.reraExemptionVerified === true) &&
+        project.verificationDetails?.reraExemptionVerified === true &&
+        Boolean(project.verificationDetails?.reraExemptionBasis?.trim())) &&
         hasApprovalVerificationRecord
       : Boolean(project.reraNumber?.trim()) &&
         project.verificationDetails?.approvalVerified === true &&
         project.verificationDetails?.reraExemptionVerified === true &&
+        Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) &&
         hasApprovalVerificationRecord,
   };
 
