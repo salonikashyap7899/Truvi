@@ -388,10 +388,9 @@
 }
 
 .landing-page > header > div:first-child {
-  /* Match the shared navbar's max-w-7xl width so the centered links retain
-     comfortable breathing room between the wordmark and Intelligence. */
-  width: min(calc(100% - 32px), 1280px);
-  max-width: 1280px;
+  /* Restore the compact navbar width used before the recent spacing change. */
+  width: min(calc(100% - 32px), 1048px);
+  max-width: 1048px;
   margin-left: auto;
   margin-right: auto;
 }
