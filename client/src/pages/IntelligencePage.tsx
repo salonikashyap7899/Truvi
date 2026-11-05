@@ -53,7 +53,7 @@ const PIPELINE = [
 type FieldStatus = "VERIFIED" | "PENDING" | "UNAVAILABLE";
 
 const SAMPLE_FIELDS: { label: string; status: FieldStatus }[] = [
-  { label: "RERA registration number", status: "VERIFIED" },
+  { label: "RERA registration evidence", status: "PENDING" },
   { label: "Possession timeline", status: "VERIFIED" },
   { label: "Builder litigation history", status: "PENDING" },
   { label: "Amenity list (final)", status: "PENDING" },
