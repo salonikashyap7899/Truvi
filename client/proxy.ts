@@ -3,7 +3,7 @@ import { next } from "@vercel/functions";
 const exactRoutes = new Set([
   "/", "/welcome", "/intelligence", "/ask-truvi", "/help/meet", "/home",
   "/invest", "/join", "/about", "/legal", "/pricing", "/payment-success",
-  "/payment-failed", "/terms", "/refund-policy", "/privacy", "/privacy-policy",
+  "/payment-failed", "/terms", "/refund-policy", "/privacy", "/privacy-policy", "/grievance",
   "/restore-account", "/login", "/signup", "/forgot-password", "/employee/activate",
   "/verify-email", "/unauthorized", "/inventory", "/map", "/marketing",
   "/admin", "/admin/dashboard", "/admin/users", "/admin/employees", "/admin/listings",
