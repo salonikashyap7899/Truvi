@@ -179,7 +179,8 @@ export function PrivacyPolicyPage() {
         <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
           {([
             ["Legal entity name", legalDisclosure.legalEntityName],
-            ["Registered / principal office", legalDisclosure.registeredOfficeAddress],
+            ["Registered office", legalDisclosure.registeredOfficeAddress],
+            ["Headquarters / principal address", legalDisclosure.headquartersAddress],
             ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
             ["GSTIN (if registered)", legalDisclosure.gstin],
             ["Branch addresses (if any)", legalDisclosure.branchAddresses],
