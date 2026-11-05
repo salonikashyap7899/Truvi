@@ -56,9 +56,10 @@ export function getEnv() {
     gstRegistered: /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? "")),
     gstPercent: (() => {
       const registered = /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? ""));
-      const gstin = process.env.GSTIN?.trim() || "";
+      const gstin = process.env.GSTIN?.trim().toUpperCase() || "";
+      const validIndianGstin = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin);
       const rawRate = process.env.GST_PERCENT;
-      if (!registered || !gstin || rawRate === undefined || rawRate.trim() === "") return 0;
+      if (!registered || !validIndianGstin || rawRate === undefined || rawRate.trim() === "") return 0;
       const rate = Number(rawRate.replace(/%$/, "").trim());
       return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0;
     })(),
