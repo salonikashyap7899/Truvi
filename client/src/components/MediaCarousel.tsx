@@ -71,7 +71,7 @@ export default function MediaCarousel({
               playsInline
               loop
               controls
-              preload="metadata"
+              preload={thumb ? "none" : "metadata"}
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
