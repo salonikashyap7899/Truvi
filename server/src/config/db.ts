@@ -230,6 +230,9 @@ async function ensureSchema(db: Db): Promise<void> {
     // NOT NULL on email so a lead can arrive with only name + phone.
     `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "phone" text`,
     `ALTER TABLE "enquiries" ALTER COLUMN "email" DROP NOT NULL`,
+    // Structured, server-timestamped privacy permission for public enquiry submissions.
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_acknowledged_at" timestamptz`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (
