@@ -732,8 +732,8 @@ function CountUpNum({ target }: { target: number }) {
 
 const HOMEPAGE_FEATURES = [
   {
-    title: "Verified Projects",
-    description: "Developer-registered listings with clear project details.",
+    title: "Project Listings",
+    description: "Developer-submitted listings with source-labelled project information.",
     Icon: ShieldCheck,
   },
   {
@@ -1087,8 +1087,8 @@ export default function LandingPage() {
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mx-auto mt-8 max-w-2xl text-muted-foreground md:text-lg">
-            Conversational property search and analysis — grounded in Truvi's verified data, with the
-            source and date visible on every important answer.
+            Conversational property search and analysis — grounded in available project data, with source
+            labels and review dates shown where they are recorded.
           </p>
         </Reveal>
         <Reveal delay={0.35}>
