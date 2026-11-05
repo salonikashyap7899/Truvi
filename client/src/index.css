@@ -72,9 +72,10 @@ html, body {
 .truvi-inventory-surface {
   background-color: #05070c;
   background-image:
-    radial-gradient(ellipse 82% 42% at 50% 0%, rgba(37, 99, 235, 0.20), transparent 72%),
-    radial-gradient(ellipse 48% 34% at 100% 38%, rgba(16, 185, 129, 0.075), transparent 70%),
-    linear-gradient(180deg, #080d17 0%, #05070c 58%, #05070c 100%);
+    radial-gradient(ellipse 92% 44% at 50% 0%, rgba(37, 99, 235, 0.26), transparent 72%),
+    radial-gradient(ellipse 54% 38% at 100% 34%, rgba(16, 185, 129, 0.10), transparent 72%),
+    radial-gradient(ellipse 46% 32% at 0% 58%, rgba(37, 99, 235, 0.09), transparent 74%),
+    linear-gradient(180deg, #0a1222 0%, #070c16 52%, #05070c 100%);
   background-repeat: no-repeat;
   background-size: 100% 100%;
 }
@@ -82,9 +83,9 @@ html, body {
 @media (max-width: 767px) {
   .truvi-inventory-surface {
     background-image:
-      radial-gradient(ellipse 115% 34% at 50% 0%, rgba(37, 99, 235, 0.17), transparent 72%),
-      radial-gradient(ellipse 70% 24% at 100% 36%, rgba(16, 185, 129, 0.06), transparent 70%),
-      linear-gradient(180deg, #080d17 0%, #05070c 62%, #05070c 100%);
+      radial-gradient(ellipse 112% 38% at 50% 0%, rgba(37, 99, 235, 0.22), transparent 74%),
+      radial-gradient(ellipse 72% 28% at 100% 36%, rgba(16, 185, 129, 0.075), transparent 72%),
+      linear-gradient(180deg, #0a1222 0%, #070c16 60%, #05070c 100%);
   }
 }
 

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "framer-motion";
 import { getInventory, peekInventory } from "@/lib/inventoryCache";
 import { toast } from "sonner";
 import {
@@ -429,12 +428,8 @@ function ListingCard({
     : "linear-gradient(160deg, rgba(255,255,255,0.18), rgba(59,130,246,0.18) 45%, rgba(255,255,255,0.04) 85%)";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="group relative min-w-0 rounded-[22px] p-px transition-transform duration-300 hover:-translate-y-1"
+    <div
+      className="group relative min-w-0 rounded-[22px] p-px transition-transform duration-200 hover:-translate-y-1"
       style={{ background: frame }}
     >
       <div className="overflow-hidden rounded-[21px] bg-[#0a0d14]">
@@ -590,6 +585,6 @@ function ListingCard({
           </button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
