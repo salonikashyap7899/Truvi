@@ -694,10 +694,11 @@ function Footer() {
         <div>
           <p className={head}>Legal</p>
           <div className={col}>
-            <Link to="/legal#privacy-policy" className={link}>Privacy Policy</Link>
-            <Link to="/legal#terms-of-use" className={link}>Terms of Use</Link>
-            <Link to="/legal#data-policy" className={link}>Data Policy</Link>
-            <Link to="/legal#disclaimer" className={link}>Disclaimer</Link>
+            <Link to="/privacy-policy" className={link}>Privacy Policy</Link>
+            <Link to="/terms" className={link}>Terms of Service</Link>
+            <Link to="/refund-policy" className={link}>Refund &amp; Cancellation</Link>
+            <Link to="/grievance" className={link}>File a grievance</Link>
+            <Link to="/legal" className={link}>Verification methodology</Link>
           </div>
         </div>
       </div>
