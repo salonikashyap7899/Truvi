@@ -26,7 +26,7 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
           <Link to="/pricing" className="hover:text-foreground">Pricing</Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">
-          {COMPANY} · {CITY} · <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">{SUPPORT_EMAIL}</a>
+          {COMPANY} · truviventures.com · <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">{SUPPORT_EMAIL}</a>
         </p>
       </main>
     </div>
