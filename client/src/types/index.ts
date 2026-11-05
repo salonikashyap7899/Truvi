@@ -123,6 +123,7 @@ export interface ProjectMilestone {
 
 export interface VerificationDetails {
   reraVerified: boolean;
+  approvalVerified?: boolean;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
