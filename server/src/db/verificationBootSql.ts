@@ -179,7 +179,7 @@ export const VERIFICATION_BOOT_SQL: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS kyc_data_aadhaar_hash_idx
      ON kyc_data (aadhaar_hash) WHERE aadhaar_hash IS NOT NULL`,
 
-  // CP/Ambassador identity documents (Aadhaar + PAN scans + live selfie) stored
+  // CP/Ambassador identity documents (masked ID + PAN where required + selfie) stored
   // durably in Postgres as bytea — the server disk is ephemeral, so files kept
   // there would vanish on redeploy. One row per user; admins stream each image
   // through an authenticated route. Retained after approval so an admin can
