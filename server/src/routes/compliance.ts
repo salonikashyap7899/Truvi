@@ -665,7 +665,6 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
     await sendGrievanceReceipt(requester.email, requester.name, {
       caseNumber: ticket.caseNumber,
       category: parsed.data.category,
-      subject: parsed.data.subject,
     });
   }
   await logAudit({
