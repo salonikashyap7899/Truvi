@@ -413,7 +413,7 @@
 
 .homepage-hero-title {
   max-width: 620px;
-  font-size: clamp(2.45rem, 3.8vw, 3.1rem);
+  font-size: clamp(2.3rem, 3.35vw, 2.8rem);
   line-height: 1.035;
   letter-spacing: -0.035em;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
@@ -633,7 +633,7 @@
   }
 
   .homepage-hero-title {
-    font-size: clamp(2.2rem, 9.2vw, 3rem);
+    font-size: clamp(2.05rem, 8.6vw, 2.75rem);
   }
 
   .homepage-hero-demo {
