@@ -65,7 +65,7 @@ export default function GrievancePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">Customer support</p>
         <h1 className="mt-3 font-display text-3xl font-semibold sm:text-4xl">File a grievance</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          You can submit a complaint without creating a Truvi account. We will create a case number and send a privacy-minimised acknowledgement to the email address you provide.
+          You can submit a complaint without creating a Truvi account. We will create a case number and email you an acknowledgement with a copy of your complaint.
         </p>
 
         {receipt ? (
@@ -75,7 +75,7 @@ export default function GrievancePage() {
             <p className="mt-1 break-all font-mono text-xl font-semibold">{receipt.caseNumber}</p>
             <p className="mt-3 text-sm text-muted-foreground">
               {receipt.acknowledgementEmailSent
-                ? "An acknowledgement with your case number and complaint summary was sent to your email."
+                ? "An acknowledgement with your case number and a copy of your complaint was sent to your email."
                 : "The case is recorded, but the email receipt could not be delivered. Please save your case number and contact info@truviventures.com if needed."}
             </p>
             <button type="button" onClick={() => setReceipt(null)} className="mt-5 rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-400">Submit another complaint</button>
