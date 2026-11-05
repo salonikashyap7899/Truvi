@@ -3,6 +3,7 @@ import { Router, type RequestHandler } from "express";
 import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
+import { getEnv } from "../config/env";
 import {
   habitatBookingStatusHistory,
   habitatBookings,
@@ -572,8 +573,10 @@ router.post("/bookings/:bookingId/payments/order", authenticate, requireRole("BU
     right.effectiveFrom.getTime() - left.effectiveFrom.getTime(),
   )[0];
   if (!selectedRule) return res.status(409).json({ error: "Habitat commission must be configured before payments can be accepted" });
-  const [settings] = await db.select().from(habitatSettings).where(eq(habitatSettings.singletonKey, "default")).limit(1);
-  const taxBps = settings?.commissionTaxRateBps ?? Math.round(Number(process.env.GST_PERCENT ?? 18) * 100);
+  // Habitat commission tax follows the same server-side GST configuration as
+  // other Truvi payment flows. Stored admin settings / client values cannot
+  // override the registered supplier's CA-approved rate.
+  const taxBps = Math.round(getEnv().gstPercent * 100);
   let split;
   try {
     split = calculateHabitatMoneySplit(amountPaise, selectedRule.rateBps, taxBps);
@@ -838,19 +841,20 @@ router.get("/admin/finance", authenticate, requireRole("ADMIN"), async (_req, re
       .from(habitatTransfers).groupBy(habitatTransfers.status),
     db.select().from(habitatSettings).where(eq(habitatSettings.singletonKey, "default")).limit(1),
   ]);
-  res.json({ payments, disputes, transfers, settings: settings[0] ?? null, paymentsEnabled: habitatPaymentsEnabled() });
+  const effectiveTaxBps = Math.round(getEnv().gstPercent * 100);
+  const policy = settings[0]
+    ? { ...settings[0], commissionTaxRateBps: effectiveTaxBps }
+    : { cancellationFeeBps: 2500, commissionTaxRateBps: effectiveTaxBps, autoCompleteHours: 72 };
+  res.json({ payments, disputes, transfers, settings: policy, paymentsEnabled: habitatPaymentsEnabled() });
 });
 
 router.patch("/admin/finance/settings", authenticate, requireRole("ADMIN"), async (req: AuthedRequest, res) => {
   const parsed = z.object({
     cancellationFeeBps: z.number().int().min(0).max(10_000),
-    commissionTaxRateBps: z.number().int().min(0).max(10_000).optional(),
     autoCompleteHours: z.number().int().min(1).max(720).default(72),
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid Habitat policy" });
-  const [currentSettings] = await getDb().select().from(habitatSettings)
-    .where(eq(habitatSettings.singletonKey, "default")).limit(1);
-  const commissionTaxRateBps = parsed.data.commissionTaxRateBps ?? currentSettings?.commissionTaxRateBps ?? 1800;
+  const commissionTaxRateBps = Math.round(getEnv().gstPercent * 100);
   const [settings] = await getDb().insert(habitatSettings).values({
     singletonKey: "default",
     cancellationFeeBps: parsed.data.cancellationFeeBps,
