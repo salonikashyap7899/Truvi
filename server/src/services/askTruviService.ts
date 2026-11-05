@@ -2,6 +2,7 @@ import { and, count, eq, ilike, inArray, lte, or, sql, desc, SQL } from "drizzle
 import { getDb } from "../config/db";
 import { projects, units, users, siteVisits, IProject } from "../db/schema";
 import { CATEGORY_TABLES } from "../db/verificationSchema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /* ============================================================
    Ask Truvi AI — Decision Intelligence data layer
@@ -175,16 +176,12 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
   const verifiedDate = fmtDate(project.verifiedAt) ?? fmtDate(project.createdAt);
   const approvalAuthority = project.approvalAuthority ?? "RERA";
   const hasApprovalNumber = Boolean(project.reraNumber?.trim());
-  const hasVerificationRecord = Boolean(project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt);
-  const exemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) && hasVerificationRecord;
-  const authorityVerified = approvalAuthority === "RERA"
-    ? (project.reraStatus === "REGISTERED" && hasApprovalNumber && project.verificationDetails?.reraVerified === true && hasVerificationRecord) ||
-      (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed)
-    : hasApprovalNumber && project.verificationDetails?.approvalVerified === true && exemptionReviewed;
+  const authorityVerified = isApprovalEvidenceVerified(project);
   const approvalSource: SourceLabel = authorityVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED";
-  const isReraRegistered = approvalAuthority === "RERA" && project.reraStatus === "REGISTERED" &&
-    hasApprovalNumber && project.verificationDetails?.reraVerified === true && hasVerificationRecord;
-  const reraExemptionReviewed = project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) && hasVerificationRecord;
+  const isReraRegistered = approvalAuthority === "RERA" &&
+    project.reraStatus === "REGISTERED" && authorityVerified;
+  const reraExemptionReviewed = approvalAuthority === "RERA" &&
+    project.reraStatus === "NOT_REGISTERED" && authorityVerified;
   const projectIndependentlyVerified = project.isVerified === true && authorityVerified;
 
   const facts: Record<string, FactValue> = {
