@@ -122,12 +122,13 @@ function escapeEmailHtml(value: string): string {
 async function sendGrievanceReceipt(
   email: string,
   name: string,
-  ticket: { caseNumber: string; category: string; subject: string },
+  ticket: { caseNumber: string; category: string; subject: string; description: string },
 ): Promise<boolean> {
   const safeName = escapeEmailHtml(name);
   const safeCase = escapeEmailHtml(ticket.caseNumber);
   const safeCategory = escapeEmailHtml(ticket.category.replace(/_/g, " "));
   const safeSubject = escapeEmailHtml(ticket.subject);
+  const safeDescription = escapeEmailHtml(ticket.description).replace(/\r?\n/g, "<br>");
   try {
     return await sendEmail(
       email,
@@ -139,7 +140,7 @@ async function sendGrievanceReceipt(
         "<p style=\"font-size:18px;font-weight:bold\">" + safeCase + "</p>" +
         "<p><strong>Category:</strong> " + safeCategory + "</p>" +
         "<p><strong>Subject:</strong> " + safeSubject + "</p>" +
-        "<p>For your privacy, the email receipt contains your case reference and summary only. The full complaint remains in Truvi's restricted case system for authorised review.</p>" +
+        "<p><strong>Complaint as submitted:</strong><br>" + safeDescription + "</p>" +
         "<p>For follow-up, reply to this email or write to info@truviventures.com and mention the case number.</p>" +
         "<p>Truvi Support</p></div>",
     );
@@ -161,6 +162,9 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
   }
 
   const now = new Date();
+  const acknowledgementDueAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  // Internal target is 15 calendar days; e-commerce entities covered by the
+  // Consumer Protection Rules must redress complaints within one month.
   const responseDueAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
   const caseNumber = "TRV-" + now.getTime().toString(36).toUpperCase() + "-" + randomBytes(3).toString("hex").toUpperCase();
   const [ticket] = await getDb().insert(grievanceTickets).values({
@@ -174,8 +178,9 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
     category: parsed.data.category,
     subject: parsed.data.subject,
     description: parsed.data.description,
-    status: "ACKNOWLEDGED",
-    acknowledgedAt: now,
+    status: "SUBMITTED",
+    acknowledgedAt: null,
+    acknowledgementDueAt,
     responseDueAt,
     requestedAt: now,
     updatedAt: now,
@@ -188,12 +193,14 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
     requestedAt: grievanceTickets.requestedAt,
     acknowledgedAt: grievanceTickets.acknowledgedAt,
     responseDueAt: grievanceTickets.responseDueAt,
+    acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
   });
 
   const emailPromise = sendGrievanceReceipt(parsed.data.email, parsed.data.name, {
     caseNumber: ticket.caseNumber,
     category: parsed.data.category,
     subject: parsed.data.subject,
+    description: parsed.data.description,
   });
   const adminNoticePromise = notifyRole("ADMIN", {
     type: "grievance_submitted",
@@ -224,14 +231,41 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
   ).catch(() => false);
   const [emailSent] = await Promise.all([emailPromise, adminNoticePromise, teamEmailPromise]);
 
+  // Mark acknowledged only after the email provider accepts the full complaint
+  // copy. If delivery is unconfigured or rejected, leave the case SUBMITTED so
+  // the admin queue can pick it up before the 48-hour acknowledgement target.
+  let recordedTicket = ticket;
+  if (emailSent) {
+    const [acknowledgedTicket] = await getDb().update(grievanceTickets).set({
+      status: "ACKNOWLEDGED",
+      acknowledgedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(grievanceTickets._id, ticket._id),
+      eq(grievanceTickets.status, "SUBMITTED"),
+    )).returning({
+      _id: grievanceTickets._id,
+      caseNumber: grievanceTickets.caseNumber,
+      category: grievanceTickets.category,
+      subject: grievanceTickets.subject,
+      status: grievanceTickets.status,
+      requestedAt: grievanceTickets.requestedAt,
+      acknowledgedAt: grievanceTickets.acknowledgedAt,
+      acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
+      responseDueAt: grievanceTickets.responseDueAt,
+      acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
+    });
+    if (acknowledgedTicket) recordedTicket = acknowledgedTicket;
+  }
+
   await logAudit({
     userId: null,
     action: "compliance.grievance.submit_public",
     resourceType: "grievance_ticket",
     resourceId: ticket._id,
-    metadata: { caseNumber: ticket.caseNumber, category: ticket.category, channel: "PUBLIC_FORM" },
+    metadata: { caseNumber: ticket.caseNumber, category: ticket.category, channel: "PUBLIC_FORM", acknowledgementAcceptedByProvider: emailSent },
   });
-  return res.status(201).json({ ticket, acknowledgementEmailSent: emailSent });
+  return res.status(201).json({ ticket: recordedTicket, acknowledgementEmailSent: emailSent });
 });
 
 router.use(authenticate);
@@ -608,6 +642,7 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
     description: parsed.data.description,
     status: "ACKNOWLEDGED",
     acknowledgedAt: now,
+    acknowledgementDueAt: now,
     responseDueAt,
     requestedAt: now,
     updatedAt: now,
@@ -737,6 +772,7 @@ router.patch("/admin/grievances/:id", requireRole("ADMIN"), adminLimiter, async 
     publicResponse: parsed.data.publicResponse ?? current.publicResponse,
     internalNotes,
     reviewerUserId: req.user!.userId,
+    acknowledgedAt: current.acknowledgedAt ?? (nextStatus === "SUBMITTED" ? null : now),
     updatedAt: now,
     resolvedAt: nextStatus === "RESOLVED" || nextStatus === "CLOSED" ? (current.resolvedAt ?? now) : null,
   }).where(and(eq(grievanceTickets._id, id), eq(grievanceTickets.status, current.status))).returning();
