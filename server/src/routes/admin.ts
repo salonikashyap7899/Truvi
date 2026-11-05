@@ -1473,6 +1473,7 @@ router.get("/projects", requireRole("ADMIN"), async (req, res) => {
 
 const verificationDetailsSchema = z.object({
   reraVerified: z.boolean().optional(),
+  approvalVerified: z.boolean().optional(),
   titleClearance: z.boolean().optional(),
   encumbranceFree: z.boolean().optional(),
   constructionApproval: z.boolean().optional(),
