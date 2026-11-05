@@ -41,9 +41,9 @@ export default function HomePage() {
         <div className="mx-auto mt-10 grid max-w-4xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { title: "Developers", desc: "List projects, manage live inventory, track CP performance and revenue." },
-            { title: "Channel Partners", desc: "Discover verified projects, submit leads, track every rupee of commission." },
+            { title: "Channel Partners", desc: "Explore project listings, submit leads and track commission records." },
             { title: "Investors", desc: "Coming soon — portfolio visibility across Truvi-listed developments." },
-            { title: "Buyers", desc: "Coming soon — a transparent, verified way to explore new projects." },
+            { title: "Buyers", desc: "Explore property information, compare project details and contact representatives." },
           ].map((card) => (
             <div key={card.title} className="rounded-xl border border-white/10 glass p-6">
               <h3 className="font-display text-lg font-semibold">{card.title}</h3>
