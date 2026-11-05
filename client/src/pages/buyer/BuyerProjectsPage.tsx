@@ -115,7 +115,7 @@ function ProjectCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             {project.listingTier === "FEATURED" && (
-              <Badge variant="featured">Featured</Badge>
+              <Badge variant="featured">Featured placement</Badge>
             )}
             <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
               {project.approvalStatus}
@@ -123,7 +123,7 @@ function ProjectCard({
             {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-2 py-0.5 text-[9px]" />}
             {project.isVerified && (
               <span className="inline-flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-400 border border-green-800">
-                ✓ Verified
+                ✓ Approval evidence checked
               </span>
             )}
           </div>
