@@ -488,7 +488,17 @@ export default function ProjectLandingPage() {
   const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
   const possession = fmtPossession(project.possessionDate);
   const typeLabel = project.projectType ? (PROJECT_TYPE_LABELS[project.projectType] ?? project.projectType) : null;
-  const approval = project.approvalAuthority ? APPROVAL_LABEL[project.approvalAuthority] : null;
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
+  const approval = approvalAuthority ? APPROVAL_LABEL[approvalAuthority] : null;
+  const hasApprovalNumber = Boolean(project.reraNumber?.trim());
+  const hasApprovalVerificationRecord = Boolean(
+    project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt,
+  );
+  const approvalIndependentlyVerified = approvalAuthority === "RERA"
+    ? project.reraStatus === "REGISTERED" && hasApprovalNumber &&
+      project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord
+    : hasApprovalNumber && project.verificationDetails?.approvalVerified === true &&
+      hasApprovalVerificationRecord;
   const hasMap = typeof project.lat === "number" && typeof project.lng === "number";
   const waHi = waLink(`Hi, I am interested in ${project.name}. Please share the latest price and availability.`);
   const plotSizeLabel = plotSizes.length ? `${plotSizes[0].toLocaleString("en-IN")}${plotSizes.length > 1 ? `–${plotSizes[plotSizes.length - 1].toLocaleString("en-IN")}` : ""} sq.ft` : null;
@@ -510,7 +520,20 @@ export default function ProjectLandingPage() {
 
   // Project-aware FAQ (answered from this project's own data — no generic filler).
   const faqs = [
-    { q: "Is this project approved / RERA registered?", a: project.reraNumber ? `Yes. This project is registered${approval ? ` and ${approval.toLowerCase()}` : ""} — RERA number ${project.reraNumber}. You can verify it on the official RERA portal.` : approval ? `Yes — it is ${approval.toLowerCase()}. Message us on WhatsApp for the approval documents.` : "Please contact our team for the latest approval and RERA details." },
+    {
+      q: "Is this project approved / RERA registered?",
+      a: approvalAuthority === "RERA"
+        ? approvalIndependentlyVerified
+          ? `Truvi has checked the supplied RERA registration details against the recorded source ${project.verificationDetails?.verificationSource}. Registration number: ${project.reraNumber}. You should still confirm the project's exact phase, current status and disclosures on the official State RERA portal before booking.`
+          : hasApprovalNumber
+            ? `The developer has supplied RERA details (${project.reraNumber}), but Truvi has not independently confirmed them against the official register. Do not treat this as RERA verification. Check the exact project phase and current status on the official State RERA portal before paying or signing.`
+            : "No RERA registration number is currently displayed. The project may be pending, exempt or require another approval; ask for the competent authority's documents and independently verify the project's legal status before paying or signing."
+        : approvalIndependentlyVerified
+          ? `Truvi has reviewed the ${approval?.toLowerCase() ?? "planning authority"} reference against the recorded source ${project.verificationDetails?.verificationSource}. Reference: ${project.reraNumber}. This is not a RERA registration; confirm the applicable approvals and any RERA requirement with the competent authority.`
+          : hasApprovalNumber
+            ? `The developer has supplied a ${approval?.toLowerCase() ?? "planning authority"} reference (${project.reraNumber}), but it has not been independently confirmed by Truvi. A non-RERA approval reference is not a RERA registration. Verify the documents and whether RERA applies to this project before paying or signing.`
+            : `No ${approval?.toLowerCase() ?? "planning authority"} reference is displayed. Ask for official approval / exemption evidence and verify it with the competent authority before paying or signing.`
+    },
     { q: "What is the price?", a: `${priceRange ? `Prices start around ${priceRange}` : "Pricing is shared on request"}, excluding GST, registration and other statutory charges. Tap “Get Price & Availability” or WhatsApp us for the exact, current price list.` },
     plotSizeLabel ? { q: "What plot sizes are available?", a: `Plots are available in ${plotSizeLabel}. Live availability is shown in the Inventory section above — it updates as plots are booked.` } : null,
     { q: "When is possession?", a: possession ? `Possession is planned for ${possession}. Construction milestones and the latest status are shared during your site visit.` : "Please contact our team for the current possession timeline." },
