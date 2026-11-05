@@ -236,6 +236,8 @@ export interface VerificationDetails {
   reraVerified: boolean;
   /** Non-RERA planning / layout approval checked against its issuing authority. */
   approvalVerified: boolean;
+  /** Evidence that RERA applicability was assessed and an exemption / non-applicability basis reviewed. */
+  reraExemptionVerified: boolean;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
