@@ -19,6 +19,7 @@ interface Investable {
   developer: string | null;
   isVerified: boolean;
   reraNumber: string | null;
+  approvalAuthority?: string | null;
   coverImageUrl: string | null;
   minAmount: number;
   maxAmount: number | null;
@@ -62,10 +63,13 @@ function investmentThesis(projectType: string | null) {
  *  signals — never fabricated. Higher legal + verification ⇒ higher score,
  *  lower risk. */
 function truviScore(o: Opportunity) {
-  const legal = o.reraNumber ? 96 : 74;
+  // The public API exposes isVerified only when the admin's approval-evidence
+  // check is complete. A developer-entered number and a paid placement do not
+  // improve the project's evidence/risk score.
+  const legal = o.isVerified ? 96 : 74;
   const trust = o.isVerified ? 95 : 76;
-  const demand = o.isPrimeListing ? 92 : 82;
-  const liquidity = o.listingTier === "PRIME" || o.isPrimeListing ? 88 : 80;
+  const demand = 82;
+  const liquidity = 80;
   const overall = Math.round((legal + trust + demand + liquidity) / 4);
   const risk = overall >= 90 ? "Low" : overall >= 82 ? "Medium" : "High";
   return { legal, trust, demand, liquidity, overall, risk };
@@ -285,7 +289,14 @@ export default function TruviInvestPage() {
 
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                       {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Verified</span>}
-                      {o.reraNumber && <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300"><ShieldCheck size={11} /> RERA</span>}
+                      {o.reraNumber && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300">
+                          <ShieldCheck size={11} />
+                          {(o.approvalAuthority ?? "RERA") === "RERA"
+                            ? (o.isVerified ? "RERA details checked" : "Developer-submitted RERA ref")
+                            : (o.isVerified ? "Approval details checked" : "Developer-submitted approval ref")}
+                        </span>
+                      )}
                       {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Sponsored</span>}
                     </div>
 
