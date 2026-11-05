@@ -1847,7 +1847,7 @@ export type IVoucher = typeof vouchers.$inferSelect;
  * Razorpay Plan mapping — one row per internal subscription plan id
  * (e.g. "buyer_pro_monthly") → the Razorpay `plan_id`. Populated once by the
  * `razorpay:plans` script so we never recreate plans (Razorpay plans can't be
- * deleted). `amountPaise` is the amount the plan charges (incl. GST).
+ * deleted). `amountPaise` is the amount the plan charges, including only any configured tax.
  */
 export const subscriptionPlans = pgTable("subscription_plans", {
   internalPlanId: text("internal_plan_id").primaryKey(),
@@ -1963,7 +1963,7 @@ export type ILoan = typeof loans.$inferSelect;
 export const platformSettings = pgTable("platform_settings", {
   _id: uuid("id").defaultRandom().primaryKey(),
   platformFeePercent: doublePrecision("platform_fee_percent").notNull().default(0.75),
-  gstPercent: doublePrecision("gst_percent").notNull().default(18),
+  gstPercent: doublePrecision("gst_percent").notNull().default(0),
   defaultCommissionPercent: doublePrecision("default_commission_percent").notNull().default(3),
   notifyEmail: boolean("notify_email").notNull().default(true),
   notifySms: boolean("notify_sms").notNull().default(false),
@@ -2219,8 +2219,8 @@ export const marketingAccess = pgTable(
 );
 export type IMarketingAccess = typeof marketingAccess.$inferSelect;
 
-/** Direct / offline marketing payments recorded by an admin. GST is charged on
- *  top of the base amount and recorded explicitly — never avoided. */
+/** Direct / offline marketing payments recorded by an admin. Any configured
+ *  tax is recorded explicitly; tax is not assumed by default. */
 export const marketingPayments = pgTable(
   "marketing_payments",
   {
@@ -2232,7 +2232,7 @@ export const marketingPayments = pgTable(
     packageName: text("package_name").notNull().default("Marketing Access"),
     // Money — all paise. total = amount + gst.
     amountPaise: integer("amount_paise").notNull().default(0),
-    gstPercent: doublePrecision("gst_percent").notNull().default(18),
+    gstPercent: doublePrecision("gst_percent").notNull().default(0),
     gstPaise: integer("gst_paise").notNull().default(0),
     totalPaise: integer("total_paise").notNull().default(0),
     method: text("method").$type<"CASH" | "BANK_TRANSFER" | "UPI" | "CHEQUE" | "CARD" | "OTHER">().notNull().default("OTHER"),
