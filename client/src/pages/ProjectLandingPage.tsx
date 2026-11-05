@@ -571,7 +571,7 @@ export default function ProjectLandingPage() {
         <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-end px-4 pb-28 pt-24 sm:pb-16">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
             <div className="flex flex-wrap items-center gap-2">
-              {project.isVerified && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300"><ShieldCheck size={13} /> Truvi Verified</span>}
+              {listingIndependentlyReviewed && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300"><ShieldCheck size={13} /> Approval evidence checked</span>}
               {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-3 py-1" />}
               {typeLabel && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90">{typeLabel}</span>}
               {approval && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200">{approval}</span>}
@@ -615,7 +615,7 @@ export default function ProjectLandingPage() {
             {project.description && <p className="max-w-3xl whitespace-pre-line text-[15px] leading-[1.8] text-white/75">{project.description}</p>}
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                project.isVerified && "Independently Truvi Verified — legal, approval & on-ground checks",
+                listingIndependentlyReviewed && "Approval / RERA applicability evidence checked by Truvi — review the source and date below",
                 approval && `${approval} — buy with confidence`,
                 priceRange && `Transparent pricing from ${priceRange} — no hidden brokerage`,
                 project.availabilityStatus !== "SOLD_OUT" && unitSummary && unitSummary.available > 0 && `${unitSummary.available} plots available right now`,
@@ -817,7 +817,7 @@ export default function ProjectLandingPage() {
                 </a>
                 <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                   <span className="grid size-10 place-items-center rounded-xl bg-white/8 text-white/80"><Star size={18} /></span>
-                  <div><p className="text-sm font-semibold text-white">Verified &amp; RERA-checked</p><p className="text-xs text-white/55">Buy with confidence via Truvi</p></div>
+                  <div><p className="text-sm font-semibold text-white">Review the approval evidence</p><p className="text-xs text-white/55">Check the source, date and official authority record before booking</p></div>
                 </div>
               </div>
             </div>
