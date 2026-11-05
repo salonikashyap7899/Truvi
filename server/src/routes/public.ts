@@ -2,6 +2,7 @@ import { Router } from "express";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, projectAssets, units, users } from "../db/schema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /**
  * Unauthenticated, read-only platform stats for the public landing page.
@@ -9,20 +10,6 @@ import { projects, projectAssets, units, users } from "../db/schema";
  * figures — so the marketing site can only ever show what is genuinely true.
  */
 const router = Router();
-
-function approvalEvidenceVerified(project: typeof projects.$inferSelect): boolean {
-  const authority = project.approvalAuthority ?? "RERA";
-  const evidence = project.verificationDetails;
-  const hasReference = Boolean(project.reraNumber?.trim());
-  const hasSourceAndDate = Boolean(evidence?.verificationSource?.trim() && evidence?.lastVerifiedAt);
-  if (!hasSourceAndDate) return false;
-  const exemptionReviewed = evidence?.reraExemptionVerified === true && Boolean(evidence?.reraExemptionBasis?.trim());
-  if (authority === "RERA") {
-    return (project.reraStatus === "REGISTERED" && hasReference && evidence?.reraVerified === true) ||
-      (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed);
-  }
-  return hasReference && evidence?.approvalVerified === true && exemptionReviewed;
-}
 
 router.get("/stats", async (_req, res) => {
   const db = getDb();
@@ -33,7 +20,7 @@ router.get("/stats", async (_req, res) => {
       db.select({ n: sql<number>`count(*)` }).from(users).where(eq(users.role, "CP")),
     ]);
 
-    const verifiedProjects = approvedProjects.filter((p) => p.isVerified && approvalEvidenceVerified(p)).length;
+    const verifiedProjects = approvedProjects.filter((p) => p.isVerified && isApprovalEvidenceVerified(p)).length;
     const cities = new Set(approvedProjects.map((p) => p.city).filter(Boolean)).size;
 
     res.json({
@@ -95,7 +82,7 @@ router.get("/projects", async (req, res) => {
       city: p.city,
       location: p.location,
       developer: developer?.name ?? null,
-      isVerified: p.isVerified && approvalEvidenceVerified(p),
+      isVerified: p.isVerified && isApprovalEvidenceVerified(p),
       listingTier: p.listingTier,
       availabilityStatus: p.availabilityStatus,
       isPrimeListing: p.isPrimeListing,
