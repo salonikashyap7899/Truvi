@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { formatINR } from "@/lib/utils";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import TrustScoreWidget from "@/components/TrustScoreWidget";
@@ -211,9 +212,6 @@ export default function ProjectDetailPage() {
   const crimeIndex = project.crimeIndexLevel ?? null;
   const ownerHistory = project.ownerHistory ?? [];
   const approvalAuthority = project.approvalAuthority ?? "RERA";
-  const hasApprovalVerificationRecord = Boolean(
-    project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt,
-  );
   const reraInfo = {
     approvalAuthority,
     reraNumber: project.reraNumber ?? "",
@@ -221,18 +219,9 @@ export default function ProjectDetailPage() {
     reraValidityDate: project.reraValidityDate ?? null,
     reraExemptionVerified: project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()),
     reraExemptionBasis: project.verificationDetails?.reraExemptionBasis,
-    verified: approvalAuthority === "RERA"
-      ? (project.reraStatus === "REGISTERED" && Boolean(project.reraNumber?.trim()) &&
-        project.verificationDetails?.reraVerified === true ||
-        project.reraStatus === "NOT_REGISTERED" &&
-        project.verificationDetails?.reraExemptionVerified === true &&
-        Boolean(project.verificationDetails?.reraExemptionBasis?.trim())) &&
-        hasApprovalVerificationRecord
-      : Boolean(project.reraNumber?.trim()) &&
-        project.verificationDetails?.approvalVerified === true &&
-        project.verificationDetails?.reraExemptionVerified === true &&
-        Boolean(project.verificationDetails?.reraExemptionBasis?.trim()) &&
-        hasApprovalVerificationRecord,
+    verificationSource: project.verificationDetails?.verificationSource ?? "",
+    lastVerifiedAt: project.verificationDetails?.lastVerifiedAt ?? null,
+    verified: isApprovalEvidenceVerified(project),
   };
 
   return (
