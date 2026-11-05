@@ -214,6 +214,7 @@ export default function AdminListingsPage() {
       reraVerified: existing.reraVerified ?? false,
       approvalVerified: existing.approvalVerified ?? false,
       reraExemptionVerified: existing.reraExemptionVerified ?? false,
+      reraExemptionBasis: existing.reraExemptionBasis ?? "",
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
