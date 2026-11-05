@@ -1,12 +1,10 @@
 /**
  * CP identity (KYC) verification.
  *
- * Today this does structural validation only (PAN format, Aadhaar Verhoeff
- * checksum) and hands the decision to a human admin — see `runProviderKyc`.
- * When a licensed KYC provider (Signzy / IDfy / HyperVerge / Digio / Cashfree
- * etc.) is available, implement the provider call inside `runProviderKyc` and
- * it will drive the APPROVED/REJECTED status automatically instead of
- * MANUAL_REVIEW. Nothing else needs to change.
+ * Today KYC submissions are reviewed manually by an authorised Truvi
+ * administrator. The application does not authenticate Aadhaar with UIDAI or
+ * query government identity databases. Do not add full Aadhaar-number capture
+ * or document processing without a documented legal basis and specialist review.
  */
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -62,20 +60,17 @@ export function maskPan(pan: string): string {
 export type KycOutcome = "APPROVED" | "REJECTED" | "MANUAL_REVIEW";
 
 /**
- * Provider hook. Returns the automated decision for a submission. With no
- * provider wired up it always defers to a human ("MANUAL_REVIEW"), so the
- * admin review flow is the source of truth. Structural validity is checked by
- * the caller before this runs.
+ * Manual-review hook. A document upload is not proof of identity. Until a
+ * reviewed identity provider is configured and approved for this purpose,
+ * every submission remains pending for an authorised human reviewer.
  */
 export async function runProviderKyc(_input: {
-  aadhaarNumber: string;
   panNumber: string;
   aadhaarDocumentUrl: string;
   panDocumentUrl: string;
   selfieUrl: string;
 }): Promise<{ outcome: KycOutcome; provider: string; reason?: string }> {
-  // TODO(provider): call the licensed KYC/identity API here — Aadhaar/PAN
-  // government-DB validation + selfie liveness/face-match — and map its result
-  // to APPROVED / REJECTED. Until then, defer to manual admin review.
+  // No identity-provider integration is configured. Never describe this
+  // manual flow as Aadhaar/UIDAI authentication or automated identity proof.
   return { outcome: "MANUAL_REVIEW", provider: "none" };
 }
