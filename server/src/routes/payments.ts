@@ -161,7 +161,7 @@ router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, re
 
   try {
     const order = await razorpay.orders.create({
-      amount: totalPaise, // paise, incl. GST
+      amount: totalPaise, // paise, including any tax configured for this service
       currency: "INR",
       receipt: row._id,
       notes: { planId: plan.id, paymentRowId: row._id },
