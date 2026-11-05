@@ -44,6 +44,8 @@ interface Opportunity {
   isPrimeListing: boolean;
   projectType: string | null;
   reraNumber: string | null;
+  /** Source authority for the approval reference returned by /public/projects. */
+  approvalAuthority?: string | null;
   coverImageUrl: string | null;
   minRate: number | null;
 }
