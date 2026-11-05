@@ -104,6 +104,8 @@ const publicGrievanceSchema = z.object({
   category: z.enum(["PRIVACY", "ACCOUNT", "PAYMENT", "PROJECT_LISTING", "KYC", "TECHNICAL", "OTHER"]),
   subject: z.string().trim().min(5).max(160),
   description: z.string().trim().min(15).max(5000),
+  privacyNoticeAcknowledged: z.literal(true),
+  privacyNoticeVersion: z.literal(CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE),
   website: z.string().trim().max(300).optional().default(""),
 });
 
@@ -168,6 +170,8 @@ router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) 
     requesterName: parsed.data.name,
     requesterEmail: parsed.data.email,
     requesterPhone: parsed.data.phone || null,
+    privacyNoticeVersion: parsed.data.privacyNoticeVersion,
+    privacyNoticeAcknowledgedAt: now,
     caseNumber,
     category: parsed.data.category,
     subject: parsed.data.subject,
