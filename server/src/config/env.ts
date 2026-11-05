@@ -26,6 +26,10 @@ export function getEnv() {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // Pooled/project investment offers and capital collection stay disabled
+    // until Indian securities-law classification, offer documents, custody and
+    // payment flows are approved by external counsel and the board.
+    investmentOffersEnabled: /^(1|true|yes|on)$/i.test(String(process.env.INVESTMENT_OFFERS_ENABLED ?? "")),
     habitatPaymentsEnabled: /^(1|true|yes|on)$/i.test(String(process.env.HABITAT_PAYMENTS_ENABLED ?? "")),
     razorpayRouteEnabled: /^(1|true|yes|on)$/i.test(String(process.env.RAZORPAY_ROUTE_ENABLED ?? "")),
     // ── Telephony / masked calling (CPaaS) ────────────────────────────────────
