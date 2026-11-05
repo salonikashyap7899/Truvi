@@ -2625,7 +2625,7 @@ export const habitatSettings = pgTable(
     _id: uuid("id").defaultRandom().primaryKey(),
     singletonKey: text("singleton_key").notNull().default("default"),
     cancellationFeeBps: integer("cancellation_fee_bps").notNull().default(2500),
-    commissionTaxRateBps: integer("commission_tax_rate_bps").notNull().default(1800),
+    commissionTaxRateBps: integer("commission_tax_rate_bps").notNull().default(0),
     autoCompleteHours: integer("auto_complete_hours").notNull().default(72),
     updatedById: uuid("updated_by_id").references(() => users._id),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
