@@ -181,12 +181,17 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
     : hasApprovalNumber && project.verificationDetails?.approvalVerified === true && hasVerificationRecord;
   const approvalSource: SourceLabel = authorityVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED";
   const isReraRegistered = approvalAuthority === "RERA" && authorityVerified;
+  const projectIndependentlyVerified = project.isVerified === true && authorityVerified;
 
   const facts: Record<string, FactValue> = {
     city: { value: project.city, source: "BUILDER_SUBMITTED" },
     location: { value: project.location, source: "BUILDER_SUBMITTED" },
     description: { value: project.description?.slice(0, 400) ?? null, source: "BUILDER_SUBMITTED" },
-    truviVerified: { value: project.isVerified, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    truviVerified: {
+      value: projectIndependentlyVerified,
+      source: projectIndependentlyVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED",
+      ...(projectIndependentlyVerified ? { lastUpdated: verifiedDate } : {}),
+    },
     trustScore: { value: project.trustScore ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     legalRiskLevel: { value: project.legalRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     floodRiskLevel: { value: project.floodRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
