@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
 import { api } from "@/lib/api";
+import { POLICY_VERSIONS } from "@/lib/compliance";
 
 const categories = [
   ["PRIVACY", "Privacy or personal data"],
@@ -25,6 +26,7 @@ export default function GrievancePage() {
     description: "",
     website: "",
   });
+  const [privacyNoticeAcknowledged, setPrivacyNoticeAcknowledged] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,12 +40,17 @@ export default function GrievancePage() {
     setError("");
     setSubmitting(true);
     try {
-      const response = await api.post("/compliance/public-grievances", form);
+      const response = await api.post("/compliance/public-grievances", {
+        ...form,
+        privacyNoticeAcknowledged,
+        privacyNoticeVersion: POLICY_VERSIONS.PRIVACY_NOTICE,
+      });
       setReceipt({
         caseNumber: response.data.ticket.caseNumber,
         acknowledgementEmailSent: Boolean(response.data.acknowledgementEmailSent),
       });
       setForm({ name: "", email: "", phone: "", category: "OTHER", subject: "", description: "", website: "" });
+      setPrivacyNoticeAcknowledged(false);
     } catch (err: any) {
       setError(err?.response?.data?.error || "We could not submit your complaint. Please try again or email info@truviventures.com.");
     } finally {
@@ -110,6 +117,10 @@ export default function GrievancePage() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               Please do not include passwords, OTPs, full Aadhaar/PAN numbers or bank credentials. Read our <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link> to understand how complaint information is handled.
             </p>
+            <label className="flex items-start gap-2.5 text-xs leading-relaxed text-foreground/80">
+              <input required type="checkbox" checked={privacyNoticeAcknowledged} onChange={(event) => setPrivacyNoticeAcknowledged(event.target.checked)} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
+              <span>I have read the Privacy Policy and acknowledge that Truvi will use these details to receive, investigate and respond to this complaint. *</span>
+            </label>
             {error && <p role="alert" className="rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{error}</p>}
             <button type="submit" disabled={submitting} className="w-full rounded-xl bg-sky-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting ? "Submitting complaint…" : "Submit grievance"}
