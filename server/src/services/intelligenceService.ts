@@ -1,4 +1,5 @@
 import { IProject } from "../db/schema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /**
  * Raw Data Sources & AI Intelligence Engine.
@@ -108,25 +109,12 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   const authority = project.approvalAuthority ?? "RERA";
   const isReraAuthority = authority === "RERA";
   const hasApprovalNumber = Boolean(project.reraNumber?.trim());
-  const hasVerificationRecord = Boolean(vd?.verificationSource?.trim() && vd?.lastVerifiedAt);
-  const reraOk =
-    isReraAuthority &&
-    project.reraStatus === "REGISTERED" &&
-    hasApprovalNumber &&
-    vd?.reraVerified === true &&
-    hasVerificationRecord;
-  const exemptionReviewed = vd?.reraExemptionVerified === true && Boolean(vd?.reraExemptionBasis?.trim()) && hasVerificationRecord;
-  const otherApprovalOk =
-    !isReraAuthority &&
-    hasApprovalNumber &&
-    vd?.approvalVerified === true &&
-    exemptionReviewed;
-  const reraExemptionOnlyOk = isReraAuthority && project.reraStatus === "NOT_REGISTERED" && exemptionReviewed;
-  const approvalVerified = reraOk || otherApprovalOk || reraExemptionOnlyOk;
+  const approvalVerified = isApprovalEvidenceVerified(project);
+  const reraExemptionOnlyOk = isReraAuthority && project.reraStatus === "NOT_REGISTERED" && approvalVerified;
   const authorityName = AUTHORITY_LABEL[authority] ?? "Relevant authority";
   const approvalSource = hasApprovalNumber
     ? `${authorityName} · Reference ${project.reraNumber}`
-    : authorityName;
+    : reraExemptionOnlyOk ? "RERA applicability / exemption review" : authorityName;
   const approvalSourceLabel = approvalVerified
     ? `${approvalSource} · checked by Truvi`
     : `${approvalSource} · developer-submitted, not independently verified`;
