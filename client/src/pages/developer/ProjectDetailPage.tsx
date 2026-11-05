@@ -220,6 +220,7 @@ export default function ProjectDetailPage() {
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
     reraValidityDate: project.reraValidityDate ?? null,
     reraExemptionVerified: project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()),
+    reraExemptionBasis: project.verificationDetails?.reraExemptionBasis,
     verified: approvalAuthority === "RERA"
       ? (project.reraStatus === "REGISTERED" && Boolean(project.reraNumber?.trim()) &&
         project.verificationDetails?.reraVerified === true ||
