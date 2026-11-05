@@ -196,7 +196,7 @@ Sharing a handpicked option for you:
 
 *${project.name}* — ${project.location}, ${project.city}
 ${price ? `Starting around ${inr(price)}` : ""}
-${project.isVerified ? "Truvi Verified — RERA & title checked" : ""}
+${project.isVerified ? "Truvi review status is shown separately from official RERA and title records." : ""}
 Strong appreciation potential in this micro-market.
 
 Units here are moving quickly. Shall I arrange a site visit this weekend? Reply YES and I'll set it up.`;
@@ -210,7 +210,7 @@ Dear ${clientName || "Sir/Madam"},
 Based on our discussion, I've shortlisted ${project.name} in ${project.location}, ${project.city}${price ? ` with options starting around ${inr(price)}` : ""}.
 
 Why this project:
-• ${project.isVerified ? "Truvi-verified: RERA registration, title clearance and approvals checked" : "Well-located project with active inventory"}
+• ${project.isVerified ? "Truvi review status is shown on the listing; independently confirm the project approvals and title documents before booking" : "Well-located project with active inventory"}
 • Developer payment plans available
 • Site visits can be scheduled at your convenience
 
