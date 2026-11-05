@@ -209,6 +209,8 @@ export default function AdminListingsPage() {
     const existing = p.verificationDetails;
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
+      approvalVerified: existing.approvalVerified ?? false,
+      reraExemptionVerified: existing.reraExemptionVerified ?? false,
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
