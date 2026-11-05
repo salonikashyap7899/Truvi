@@ -233,7 +233,7 @@ export default function InventoryPage() {
             Find your <span className="text-gradient-trust">property</span>
           </h1>
           <p className="mx-auto mt-1.5 max-w-xl text-sm text-muted-foreground">
-            Verified, RERA-checked and trust-scored listings — search, shortlist and connect.
+            Explore property listings, review their verification evidence and compare live inventory.
           </p>
 
           <div className="relative mx-auto mt-4 max-w-xl">
