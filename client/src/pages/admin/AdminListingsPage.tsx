@@ -16,6 +16,7 @@ interface VerificationDetails {
   reraVerified: boolean;
   approvalVerified: boolean;
   reraExemptionVerified: boolean;
+  reraExemptionBasis: string;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
@@ -28,6 +29,7 @@ const DEFAULT_VD: VerificationDetails = {
   reraVerified: false,
   approvalVerified: false,
   reraExemptionVerified: false,
+  reraExemptionBasis: "",
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
@@ -186,6 +188,7 @@ export default function AdminListingsPage() {
       reraVerified: existing.reraVerified ?? false,
       approvalVerified: existing.approvalVerified ?? false,
       reraExemptionVerified: existing.reraExemptionVerified ?? false,
+      reraExemptionBasis: existing.reraExemptionBasis ?? "",
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
@@ -531,6 +534,16 @@ export default function AdminListingsPage() {
 
                   {/* Text fields */}
                   <div className="space-y-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">RERA applicability / exemption basis (required for non-RERA or exempt projects)</label>
+                      <textarea
+                        placeholder="Record the specific statutory exemption / non-applicability basis and the supporting order, document or official reference. Do not enter a generic statement."
+                        value={draft.reraExemptionBasis}
+                        onChange={(e) => patchDraft(p._id, "reraExemptionBasis", e.target.value)}
+                        rows={3}
+                        className="mt-1 w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-blue-500"
+                      />
+                    </div>
                     <div>
                       <label className="text-xs text-muted-foreground">Verification Source</label>
                       <input
