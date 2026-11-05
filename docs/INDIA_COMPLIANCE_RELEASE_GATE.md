@@ -12,7 +12,6 @@
 - Tracks a 15-calendar-day internal response target. Where the Consumer Protection (E-Commerce) Rules apply, the statutory grievance redressal deadline is one month from receipt.
 - Routes public complaints into the existing administrator Compliance Centre.
 - Records complainant contact data and the privacy-notice version/acknowledgement separately from an optional account ID.
-- Sets a 15-calendar-day internal response target to support a stricter operational workflow. This is an internal target, not a statement that every complaint is governed by the same statutory deadline.
 - Removes a hard-coded 18% GST statement from generic Terms. Tax must be determined per service, registration, place of supply and CA-approved treatment.
 - Replaces the duplicate, abbreviated Legal & Methodology privacy/terms text with links to the canonical policy pages.
 - Adds environment-driven statutory disclosure fields. No director, officer, CIN, registered office or RERA number is invented.
@@ -95,7 +94,7 @@ Only change these after written CA confirmation. `GSTIN` must be the registered 
 - DPDP Rules, 2025 and enforcement timeline: https://www.meity.gov.in/documents/act-and-policies/digital-personal-data-protection-rules-2025-gDOxUjMtQWa
 - Consumer Protection (E-Commerce) Rules and 2026 amendments: https://consumeraffairs.gov.in/pages/consumer-protection-acts
 - Government summary of the 2026 E-Commerce amendment and its 1 January 2027 commencement: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2308759
-- PIB summary and 1 January 2027 commencement: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2308759
+- SEBI, Collective Investment Scheme definition (Section 11AA): https://www.sebi.gov.in/legal/acts/jun-1992/securities-and-exchange-board-of-india-act-1992-as-amended-by-securities-laws-amendment-act-2014_34656.html
 - CERT-In directions: https://www.cert-in.org.in/Directions70B.jsp
 - UP RERA project/agent verification: https://www.up-rera.in/verify
 - UP RERA registration portal: https://up-rera.in/RegHome
