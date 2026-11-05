@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, users, projectAssets } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { buildIntelligenceProfile } from "../services/intelligenceService";
 import { fetchRagItemsForProject, fetchRagCountsForProjects } from "../services/ragIntel";
 import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
@@ -117,6 +118,7 @@ router.get("/", async (_req, res) => {
     const profile = buildIntelligenceProfile(project, ragCounts.get(String(project._id)) ?? {});
     return {
       ...withoutPrivateProjectFields(project),
+      isVerified: project.isVerified === true && isApprovalEvidenceVerified(project),
       developerId: developer ? { _id: developer._id, name: developer.name } : null,
       unitCount: stats?.unitCount ?? 0,
       availableUnits: stats?.available ?? 0,
