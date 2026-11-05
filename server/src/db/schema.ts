@@ -3393,6 +3393,8 @@ export const grievanceTickets = pgTable("grievance_tickets", {
   requesterName: text("requester_name"),
   requesterEmail: text("requester_email"),
   requesterPhone: text("requester_phone"),
+  privacyNoticeVersion: text("privacy_notice_version"),
+  privacyNoticeAcknowledgedAt: timestamp("privacy_notice_acknowledged_at", { withTimezone: true, mode: "date" }),
   category: text("category").$type<GrievanceCategory>().notNull(),
   subject: text("subject").notNull(),
   description: text("description").notNull(),
