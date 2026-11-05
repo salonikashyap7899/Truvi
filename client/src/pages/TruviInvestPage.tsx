@@ -308,14 +308,6 @@ export default function TruviInvestPage() {
 
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                       {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Approval evidence checked</span>}
-                      {o.reraNumber && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300">
-                          <ShieldCheck size={11} />
-                          {(o.approvalAuthority ?? "RERA") === "RERA"
-                            ? (o.isVerified ? "RERA details checked" : "Developer-submitted RERA ref")
-                            : (o.isVerified ? "Approval details checked" : "Developer-submitted approval ref")}
-                        </span>
-                      )}
                       {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Prime</span>}
                     </div>
 
