@@ -121,7 +121,7 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     hasApprovalNumber &&
     vd?.approvalVerified === true &&
     exemptionReviewed;
-  const reraExemptionOnlyOk = isReraAuthority && project.reraStatus !== "REGISTERED" && exemptionReviewed;
+  const reraExemptionOnlyOk = isReraAuthority && project.reraStatus === "NOT_REGISTERED" && exemptionReviewed;
   const approvalVerified = reraOk || otherApprovalOk || reraExemptionOnlyOk;
   const authorityName = AUTHORITY_LABEL[authority] ?? "Relevant authority";
   const approvalSource = hasApprovalNumber
