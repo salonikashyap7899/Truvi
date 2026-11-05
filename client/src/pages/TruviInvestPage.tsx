@@ -116,6 +116,7 @@ export default function TruviInvestPage() {
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [stats, setStats] = useState<{ verifiedProjects: number; liveProjects: number; cities: number } | null>(null);
   const [investables, setInvestables] = useState<Investable[]>([]);
+  const [investmentOffersEnabled, setInvestmentOffersEnabled] = useState(false);
   const [portfolio, setPortfolio] = useState<{ items: PortfolioItem[]; summary: { count: number; totalInvested: number; totalMaturity: number; projectedGain: number } } | null>(null);
   const [investTarget, setInvestTarget] = useState<Investable | null>(null);
 
@@ -126,7 +127,15 @@ export default function TruviInvestPage() {
   useEffect(() => {
     api.get("/public/projects", { params: { limit: 12 } }).then((r) => setOpps(r.data.projects ?? [])).catch(() => setOpps([]));
     api.get("/public/stats").then((r) => setStats(r.data)).catch(() => setStats(null));
-    api.get("/invest/opportunities").then((r) => setInvestables(r.data.opportunities ?? [])).catch(() => setInvestables([]));
+    api.get("/invest/opportunities")
+      .then((r) => {
+        setInvestmentOffersEnabled(r.data.enabled === true);
+        setInvestables(r.data.opportunities ?? []);
+      })
+      .catch(() => {
+        setInvestmentOffersEnabled(false);
+        setInvestables([]);
+      });
     loadPortfolio();
   }, []);
 
@@ -147,19 +156,27 @@ export default function TruviInvestPage() {
             <TrendingUp size={13} /> Truvi Invest · Capital into verified real estate
           </span>
           <h1 className="mt-5 font-display text-3xl font-semibold leading-tight md:text-5xl">
-            Invest in Real Estate. <span className="text-gradient-trust">Truvi Finds, Verifies &amp; Manages the Opportunity.</span>
+            Explore Real Estate Opportunities. <span className="text-gradient-trust">Understand the evidence before you decide.</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground md:text-base">
-            Your capital is allocated to selected real-estate opportunities identified and evaluated by Truvi, with project progress, capital deployment and investment performance tracked through the platform.
+            Truvi provides property information and source-labelled diligence signals to help users assess real-estate opportunities. Any investment activity is offered only where its legal structure, permissions, agreements and disclosures have been confirmed.
           </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <button onClick={() => goToClub()} className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-90">
-              <Crown size={16} /> Join Investor Club
+              <Crown size={16} /> Register interest only
             </button>
             <button onClick={() => scrollTo("how-it-works")} className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 hover:bg-white/10">
               See How It Works <ArrowRight size={15} />
             </button>
           </div>
+          {!investmentOffersEnabled && (
+            <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-4 text-left">
+              <p className="text-sm font-semibold text-amber-200">Investment participation is currently paused</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Truvi is completing legal and regulatory review of the investment model, eligibility, offering documents and payment arrangements. No new investment commitments or capital payments are being accepted through this page. The Investor Club form below records an expression of interest only.
+              </p>
+            </div>
+          )}
           {stats && (
             <div className="mx-auto mt-10 grid max-w-2xl grid-cols-3 gap-3">
               <HeroStat value={String(stats.verifiedProjects)} label="Verified projects" />
@@ -171,7 +188,7 @@ export default function TruviInvestPage() {
       </section>
 
       {/* ------------------------------------------------- Where capital is deployed */}
-      <Section title="Where Truvi Deploys Capital" sub="Investor capital is deployed into selected, verified opportunities — not an open marketplace of listings.">
+      {investmentOffersEnabled && <Section title="Where Truvi Invests" sub="Project investment information is made available only when the applicable structure and disclosures have been approved.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {DEPLOY_CATEGORIES.map((c) => (
             <div key={c.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -184,10 +201,10 @@ export default function TruviInvestPage() {
         <p className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-muted-foreground">
           <BadgeCheck size={15} className="text-emerald-300 shrink-0" /> Every opportunity is evaluated before capital is considered for deployment.
         </p>
-      </Section>
+      </Section>}
 
       {/* ------------------------------------------------- How your capital works */}
-      <Section id="how-it-works" title="How Your Capital Works" sub="From joining the Investor Club to receiving your return — the full journey your money takes.">
+      {investmentOffersEnabled && <Section id="how-it-works" title="How participation works" sub="The approved process, agreements, risks and payment steps are shown before any commitment.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {HOW_STEPS.map((s) => (
             <div key={s.n} className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -200,15 +217,15 @@ export default function TruviInvestPage() {
             </div>
           ))}
         </div>
-      </Section>
+      </Section>}
 
       {/* ------------------------------------------------- Investment example (illustrative) */}
-      <Section title="Where does your money go?" sub="An illustrative example of how investor capital is allocated inside a project. Actual percentages vary per project — nothing here is a fixed promise.">
+      {investmentOffersEnabled && <Section title="Illustrative project economics" sub="Only the project-specific, approved information and risk disclosures should be relied on before any investment decision.">
         <InvestmentExample />
-      </Section>
+      </Section>}
 
       {/* ------------------------------------------------- Why investors use Truvi */}
-      <Section title="Why Investors Use Truvi" sub="What you get with Truvi that a traditional property portal doesn't offer.">
+      {investmentOffersEnabled && <Section title="Investor information tools" sub="Information and reporting features available under the applicable approved arrangements.">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { icon: <Target size={18} />, t: "Access", d: "Opportunities that may not be available through traditional property portals." },
@@ -225,7 +242,7 @@ export default function TruviInvestPage() {
             </div>
           ))}
         </div>
-      </Section>
+      </Section>}
 
       {/* ------------------------------------------------ Open for investment */}
       {investables.length > 0 && (
