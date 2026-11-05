@@ -223,7 +223,9 @@ export default function ProjectDetailPage() {
       ? project.reraStatus === "REGISTERED" &&
         project.verificationDetails?.reraVerified === true &&
         hasApprovalVerificationRecord
-      : project.verificationDetails?.approvalVerified === true && hasApprovalVerificationRecord,
+      : project.verificationDetails?.approvalVerified === true &&
+        project.verificationDetails?.reraExemptionVerified === true &&
+        hasApprovalVerificationRecord,
   };
 
   return (
