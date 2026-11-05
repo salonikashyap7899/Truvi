@@ -1537,6 +1537,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.verificationDetails !== undefined) {
     const merged = {
       reraVerified: false,
+      approvalVerified: false,
       titleClearance: false,
       encumbranceFree: false,
       constructionApproval: false,
