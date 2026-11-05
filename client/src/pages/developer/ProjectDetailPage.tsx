@@ -210,14 +210,20 @@ export default function ProjectDetailPage() {
   const floodRisk = project.floodRiskLevel ?? null;
   const crimeIndex = project.crimeIndexLevel ?? null;
   const ownerHistory = project.ownerHistory ?? [];
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
+  const hasApprovalVerificationRecord = Boolean(
+    project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt,
+  );
   const reraInfo = {
+    approvalAuthority,
     reraNumber: project.reraNumber ?? "",
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
     reraValidityDate: project.reraValidityDate ?? null,
-    verified: project.approvalAuthority === "RERA" &&
-      project.reraStatus === "REGISTERED" &&
-      project.verificationDetails?.reraVerified === true &&
-      Boolean(project.verificationDetails?.verificationSource?.trim() && project.verificationDetails?.lastVerifiedAt),
+    verified: approvalAuthority === "RERA"
+      ? project.reraStatus === "REGISTERED" &&
+        project.verificationDetails?.reraVerified === true &&
+        hasApprovalVerificationRecord
+      : project.verificationDetails?.approvalVerified === true && hasApprovalVerificationRecord,
   };
 
   return (
