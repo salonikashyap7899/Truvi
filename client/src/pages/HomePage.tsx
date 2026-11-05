@@ -19,7 +19,7 @@ export default function HomePage() {
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">
           Truvi is the operating system behind India&apos;s real estate transactions — live inventory,
-          real-time updates, transparent commissions, and verified partners, all in one place.
+          real-time updates, transparent commission records, and role-based partner workspaces, all in one place.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           <Link to="/signup?role=DEVELOPER" className="rounded-full bg-[var(--trust)] px-6 py-3 text-white hover:bg-[var(--trust)]/85">Join as Developer</Link>
@@ -56,8 +56,8 @@ export default function HomePage() {
       {/* Feature 7: Verified CTA section */}
       <section className="px-6 py-16 md:px-16 bg-white/[0.03]">
         <div className="mx-auto max-w-4xl text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
-            ✓ Truvi Verified
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-foreground">
+            Trust & transparency
           </span>
           <h2 className="mt-4 font-display text-3xl font-semibold">Transact with confidence</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
@@ -111,7 +111,14 @@ export default function HomePage() {
       </section>
 
       <footer className="px-6 py-8 text-center text-sm text-muted-foreground md:px-16">
-        © 2026 Truvi. Built for trust, transparency, and infrastructure that lasts.
+        <div className="mb-4 flex flex-wrap justify-center gap-4 text-xs">
+          <Link to="/legal" className="hover:text-foreground">Legal information</Link>
+          <Link to="/privacy-policy" className="hover:text-foreground">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-foreground">Terms</Link>
+          <Link to="/refund-policy" className="hover:text-foreground">Refunds</Link>
+          <Link to="/grievance" className="hover:text-foreground">Grievance</Link>
+        </div>
+        © {new Date().getFullYear()} Truvi. Built for trust, transparency, and infrastructure that lasts.
       </footer>
     </main>
   );
