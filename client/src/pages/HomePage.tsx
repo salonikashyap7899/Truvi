@@ -68,7 +68,7 @@ export default function HomePage() {
               {
                 icon: "🔍",
                 title: "Search Property",
-                desc: "Browse verified, RERA-compliant projects with live inventory.",
+                desc: "Explore property listings, review approval details and check project information before you enquire.",
                 href: "/buyer/projects",
                 cta: "Explore listings",
               },
