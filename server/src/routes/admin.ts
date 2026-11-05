@@ -1474,6 +1474,7 @@ router.get("/projects", requireRole("ADMIN"), async (req, res) => {
 const verificationDetailsSchema = z.object({
   reraVerified: z.boolean().optional(),
   approvalVerified: z.boolean().optional(),
+  reraExemptionVerified: z.boolean().optional(),
   titleClearance: z.boolean().optional(),
   encumbranceFree: z.boolean().optional(),
   constructionApproval: z.boolean().optional(),
@@ -1518,12 +1519,26 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     const authority = existing.approvalAuthority ?? "RERA";
     const hasReference = Boolean(existing.reraNumber?.trim());
     const hasSourceAndDate = Boolean(verification.verificationSource?.trim() && verification.lastVerifiedAt);
-    const approvalChecked = authority === "RERA"
-      ? existing.reraStatus === "REGISTERED" && hasReference && verification.reraVerified === true && hasSourceAndDate
-      : hasReference && verification.approvalVerified === true && hasSourceAndDate;
+    const reraRegistrationChecked =
+      authority === "RERA" &&
+      existing.reraStatus === "REGISTERED" &&
+      hasReference &&
+      verification.reraVerified === true &&
+      hasSourceAndDate;
+    const exemptionReviewed = verification.reraExemptionVerified === true && hasSourceAndDate;
+    const otherAuthorityChecked =
+      authority !== "RERA" &&
+      hasReference &&
+      verification.approvalVerified === true &&
+      exemptionReviewed;
+    const reraExemptionOnlyChecked =
+      authority === "RERA" &&
+      existing.reraStatus !== "REGISTERED" &&
+      exemptionReviewed;
+    const approvalChecked = reraRegistrationChecked || otherAuthorityChecked || reraExemptionOnlyChecked;
     if (!approvalChecked) {
       return res.status(400).json({
-        error: "This listing cannot be marked Truvi Verified until its RERA registration or applicable planning approval has been independently checked and the source and review date are recorded.",
+        error: "This listing cannot be marked Truvi Verified until its RERA registration is checked, or its applicable planning approval and RERA applicability/exemption evidence are both reviewed. Record the source and review date.",
       });
     }
   }
@@ -1538,6 +1553,7 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     const merged = {
       reraVerified: false,
       approvalVerified: false,
+      reraExemptionVerified: false,
       titleClearance: false,
       encumbranceFree: false,
       constructionApproval: false,
