@@ -125,6 +125,7 @@ export interface VerificationDetails {
   reraVerified: boolean;
   approvalVerified?: boolean;
   reraExemptionVerified?: boolean;
+  reraExemptionBasis?: string;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
