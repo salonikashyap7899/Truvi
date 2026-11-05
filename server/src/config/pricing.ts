@@ -85,10 +85,10 @@ export function intervalEnd(start: Date, interval?: string | null): Date | null 
   return d;
 }
 
-/** Adds GST on top of a base paise amount. Returns integer paise. A non-finite
- *  gstPercent (e.g. a bad env value) falls back to 18 so the result can never
- *  become NaN and poison a DB insert or a Razorpay amount. */
+/** Adds a configured tax percentage to a base paise amount. Returns integer
+ *  paise. Invalid rates fail closed at zero; registration and the correct rate
+ *  must be confirmed outside this helper before tax collection is enabled. */
 export function withGst(basePaise: number, gstPercent: number): number {
-  const pct = Number.isFinite(gstPercent) ? gstPercent : 18;
+  const pct = Number.isFinite(gstPercent) && gstPercent >= 0 && gstPercent <= 100 ? gstPercent : 0;
   return basePaise + Math.round((basePaise * pct) / 100);
 }
