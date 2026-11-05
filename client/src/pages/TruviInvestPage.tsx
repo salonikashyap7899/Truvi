@@ -316,7 +316,7 @@ export default function TruviInvestPage() {
                             : (o.isVerified ? "Approval details checked" : "Developer-submitted approval ref")}
                         </span>
                       )}
-                      {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Sponsored</span>}
+                      {o.isPrimeListing && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-amber-300">Prime</span>}
                     </div>
 
                     <div className="mt-4 flex gap-2 pt-1">
