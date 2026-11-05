@@ -4,8 +4,8 @@
  * These identifiers do not by themselves make policy wording legally approved.
  */
 export const CURRENT_POLICY_VERSIONS = {
-  TERMS_OF_SERVICE: "terms-2026-08",
-  PRIVACY_NOTICE: "privacy-2026-11-04",
+  TERMS_OF_SERVICE: "terms-2026-11-05",
+  PRIVACY_NOTICE: "privacy-2026-11-05",
   MARKETING: "marketing-2026-11",
 } as const;
 
