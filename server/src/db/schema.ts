@@ -3407,6 +3407,7 @@ export const grievanceTickets = pgTable("grievance_tickets", {
   internalNotes: text("internal_notes"),
   reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }),
+  acknowledgementDueAt: timestamp("acknowledgement_due_at", { withTimezone: true, mode: "date" }),
   responseDueAt: timestamp("response_due_at", { withTimezone: true, mode: "date" }),
   requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
