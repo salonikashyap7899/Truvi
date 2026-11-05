@@ -3384,7 +3384,11 @@ export type GrievanceStatus = "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WA
 export const grievanceTickets = pgTable("grievance_tickets", {
   _id: uuid("id").defaultRandom().primaryKey(),
   caseNumber: text("case_number").notNull(),
-  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  // Public consumer complaints may be filed without a Truvi account.
+  requesterUserId: uuid("requester_user_id").references(() => users._id),
+  requesterName: text("requester_name"),
+  requesterEmail: text("requester_email"),
+  requesterPhone: text("requester_phone"),
   category: text("category").$type<GrievanceCategory>().notNull(),
   subject: text("subject").notNull(),
   description: text("description").notNull(),
@@ -3392,6 +3396,8 @@ export const grievanceTickets = pgTable("grievance_tickets", {
   publicResponse: text("public_response"),
   internalNotes: text("internal_notes"),
   reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }),
+  responseDueAt: timestamp("response_due_at", { withTimezone: true, mode: "date" }),
   requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
