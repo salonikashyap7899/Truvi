@@ -8,6 +8,7 @@ export interface ReraInfo {
   reraNumber: string;
   reraStatus: ReraStatus;
   reraValidityDate: string | null;
+  reraExemptionVerified: boolean;
   verified: boolean;
 }
 
@@ -32,8 +33,10 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
   const StatusIcon = info.verified ? BadgeCheck : info.reraStatus === "NOT_REGISTERED" ? XCircle : Clock;
   const heading = isRera ? "RERA Details" : "Planning / Layout Approval";
   const statusLabel = info.verified
-    ? isRera ? "RERA details checked by Truvi" : "Authority reference checked by Truvi"
-    : isRera ? "Developer-declared · not checked" : "Developer-declared · not checked";
+    ? isRera && info.reraStatus === "NOT_REGISTERED" && info.reraExemptionVerified
+      ? "RERA applicability / exemption reviewed"
+      : isRera ? "RERA registration checked by Truvi" : "Planning approval & RERA assessment reviewed"
+    : "Developer-declared · not checked";
 
   return (
     <div className="rounded-2xl border border-white/10 glass p-5">
