@@ -259,6 +259,28 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.masterPlanUrl !== undefined) update.masterPlanUrl = d.masterPlanUrl || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
+
+  // Approval identity changes invalidate the prior manual verification. A
+  // previous RERA or planning-authority check must never carry over to a new
+  // number, authority, status or validity period.
+  const approvalIdentityChanged =
+    (d.reraNumber !== undefined && (d.reraNumber || null) !== project.reraNumber) ||
+    (d.approvalAuthority !== undefined && (d.approvalAuthority || null) !== project.approvalAuthority) ||
+    (d.reraStatus !== undefined && d.reraStatus !== project.reraStatus) ||
+    (d.reraValidityDate !== undefined &&
+      (d.reraValidityDate ? new Date(d.reraValidityDate).getTime() : null) !==
+        (project.reraValidityDate ? new Date(project.reraValidityDate).getTime() : null));
+  if (approvalIdentityChanged) {
+    update.verificationDetails = {
+      ...(project.verificationDetails ?? {}),
+      reraVerified: false,
+      approvalVerified: false,
+      verificationSource: "",
+      lastVerifiedAt: null,
+    };
+    update.isVerified = false;
+    update.verifiedAt = null;
+  }
   if (d.lat !== undefined) update.lat = d.lat;
   if (d.lng !== undefined) update.lng = d.lng;
 
