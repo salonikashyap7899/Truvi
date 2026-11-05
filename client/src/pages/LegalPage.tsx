@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
+import { legalDisclosure, missingLegalDisclosures } from "@/config/legalDisclosure";
 
 const resources = [
   {
@@ -35,6 +36,43 @@ export default function LegalPage() {
           This page links to Truvi's current detailed policies. The Privacy Policy is the canonical description
           of personal-data handling; this page intentionally does not repeat abbreviated privacy or terms wording.
         </p>
+
+        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-5" aria-labelledby="statutory-disclosures">
+          <h2 id="statutory-disclosures" className="text-base font-semibold text-foreground">Company and customer-care disclosures</h2>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            These details must be populated from current company records and the formal appointment of the grievance officer. Missing values are intentionally not guessed.
+          </p>
+          <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+            {([
+              ["Legal entity name", legalDisclosure.legalEntityName],
+              ["Registered office", legalDisclosure.registeredOfficeAddress],
+              ["Headquarters / principal address", legalDisclosure.headquartersAddress],
+              ["All branch addresses", legalDisclosure.branchAddresses],
+              ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
+              ["GSTIN (only if registered)", legalDisclosure.gstin],
+              ["Website", "https://truviventures.com"],
+              ["Customer-care email", "info@truviventures.com"],
+              ["Customer-care mobile", legalDisclosure.customerCarePhone],
+              ["Customer-care landline", legalDisclosure.customerCareLandline],
+              ["Grievance Officer name", legalDisclosure.grievanceOfficerName],
+              ["Grievance Officer designation", legalDisclosure.grievanceOfficerDesignation],
+              ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
+              ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
+              ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
+            ] as Array<[string, string | null]>).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="mt-1 break-words font-medium text-foreground">{value || "Not configured — management verification required"}</dd>
+              </div>
+            ))}
+          </dl>
+          {missingLegalDisclosures.length > 0 && (
+            <p role="alert" className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-xs leading-relaxed text-amber-200">
+              Required public identity or grievance contact details remain unconfigured. Truvi management must verify and publish them before the applicable e-commerce disclosure requirements take effect.
+            </p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">Submit a customer grievance at <Link to="/grievance" className="text-sky-300 underline">truviventures.com/grievance</Link>.</p>
+        </section>
 
         <div className="mt-10 grid gap-3">
           {resources.map((resource) => (
