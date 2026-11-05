@@ -839,7 +839,7 @@ function LiveProjectsShowcase() {
           </p>
           <Reveal delay={0.1}>
             <h2 className="font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
-              Verified <span className="text-gradient-trust">Projects</span>
+              Explore <span className="text-gradient-trust">Projects</span>
             </h2>
           </Reveal>
           <Reveal delay={0.2}>
