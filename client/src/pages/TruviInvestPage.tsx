@@ -928,7 +928,7 @@ function InvestorClubForm({ offersEnabled }: { offersEnabled: boolean }) {
 
       <label className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
         <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-emerald-400" />
-        <span>I have read the <Link to="/privacy-policy" className="text-emerald-300 underline">Privacy Policy</Link> and acknowledge that Truvi may use these details to respond to this request. This is not consent to unrelated marketing messages and is not an investment commitment. *</span>
+        <span>I consent to Truvi using these details solely to respond to this information request. I have read the <Link to="/privacy-policy" className="text-emerald-300 underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages or create an investment commitment. *</span>
       </label>
 
       <button type="submit" disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60">
