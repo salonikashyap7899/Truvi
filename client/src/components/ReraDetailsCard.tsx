@@ -6,6 +6,7 @@ export interface ReraInfo {
   reraNumber: string;
   reraStatus: ReraStatus;
   reraValidityDate: string | null;
+  verified: boolean;
 }
 
 interface ReraDetailsCardProps {
@@ -48,6 +49,9 @@ function formatDate(dateStr: string): string {
 export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
   const cfg = STATUS_CONFIG[info.reraStatus];
   const { Icon } = cfg;
+  const badgeClass = info.verified
+    ? cfg.badgeClass
+    : "bg-amber-500/15 text-amber-300 border border-amber-500/30";
 
   return (
     <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
@@ -57,11 +61,12 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
           <Icon size={16} className={cfg.badgeClass.includes("green") ? "text-green-400" : cfg.badgeClass.includes("amber") ? "text-amber-400" : "text-red-400"} />
           <span className="text-sm font-medium text-foreground/90">RERA Details</span>
         </div>
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
-          {cfg.label}
+        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${badgeClass}`}>
+          {info.verified ? cfg.label + " · Truvi checked" : "Developer-declared · not checked"}
         </span>
       </div>
 
+      {!info.verified && <p className="mt-3 text-xs leading-relaxed text-amber-200/80">This status and number were entered by the developer. Truvi has not independently checked them against the official RERA register.</p>}
       {/* Fields */}
       <dl className="mt-4 space-y-2">
         <div className="flex items-center justify-between text-xs">
