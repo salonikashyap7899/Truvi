@@ -42,9 +42,9 @@ import { hashOtpForStorage, verifyStoredOtp } from "../lib/otpHash";
 
 const router = Router();
 
-// KYC bundle upload (Aadhaar doc + PAN doc + live selfie) for CP/Ambassador
-// identity. Held in memory (not on disk) and persisted durably to the
-// `kyc_documents` table as bytea — identity documents must never be publicly
+// KYC bundle upload (masked identity document + optional PAN + selfie) for
+// CP/Ambassador identity review. Held in memory (not on disk) and persisted
+// durably in the private `kyc_documents` table; never served from public URLs.
 // reachable by URL; they are streamed only to admins via an authenticated route.
 const kycUpload = multer({
   storage: multer.memoryStorage(),
@@ -596,7 +596,7 @@ router.post("/verify-email-otp", authenticate, ...otpVerifyLimiter, async (req: 
 // "verified" for any single uploaded file — a weaker shortcut around the real
 // KYC flow below. Identity documents now go only through /submit-kyc.)
 
-// CP / Ambassador identity submission: Aadhaar + PAN + live selfie in one go.
+// CP / Ambassador identity submission: masked identity document + PAN where required + live selfie.
 // KYC is required only for Channel Partners and Ambassadors, so the endpoint is
 // scoped to those roles. Documents are stored and the submission is marked
 // PENDING for review — access stays locked until a provider (see kycService) or
