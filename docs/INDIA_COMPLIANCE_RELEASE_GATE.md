@@ -7,8 +7,9 @@
 ## What this branch changes
 
 - Adds a public grievance submission route that does not require an account.
-- Gives each complaint a case number and immediate acknowledgement status.
-- Sends a privacy-minimised email acknowledgement with the case number and summary; the full complaint stays in the restricted case system. Email failure does not discard the case.
+- Gives each complaint a case number and a 48-hour acknowledgement deadline.
+- Sends the complainant the full complaint copy as recorded by Truvi. A case is marked ACKNOWLEDGED only after the email provider accepts the message; otherwise it remains SUBMITTED and visible in the admin queue for manual handling.
+- Tracks a 15-calendar-day internal response target. Where the Consumer Protection (E-Commerce) Rules apply, the statutory grievance redressal deadline is one month from receipt.
 - Routes public complaints into the existing administrator Compliance Centre.
 - Records complainant contact data and the privacy-notice version/acknowledgement separately from an optional account ID.
 - Sets a 15-calendar-day internal response target to support a stricter operational workflow. This is an internal target, not a statement that every complaint is governed by the same statutory deadline.
@@ -27,11 +28,13 @@ Populate these in the **client build environment** (for a VPS build, client/.env
 | VITE_COMPANY_CIN_OR_LLPIN | CIN/LLPIN where applicable; otherwise obtain advice on correct entity disclosure |
 | VITE_COMPANY_GSTIN | Current GSTIN only if the disclosed supplier is registered for GST |
 | VITE_COMPANY_BRANCH_ADDRESSES | Current branches relevant to customer service / statutory disclosures, if any |
-| VITE_CUSTOMER_CARE_PHONE | Monitored customer-care number |
+| VITE_CUSTOMER_CARE_PHONE | Monitored customer-care mobile number |
+| VITE_CUSTOMER_CARE_LANDLINE | Monitored customer-care landline number |
 | VITE_GRIEVANCE_OFFICER_NAME | Person formally appointed and authorised to handle grievances |
 | VITE_GRIEVANCE_OFFICER_DESIGNATION | Correct designation |
 | VITE_GRIEVANCE_OFFICER_EMAIL | Monitored grievance email address |
-| VITE_GRIEVANCE_OFFICER_PHONE | Monitored grievance phone |
+| VITE_GRIEVANCE_OFFICER_PHONE | Monitored grievance mobile number |
+| VITE_GRIEVANCE_OFFICER_LANDLINE | Monitored grievance landline number |
 | VITE_UP_RERA_AGENT_REGISTRATION | Verified registration number only if counsel confirms Truvi acts as an agent and registration is required |
 
 The site must not publish placeholder values. If a variable is not known, obtain the evidence first; do not enter a made-up value or another person's details without appointment/authority.
@@ -61,6 +64,12 @@ Only change these after written CA confirmation. `GSTIN` must be the registered 
 9. **Intermediary classification:** if user-provided listing/noticeboard content makes Truvi an intermediary, obtain counsel's Rule 3 assessment and operate the applicable 24-hour acknowledgement / 15-day grievance response process, including legal-order/takedown handling.
 10. **Employment, POSH, TDS/PMLA and telecom:** applicability depends on workforce size/location, actual relationship/transactions and commercial messaging setup. Obtain professional review and operational evidence.
 
+## Consumer grievance deadlines and amendment readiness
+
+- For an e-commerce entity to which Rule 4 applies, acknowledge consumer complaints within 48 hours and redress them within one month. This branch records an internal 15-calendar-day response target and a 48-hour acknowledgement deadline; it does not change the statutory one-month outer deadline.
+- Truvi must obtain counsel's written view on whether it is an inventory-owning seller, marketplace, other e-commerce entity, intermediary, real-estate agent, advertising/lead platform or a combination by workflow. The duties differ by classification.
+- The Consumer Protection (E-Commerce) (Amendment) Rules, 2026 take effect on 1 January 2027. The PIB summary identifies complaint-copy delivery, search-result integrity, sponsored-listing labels, 30-day prior-price disclosure for reductions, annual dark-pattern self-audit/certificate, marketplace information disclosures, and express affirmative consent for specified uses of consumer information. Assess the detailed Gazette text against every Truvi customer journey before that date.
+
 ## Regulatory timing to track
 
 - DPDP Act/Rules commencement is phased. Under the 13 November 2025 notifications, Rule 4 of the DPDP Rules and the corresponding specified Act provisions commence on **13 November 2026**. The principal processing provisions and Rules 3 and 5–16 are scheduled for **13 May 2027**. Confirm corrigenda and notifications before each release.
@@ -83,6 +92,7 @@ Only change these after written CA confirmation. `GSTIN` must be the registered 
 - DPDP Act commencement notification G.S.R. 843(E), 13 November 2025: https://egazette.gov.in/WriteReadData/2025/267647.pdf
 - DPDP Rules, 2025 and enforcement timeline: https://www.meity.gov.in/documents/act-and-policies/digital-personal-data-protection-rules-2025-gDOxUjMtQWa
 - Consumer Protection (E-Commerce) Rules and 2026 amendments: https://consumeraffairs.gov.in/pages/consumer-protection-acts
+- Government summary of the 2026 E-Commerce amendment and its 1 January 2027 commencement: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2308759
 - PIB summary and 1 January 2027 commencement: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2308759
 - CERT-In directions: https://www.cert-in.org.in/Directions70B.jsp
 - UP RERA project/agent verification: https://www.up-rera.in/verify
