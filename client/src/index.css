@@ -69,24 +69,18 @@ html, body {
 /* A still, CSS-only ambient backdrop for inventory and project details.
    The animated WebGL city scene is intentionally disabled on touch devices
    to protect scrolling and form responsiveness. */
+/* Let the shared city backdrop show through Inventory and project detail
+   pages instead of painting a separate opaque gradient over it. */
 .truvi-inventory-surface {
-  background-color: #05070c;
-  background-image:
-    radial-gradient(ellipse 92% 44% at 50% 0%, rgba(37, 99, 235, 0.26), transparent 72%),
-    radial-gradient(ellipse 54% 38% at 100% 34%, rgba(16, 185, 129, 0.10), transparent 72%),
-    radial-gradient(ellipse 46% 32% at 0% 58%, rgba(37, 99, 235, 0.09), transparent 74%),
-    linear-gradient(180deg, #0a1222 0%, #070c16 52%, #05070c 100%);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-color: rgba(5, 7, 12, 0.24);
+  background-image: none;
 }
 
-@media (max-width: 767px) {
-  .truvi-inventory-surface {
-    background-image:
-      radial-gradient(ellipse 112% 38% at 50% 0%, rgba(37, 99, 235, 0.22), transparent 74%),
-      radial-gradient(ellipse 72% 28% at 100% 36%, rgba(16, 185, 129, 0.075), transparent 72%),
-      linear-gradient(180deg, #0a1222 0%, #070c16 60%, #05070c 100%);
-  }
+/* Full-page route shells keep a light dark tint for text contrast while
+   allowing the shared fixed city background to remain visible underneath.
+   Cards and dialogs keep their own surfaces. */
+.min-h-screen[class*="bg-"] {
+  background-color: rgba(5, 7, 12, 0.34) !important;
 }
 
 /* Keep long URLs, emails and IDs from forcing horizontal overflow. */

@@ -224,7 +224,7 @@ const REDUCED_MOTION =
   typeof window !== "undefined" &&
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
-export function AmbientBackground() {
+export function AmbientBackground({ animated = true }: { animated?: boolean }) {
   return (
     <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
       {/* This backdrop rides on EVERY non-landing page (dashboards, inventory).
@@ -237,11 +237,11 @@ export function AmbientBackground() {
         <SilentErrorBoundary>
           <Canvas
             frameloop="demand"
-            dpr={[1, 1.5]}
+            dpr={animated ? [1, 1.5] : [1, 1]}
             gl={{ antialias: false, powerPreference: "high-performance" }}
             camera={{ position: [0, 14, 34], fov: 55, near: 0.1, far: 300 }}
           >
-            <ThrottledFrames fps={24} />
+            {animated && <ThrottledFrames fps={24} />}
             <color attach="background" args={["#050608"]} />
             <fog attach="fog" args={["#050608", 34, 130]} />
             <ambientLight intensity={0.3} />
@@ -252,7 +252,7 @@ export function AmbientBackground() {
             <Plots />
             <Towers />
             <Homes />
-            <SlowOrbit />
+            {animated && <SlowOrbit />}
           </Canvas>
         </SilentErrorBoundary>
       )}

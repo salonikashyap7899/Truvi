@@ -185,14 +185,18 @@ function Ambience() {
       "/payment-failed",
     ].includes(pathname);
 
-  if (IS_TOUCH || pathname === "/" || operationalRoute) return null;
+  // The homepage keeps its own dedicated hero/city scene. Every other
+  // route shares the ambient city backdrop. Operational screens render the
+  // same city scene as a still frame so a perpetual WebGL loop cannot compete
+  // with inventory grids, dashboards, forms or long-page scrolling.
+  if (pathname === "/") return null;
 
   return (
     <>
       <Suspense fallback={null}>
-        <AmbientBackground />
+        <AmbientBackground animated={!operationalRoute} />
       </Suspense>
-      <CursorGlow />
+      {!operationalRoute && !IS_TOUCH && <CursorGlow />}
     </>
   );
 }
