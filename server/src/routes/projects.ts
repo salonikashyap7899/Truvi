@@ -5,6 +5,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, units, leads, users, projectAssets, IProject } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { expireStaleLocks } from "../services/inventoryService";
@@ -109,8 +110,11 @@ router.get("/", async (req: AuthedRequest, res) => {
       buyerProfile?.compareProjectIds?.some((id) => String(id) === String(project._id)),
     );
 
+    const privilegedProjectViewer = user.role === "ADMIN" || String(project.developerId) === user.userId;
     return {
       ...withoutPrivateProjectFields(project, user, project.developerId),
+      isVerified: project.isVerified === true &&
+        (privilegedProjectViewer || isApprovalEvidenceVerified(project)),
       developerId: developer,
       unitCount: unitCountMap.get(String(project._id)) || 0,
       leadCount: leadCountMap.get(String(project._id)) || 0,
@@ -151,8 +155,14 @@ router.get("/:id", async (req: AuthedRequest, res) => {
     .where(eq(units.projectId, project._id))
     .orderBy(asc(units.unitNumber));
 
+  const privilegedProjectViewer = userRole === "ADMIN" || isOwner;
   res.json({
-    project: { ...withoutPrivateProjectFields(project, req.user, project.developerId), developerId: developer || project.developerId },
+    project: {
+      ...withoutPrivateProjectFields(project, req.user, project.developerId),
+      isVerified: project.isVerified === true &&
+        (privilegedProjectViewer || isApprovalEvidenceVerified(project)),
+      developerId: developer || project.developerId,
+    },
     units: unitRows,
   });
 });
@@ -259,6 +269,30 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
   if (d.masterPlanUrl !== undefined) update.masterPlanUrl = d.masterPlanUrl || null;
   if (d.reraValidityDate !== undefined) update.reraValidityDate = d.reraValidityDate ? new Date(d.reraValidityDate) : null;
   if (d.possessionDate !== undefined) update.possessionDate = d.possessionDate ? new Date(d.possessionDate) : null;
+
+  // Approval identity changes invalidate the prior manual verification. A
+  // previous RERA or planning-authority check must never carry over to a new
+  // number, authority, status or validity period.
+  const approvalIdentityChanged =
+    (d.reraNumber !== undefined && (d.reraNumber || null) !== project.reraNumber) ||
+    (d.approvalAuthority !== undefined && (d.approvalAuthority || null) !== project.approvalAuthority) ||
+    (d.reraStatus !== undefined && d.reraStatus !== project.reraStatus) ||
+    (d.reraValidityDate !== undefined &&
+      (d.reraValidityDate ? new Date(d.reraValidityDate).getTime() : null) !==
+        (project.reraValidityDate ? new Date(project.reraValidityDate).getTime() : null));
+  if (approvalIdentityChanged) {
+    update.verificationDetails = {
+      ...(project.verificationDetails ?? {}),
+      reraVerified: false,
+      approvalVerified: false,
+      reraExemptionVerified: false,
+      reraExemptionBasis: "",
+      verificationSource: "",
+      lastVerifiedAt: null,
+    };
+    update.isVerified = false;
+    update.verifiedAt = null;
+  }
   if (d.lat !== undefined) update.lat = d.lat;
   if (d.lng !== undefined) update.lng = d.lng;
 

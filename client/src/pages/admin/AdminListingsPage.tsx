@@ -14,6 +14,9 @@ import type { Project } from "@/types";
 
 interface VerificationDetails {
   reraVerified: boolean;
+  approvalVerified: boolean;
+  reraExemptionVerified: boolean;
+  reraExemptionBasis: string;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
@@ -24,6 +27,9 @@ interface VerificationDetails {
 
 const DEFAULT_VD: VerificationDetails = {
   reraVerified: false,
+  approvalVerified: false,
+  reraExemptionVerified: false,
+  reraExemptionBasis: "",
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
@@ -180,6 +186,9 @@ export default function AdminListingsPage() {
     const existing = project.verificationDetails;
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
+      approvalVerified: existing.approvalVerified ?? false,
+      reraExemptionVerified: existing.reraExemptionVerified ?? false,
+      reraExemptionBasis: existing.reraExemptionBasis ?? "",
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
@@ -203,6 +212,9 @@ export default function AdminListingsPage() {
     const existing = p.verificationDetails;
     return existing ? {
       reraVerified: existing.reraVerified ?? false,
+      approvalVerified: existing.approvalVerified ?? false,
+      reraExemptionVerified: existing.reraExemptionVerified ?? false,
+      reraExemptionBasis: existing.reraExemptionBasis ?? "",
       titleClearance: existing.titleClearance ?? false,
       encumbranceFree: existing.encumbranceFree ?? false,
       constructionApproval: existing.constructionApproval ?? false,
@@ -494,12 +506,15 @@ export default function AdminListingsPage() {
                   </div>
 
                   <p className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Verification Details</p>
+                  <p className="text-xs leading-relaxed text-amber-200/80">Only tick RERA Register Checked after checking the exact project phase and number on the official State RERA register. For a non-RERA authority, check both the authority document and the separate RERA Applicability / Exemption Evidence. DTCP or Panchayat approval alone does not establish a RERA exemption. Record an official source/document and the review date.</p>
 
                   {/* Checkboxes */}
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
                     {(
                       [
-                        ["reraVerified", "RERA Verified"],
+                        ["reraVerified", "RERA Register Checked"],
+                        ["approvalVerified", "Other Authority Approval Checked"],
+                        ["reraExemptionVerified", "RERA Applicability / Exemption Evidence Checked"],
                         ["titleClearance", "Title Clearance"],
                         ["encumbranceFree", "Encumbrance Free"],
                         ["constructionApproval", "Construction Approval"],
@@ -521,10 +536,20 @@ export default function AdminListingsPage() {
                   {/* Text fields */}
                   <div className="space-y-2">
                     <div>
+                      <label className="text-xs text-muted-foreground">RERA applicability / exemption basis (required for non-RERA or exempt projects)</label>
+                      <textarea
+                        placeholder="Record the specific statutory exemption / non-applicability basis and the supporting order, document or official reference. Do not enter a generic statement."
+                        value={draft.reraExemptionBasis}
+                        onChange={(e) => patchDraft(p._id, "reraExemptionBasis", e.target.value)}
+                        rows={3}
+                        className="mt-1 w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
                       <label className="text-xs text-muted-foreground">Verification Source</label>
                       <input
                         type="text"
-                        placeholder="e.g. MahaRERA, Internal Review, Third-party Audit"
+                        placeholder="Official register / issuing authority, URL or document reference"
                         value={draft.verificationSource}
                         onChange={(e) => patchDraft(p._id, "verificationSource", e.target.value)}
                         className="mt-1 w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white placeholder:text-muted-foreground outline-none focus:border-blue-500"

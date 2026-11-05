@@ -111,7 +111,7 @@ export default function PricingPage() {
         )}
 
         <p className="mt-5 text-center text-sm text-muted-foreground">
-          {active.tagline} <span className="text-foreground/50">· Prices exclusive of 18% GST</span>
+          {active.tagline} <span className="text-foreground/50">· Any applicable tax is shown before payment</span>
         </p>
 
         {/* Cards */}
@@ -138,9 +138,10 @@ export default function PricingPage() {
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
             <Link to="/terms" className="hover:text-foreground">Terms of Service</Link>
             <Link to="/refund-policy" className="hover:text-foreground">Refund &amp; Cancellation</Link>
-            <Link to="/privacy" className="hover:text-foreground">Privacy Policy</Link>
+            <Link to="/grievance" className="hover:text-foreground">Grievance</Link>
+            <Link to="/privacy-policy" className="hover:text-foreground">Privacy Policy</Link>
           </div>
-          <p className="mt-4">Truvi Ventures · Truston Developers Pvt. Ltd., Lucknow, India</p>
+          <p className="mt-4">Truvi Ventures · India · Legal entity details in the Privacy Policy</p>
         </footer>
       </main>
 
@@ -201,10 +202,10 @@ function PricingCard({ item, onBuy }: { item: PriceItem; onBuy: () => void }) {
         <div className="mt-5 flex items-end gap-2">
           <span className="font-display text-4xl font-semibold tracking-tight text-white">{item.price}</span>
           {item.unit && <span className="pb-1 text-sm text-muted-foreground">{item.unit}</span>}
-          {item.strike && <span className="pb-1.5 text-sm text-muted-foreground/70 line-through">{item.strike}</span>}
+
         </div>
-        {/* GST line kept in the layout for every card (invisible when free) so prices share a baseline */}
-        <p className={`mt-1 text-[11px] text-muted-foreground/70 ${isFree ? "invisible" : ""}`}>+ 18% GST at checkout</p>
+        {/* Tax is itemised at checkout only when it legally applies to this service. */}
+        <p className={`mt-1 text-[11px] text-muted-foreground/70 ${isFree ? "invisible" : ""}`}>Any applicable tax shown at checkout</p>
 
         {/* CTA */}
         <div className="mt-5">

@@ -688,16 +688,17 @@ function Footer() {
             <Link to="/intelligence" className={link}>Truvi Intelligence Engine™</Link>
             <a href="#truvi-score" className={link}>Truvi Score™</a>
             <a href="#passport" className={link}>Property Passport™</a>
-            <Link to="/legal#verification-methodology" className={link}>Verification Methodology</Link>
+            <Link to="/legal" className={link}>Legal information &amp; verification methodology</Link>
           </div>
         </div>
         <div>
           <p className={head}>Legal</p>
           <div className={col}>
-            <Link to="/legal#privacy-policy" className={link}>Privacy Policy</Link>
-            <Link to="/legal#terms-of-use" className={link}>Terms of Use</Link>
-            <Link to="/legal#data-policy" className={link}>Data Policy</Link>
-            <Link to="/legal#disclaimer" className={link}>Disclaimer</Link>
+            <Link to="/privacy-policy" className={link}>Privacy Policy</Link>
+            <Link to="/terms" className={link}>Terms of Service</Link>
+            <Link to="/refund-policy" className={link}>Refund &amp; Cancellation</Link>
+            <Link to="/grievance" className={link}>File a grievance</Link>
+            <Link to="/legal" className={link}>Verification methodology</Link>
           </div>
         </div>
       </div>
@@ -731,8 +732,8 @@ function CountUpNum({ target }: { target: number }) {
 
 const HOMEPAGE_FEATURES = [
   {
-    title: "Verified Projects",
-    description: "Developer-registered listings with clear project details.",
+    title: "Project Listings",
+    description: "Developer-submitted listings with source-labelled project information.",
     Icon: ShieldCheck,
   },
   {
@@ -839,7 +840,7 @@ function LiveProjectsShowcase() {
           </p>
           <Reveal delay={0.1}>
             <h2 className="font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-5xl">
-              Verified <span className="text-gradient-trust">Projects</span>
+              Explore <span className="text-gradient-trust">Projects</span>
             </h2>
           </Reveal>
           <Reveal delay={0.2}>
@@ -847,8 +848,8 @@ function LiveProjectsShowcase() {
               Discover handpicked residential plots, villas and premium projects across India.
             </p>
             <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              Every listing below was registered by a developer and appears here the moment it's approved —
-              real inventory, real photos, verified by Truvi.
+              Project listings are submitted by developers and published after Truvi's listing review.
+              Each project shows its own information sources and verification status.
             </p>
           </Reveal>
           <Reveal delay={0.25}>
@@ -871,8 +872,8 @@ function LiveProjectsShowcase() {
                   </div>
                 )}
                 <div className="absolute left-3 top-3 flex gap-1.5">
-                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">✓ Verified</span>}
-                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Prime</span>}
+                  {p.isVerified && <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold text-white">Approval checked</span>}
+                  {p.isPrimeListing && <span className="rounded-full bg-amber-400/90 px-2 py-0.5 text-[10px] font-semibold text-black">Sponsored</span>}
                 </div>
                 {p.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="absolute bottom-3 left-3 px-3 py-1.5 text-xs" />}
               </div>
@@ -1086,8 +1087,8 @@ export default function LandingPage() {
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mx-auto mt-8 max-w-2xl text-muted-foreground md:text-lg">
-            Conversational property search and analysis — grounded in Truvi's verified data, with the
-            source and date visible on every important answer.
+            Conversational property search and analysis — grounded in available project data, with source
+            labels and review dates shown where they are recorded.
           </p>
         </Reveal>
         <Reveal delay={0.35}>

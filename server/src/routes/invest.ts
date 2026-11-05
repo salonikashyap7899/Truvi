@@ -5,6 +5,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, projectAssets, users, projectInvestmentTerms, projectInvestments, notifications } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { createOrder, fetchOrder, fetchPayment, matchesCapturedPayment, verifyPaymentSignature, isPaymentGatewayConfigured } from "../services/paymentService";
 import { getEnv } from "../config/env";
@@ -28,11 +29,15 @@ async function coversFor(db: ReturnType<typeof getDb>, ids: string[]) {
 // GET /api/invest/opportunities — projects currently OPEN for investment, with
 // their admin-set terms. Public (discovery); investing itself requires login.
 router.get("/opportunities", async (_req, res) => {
+  const env = getEnv();
+  if (!env.investmentOffersEnabled) {
+    return res.json({ enabled: false, gatewayReady: false, opportunities: [] });
+  }
   const db = getDb();
   const rows = await db
     .select({
       terms: projectInvestmentTerms,
-      project: { _id: projects._id, name: projects.name, city: projects.city, location: projects.location, isVerified: projects.isVerified, reraNumber: projects.reraNumber },
+      project: projects,
       developer: { name: users.name },
     })
     .from(projectInvestmentTerms)
@@ -41,17 +46,22 @@ router.get("/opportunities", async (_req, res) => {
     .where(and(eq(projectInvestmentTerms.isOpen, true), eq(projects.approvalStatus, "APPROVED")))
     .orderBy(desc(projectInvestmentTerms.updatedAt));
 
-  const covers = await coversFor(db, rows.map((r) => String(r.project._id)));
+  const eligibleRows = rows.filter((r) =>
+    r.project.isVerified === true && isApprovalEvidenceVerified(r.project),
+  );
+  const covers = await coversFor(db, eligibleRows.map((r) => String(r.project._id)));
   res.json({
+    enabled: true,
     gatewayReady: isPaymentGatewayConfigured,
-    opportunities: rows.map((r) => ({
+    opportunities: eligibleRows.map((r) => ({
       projectId: r.project._id,
       name: r.project.name,
       city: r.project.city,
       location: r.project.location,
       developer: r.developer?.name ?? null,
-      isVerified: r.project.isVerified,
+      isVerified: true,
       reraNumber: r.project.reraNumber ?? null,
+      approvalAuthority: r.project.approvalAuthority ?? "RERA",
       coverImageUrl: covers.get(String(r.project._id)) ?? null,
       minAmount: r.terms.minAmount,
       maxAmount: r.terms.maxAmount,
@@ -67,6 +77,9 @@ router.get("/opportunities", async (_req, res) => {
 // amount against the admin's terms and creates a Razorpay order.
 const createOrderSchema = z.object({ projectId: z.string(), amount: z.number().positive() });
 router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
+  if (!getEnv().investmentOffersEnabled) {
+    return res.status(503).json({ error: "Project investment participation is paused while Truvi completes its Indian legal and regulatory review. No new investment payments are being accepted." });
+  }
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   const { projectId, amount } = parsed.data;
@@ -76,6 +89,10 @@ router.post("/create-order", authenticate, async (req: AuthedRequest, res) => {
   const db = getDb();
   const [terms] = await db.select().from(projectInvestmentTerms).where(eq(projectInvestmentTerms.projectId, projectId));
   if (!terms || !terms.isOpen) return res.status(400).json({ error: "This project is not open for investment." });
+  const [project] = await db.select().from(projects).where(eq(projects._id, projectId)).limit(1);
+  if (!project || project.approvalStatus !== "APPROVED" || project.isVerified !== true || !isApprovalEvidenceVerified(project)) {
+    return res.status(409).json({ error: "This project is not eligible for investment display until its current RERA registration or approved exemption and authority evidence are independently reviewed." });
+  }
   if (amount < terms.minAmount) return res.status(400).json({ error: `Minimum investment is ₹${terms.minAmount.toLocaleString("en-IN")}.` });
   if (terms.maxAmount && amount > terms.maxAmount) return res.status(400).json({ error: `Maximum investment is ₹${terms.maxAmount.toLocaleString("en-IN")}.` });
 

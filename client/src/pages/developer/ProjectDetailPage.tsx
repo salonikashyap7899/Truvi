@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { formatINR } from "@/lib/utils";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { useSocketEvent } from "@/lib/socket";
 import { toast } from "sonner";
 import TrustScoreWidget from "@/components/TrustScoreWidget";
@@ -210,10 +211,17 @@ export default function ProjectDetailPage() {
   const floodRisk = project.floodRiskLevel ?? null;
   const crimeIndex = project.crimeIndexLevel ?? null;
   const ownerHistory = project.ownerHistory ?? [];
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
   const reraInfo = {
+    approvalAuthority,
     reraNumber: project.reraNumber ?? "",
     reraStatus: project.reraStatus ?? ("NOT_REGISTERED" as const),
     reraValidityDate: project.reraValidityDate ?? null,
+    reraExemptionVerified: project.verificationDetails?.reraExemptionVerified === true && Boolean(project.verificationDetails?.reraExemptionBasis?.trim()),
+    reraExemptionBasis: project.verificationDetails?.reraExemptionBasis,
+    verificationSource: project.verificationDetails?.verificationSource ?? "",
+    lastVerifiedAt: project.verificationDetails?.lastVerifiedAt ?? null,
+    verified: isApprovalEvidenceVerified(project),
   };
 
   return (

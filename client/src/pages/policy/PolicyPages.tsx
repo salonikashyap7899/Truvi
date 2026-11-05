@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SiteNav } from "@/components/SiteNav";
+import { legalDisclosure, missingLegalDisclosures } from "@/config/legalDisclosure";
 
-const COMPANY = "Truvi Ventures (Truston Developers Pvt. Ltd.)";
-const CITY = "Lucknow, Uttar Pradesh, India";
+const COMPANY = "Truvi Ventures";
 const SUPPORT_EMAIL = "info@truviventures.com";
-const UPDATED = "Last updated: August 2026";
+const UPDATED = "Last updated: 5 November 2026";
 
 function PolicyShell({ title, children, updated }: { title: string; children: ReactNode; updated?: string }) {
   return (
@@ -22,10 +22,11 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
           <Link to="/terms" className="hover:text-foreground">Terms of Service</Link>
           <Link to="/refund-policy" className="hover:text-foreground">Refund &amp; Cancellation</Link>
           <Link to="/privacy-policy" className="hover:text-foreground">Privacy Policy</Link>
+          <Link to="/grievance" className="hover:text-foreground">File a grievance</Link>
           <Link to="/pricing" className="hover:text-foreground">Pricing</Link>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">
-          {COMPANY} · {CITY} · <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">{SUPPORT_EMAIL}</a>
+          {COMPANY} · truviventures.com · <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">{SUPPORT_EMAIL}</a>
         </p>
       </main>
     </div>
@@ -35,17 +36,19 @@ function PolicyShell({ title, children, updated }: { title: string; children: Re
 export function TermsPage() {
   return (
     <PolicyShell title="Terms of Service">
-      <p>By using {COMPANY} ("Truvi", "we", "us") at truviventures.com and paying for any service, you agree to these terms.</p>
+      <p>By using the Truvi platform at truviventures.com, you agree to these Terms of Service. The statutory legal entity operating this platform is identified in the company disclosures in the Privacy Policy and on applicable invoices or contracts.</p>
       <h2>1. Services</h2>
       <p>Truvi provides real-estate intelligence, verification, listing and related services to buyers, channel partners and developers. Features and prices are described on our Pricing page and may change with notice.</p>
       <h2>2. Payments</h2>
-      <p>Paid services are billed in Indian Rupees and processed securely by Razorpay. All prices are exclusive of 18% GST unless stated otherwise. You are responsible for providing accurate contact and payment details.</p>
+      <p>Paid services are billed in Indian Rupees and payment processing is handled by the payment provider identified at checkout. Any applicable GST or other tax will be calculated and displayed before payment based on the supplier's registration, the service classification, place-of-supply rules and applicable tax law. The invoice will state the tax actually charged. Do not assume one tax rate applies to every Truvi service.</p>
       <h2>3. Acceptable use</h2>
       <p>You agree not to misuse the platform, resell data without authorisation, or use it for any unlawful purpose.</p>
       <h2>4. Limitation of liability</h2>
       <p>Truvi's intelligence and verification outputs are provided in good faith to assist your decisions but do not constitute legal, financial or investment advice. To the extent permitted by law, our liability for any claim is limited to the amount you paid for the specific service.</p>
-      <h2>5. Contact</h2>
-      <p>Questions about these terms: <strong>{SUPPORT_EMAIL}</strong>.</p>
+      <h2>5. Property information and verification</h2>
+      <p>Project details, approvals, prices, inventory and availability can change. A developer-supplied registration number or document is not an independent government verification. Before paying or signing, verify the project's applicable registration or documented exemption with the competent authority and review the underlying documents. Truvi's information tools do not replace legal title due diligence or professional advice.</p>
+      <h2>6. Complaints and contact</h2>
+      <p>You can submit a grievance without signing in at <Link to="/grievance" className="text-sky-300 underline">File a grievance</Link>, or email <strong>{SUPPORT_EMAIL}</strong>. Statutory consumer and other legal rights are not limited by these Terms.</p>
     </PolicyShell>
   );
 }
@@ -53,15 +56,17 @@ export function TermsPage() {
 export function RefundPolicyPage() {
   return (
     <PolicyShell title="Refund &amp; Cancellation Policy">
-      <p>This policy explains refunds and cancellations for services purchased on truviventures.com.</p>
-      <h2>1. Digital services</h2>
-      <p>Reports, verifications, badges and other digital deliverables are generated on demand. Once a report or verification has been delivered, the fee is generally non-refundable.</p>
-      <h2>2. Failed or duplicate payments</h2>
-      <p>If you were charged but did not receive the service, or were charged more than once for the same order, contact us within 7 days for a full refund of the affected amount.</p>
-      <h2>3. Subscriptions</h2>
-      <p>Subscriptions (Pro plans) can be cancelled any time and will not renew for the next cycle. Amounts already paid for the current cycle are non-refundable.</p>
-      <h2>4. How to request</h2>
-      <p>Email <strong>{SUPPORT_EMAIL}</strong> with your payment ID. Approved refunds are returned to the original payment method within 5–7 business days via Razorpay.</p>
+      <p>This policy explains the process for cancellation and refund requests for paid Truvi services. The specific service, deliverable, price, tax, renewal date and applicable cancellation conditions must be shown before the customer places an order.</p>
+      <h2>1. Digital and verification services</h2>
+      <p>Where a service is customised or begins immediately after purchase, the applicable scope and cancellation conditions will be shown before payment. A fee may be non-refundable only to the extent permitted by applicable law and where the service has actually been supplied. Nothing in this policy removes a consumer's statutory rights or remedies for deficiency, misrepresentation, an undelivered service or an unauthorised charge.</p>
+      <h2>2. Failed, duplicate or unauthorised payments</h2>
+      <p>Contact <strong>{SUPPORT_EMAIL}</strong> promptly with your order reference and payment ID. Truvi will investigate the payment with the payment provider and process any refund that is due under the applicable law, provider rules and transaction facts. This policy does not impose a seven-day cut-off on statutory rights.</p>
+      <h2>3. Subscription cancellation</h2>
+      <p>Use the cancellation control provided in your account where available. Otherwise, email <strong>{SUPPORT_EMAIL}</strong> before the next renewal and include the account email and subscription reference. Truvi will confirm the cancellation request, its effective date and whether another renewal is scheduled. Refund eligibility for an already-started billing period will be assessed under the plan terms and applicable law; no blanket exclusion of statutory rights is intended.</p>
+      <h2>4. Refund processing</h2>
+      <p>Approved refunds are normally sent to the original payment method through the payment provider. The provider or bank may require additional processing time; Truvi will share the refund reference when available. Any stated processing estimate begins after the refund is actually initiated, not merely when a request is received.</p>
+      <h2>5. How to raise a request</h2>
+      <p>Email <strong>{SUPPORT_EMAIL}</strong> or use <Link to="/grievance" className="text-sky-300 underline">File a grievance</Link>. Include the order/payment reference, the service concerned and a short explanation. Do not email card numbers, CVV, passwords or OTPs.</p>
     </PolicyShell>
   );
 }
@@ -144,9 +149,9 @@ export function PrivacyPolicyPage() {
   ];
 
   return (
-    <PolicyShell title="Privacy Policy" updated="Last Updated: 4 November 2026 · Effective Date: 4 November 2026">
+    <PolicyShell title="Privacy Policy" updated="Last Updated: 5 November 2026 · Effective Date: 5 November 2026">
       <p>
-        TRUVI Ventures ("TRUVI", "we", "us", or "our") explains here what personal information we collect,
+        Truvi Ventures ("Truvi", "we", "us", or "our") explains here what personal information we collect,
         why we use it, which Truvi features use it, which service providers may receive it, and how you can
         exercise your privacy choices. This notice applies when you visit truviventures.com, register, submit
         an enquiry or requirement, list/manage a project, communicate with Truvi, or use any Truvi workspace.
@@ -159,10 +164,53 @@ export function PrivacyPolicyPage() {
 
       <h2>1. Who handles your information</h2>
       <p>
-        {COMPANY} ("Truvi", "we", "us" or "our"), based in {CITY}, operates the Truvi real-estate
-        platform and related services. The support contact for privacy questions and grievances is
-        <strong> {SUPPORT_EMAIL}</strong>. The website is <strong> truviventures.com</strong>.
+        Truvi Ventures is the brand/platform name used on truviventures.com. The exact legal entity
+        responsible for the services, its registered office and its statutory identifiers must be read
+        from the verified company disclosures below and the applicable invoice or contract. The general
+        privacy/support email is <strong>{SUPPORT_EMAIL}</strong>.
       </p>
+      <section className="not-prose rounded-xl border border-white/10 bg-white/[0.025] p-4">
+        <h2 className="text-base font-semibold text-foreground">Company and grievance disclosures</h2>
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          These particulars must be populated from current company records and the formal appointment
+          of the responsible grievance officer. No statutory identity or officer name is inferred from
+          the Truvi brand.
+        </p>
+        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+          {([
+            ["Legal entity name", legalDisclosure.legalEntityName],
+            ["Registered office", legalDisclosure.registeredOfficeAddress],
+            ["Headquarters / principal address", legalDisclosure.headquartersAddress],
+            ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
+            ["GSTIN (if registered)", legalDisclosure.gstin],
+            ["Branch addresses (if any)", legalDisclosure.branchAddresses],
+            ["Website", "https://truviventures.com"],
+            ["Customer care email", SUPPORT_EMAIL],
+            ["Customer care mobile", legalDisclosure.customerCarePhone],
+            ["Customer care landline", legalDisclosure.customerCareLandline],
+            ["Grievance Officer name", legalDisclosure.grievanceOfficerName],
+            ["Grievance Officer designation", legalDisclosure.grievanceOfficerDesignation],
+            ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
+            ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
+            ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
+            ["UP RERA agent registration (where required)", legalDisclosure.upReraAgentRegistration],
+          ] as Array<[string, string | null]>).map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="mt-1 break-words font-medium text-foreground">{value || "Not configured — management verification required"}</dd>
+            </div>
+          ))}
+        </dl>
+        {missingLegalDisclosures.length > 0 && (
+          <p role="alert" className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/5 p-3 text-xs leading-relaxed text-amber-200">
+            Some required public identity or grievance contact details have not yet been configured in the website build. Truvi management must verify and publish them before representing the platform as fully compliant.
+          </p>
+        )}
+        <p className="mt-4 text-xs text-muted-foreground">
+          General enquiries: <a href={"mailto:" + SUPPORT_EMAIL} className="text-sky-300 underline">{SUPPORT_EMAIL}</a>.
+          {" "}Consumers may submit a grievance at <Link to="/grievance" className="text-sky-300 underline">truviventures.com/grievance</Link>.
+        </p>
+      </section>
 
       <h2>2. Information we collect</h2>
       <p>Depending on your role and the features you use, we may collect:</p>
@@ -370,6 +418,13 @@ export function PrivacyPolicyPage() {
         Support Centre</strong>, or contact <strong>info@truviventures.com</strong>. Truvi may need to verify
         your identity before acting on a request and may ask for clarification.
       </p>
+      <p>
+        India's Digital Personal Data Protection Act, 2023 and the 2025 Rules have notified phased commencement.
+        Certain provisions commence on 13 November 2026 and the principal processing obligations are scheduled
+        to commence on 13 May 2027. This notice describes Truvi's current product data flows; it is not a claim
+        that every future statutory requirement has already commenced or that a policy alone fulfils operational
+        duties. Truvi will update its systems, notices and processes as the relevant provisions become effective.
+      </p>
 
       <h2>15. Account deletion and restoration by email</h2>
       <p>
@@ -399,9 +454,12 @@ export function PrivacyPolicyPage() {
 
       <h2>16. Grievances and privacy support</h2>
       <p>
-        You can submit a grievance and track its case number, status and customer-visible response in Privacy
-        & Support Centre. You may also write to <strong>info@truviventures.com</strong>. Internal handling notes
-        are restricted to authorised administrators and are not displayed as public case responses.
+        You can submit a general complaint without signing in through the <Link to="/grievance" className="text-sky-300 underline">public grievance form</Link>
+        and receive a case reference. Signed-in users can also submit and track privacy requests and account-linked
+        grievances in the Privacy &amp; Support Centre. You may alternatively write to <strong>info@truviventures.com</strong>.
+        Internal handling notes are restricted to authorised administrators and are not displayed as public case responses.
+        Truvi will acknowledge and redress complaints within the timelines that apply to its legally confirmed
+        e-commerce / intermediary classification.
       </p>
 
       <h2>17. Children</h2>
@@ -419,12 +477,11 @@ export function PrivacyPolicyPage() {
         acknowledgement or consent for a material change.
       </p>
 
-      <h2>19. Contact</h2>
+      <h2>19. Contact and grievance submission</h2>
       <p>
-        <strong>TRUVI Ventures</strong><br />
-        Website: www.truviventures.com<br />
-        Privacy and grievance email: <a href="mailto:info@truviventures.com" className="hover:text-foreground">info@truviventures.com</a><br />
-        Phone: +91 96366 33588
+        General privacy/support email: <a href="mailto:info@truviventures.com" className="hover:text-foreground">info@truviventures.com</a>.
+        You may submit a grievance without signing in through the <Link to="/grievance" className="text-sky-300 underline">public grievance form</Link>.
+        The statutory Grievance Officer identity and monitored contact details are shown in the company and grievance disclosures in Section 1, once configured by Truvi management.
       </p>
       <p className="text-xs text-muted-foreground">
         This policy describes the current code-level data flows and should be checked against actual provider

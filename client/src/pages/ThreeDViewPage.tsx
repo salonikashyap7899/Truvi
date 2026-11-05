@@ -657,6 +657,7 @@ function PlotPanel({
   const [form, setForm] = useState({ name: "", phone: "", email: "", note: "" });
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   // Reset the flow whenever a different plot is opened.
   useEffect(() => {
@@ -674,6 +675,7 @@ function PlotPanel({
     if (form.name.trim().length < 2) return setFormError("Please enter your name");
     if (!/^[6-9]\d{9}$/.test(form.phone.trim())) return setFormError("Enter a valid 10-digit mobile number");
     if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return setFormError("Enter a valid email address");
+    if (!privacyAcknowledged) return setFormError("Please acknowledge the Privacy Policy before submitting.");
 
     setSubmitting(true);
     try {
@@ -687,6 +689,7 @@ function PlotPanel({
           `BOOKING REQUEST — ${kind} ${unit.unitNumber} (${unit.type}, ${unit.areaSqft} sqft, ${formatINR(unit.price)}, facing ${facing}) ` +
           `at ${project.name}, ${project.location}, ${project.city}. Phone: ${form.phone.trim()}.` +
           (form.note.trim() ? ` Note: ${form.note.trim()}` : ""),
+        privacyNoticeAcknowledged: true,
       });
       setView("done");
     } catch (err: any) {
@@ -761,6 +764,10 @@ function PlotPanel({
                 value={form.note}
                 onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               />
+              <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65">
+                <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#e8c877]" />
+                <span>I consent to Truvi using these details to respond to this plot booking enquiry. I have read the <Link to="/privacy-policy" className="text-[#e8c877] underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
+              </label>
               {formError && (
                 <p className="rounded-xl border border-rose-500/25 bg-rose-950/40 px-3 py-2 text-xs text-rose-300">{formError}</p>
               )}

@@ -1,6 +1,7 @@
 import { eq, desc } from "drizzle-orm";
 import { getDb, getSqlClient } from "../../db";
 import { projects } from "../../db/schema";
+import { isApprovalEvidenceVerified } from "../../lib/approvalEvidence";
 import {
   CATEGORY_TABLES,
   DATA_CATEGORIES,
@@ -39,10 +40,17 @@ async function propertyContext(projectId: string): Promise<RagContext | null> {
   const lines: string[] = [];
   const sources: Source[] = [];
 
-  lines.push(
-    `PROPERTY: ${project.name} — ${project.location ?? ""}, ${project.city ?? ""}` +
-      (project.reraNumber ? ` (RERA: ${project.reraNumber})` : "")
-  );
+  const approvalChecked = isApprovalEvidenceVerified(project);
+  const authority = project.approvalAuthority ?? "RERA";
+  const approvalLabel = authority === "RERA" ? "RERA" : authority.replace(/_/g, " ");
+  const approvalContext = project.reraNumber
+    ? approvalChecked
+      ? ` (${approvalLabel} reference checked by Truvi against ${project.verificationDetails?.verificationSource}; recheck the current official record)`
+      : ` (developer-submitted ${approvalLabel} reference ${project.reraNumber}; NOT independently checked)`
+    : approvalChecked && project.reraStatus === "NOT_REGISTERED"
+      ? ` (RERA applicability / exemption reviewed: ${project.verificationDetails?.reraExemptionBasis}; this is not a RERA registration)`
+      : " (no independently checked RERA registration or exemption is recorded)";
+  lines.push(`PROPERTY: ${project.name} — ${project.location ?? ""}, ${project.city ?? ""}${approvalContext}`);
 
   for (const category of DATA_CATEGORIES) {
     const table = CATEGORY_TABLES[category as keyof typeof CATEGORY_TABLES];

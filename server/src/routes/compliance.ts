@@ -93,6 +93,182 @@ router.post("/account-deletion/restore", ...otpVerifyLimiter, async (req, res) =
   return res.json({ ok: true, message: "Your account has been restored. Please sign in again." });
 });
 
+
+// Public complaints must remain accessible to consumers who do not have a Truvi
+// account. The route is rate-limited and includes a honeypot; it does not expose
+// any complaint lookup endpoint to unauthenticated callers.
+const publicGrievanceSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  email: z.string().trim().toLowerCase().email().max(254),
+  phone: z.string().trim().max(25).optional().default(""),
+  category: z.enum(["PRIVACY", "ACCOUNT", "PAYMENT", "PROJECT_LISTING", "KYC", "TECHNICAL", "OTHER"]),
+  subject: z.string().trim().min(5).max(160),
+  description: z.string().trim().min(15).max(5000),
+  privacyNoticeAcknowledged: z.literal(true),
+  privacyNoticeVersion: z.literal(CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE),
+  website: z.string().trim().max(300).optional().default(""),
+});
+
+function escapeEmailHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[character]!));
+}
+
+async function sendGrievanceReceipt(
+  email: string,
+  name: string,
+  ticket: { caseNumber: string; category: string; subject: string; description: string },
+): Promise<boolean> {
+  const safeName = escapeEmailHtml(name);
+  const safeCase = escapeEmailHtml(ticket.caseNumber);
+  const safeCategory = escapeEmailHtml(ticket.category.replace(/_/g, " "));
+  const safeSubject = escapeEmailHtml(ticket.subject);
+  const safeDescription = escapeEmailHtml(ticket.description).replace(/\r?\n/g, "<br>");
+  try {
+    return await sendEmail(
+      email,
+      "Truvi grievance acknowledgement — " + ticket.caseNumber,
+      '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#172033">' +
+        "<h2>We have received your complaint</h2>" +
+        "<p>Hello " + safeName + ",</p>" +
+        "<p>Your grievance has been recorded. Keep this case number for future communication:</p>" +
+        "<p style=\"font-size:18px;font-weight:bold\">" + safeCase + "</p>" +
+        "<p><strong>Category:</strong> " + safeCategory + "</p>" +
+        "<p><strong>Subject:</strong> " + safeSubject + "</p>" +
+        "<hr style=\"border:0;border-top:1px solid #ddd;margin:20px 0\"/>" +
+        "<h3>Copy of your complaint as submitted</h3>" +
+        "<p>" + safeDescription + "</p>" +
+        "<p>For follow-up, reply to this email or write to info@truviventures.com and mention the case number.</p>" +
+        "<p>Truvi Support</p></div>",
+    );
+  } catch {
+    console.warn("GRIEVANCE_RECEIPT_EMAIL_FAILED", ticket.caseNumber);
+    return false;
+  }
+}
+
+router.post("/public-grievances", complianceSubmissionLimiter, async (req, res) => {
+  const parsed = publicGrievanceSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid grievance" });
+
+  // A populated honeypot is treated as a rejected submission. Never echo the
+  // hidden field or supplied values into logs or the response.
+  if (parsed.data.website) return res.status(400).json({ error: "Unable to submit this complaint." });
+  if (parsed.data.phone && !/^[+0-9() .-]{7,25}$/.test(parsed.data.phone)) {
+    return res.status(400).json({ error: "Enter a valid phone number or leave the field blank." });
+  }
+
+  const now = new Date();
+  const acknowledgementDueAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  // Internal target is 15 calendar days; e-commerce entities covered by the
+  // Consumer Protection Rules must redress complaints within one month.
+  const responseDueAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+  const caseNumber = "TRV-" + now.getTime().toString(36).toUpperCase() + "-" + randomBytes(3).toString("hex").toUpperCase();
+  const [ticket] = await getDb().insert(grievanceTickets).values({
+    requesterUserId: null,
+    requesterName: parsed.data.name,
+    requesterEmail: parsed.data.email,
+    requesterPhone: parsed.data.phone || null,
+    privacyNoticeVersion: parsed.data.privacyNoticeVersion,
+    privacyNoticeAcknowledgedAt: now,
+    caseNumber,
+    category: parsed.data.category,
+    subject: parsed.data.subject,
+    description: parsed.data.description,
+    status: "SUBMITTED",
+    acknowledgedAt: null,
+    acknowledgementDueAt,
+    responseDueAt,
+    requestedAt: now,
+    updatedAt: now,
+  }).returning({
+    _id: grievanceTickets._id,
+    caseNumber: grievanceTickets.caseNumber,
+    category: grievanceTickets.category,
+    subject: grievanceTickets.subject,
+    status: grievanceTickets.status,
+    requestedAt: grievanceTickets.requestedAt,
+    acknowledgedAt: grievanceTickets.acknowledgedAt,
+    responseDueAt: grievanceTickets.responseDueAt,
+    acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
+  });
+
+  const emailPromise = sendGrievanceReceipt(parsed.data.email, parsed.data.name, {
+    caseNumber: ticket.caseNumber,
+    category: parsed.data.category,
+    subject: parsed.data.subject,
+    description: parsed.data.description,
+  });
+  const adminNoticePromise = notifyRole("ADMIN", {
+    type: "grievance_submitted",
+    title: "New public grievance received",
+    message: ticket.caseNumber + " · " + ticket.category.replace(/_/g, " "),
+    data: { href: "/admin/compliance", grievanceId: ticket._id },
+    priority: "high",
+    dedupeKey: "grievance:" + ticket._id,
+  }).catch(() => []);
+  const safeAdminName = escapeEmailHtml(parsed.data.name);
+  const safeAdminEmail = escapeEmailHtml(parsed.data.email);
+  const safeAdminPhone = escapeEmailHtml(parsed.data.phone || "Not provided");
+  const safeAdminSubject = escapeEmailHtml(parsed.data.subject);
+  const safeAdminDescription = escapeEmailHtml(parsed.data.description).replace(/\r?\n/g, "<br>");
+  const teamEmailPromise = sendEmail(
+    "info@truviventures.com",
+    "New Truvi grievance — " + ticket.caseNumber,
+    '<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#172033">' +
+      "<h2>New public grievance received</h2>" +
+      "<p><strong>Case:</strong> " + escapeEmailHtml(ticket.caseNumber) + "</p>" +
+      "<p><strong>Name:</strong> " + safeAdminName + "</p>" +
+      "<p><strong>Email:</strong> " + safeAdminEmail + "</p>" +
+      "<p><strong>Phone:</strong> " + safeAdminPhone + "</p>" +
+      "<p><strong>Category:</strong> " + escapeEmailHtml(ticket.category.replace(/_/g, " ")) + "</p>" +
+      "<p><strong>Subject:</strong> " + safeAdminSubject + "</p>" +
+      "<p><strong>Complaint:</strong><br>" + safeAdminDescription + "</p>" +
+      "<p>Review this case in the Truvi Admin Compliance Centre.</p></div>",
+  ).catch(() => false);
+  const [emailSent] = await Promise.all([emailPromise, adminNoticePromise, teamEmailPromise]);
+
+  // Mark acknowledged only after the email provider accepts the full complaint
+  // copy. If delivery is unconfigured or rejected, leave the case SUBMITTED so
+  // the admin queue can pick it up before the 48-hour acknowledgement target.
+  let recordedTicket = ticket;
+  if (emailSent) {
+    const [acknowledgedTicket] = await getDb().update(grievanceTickets).set({
+      status: "ACKNOWLEDGED",
+      acknowledgedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(and(
+      eq(grievanceTickets._id, ticket._id),
+      eq(grievanceTickets.status, "SUBMITTED"),
+    )).returning({
+      _id: grievanceTickets._id,
+      caseNumber: grievanceTickets.caseNumber,
+      category: grievanceTickets.category,
+      subject: grievanceTickets.subject,
+      status: grievanceTickets.status,
+      requestedAt: grievanceTickets.requestedAt,
+      acknowledgedAt: grievanceTickets.acknowledgedAt,
+      acknowledgementDueAt: grievanceTickets.acknowledgementDueAt,
+      responseDueAt: grievanceTickets.responseDueAt,
+    });
+    if (acknowledgedTicket) recordedTicket = acknowledgedTicket;
+  }
+
+  await logAudit({
+    userId: null,
+    action: "compliance.grievance.submit_public",
+    resourceType: "grievance_ticket",
+    resourceId: ticket._id,
+    metadata: { caseNumber: ticket.caseNumber, category: ticket.category, channel: "PUBLIC_FORM", acknowledgementAcceptedByProvider: emailSent },
+  });
+  return res.status(201).json({ ticket: recordedTicket, acknowledgementEmailSent: emailSent });
+});
+
 router.use(authenticate);
 
 const OPEN_PRIVACY_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "WAITING_FOR_USER", "APPROVED"] as const;
@@ -452,13 +628,25 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid grievance" });
 
   const userId = req.user!.userId;
-  const caseNumber = "TRV-" + Date.now().toString(36).toUpperCase() + "-" + randomBytes(3).toString("hex").toUpperCase();
-  const [ticket] = await getDb().insert(grievanceTickets).values({
+  const db = getDb();
+  const [requester] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users._id, userId)).limit(1);
+  const now = new Date();
+  const responseDueAt = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+  const caseNumber = "TRV-" + now.getTime().toString(36).toUpperCase() + "-" + randomBytes(3).toString("hex").toUpperCase();
+  const [ticket] = await db.insert(grievanceTickets).values({
     requesterUserId: userId,
+    requesterName: requester?.name ?? null,
+    requesterEmail: requester?.email ?? null,
     caseNumber,
     category: parsed.data.category,
     subject: parsed.data.subject,
     description: parsed.data.description,
+    status: "ACKNOWLEDGED",
+    acknowledgedAt: now,
+    acknowledgementDueAt: now,
+    responseDueAt,
+    requestedAt: now,
+    updatedAt: now,
   }).returning();
 
   await Promise.all([
@@ -480,6 +668,14 @@ router.post("/grievances", complianceSubmissionLimiter, async (req: AuthedReques
       dedupeKey: "grievance-received:" + ticket._id,
     }).catch(() => []),
   ]);
+  if (requester?.email) {
+    await sendGrievanceReceipt(requester.email, requester.name, {
+      caseNumber: ticket.caseNumber,
+      category: parsed.data.category,
+      subject: parsed.data.subject,
+      description: parsed.data.description,
+    });
+  }
   await logAudit({
     userId,
     action: "compliance.grievance.submit",
@@ -506,7 +702,7 @@ router.get("/admin/queue", requireRole("ADMIN"), adminLimiter, async (_req: Auth
       requesterEmail: users.email,
       requesterRole: users.role,
     }).from(grievanceTickets)
-      .innerJoin(users, eq(grievanceTickets.requesterUserId, users._id))
+      .leftJoin(users, eq(grievanceTickets.requesterUserId, users._id))
       .orderBy(desc(grievanceTickets.requestedAt))
       .limit(100),
     db.select({
@@ -531,7 +727,13 @@ router.get("/admin/queue", requireRole("ADMIN"), adminLimiter, async (_req: Auth
   ]);
   res.setHeader("Cache-Control", "private, no-store");
   return res.json({
-    grievances: grievanceRows.map((row) => ({ ...row.ticket, requesterName: row.requesterName, requesterEmail: row.requesterEmail, requesterRole: row.requesterRole })),
+    grievances: grievanceRows.map((row) => ({
+      ...row.ticket,
+      requesterName: row.requesterName ?? row.ticket.requesterName ?? "Public complainant",
+      requesterEmail: row.requesterEmail ?? row.ticket.requesterEmail ?? "",
+      requesterPhone: row.ticket.requesterPhone,
+      requesterRole: row.requesterRole ?? "PUBLIC",
+    })),
     privacyRequests: privacyRows.map((row) => ({ ...row.request, requesterName: row.requesterName, requesterEmail: row.requesterEmail, requesterRole: row.requesterRole })),
     accountDeletions: deletionRows.map((row) => ({
       ...row.request,
@@ -572,20 +774,37 @@ router.patch("/admin/grievances/:id", requireRole("ADMIN"), adminLimiter, async 
     publicResponse: parsed.data.publicResponse ?? current.publicResponse,
     internalNotes,
     reviewerUserId: req.user!.userId,
+    acknowledgedAt: current.acknowledgedAt ?? (nextStatus === "SUBMITTED" ? null : now),
     updatedAt: now,
     resolvedAt: nextStatus === "RESOLVED" || nextStatus === "CLOSED" ? (current.resolvedAt ?? now) : null,
   }).where(and(eq(grievanceTickets._id, id), eq(grievanceTickets.status, current.status))).returning();
   if (!updated) return res.status(409).json({ error: "This case changed while you were editing it. Refresh and try again." });
 
   if (parsed.data.publicResponse || nextStatus !== current.status) {
-    await notifyUser(String(updated.requesterUserId), {
-      type: "grievance_updated",
-      title: "Your Truvi support case was updated",
-      message: updated.caseNumber + " is now " + updated.status.toLowerCase().replace(/_/g, " ") + ".",
-      data: { href: "/privacy-center", caseNumber: updated.caseNumber },
-      priority: "high",
-      dedupeKey: "grievance-update:" + updated._id + ":" + updated.updatedAt.getTime(),
-    }).catch(() => []);
+    const updateMessage = updated.caseNumber + " is now " + updated.status.toLowerCase().replace(/_/g, " ") + ".";
+    if (updated.requesterUserId) {
+      await notifyUser(String(updated.requesterUserId), {
+        type: "grievance_updated",
+        title: "Your Truvi support case was updated",
+        message: updateMessage,
+        data: { href: "/privacy-center", caseNumber: updated.caseNumber },
+        priority: "high",
+        dedupeKey: "grievance-update:" + updated._id + ":" + updated.updatedAt.getTime(),
+      }).catch(() => []);
+    } else if (updated.requesterEmail) {
+      const responseText = (parsed.data.publicResponse ?? updated.publicResponse ?? "").replace(/[\r\n]+/g, " ").trim();
+      const safeResponse = escapeEmailHtml(responseText);
+      await sendEmail(
+        updated.requesterEmail,
+        "Truvi grievance update — " + updated.caseNumber,
+        '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#172033">' +
+          "<h2>Your grievance has been updated</h2>" +
+          "<p>Case: <strong>" + escapeEmailHtml(updated.caseNumber) + "</strong></p>" +
+          "<p>Status: " + escapeEmailHtml(updated.status.replace(/_/g, " ")) + "</p>" +
+          (safeResponse ? "<p>" + safeResponse + "</p>" : "") +
+          "<p>For follow-up, reply to this email or write to info@truviventures.com.</p></div>",
+      ).catch(() => false);
+    }
   }
   await logAudit({
     userId: req.user!.userId,

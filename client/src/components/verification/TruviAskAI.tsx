@@ -39,7 +39,7 @@ export default function TruviAskAI({ projectId }: { projectId?: string }) {
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
         <Sparkles size={16} className="text-[var(--trust)]" />
         <span className="font-display text-sm font-semibold">Ask Truvi AI</span>
-        <span className="text-[11px] text-muted-foreground">— answers only from verified data, with sources</span>
+        <span className="text-[11px] text-muted-foreground">— answers use available project data and show sources</span>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-4">

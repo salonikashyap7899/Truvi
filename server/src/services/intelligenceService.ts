@@ -1,4 +1,5 @@
 import { IProject } from "../db/schema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /**
  * Raw Data Sources & AI Intelligence Engine.
@@ -102,13 +103,21 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   const isVerified = project.isVerified === true;
   const verifiedDate = project.verifiedAt ? new Date(project.verifiedAt).toISOString() : null;
 
-  // 1) Government & Legal — the approval number the founder fills (RERA /
-  // District Panchayat / Developer Authority). The number itself is the
-  // evidence; the authority dropdown is just its label.
-  const hasApproval = !!project.reraNumber;
-  const reraOk = !!vd?.reraVerified || project.reraStatus === "REGISTERED" || hasApproval;
-  const authorityName = project.approvalAuthority ? AUTHORITY_LABEL[project.approvalAuthority] ?? "RERA" : "RERA";
-  const approvalSource = project.reraNumber ? `${authorityName} · Reg. No. ${project.reraNumber}` : authorityName;
+  // 1) Government & Legal — a developer-entered number or status is not proof.
+  // RERA registration and other planning approvals are different legal records
+  // and must be checked against the correct issuing authority.
+  const authority = project.approvalAuthority ?? "RERA";
+  const isReraAuthority = authority === "RERA";
+  const hasApprovalNumber = Boolean(project.reraNumber?.trim());
+  const approvalVerified = isApprovalEvidenceVerified(project);
+  const reraExemptionOnlyOk = isReraAuthority && project.reraStatus === "NOT_REGISTERED" && approvalVerified;
+  const authorityName = AUTHORITY_LABEL[authority] ?? "Relevant authority";
+  const approvalSource = hasApprovalNumber
+    ? `${authorityName} · Reference ${project.reraNumber}`
+    : reraExemptionOnlyOk ? "RERA applicability / exemption review" : authorityName;
+  const approvalSourceLabel = approvalVerified
+    ? `${approvalSource} · checked by Truvi`
+    : `${approvalSource} · developer-submitted, not independently verified`;
 
   // 6) Coordinates, 3) Site visit, 2) Connectivity, 5) Crime/Flood.
   const hasCoords = typeof project.lat === "number" && typeof project.lng === "number";
@@ -162,11 +171,13 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   }
 
   const government = buildCat("government", "Government & Legal Data", {
-    label: "Approval — RERA / District Panchayat / Developer Authority",
-    source: approvalSource,
-    verified: reraOk,
-    detailV: `${authorityName} approval on record.`,
-    detailP: "Add the approving authority + registration/approval number.",
+    label: isReraAuthority ? "RERA Registration" : "Planning / Layout Approval",
+    source: approvalSourceLabel,
+    verified: approvalVerified,
+    detailV: `${authorityName} details checked against the issuing authority.`,
+    detailP: hasApprovalNumber
+      ? "Developer-submitted reference only. Truvi has not independently confirmed it against the issuing authority."
+      : "Provide the applicable RERA registration or other competent authority approval reference, as relevant to this project.",
   });
 
   const infrastructure = buildCat("infrastructure", "Infrastructure & Connectivity", {
@@ -265,7 +276,7 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   if (project.legalRiskLevel === "HIGH") riskFlags.push("Elevated legal risk — litigation records under review.");
   if (project.floodRiskLevel === "HIGH") riskFlags.push("Located in or near a flood-prone zone.");
   if (project.crimeIndexLevel === "HIGH") riskFlags.push("Higher-than-average crime index in the locality.");
-  if (!reraOk && !isVerified) riskFlags.push("Approval / RERA not yet confirmed.");
+  if (!approvalVerified) riskFlags.push("Project registration / planning approval has not yet been independently confirmed.");
 
   const fraudSignals: string[] = [];
   if (!isVerified && !vd?.titleClearance && !vd?.encumbranceFree) {
@@ -286,7 +297,9 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
   const pending = allItems.filter((i) => i.status === "PENDING").length;
 
   const overallStatus: IntelStatus =
-    isVerified || confidence >= 75 ? "VERIFIED" : pending > 0 ? "PENDING" : "UNAVAILABLE";
+    (isVerified && approvalVerified) || (confidence >= 75 && approvalVerified)
+      ? "VERIFIED"
+      : pending > 0 ? "PENDING" : "UNAVAILABLE";
 
   const decisionSummary =
     overallStatus === "VERIFIED"

@@ -230,6 +230,9 @@ async function ensureSchema(db: Db): Promise<void> {
     // NOT NULL on email so a lead can arrive with only name + phone.
     `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "phone" text`,
     `ALTER TABLE "enquiries" ALTER COLUMN "email" DROP NOT NULL`,
+    // Structured, server-timestamped privacy permission for public enquiry submissions.
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
+    `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_acknowledged_at" timestamptz`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (
@@ -882,7 +885,7 @@ async function ensureSchema(db: Db): Promise<void> {
        "partner_phone" text,
        "package_name" text NOT NULL DEFAULT 'Marketing Access',
        "amount_paise" integer NOT NULL DEFAULT 0,
-       "gst_percent" double precision NOT NULL DEFAULT 18,
+       "gst_percent" double precision NOT NULL DEFAULT 0,
        "gst_paise" integer NOT NULL DEFAULT 0,
        "total_paise" integer NOT NULL DEFAULT 0,
        "method" text NOT NULL DEFAULT 'OTHER',
@@ -953,6 +956,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_phone" text`,
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_email" text`,
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "onboarding_session" jsonb`,
+    `ALTER TABLE "platform_settings" ALTER COLUMN "gst_percent" SET DEFAULT 0`,
+    `ALTER TABLE "marketing_payments" ALTER COLUMN "gst_percent" SET DEFAULT 0`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed_at" timestamptz`,
     // CP joining flag. Added once; Channel Partners who had ALREADY finished
     // KYC + the WhatsApp channel when this shipped are marked joined, so the
@@ -1806,7 +1811,10 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE TABLE IF NOT EXISTS "grievance_tickets" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "case_number" text NOT NULL,
-       "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "requester_user_id" uuid REFERENCES "users"("id"),
+       "requester_name" text,
+       "requester_email" text,
+       "requester_phone" text,
        "category" text NOT NULL,
        "subject" text NOT NULL,
        "description" text NOT NULL,
@@ -1814,10 +1822,23 @@ async function ensureSchema(db: Db): Promise<void> {
        "public_response" text,
        "internal_notes" text,
        "reviewer_user_id" uuid REFERENCES "users"("id"),
+       "acknowledged_at" timestamptz,
+       "response_due_at" timestamptz,
        "requested_at" timestamptz NOT NULL DEFAULT now(),
        "updated_at" timestamptz NOT NULL DEFAULT now(),
        "resolved_at" timestamptz
      )`,
+    // Allow complaints from consumers who do not have a Truvi account. Existing
+    // authenticated grievance rows retain their user foreign key.
+    `ALTER TABLE "grievance_tickets" ALTER COLUMN "requester_user_id" DROP NOT NULL`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_name" text`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_email" text`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_phone" text`,
+     `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
+     `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "privacy_notice_acknowledged_at" timestamptz`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "acknowledged_at" timestamptz`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "acknowledgement_due_at" timestamptz`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "response_due_at" timestamptz`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "grievance_tickets_case_number_unique" ON "grievance_tickets" ("case_number")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_user_idx" ON "grievance_tickets" ("requester_user_id", "requested_at")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_status_idx" ON "grievance_tickets" ("status", "requested_at")`,

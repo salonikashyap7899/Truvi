@@ -1,43 +1,28 @@
 import { BadgeCheck, Clock, XCircle } from "lucide-react";
 
 type ReraStatus = "REGISTERED" | "PENDING" | "NOT_REGISTERED";
+type ApprovalAuthority = "RERA" | "DISTRICT_PANCHAYAT" | "DTCP";
 
 export interface ReraInfo {
+  approvalAuthority: ApprovalAuthority;
   reraNumber: string;
   reraStatus: ReraStatus;
   reraValidityDate: string | null;
+  reraExemptionVerified: boolean;
+  reraExemptionBasis?: string;
+  verificationSource?: string;
+  lastVerifiedAt?: string | null;
+  verified: boolean;
 }
 
 interface ReraDetailsCardProps {
   info: ReraInfo;
 }
 
-interface StatusConfig {
-  label: string;
-  badgeClass: string;
-  borderClass: string;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
-}
-
-const STATUS_CONFIG: Record<ReraStatus, StatusConfig> = {
-  REGISTERED: {
-    label: "Registered",
-    badgeClass: "bg-green-500/15 text-green-400 border border-green-500/30",
-    borderClass: "border-white/10",
-    Icon: BadgeCheck,
-  },
-  PENDING: {
-    label: "Pending",
-    badgeClass: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
-    borderClass: "border-amber-500/20",
-    Icon: Clock,
-  },
-  NOT_REGISTERED: {
-    label: "Not Registered",
-    badgeClass: "bg-red-500/15 text-red-400 border border-red-500/30",
-    borderClass: "border-red-500/20",
-    Icon: XCircle,
-  },
+const AUTHORITY_LABEL: Record<ApprovalAuthority, string> = {
+  RERA: "RERA",
+  DISTRICT_PANCHAYAT: "District Panchayat",
+  DTCP: "Development Authority (DTCP)",
 };
 
 function formatDate(dateStr: string): string {
@@ -46,43 +31,67 @@ function formatDate(dateStr: string): string {
 }
 
 export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
-  const cfg = STATUS_CONFIG[info.reraStatus];
-  const { Icon } = cfg;
+  const isRera = info.approvalAuthority === "RERA";
+  const authorityLabel = AUTHORITY_LABEL[info.approvalAuthority];
+  const StatusIcon = info.verified ? BadgeCheck : info.reraStatus === "NOT_REGISTERED" ? XCircle : Clock;
+  const heading = isRera ? "RERA Details" : "Planning / Layout Approval";
+  const statusLabel = info.verified
+    ? isRera && info.reraStatus === "NOT_REGISTERED" && info.reraExemptionVerified
+      ? "RERA applicability / exemption reviewed"
+      : isRera ? "RERA registration checked by Truvi" : "Planning approval & RERA assessment reviewed"
+    : "Developer-declared · not checked";
 
   return (
-    <div className={`rounded-2xl border glass p-5 ${cfg.borderClass}`}>
-      {/* Header */}
+    <div className="rounded-2xl border border-white/10 glass p-5">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className={cfg.badgeClass.includes("green") ? "text-green-400" : cfg.badgeClass.includes("amber") ? "text-amber-400" : "text-red-400"} />
-          <span className="text-sm font-medium text-foreground/90">RERA Details</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <StatusIcon size={16} className={info.verified ? "shrink-0 text-green-400" : "shrink-0 text-amber-400"} />
+          <span className="text-sm font-medium text-foreground/90">{heading}</span>
         </div>
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${cfg.badgeClass}`}>
-          {cfg.label}
+        <span className={`inline-flex max-w-[60%] items-center rounded-full border px-3 py-1 text-right text-xs font-semibold ${info.verified ? "border-green-500/30 bg-green-500/15 text-green-300" : "border-amber-500/30 bg-amber-500/15 text-amber-300"}`}>
+          {statusLabel}
         </span>
       </div>
 
-      {/* Fields */}
+      {!info.verified && (
+        <p className="mt-3 text-xs leading-relaxed text-amber-200/80">
+          {isRera
+            ? "The RERA number and status were supplied by the developer. Truvi has not independently checked them against the official State RERA register."
+            : `The ${authorityLabel} reference was supplied by the developer. It is not a RERA registration and does not by itself prove that RERA registration is not required.`}
+        </p>
+      )}
+
       <dl className="mt-4 space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <dt className="text-muted-foreground">Registration No.</dt>
-          <dd className="font-mono font-semibold text-foreground tracking-wide">
-            {info.reraNumber}
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <dt className="text-muted-foreground">{isRera ? "RERA registration no." : "Approval reference no."}</dt>
+          <dd className="break-all text-right font-mono font-semibold tracking-wide text-foreground">
+            {info.reraNumber || "Not provided"}
           </dd>
         </div>
-        {info.reraValidityDate && (
-          <div className="flex items-center justify-between text-xs">
-            <dt className="text-muted-foreground">Valid Until</dt>
-            <dd className="text-foreground/90">{formatDate(info.reraValidityDate)}</dd>
+        {isRera && (
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <dt className="text-muted-foreground">Developer-declared status</dt>
+            <dd className="text-right text-foreground/90">{info.reraStatus.replace(/_/g, " ")}</dd>
           </div>
         )}
-        {!info.reraValidityDate && (
-          <div className="flex items-center justify-between text-xs">
-            <dt className="text-muted-foreground">Valid Until</dt>
-            <dd className="text-muted-foreground italic">—</dd>
+        {info.reraValidityDate && (
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <dt className="text-muted-foreground">Valid until (as supplied)</dt>
+            <dd className="text-right text-foreground/90">{formatDate(info.reraValidityDate)}</dd>
           </div>
         )}
       </dl>
+      {info.verified && info.verificationSource && (
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Checked against: <span className="text-foreground/80">{info.verificationSource}</span>
+          {info.lastVerifiedAt ? <> · Last checked {formatDate(info.lastVerifiedAt)}</> : null}
+        </p>
+      )}
+      {info.verified && info.reraExemptionVerified && info.reraExemptionBasis && (
+        <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 text-xs leading-relaxed text-muted-foreground">
+          RERA applicability / exemption basis reviewed: {info.reraExemptionBasis}
+        </p>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects, projectAssets, units, users } from "../db/schema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /**
  * Unauthenticated, read-only platform stats for the public landing page.
@@ -19,7 +20,7 @@ router.get("/stats", async (_req, res) => {
       db.select({ n: sql<number>`count(*)` }).from(users).where(eq(users.role, "CP")),
     ]);
 
-    const verifiedProjects = approvedProjects.filter((p) => p.isVerified).length;
+    const verifiedProjects = approvedProjects.filter((p) => p.isVerified && isApprovalEvidenceVerified(p)).length;
     const cities = new Set(approvedProjects.map((p) => p.city).filter(Boolean)).size;
 
     res.json({
@@ -37,7 +38,7 @@ router.get("/stats", async (_req, res) => {
 
 /**
  * Public project showcase for the marketing homepage. Returns approved
- * projects (verified + prime first) with the developer's uploaded cover photo,
+ * projects (eligible verified + prime first) with the developer's uploaded cover photo,
  * so the site fills itself as developers onboard — no stock imagery needed.
  */
 router.get("/projects", async (req, res) => {
@@ -81,12 +82,13 @@ router.get("/projects", async (req, res) => {
       city: p.city,
       location: p.location,
       developer: developer?.name ?? null,
-      isVerified: p.isVerified,
+      isVerified: p.isVerified && isApprovalEvidenceVerified(p),
       listingTier: p.listingTier,
       availabilityStatus: p.availabilityStatus,
       isPrimeListing: p.isPrimeListing,
       projectType: p.projectType ?? null,
       reraNumber: p.reraNumber ?? null,
+      approvalAuthority: p.approvalAuthority ?? "RERA",
       coverImageUrl: coverMap.get(String(p._id)) ?? null,
       minRate: rateMap.has(String(p._id)) ? Math.round(rateMap.get(String(p._id))!) : null,
     }));

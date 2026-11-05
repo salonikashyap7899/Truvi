@@ -115,7 +115,7 @@ function ProjectCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             {project.listingTier === "FEATURED" && (
-              <Badge variant="featured">Featured</Badge>
+              <Badge variant="featured">Featured placement</Badge>
             )}
             <Badge variant={project.approvalStatus === "APPROVED" ? "success" : "warning"}>
               {project.approvalStatus}
@@ -123,7 +123,7 @@ function ProjectCard({
             {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-2 py-0.5 text-[9px]" />}
             {project.isVerified && (
               <span className="inline-flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-400 border border-green-800">
-                ✓ Verified
+                ✓ Approval evidence checked
               </span>
             )}
           </div>
@@ -152,7 +152,7 @@ function ProjectCard({
         <p className="text-sm text-foreground/90 line-clamp-2">{project.description}</p>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {project.reraNumber && <span>RERA: {project.reraNumber}</span>}
+          {project.reraNumber && <span>{project.approvalAuthority === "RERA" || !project.approvalAuthority ? "Developer-submitted RERA reference" : "Developer-submitted approval reference"}: {project.reraNumber}</span>}
           <span>Commission: {project.commissionPercent}%</span>
           {project.priceListUrl && <span>Price list available</span>}
         </div>

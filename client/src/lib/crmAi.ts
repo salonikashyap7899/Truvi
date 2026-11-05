@@ -1,4 +1,5 @@
 import type { Lead, LeadStage, Project, Unit } from "@/types";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 
 /**
  * Deterministic "AI" layer for the CP CRM — lead scoring, deal probability,
@@ -177,44 +178,46 @@ export function runCopilot(query: string, projects: Project[], unitsByProject: R
 const inr = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 export function callScript(clientName: string, project: Project, price: number): string {
-  return `Hi ${clientName || "sir/ma'am"}, this is your Truvi property partner.
+  const approvalChecked = project.isVerified === true && isApprovalEvidenceVerified(project);
+  return `Hi ${clientName || "there"}, this is your Truvi property partner.
 
-I found a project that fits your budget perfectly — ${project.name} in ${project.location}, ${project.city}${price ? `, starting around ${inr(price)}` : ""}.
+I found a project that may match your requirements — ${project.name} in ${project.location}, ${project.city}${price ? `, with indicative options starting around ${inr(price)}` : ""}.
 
-Three quick reasons it stands out:
-1. ${project.isVerified ? "Fully Truvi-verified — RERA, title and approvals checked." : "Strong location with good connectivity."}
-2. Inventory is moving fast — I can hold a unit for 30 minutes while we talk.
-3. Flexible payment plans are available directly from the developer.
+A few points to review:
+1. ${approvalChecked ? "Truvi has recorded a current check of the project's RERA registration or applicable approval / exemption. Please review the source and date on the listing." : "Approval details are shown with their source status. Developer-submitted details are not independent government verification."}
+2. Please confirm current unit availability, the written price list and all statutory charges with the authorised seller.
+3. Ask for the applicable payment schedule and cancellation terms in writing.
 
-Can I book you a site visit this weekend? Saturday or Sunday — which works better?`;
+Would you like me to arrange a site visit?`;
 }
 
 export function whatsAppScript(clientName: string, project: Project, price: number): string {
+  const approvalChecked = project.isVerified === true && isApprovalEvidenceVerified(project);
   return `Hi ${clientName || "there"},
 
-Sharing a handpicked option for you:
+Sharing a property listing for your review:
 
 *${project.name}* — ${project.location}, ${project.city}
-${price ? `Starting around ${inr(price)}` : ""}
-${project.isVerified ? "Truvi Verified — RERA & title checked" : ""}
-Strong appreciation potential in this micro-market.
+${price ? `Indicative price from ${inr(price)}` : ""}
+${approvalChecked ? "Truvi has recorded an approval / RERA applicability check; please review the source and date on the listing." : "Approval details are developer-submitted unless the listing explicitly shows a current Truvi check."}
 
-Units here are moving quickly. Shall I arrange a site visit this weekend? Reply YES and I'll set it up.`;
+Please independently confirm title, current project approvals, price, availability and charges with the competent authority / authorised seller. Would you like to arrange a site visit?`;
 }
 
 export function emailScript(clientName: string, project: Project, price: number): string {
-  return `Subject: ${project.name}, ${project.city} — shortlisted for your budget
+  const approvalChecked = project.isVerified === true && isApprovalEvidenceVerified(project);
+  return `Subject: ${project.name}, ${project.city} — property details for review
 
 Dear ${clientName || "Sir/Madam"},
 
-Based on our discussion, I've shortlisted ${project.name} in ${project.location}, ${project.city}${price ? ` with options starting around ${inr(price)}` : ""}.
+Based on our discussion, I am sharing ${project.name} in ${project.location}, ${project.city}${price ? ` with indicative options from ${inr(price)}` : ""}.
 
-Why this project:
-• ${project.isVerified ? "Truvi-verified: RERA registration, title clearance and approvals checked" : "Well-located project with active inventory"}
-• Developer payment plans available
-• Site visits can be scheduled at your convenience
+Please note:
+• ${approvalChecked ? "Truvi has recorded a current approval / RERA applicability check; the listing shows its source and review date." : "Developer-submitted approval information is distinguished from independent verification on the listing."}
+• Please obtain the latest written price list, availability and payment schedule from the authorised seller.
+• Independently review title, approvals, registration or exemption status, taxes and statutory charges before making a commitment.
 
-I'd recommend a site visit before this weekend's price revision. Please share a convenient slot and I'll arrange everything.
+Please let me know if you would like to arrange a site visit.
 
 Warm regards,
 Your Truvi Channel Partner`;

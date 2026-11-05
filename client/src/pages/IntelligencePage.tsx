@@ -53,7 +53,7 @@ const PIPELINE = [
 type FieldStatus = "VERIFIED" | "PENDING" | "UNAVAILABLE";
 
 const SAMPLE_FIELDS: { label: string; status: FieldStatus }[] = [
-  { label: "RERA registration number", status: "VERIFIED" },
+  { label: "RERA registration evidence", status: "PENDING" },
   { label: "Possession timeline", status: "VERIFIED" },
   { label: "Builder litigation history", status: "PENDING" },
   { label: "Amenity list (final)", status: "PENDING" },
@@ -283,13 +283,13 @@ export default function IntelligencePage() {
       <Section>
         <Reveal delay={0.1}>
           <h2 className="mt-5 max-w-3xl font-display text-3xl font-medium leading-[1.08] md:text-5xl">
-            Every source feeding the model <span className="text-gradient-trust">is verified by Truvi.</span>
+            Every source feeding the model <span className="text-gradient-trust">is labelled and traceable.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mt-5 max-w-2xl text-muted-foreground">
-            From master plans to ground-level records — each category below is checked,
-            cross-referenced and kept current before it reaches the AI layer.
+            Inputs can include official records, developer submissions, user-provided information and Truvi field reviews.
+            Their source and review status are distinguished; an unverified item is never treated as an official approval.
           </p>
         </Reveal>
 

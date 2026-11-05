@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import { sanitizeUserForClient } from "../lib/sanitizeUser";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -1473,6 +1474,9 @@ router.get("/projects", requireRole("ADMIN"), async (req, res) => {
 
 const verificationDetailsSchema = z.object({
   reraVerified: z.boolean().optional(),
+  approvalVerified: z.boolean().optional(),
+  reraExemptionVerified: z.boolean().optional(),
+  reraExemptionBasis: z.string().trim().max(1500).optional(),
   titleClearance: z.boolean().optional(),
   encumbranceFree: z.boolean().optional(),
   constructionApproval: z.boolean().optional(),
@@ -1509,6 +1513,21 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.approvalStatus) update.approvalStatus = data.approvalStatus;
   if (data.listingTier) update.listingTier = data.listingTier;
   if (data.featuredUntil !== undefined) update.featuredUntil = data.featuredUntil ? new Date(data.featuredUntil) : null;
+  if (data.isVerified === true) {
+    const verification = {
+      ...(existing.verificationDetails ?? {}),
+      ...(data.verificationDetails ?? {}),
+    } as VerificationDetails;
+    const approvalChecked = isApprovalEvidenceVerified({
+      ...existing,
+      verificationDetails: verification,
+    });
+    if (!approvalChecked) {
+      return res.status(400).json({
+        error: "This listing cannot be marked Truvi Verified until its RERA registration is checked, or its applicable planning approval and RERA applicability/exemption evidence are both reviewed. Record the source and review date.",
+      });
+    }
+  }
   if (data.isVerified !== undefined) {
     update.isVerified = data.isVerified;
     update.verifiedAt = data.isVerified ? new Date() : null;
@@ -1519,6 +1538,8 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
   if (data.verificationDetails !== undefined) {
     const merged = {
       reraVerified: false,
+      approvalVerified: false,
+      reraExemptionVerified: false,
       titleClearance: false,
       encumbranceFree: false,
       constructionApproval: false,
@@ -1532,6 +1553,35 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     }
 
     update.verificationDetails = merged;
+
+    // If an administrator removes or changes a required approval check, an
+    // existing verified badge must be revoked in the same database update.
+    const authority = existing.approvalAuthority ?? "RERA";
+    const hasReference = Boolean(existing.reraNumber?.trim());
+    const hasSourceAndDate = Boolean(merged.verificationSource?.trim() && merged.lastVerifiedAt);
+    const exemptionReviewed =
+      merged.reraExemptionVerified === true &&
+      Boolean(merged.reraExemptionBasis?.trim()) &&
+      hasSourceAndDate;
+    const reraRegistrationChecked =
+      authority === "RERA" &&
+      existing.reraStatus === "REGISTERED" &&
+      hasReference &&
+      merged.reraVerified === true &&
+      hasSourceAndDate;
+    const otherAuthorityChecked =
+      authority !== "RERA" &&
+      hasReference &&
+      merged.approvalVerified === true &&
+      exemptionReviewed;
+    const reraExemptionOnlyChecked =
+      authority === "RERA" &&
+      existing.reraStatus === "NOT_REGISTERED" &&
+      exemptionReviewed;
+    if (existing.isVerified && !(reraRegistrationChecked || otherAuthorityChecked || reraExemptionOnlyChecked)) {
+      update.isVerified = false;
+      update.verifiedAt = null;
+    }
   }
 
   if (Object.keys(update).length === 0) {

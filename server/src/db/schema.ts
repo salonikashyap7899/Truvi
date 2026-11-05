@@ -232,7 +232,14 @@ export interface BuyerProfile {
 }
 
 export interface VerificationDetails {
+  /** RERA number checked against the relevant official RERA register by an admin. */
   reraVerified: boolean;
+  /** Non-RERA planning / layout approval checked against its issuing authority. */
+  approvalVerified: boolean;
+  /** Evidence that RERA applicability was assessed and an exemption / non-applicability basis reviewed. */
+  reraExemptionVerified: boolean;
+  /** Specific statutory basis / document reference for the RERA applicability assessment. */
+  reraExemptionBasis?: string;
   titleClearance: boolean;
   encumbranceFree: boolean;
   constructionApproval: boolean;
@@ -361,6 +368,9 @@ export const DEFAULT_BUYER_PROFILE: BuyerProfile = {
 
 export const DEFAULT_VERIFICATION_DETAILS: VerificationDetails = {
   reraVerified: false,
+  approvalVerified: false,
+  reraExemptionVerified: false,
+  reraExemptionBasis: "",
   titleClearance: false,
   encumbranceFree: false,
   constructionApproval: false,
@@ -1133,6 +1143,10 @@ export const enquiries = pgTable(
     name: text("name").notNull(),
     purposeType: text("purpose_type").$type<EnquiryPurpose>().notNull(),
     message: text("message"),
+    // Server-recorded, versioned permission for the specific public enquiry.
+    // Nullable for historical enquiries submitted before this evidence existed.
+    privacyNoticeVersion: text("privacy_notice_version"),
+    privacyNoticeAcknowledgedAt: timestamp("privacy_notice_acknowledged_at", { withTimezone: true, mode: "date" }),
     uploadUrl: text("upload_url"),
     uploadFileName: text("upload_file_name"),
     projectId: uuid("project_id").references(() => projects._id),
@@ -1843,7 +1857,7 @@ export type IVoucher = typeof vouchers.$inferSelect;
  * Razorpay Plan mapping — one row per internal subscription plan id
  * (e.g. "buyer_pro_monthly") → the Razorpay `plan_id`. Populated once by the
  * `razorpay:plans` script so we never recreate plans (Razorpay plans can't be
- * deleted). `amountPaise` is the amount the plan charges (incl. GST).
+ * deleted). `amountPaise` is the amount the plan charges, including only any configured tax.
  */
 export const subscriptionPlans = pgTable("subscription_plans", {
   internalPlanId: text("internal_plan_id").primaryKey(),
@@ -1959,7 +1973,7 @@ export type ILoan = typeof loans.$inferSelect;
 export const platformSettings = pgTable("platform_settings", {
   _id: uuid("id").defaultRandom().primaryKey(),
   platformFeePercent: doublePrecision("platform_fee_percent").notNull().default(0.75),
-  gstPercent: doublePrecision("gst_percent").notNull().default(18),
+  gstPercent: doublePrecision("gst_percent").notNull().default(0),
   defaultCommissionPercent: doublePrecision("default_commission_percent").notNull().default(3),
   notifyEmail: boolean("notify_email").notNull().default(true),
   notifySms: boolean("notify_sms").notNull().default(false),
@@ -2215,8 +2229,8 @@ export const marketingAccess = pgTable(
 );
 export type IMarketingAccess = typeof marketingAccess.$inferSelect;
 
-/** Direct / offline marketing payments recorded by an admin. GST is charged on
- *  top of the base amount and recorded explicitly — never avoided. */
+/** Direct / offline marketing payments recorded by an admin. Any configured
+ *  tax is recorded explicitly; tax is not assumed by default. */
 export const marketingPayments = pgTable(
   "marketing_payments",
   {
@@ -2228,7 +2242,7 @@ export const marketingPayments = pgTable(
     packageName: text("package_name").notNull().default("Marketing Access"),
     // Money — all paise. total = amount + gst.
     amountPaise: integer("amount_paise").notNull().default(0),
-    gstPercent: doublePrecision("gst_percent").notNull().default(18),
+    gstPercent: doublePrecision("gst_percent").notNull().default(0),
     gstPaise: integer("gst_paise").notNull().default(0),
     totalPaise: integer("total_paise").notNull().default(0),
     method: text("method").$type<"CASH" | "BANK_TRANSFER" | "UPI" | "CHEQUE" | "CARD" | "OTHER">().notNull().default("OTHER"),
@@ -3384,7 +3398,13 @@ export type GrievanceStatus = "SUBMITTED" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WA
 export const grievanceTickets = pgTable("grievance_tickets", {
   _id: uuid("id").defaultRandom().primaryKey(),
   caseNumber: text("case_number").notNull(),
-  requesterUserId: uuid("requester_user_id").notNull().references(() => users._id),
+  // Public consumer complaints may be filed without a Truvi account.
+  requesterUserId: uuid("requester_user_id").references(() => users._id),
+  requesterName: text("requester_name"),
+  requesterEmail: text("requester_email"),
+  requesterPhone: text("requester_phone"),
+  privacyNoticeVersion: text("privacy_notice_version"),
+  privacyNoticeAcknowledgedAt: timestamp("privacy_notice_acknowledged_at", { withTimezone: true, mode: "date" }),
   category: text("category").$type<GrievanceCategory>().notNull(),
   subject: text("subject").notNull(),
   description: text("description").notNull(),
@@ -3392,6 +3412,9 @@ export const grievanceTickets = pgTable("grievance_tickets", {
   publicResponse: text("public_response"),
   internalNotes: text("internal_notes"),
   reviewerUserId: uuid("reviewer_user_id").references(() => users._id),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true, mode: "date" }),
+  acknowledgementDueAt: timestamp("acknowledgement_due_at", { withTimezone: true, mode: "date" }),
+  responseDueAt: timestamp("response_due_at", { withTimezone: true, mode: "date" }),
   requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),

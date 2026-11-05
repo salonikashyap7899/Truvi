@@ -16,7 +16,7 @@ function getTier(score: number): TierConfig {
       label: "Excellent",
       color: "#22c55e",
       trackColor: "#166534",
-      explanation: "Strong RERA compliance, verified developer credentials, and high buyer satisfaction.",
+      explanation: "Strong listing evidence, documented verification checks, and positive user feedback.",
     };
   }
   if (score >= 60) {

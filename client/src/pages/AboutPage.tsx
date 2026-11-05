@@ -9,6 +9,7 @@ import { InstagramIcon, LinkedInIcon, WhatsAppIcon } from "@/components/icons/So
 import { INSTAGRAM_URL, LINKEDIN_URL, WHATSAPP_CHANNEL_URL } from "@/lib/social";
 import { AmbassadorQRCode } from "@/components/AmbassadorQRCode";
 import { SiteNav } from "@/components/SiteNav";
+import { legalDisclosure } from "@/config/legalDisclosure";
 
 /* ── Palette: blue replaces gold everywhere ─────────────────────────────── */
 const BLUE = "#3B82F6";
@@ -466,11 +467,17 @@ export default function AboutPage() {
           </Reveal>
 
           <Reveal delay={0.2}>
-            <div className="mx-auto mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
+            <div className="mx-auto mt-10 grid max-w-2xl gap-3 sm:grid-cols-2">
               {[
-                { icon: <Globe size={14} />, label: "Website", value: "www.truviventures.com",   href: "https://www.truviventures.com" },
-                { icon: <Mail  size={14} />, label: "Email",   value: "info@truviventures.com", href: "mailto:info@truviventures.com" },
-                { icon: <Phone size={14} />, label: "Phone",   value: "+91 70542 80101",          href: "tel:+917054280101" },
+                { icon: <Globe size={14} />, label: "Website", value: "www.truviventures.com", href: "https://www.truviventures.com" },
+                { icon: <Mail size={14} />, label: "Email", value: "info@truviventures.com", href: "mailto:info@truviventures.com" },
+                ...(legalDisclosure.customerCarePhone ? [{
+                  icon: <Phone size={14} />,
+                  label: "Customer care",
+                  value: legalDisclosure.customerCarePhone,
+                  href: "tel:" + legalDisclosure.customerCarePhone.replace(/[^+0-9]/g, ""),
+                }] : []),
+                { icon: <FileCheck size={14} />, label: "Grievances", value: "Submit a complaint", href: "/grievance" },
               ].map((c) => (
                 <motion.a
                   key={c.label}

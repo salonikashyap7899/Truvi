@@ -161,7 +161,7 @@ router.post("/create-order", optionalAuthenticate, async (req: AuthedRequest, re
 
   try {
     const order = await razorpay.orders.create({
-      amount: totalPaise, // paise, incl. GST
+      amount: totalPaise, // paise, including any tax configured for this service
       currency: "INR",
       receipt: row._id,
       notes: { planId: plan.id, paymentRowId: row._id },
@@ -340,6 +340,12 @@ router.post("/create-subscription", optionalAuthenticate, async (req: AuthedRequ
   const env = getEnv();
   const basePaise = plan.pricePaise;
   const gstPaise = withGst(basePaise, env.gstPercent) - basePaise;
+  const expectedProviderAmount = basePaise + gstPaise;
+  if (mapping.amountPaise !== expectedProviderAmount) {
+    return res.status(409).json({
+      error: "The recurring payment plan does not match Truvi's current approved price and tax configuration. An administrator must refresh the Razorpay plan mapping before new subscriptions can start.",
+    });
+  }
 
   const [row] = await db
     .insert(subscriptions)
@@ -609,10 +615,10 @@ async function sendPaymentConfirmation(to: string, name: string, planLabel: stri
         <h2 style="color:#0B1F3A">Thank you, ${name}!</h2>
         <p>We've received your payment for <strong>${planLabel}</strong>.</p>
         <table style="border-collapse:collapse;margin:12px 0">
-          <tr><td style="padding:4px 12px 4px 0;color:#555">Amount paid</td><td style="padding:4px 0"><strong>₹${rupees(totalPaise)}</strong> (incl. GST)</td></tr>
+          <tr><td style="padding:4px 12px 4px 0;color:#555">Amount paid</td><td style="padding:4px 0"><strong>₹${rupees(totalPaise)}</strong></td></tr>
           <tr><td style="padding:4px 12px 4px 0;color:#555">Payment ID</td><td style="padding:4px 0">${paymentId}</td></tr>
         </table>
-        <p style="color:#555;font-size:13px">Truvi Ventures · Truston Developers Pvt. Ltd., Lucknow</p>
+        <p style="color:#555;font-size:13px">Truvi Ventures · truviventures.com</p>
       </div>`
     );
   } catch {

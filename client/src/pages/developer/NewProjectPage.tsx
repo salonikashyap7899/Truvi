@@ -269,7 +269,7 @@ export default function NewProjectPage() {
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Not RERA-registered? Pick District Panchayat or DTCP — a valid approval from any of these is accepted.
+                  Choose the authority shown on the document. A District Panchayat or DTCP approval does not automatically exempt a project from RERA registration. Truvi reviews the evidence; applicable registration or exemption must be confirmed separately before any compliance claim is made.
                 </p>
               </div>
               <div>

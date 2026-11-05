@@ -46,6 +46,7 @@ const LegalPage = lazy(() => import("@/pages/LegalPage"));
 const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
 const PrivacyCenterPage = lazy(() => import("@/pages/PrivacyCenterPage"));
 const RestoreAccountPage = lazy(() => import("@/pages/RestoreAccountPage"));
+const GrievancePage = lazy(() => import("@/pages/GrievancePage"));
 
 const AdminOsDashboardPage = lazy(() => import("@/pages/admin/AdminOsDashboardPage"));
 const AdminOsLayout = lazy(() => import("@/pages/admin/AdminOsDashboardPage").then((m) => ({ default: m.AdminOsLayout })));
@@ -365,6 +366,7 @@ export default function App() {
         <Route path="/refund-policy" element={<RefundPolicyPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/grievance" element={<GrievancePage />} />
         <Route path="/restore-account" element={<RestoreAccountPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />

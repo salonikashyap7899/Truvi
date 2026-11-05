@@ -6,6 +6,7 @@ import fs from "fs";
 import { z } from "zod";
 import { desc } from "drizzle-orm";
 import { getDb } from "../config/db";
+import { CURRENT_POLICY_VERSIONS } from "../config/compliance";
 import { enquiries } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
@@ -55,6 +56,7 @@ const enquirySchema = z.object({
   message: z.string().optional(),
   projectId: z.string().optional(),
   projectName: z.string().optional(),
+  privacyNoticeAcknowledged: z.preprocess((value) => value === true || value === "true", z.literal(true)),
 });
 
 /** Remove a just-uploaded attachment from a rejected enquiry (never stored data). */
@@ -95,6 +97,8 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
       name,
       purposeType,
       message,
+      privacyNoticeVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE,
+      privacyNoticeAcknowledgedAt: new Date(),
       uploadUrl,
       uploadFileName,
       projectId: projectId && isValidId(projectId) ? projectId : undefined,
@@ -113,6 +117,8 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
     uploadFileName,
     projectName,
     createdAt: enquiry.createdAt,
+    privacyNoticeVersion: enquiry.privacyNoticeVersion,
+    privacyNoticeAcknowledgedAt: enquiry.privacyNoticeAcknowledgedAt,
   });
 
   // Persist a bell/push notification for admins/founders (the socket emit above
@@ -145,6 +151,7 @@ const leadSchema = z.object({
   projectId: z.string().optional(),
   projectName: z.string().optional(),
   message: z.string().max(2000).optional(),
+  privacyNoticeAcknowledged: z.preprocess((value) => value === true || value === "true", z.literal(true)),
 });
 
 // POST /api/enquiries/lead  — public, no auth needed
@@ -166,6 +173,8 @@ router.post("/lead", enquiryLimiter, async (req, res) => {
       email: email && email.length ? email : null,
       purposeType: "BUYER",
       message: message || undefined,
+      privacyNoticeVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE,
+      privacyNoticeAcknowledgedAt: new Date(),
       projectId: projectId && isValidId(projectId) ? projectId : undefined,
       projectName: projectName || undefined,
     })
@@ -181,6 +190,8 @@ router.post("/lead", enquiryLimiter, async (req, res) => {
     message: message || undefined,
     projectName,
     createdAt: enquiry.createdAt,
+    privacyNoticeVersion: enquiry.privacyNoticeVersion,
+    privacyNoticeAcknowledgedAt: enquiry.privacyNoticeAcknowledgedAt,
   });
 
   // Persistent bell/push notification (best-effort).

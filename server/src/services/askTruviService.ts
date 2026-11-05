@@ -2,6 +2,7 @@ import { and, count, eq, ilike, inArray, lte, or, sql, desc, SQL } from "drizzle
 import { getDb } from "../config/db";
 import { projects, units, users, siteVisits, IProject } from "../db/schema";
 import { CATEGORY_TABLES } from "../db/verificationSchema";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 
 /* ============================================================
    Ask Truvi AI — Decision Intelligence data layer
@@ -173,19 +174,47 @@ async function buildProjectFacts(project: IProject): Promise<ProjectFacts> {
   const available = unitRows.filter((u) => u.status === "AVAILABLE").length;
   const types = [...new Set(unitRows.map((u) => u.type))];
   const verifiedDate = fmtDate(project.verifiedAt) ?? fmtDate(project.createdAt);
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
+  const hasApprovalNumber = Boolean(project.reraNumber?.trim());
+  const authorityVerified = isApprovalEvidenceVerified(project);
+  const approvalSource: SourceLabel = authorityVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED";
+  const isReraRegistered = approvalAuthority === "RERA" &&
+    project.reraStatus === "REGISTERED" && authorityVerified;
+  const reraExemptionReviewed = approvalAuthority === "RERA" &&
+    project.reraStatus === "NOT_REGISTERED" && authorityVerified;
+  const projectIndependentlyVerified = project.isVerified === true && authorityVerified;
 
   const facts: Record<string, FactValue> = {
     city: { value: project.city, source: "BUILDER_SUBMITTED" },
     location: { value: project.location, source: "BUILDER_SUBMITTED" },
     description: { value: project.description?.slice(0, 400) ?? null, source: "BUILDER_SUBMITTED" },
-    truviVerified: { value: project.isVerified, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
+    truviVerified: {
+      value: projectIndependentlyVerified,
+      source: projectIndependentlyVerified ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED",
+      ...(projectIndependentlyVerified ? { lastUpdated: verifiedDate } : {}),
+    },
     trustScore: { value: project.trustScore ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     legalRiskLevel: { value: project.legalRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     floodRiskLevel: { value: project.floodRiskLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
     crimeIndexLevel: { value: project.crimeIndexLevel ?? null, source: "TRUVI_VERIFIED", lastUpdated: verifiedDate },
-    reraStatus: { value: project.reraStatus ?? null, source: "PUBLIC_RECORD" },
-    reraNumber: { value: project.reraNumber ?? null, source: "PUBLIC_RECORD" },
-    reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: "PUBLIC_RECORD" },
+    approvalAuthority: { value: approvalAuthority, source: "BUILDER_SUBMITTED" },
+    approvalVerificationStatus: {
+      value: isReraRegistered
+        ? "RERA_REGISTRATION_CHECKED"
+        : approvalAuthority === "RERA" && reraExemptionReviewed
+          ? "RERA_APPLICABILITY_OR_EXEMPTION_REVIEWED"
+          : authorityVerified ? "PLANNING_APPROVAL_AND_RERA_APPLICABILITY_REVIEWED" : "DEVELOPER_SUBMITTED_NOT_VERIFIED",
+      source: approvalSource,
+      ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}),
+    },
+    reraApplicabilityAssessment: {
+      value: reraExemptionReviewed ? "REVIEWED_BY_TRUVI_NOT_A_GOVERNMENT_CERTIFICATE" : "NOT_INDEPENDENTLY_REVIEWED",
+      source: reraExemptionReviewed ? "TRUVI_VERIFIED" : "BUILDER_SUBMITTED",
+      ...(reraExemptionReviewed && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}),
+    },
+    reraStatus: { value: project.reraStatus ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    reraNumber: { value: project.reraNumber ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
+    reraValidityDate: { value: fmtDate(project.reraValidityDate) ?? null, source: approvalSource, ...(authorityVerified && project.verificationDetails?.lastVerifiedAt ? { lastUpdated: fmtDate(project.verificationDetails.lastVerifiedAt) } : {}) },
     unitTypes: { value: types.join(", ") || null, source: "BUILDER_SUBMITTED" },
     priceMin: { value: prices.length ? Math.min(...prices) : null, source: "BUILDER_SUBMITTED" },
     priceMax: { value: prices.length ? Math.max(...prices) : null, source: "BUILDER_SUBMITTED" },
@@ -298,9 +327,11 @@ async function buildCatalog(): Promise<CatalogItem[]> {
       city: p.city,
       location: p.location,
       projectType: p.projectType ?? null,
-      isVerified: !!p.isVerified,
+      isVerified: p.isVerified === true && isApprovalEvidenceVerified(p),
       trustScore: p.trustScore ?? null,
-      rera: !!p.reraNumber,
+      rera: (p.approvalAuthority ?? "RERA") === "RERA" &&
+        p.reraStatus === "REGISTERED" &&
+        isApprovalEvidenceVerified(p),
       priceMin: num(a?.min),
       priceMax: num(a?.max),
       availableUnits: Number(a?.avail ?? 0),
@@ -337,7 +368,7 @@ async function findBuilders(message: string, limit = 2): Promise<BuilderFacts[]>
       name: d.name,
       companyName: d.developerProfile?.companyName,
       projectCount: devProjects.length,
-      verifiedProjectCount: devProjects.filter((p) => p.isVerified).length,
+      verifiedProjectCount: devProjects.filter((p) => p.isVerified === true && isApprovalEvidenceVerified(p)).length,
       avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
       projects: devProjects.map((p) => p.name).slice(0, 8),
       source: "TRUVI_VERIFIED",
@@ -371,7 +402,7 @@ async function buildLocationFacts(city: string): Promise<LocationFacts> {
   return {
     query: city,
     projectCount: cityProjects.length,
-    verifiedCount: cityProjects.filter((p) => p.isVerified).length,
+    verifiedCount: cityProjects.filter((p) => p.isVerified === true && isApprovalEvidenceVerified(p)).length,
     avgTrustScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
     priceRange: prices.length ? { min: Math.min(...prices), max: Math.max(...prices) } : null,
     projectNames: cityProjects.map((p) => p.name).slice(0, 10),

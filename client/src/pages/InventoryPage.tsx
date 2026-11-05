@@ -233,7 +233,7 @@ export default function InventoryPage() {
             Find your <span className="text-gradient-trust">property</span>
           </h1>
           <p className="mx-auto mt-1.5 max-w-xl text-sm text-muted-foreground">
-            Verified, RERA-checked and trust-scored listings — search, shortlist and connect.
+            Explore property listings, review their verification evidence and compare live inventory.
           </p>
 
           <div className="relative mx-auto mt-4 max-w-xl">
@@ -457,12 +457,12 @@ function ListingCard({
           <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5">
             {isPrime && (
               <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-400 to-yellow-300 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-black shadow-[0_4px_20px_rgba(251,191,36,0.35)]">
-                <Star size={9} fill="currentColor" /> Prime
+                <Star size={9} fill="currentColor" /> Sponsored
               </span>
             )}
             {project.reraNumber && (
               <span className="inline-flex items-center rounded-full border border-white/20 bg-black/55 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur">
-                RERA
+                {project.approvalAuthority === "RERA" || !project.approvalAuthority ? "Developer-submitted RERA ref" : "Developer-submitted approval ref"}
               </span>
             )}
           </div>

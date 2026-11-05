@@ -26,6 +26,10 @@ export function getEnv() {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+    // Pooled/project investment offers and capital collection stay disabled
+    // until Indian securities-law classification, offer documents, custody and
+    // payment flows are approved by external counsel and the board.
+    investmentOffersEnabled: /^(1|true|yes|on)$/i.test(String(process.env.INVESTMENT_OFFERS_ENABLED ?? "")),
     habitatPaymentsEnabled: /^(1|true|yes|on)$/i.test(String(process.env.HABITAT_PAYMENTS_ENABLED ?? "")),
     razorpayRouteEnabled: /^(1|true|yes|on)$/i.test(String(process.env.RAZORPAY_ROUTE_ENABLED ?? "")),
     // ── Telephony / masked calling (CPaaS) ────────────────────────────────────
@@ -47,12 +51,21 @@ export function getEnv() {
         record: /^(1|true|yes|on)$/i.test(String(process.env.EXOTEL_RECORD ?? "true")),
       },
     },
-    // GST added on top of every price. Configurable; India default is 18%.
-    // parseFloat tolerates values like "18%" or "18 " and we fall back to 18
-    // on anything non-numeric so a stray character can never make amounts NaN.
+    // GST is opt-in, not assumed. Do not collect GST unless management has
+    // confirmed active GST registration and supplied the registered GSTIN plus
+    // a CA-approved rate for these services. Missing/invalid configuration
+    // fails closed at 0%; do not use this single rate where service-wise rates
+    // differ — obtain a service tax matrix before enabling online collection.
+    gstin: process.env.GSTIN?.trim().toUpperCase() || "",
+    gstRegistered: /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? "")),
     gstPercent: (() => {
-      const g = parseFloat(String(process.env.GST_PERCENT ?? "18"));
-      return Number.isFinite(g) ? g : 18;
+      const registered = /^(1|true|yes|on)$/i.test(String(process.env.GST_REGISTERED ?? ""));
+      const gstin = process.env.GSTIN?.trim().toUpperCase() || "";
+      const validIndianGstin = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gstin);
+      const rawRate = process.env.GST_PERCENT;
+      if (!registered || !validIndianGstin || rawRate === undefined || rawRate.trim() === "") return 0;
+      const rate = Number(rawRate.replace(/%$/, "").trim());
+      return Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0;
     })(),
     // ── Developer OS test access ─────────────────────────────────────────────
     // Unlock every paid developer tool for ALL developers (staging/test deploy).

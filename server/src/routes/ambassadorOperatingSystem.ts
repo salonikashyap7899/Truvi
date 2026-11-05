@@ -2,6 +2,7 @@ import { NextFunction, Response, Router } from "express";
 import { and, desc, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
+import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import {
   ambassadorOsCampaigns,
   ambassadorOsCampaignGuidelines,
@@ -1278,7 +1279,7 @@ router.patch("/admin/bookings/:id/status", requireOsStaffRole("SALES_COORDINATOR
   const agreementReference = parsed.data.agreementReference ?? current.agreementReference;
   if (parsed.data.status === "VERIFIED") {
     const [project] = await db.select().from(projects).where(eq(projects._id, current.projectId));
-    if (!project || project.approvalStatus !== "APPROVED" || !project.isVerified || !project.priceListUrl) {
+    if (!project || project.approvalStatus !== "APPROVED" || project.isVerified !== true || !isApprovalEvidenceVerified(project) || !project.priceListUrl) {
       return res.status(409).json({ error: "The booking's project must remain approved, Truvi-verified and linked to its official price list" });
     }
     if (current.unitId) {
@@ -1906,7 +1907,7 @@ router.patch("/admin/campaigns/:id", requireOsStaffRole("PROGRAM_MANAGER"), asyn
     if (!projectId) return res.status(409).json({ error: "Link this campaign to an existing Truvi project before verification or activation" });
     const [project] = await db.select().from(projects).where(eq(projects._id, projectId));
     if (!project) return res.status(404).json({ error: "Linked Truvi project not found" });
-    if (project.approvalStatus !== "APPROVED" || !project.isVerified) {
+    if (project.approvalStatus !== "APPROVED" || project.isVerified !== true || !isApprovalEvidenceVerified(project)) {
       return res.status(409).json({ error: "The linked project must be admin-approved and Truvi-verified before this campaign can be published" });
     }
     if (!project.priceListUrl) return res.status(409).json({ error: "The linked project needs an official price list before the campaign can be published" });
@@ -2862,8 +2863,21 @@ router.get("/staff/me", async (req: AuthedRequest, res) => {
 });
 
 router.get("/staff/projects", requireOsStaffRole("PROGRAM_MANAGER"), async (_req: AuthedRequest, res) => {
-  const rows = await getDb().select({ _id: projects._id, name: projects.name, city: projects.city, location: projects.location, approvalStatus: projects.approvalStatus, isVerified: projects.isVerified, priceListUrl: projects.priceListUrl, totalUnits: projects.totalUnits }).from(projects).where(eq(projects.approvalStatus, "APPROVED"));
-  res.json({ projects: rows.filter((row) => row.isVerified && Boolean(row.priceListUrl)) });
+  const rows = await getDb().select().from(projects).where(eq(projects.approvalStatus, "APPROVED"));
+  res.json({
+    projects: rows
+      .filter((row) => row.isVerified === true && isApprovalEvidenceVerified(row) && Boolean(row.priceListUrl))
+      .map((row) => ({
+        _id: row._id,
+        name: row.name,
+        city: row.city,
+        location: row.location,
+        approvalStatus: row.approvalStatus,
+        isVerified: true,
+        priceListUrl: row.priceListUrl,
+        totalUnits: row.totalUnits,
+      })),
+  });
 });
 
 router.get("/admin/staff-eligible-users", requireRole("ADMIN"), async (_req: AuthedRequest, res) => {

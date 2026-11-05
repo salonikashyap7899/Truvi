@@ -36,7 +36,7 @@ export default function PaymentSuccessPage() {
               <Row label="Item" value={payment.planLabel} />
             )}
             {typeof payment.amountPaise === "number" && (
-              <Row label="Amount paid" value={`₹${inr(payment.amountPaise)} (incl. GST)`} />
+              <Row label="Amount paid" value={`₹${inr(payment.amountPaise)}`} />
             )}
             {payment.paymentId && <Row label="Payment ID" value={payment.paymentId} mono />}
           </div>

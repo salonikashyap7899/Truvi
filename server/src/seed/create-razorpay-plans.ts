@@ -9,10 +9,11 @@ import { getSubscriptionPlans, razorpayPeriod, withGst } from "../config/pricing
 /**
  * Creates a Razorpay Plan for every subscription tier (Buyer/CP/Developer Pro,
  * monthly + yearly) and stores the resulting `plan_id` in the
- * `subscription_plans` table. The plan amount includes GST.
+ * `subscription_plans` table. The amount includes only tax configured after CA review.
  *
- * Idempotent: a plan that already has a stored razorpay_plan_id is skipped
- * (Razorpay plans can't be deleted, so we never recreate them).
+ * Idempotent at the amount level: a matching plan is skipped. If the tax or
+ * price changes, a new provider plan is created and the internal mapping is
+ * updated. Existing active subscriptions retain their original provider plan.
  *
  * Run with:  npm --prefix server run razorpay:plans
  */
@@ -27,16 +28,18 @@ async function run() {
   await db.execute("select 1");
 
   for (const plan of getSubscriptionPlans()) {
+    const amount = withGst(plan.pricePaise, env.gstPercent); // paise, including configured tax only
     const [existing] = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.internalPlanId, plan.id));
-    if (existing?.razorpayPlanId) {
-      console.log(`✓ ${plan.id} already mapped → ${existing.razorpayPlanId} (skipped)`);
+    if (existing?.razorpayPlanId && existing.amountPaise === amount) {
+      console.log(`✓ ${plan.id} already mapped to the current amount → ${existing.razorpayPlanId} (skipped)`);
       continue;
     }
-
-    const amount = withGst(plan.pricePaise, env.gstPercent); // incl. GST, paise
+    if (existing?.razorpayPlanId) {
+      console.warn(`! ${plan.id} amount changed from ₹${(existing.amountPaise / 100).toLocaleString("en-IN")} to ₹${(amount / 100).toLocaleString("en-IN")}; creating a new Razorpay plan mapping. Existing active subscriptions are not changed.`);
+    }
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new Error(
-        `Computed a bad amount (${amount}) for ${plan.id}. Check GST_PERCENT in server/.env — it must be a plain number like 18 (no "%").`
+        `Computed a bad amount (${amount}) for ${plan.id}. Check the plan price and approved GST configuration.`
       );
     }
     const created = await rzp.plans.create({
@@ -46,7 +49,7 @@ async function run() {
         name: plan.label,
         amount, // paise
         currency: "INR",
-        description: `${plan.label} — Truvi Ventures (incl. ${env.gstPercent}% GST)`,
+        description: `${plan.label} — Truvi Ventures`,
       },
     });
 

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatProjectLocation } from "@/lib/projectLocation";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 import { toast } from "sonner";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { PROJECT_TYPE_LABELS, categoryLabel } from "@/lib/assetCategories";
@@ -52,9 +53,9 @@ interface UnitSummary {
 }
 
 const APPROVAL_LABEL: Record<string, string> = {
-  RERA: "RERA Registered",
-  DISTRICT_PANCHAYAT: "District Panchayat Approved",
-  DTCP: "DTCP Approved",
+  RERA: "RERA registration details",
+  DISTRICT_PANCHAYAT: "District Panchayat reference",
+  DTCP: "Development Authority (DTCP) reference",
 };
 
 function fmtPossession(v?: string | null): string | null {
@@ -242,11 +243,13 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
   const [form, setForm] = useState({ name: "", phone: "", email: "", size: "", budget: "", visitDate: "", message: "" });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Please enter your name.");
     if (!/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(form.phone.trim())) return toast.error("Please enter a valid 10-digit mobile number.");
+    if (!privacyAcknowledged) return toast.error("Please acknowledge the Privacy Policy before submitting.");
     setBusy(true);
     const extras = [
       form.size && `Preferred size: ${form.size}`,
@@ -258,6 +261,7 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
       await api.post("/enquiries/lead", {
         name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim() || undefined,
         projectId, projectName, message: extras || undefined,
+        privacyNoticeAcknowledged: true,
       });
       setDone(true);
       markLeadDone(projectId);
@@ -292,6 +296,10 @@ function LeadForm({ projectId, projectName, soldOut = false }: { projectId: stri
         </div>}
       </div>
       <textarea className={`${field} mt-3`} rows={3} placeholder="Anything specific you're looking for? (optional)" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+      <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-white/60">
+        <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
+        <span>I consent to Truvi using these details for the specific project enquiry and to arrange the callback/site visit I requested. I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
+      </label>
       {soldOut && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">This project is currently sold out. You can still contact our team for project information.</p>}
       <button type="submit" disabled={busy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
         {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Submitting…" : soldOut ? "Request Project Information" : "Book a Site Visit"}
@@ -314,17 +322,21 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
 }) {
   const [form, setForm] = useState({ name: "", phone: "" });
   const [busy, setBusy] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const field = "w-full rounded-xl border border-white/12 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-[var(--trust)]/60";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Please enter your name.");
     if (!/^(\+?91[\-\s]?)?[6-9]\d{9}$/.test(form.phone.trim())) return toast.error("Please enter a valid 10-digit mobile number.");
+    if (!privacyAcknowledged) return toast.error("Please acknowledge the Privacy Policy before submitting.");
     setBusy(true);
     try {
       await api.post("/enquiries/lead", {
         name: form.name.trim(), phone: form.phone.trim(),
-        projectId, projectName, message: "Quick enquiry from the landing page",
+        projectId, projectName,
+        message: "Quick enquiry from the landing page",
+        privacyNoticeAcknowledged: true,
       });
       markLeadDone(projectId);
       toast.success("Thank you! Our team will call you shortly.");
@@ -352,6 +364,10 @@ function QuickLeadModal({ projectId, projectName, waHref, onClose, onCaptured }:
         <form onSubmit={submit} className="mt-4 space-y-3">
           <input className={field} placeholder="Your name*" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className={field} placeholder="Mobile number*" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <label className="flex items-start gap-2 text-xs leading-relaxed text-white/60">
+            <input type="checkbox" checked={privacyAcknowledged} onChange={(e) => setPrivacyAcknowledged(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[var(--trust)]" />
+            <span>I consent to Truvi using these details solely to respond to this callback request. I have read the <Link to="/privacy-policy" className="text-sky-300 underline">Privacy Policy</Link>. This does not sign me up for unrelated marketing messages. *</span>
+          </label>
           <button type="submit" disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--trust)] px-6 py-3.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <CalendarClock size={16} />}{busy ? "Sending…" : "Request a callback"}
           </button>
@@ -488,7 +504,13 @@ export default function ProjectLandingPage() {
   const devName = typeof project.developerId === "object" ? (project.developerId as any).name : null;
   const possession = fmtPossession(project.possessionDate);
   const typeLabel = project.projectType ? (PROJECT_TYPE_LABELS[project.projectType] ?? project.projectType) : null;
-  const approval = project.approvalAuthority ? APPROVAL_LABEL[project.approvalAuthority] : null;
+  const approvalAuthority = project.approvalAuthority ?? "RERA";
+  const approval = approvalAuthority ? APPROVAL_LABEL[approvalAuthority] : null;
+  const hasApprovalNumber = Boolean(project.reraNumber?.trim());
+  const approvalIndependentlyVerified = isApprovalEvidenceVerified(project);
+  const reraExemptionReviewed = approvalAuthority === "RERA" &&
+    project.reraStatus === "NOT_REGISTERED" && approvalIndependentlyVerified;
+  const listingIndependentlyReviewed = project.isVerified === true && approvalIndependentlyVerified;
   const hasMap = typeof project.lat === "number" && typeof project.lng === "number";
   const waHi = waLink(`Hi, I am interested in ${project.name}. Please share the latest price and availability.`);
   const plotSizeLabel = plotSizes.length ? `${plotSizes[0].toLocaleString("en-IN")}${plotSizes.length > 1 ? `–${plotSizes[plotSizes.length - 1].toLocaleString("en-IN")}` : ""} sq.ft` : null;
@@ -500,22 +522,37 @@ export default function ProjectLandingPage() {
   // Key highlights: Location · Price · Plot Sizes · Connectivity · Verification.
   const highlights = [
     { icon: <MapPin size={16} />, label: "Location", value: formatProjectLocation(project.location, project.city) },
-    priceRange ? { icon: <Gauge size={16} />, label: "Price", value: priceRange, hint: "+ GST & charges" } : null,
+    priceRange ? { icon: <Gauge size={16} />, label: "Price", value: priceRange, hint: "taxes / statutory charges, if applicable" } : null,
     plotSizeLabel ? { icon: <Ruler size={16} />, label: "Plot Sizes", value: plotSizeLabel } : null,
     info?.connectivityNotes ? { icon: <Route size={16} />, label: "Connectivity", value: info.connectivityNotes } : null,
     (project.isVerified || typeof project.truviScore === "number")
-      ? { icon: <ShieldCheck size={16} />, label: "Verification", value: project.isVerified ? "Truvi Verified" : "Under review", hint: typeof project.truviScore === "number" ? `Score ${project.truviScore}/100` : undefined }
+      ? { icon: <ShieldCheck size={16} />, label: "Verification", value: listingIndependentlyReviewed ? "Truvi Verified" : "Under review", hint: typeof project.truviScore === "number" ? `Score ${project.truviScore}/100` : undefined }
       : null,
   ].filter(Boolean) as { icon: React.ReactNode; label: string; value: string; hint?: string }[];
 
   // Project-aware FAQ (answered from this project's own data — no generic filler).
   const faqs = [
-    { q: "Is this project approved / RERA registered?", a: project.reraNumber ? `Yes. This project is registered${approval ? ` and ${approval.toLowerCase()}` : ""} — RERA number ${project.reraNumber}. You can verify it on the official RERA portal.` : approval ? `Yes — it is ${approval.toLowerCase()}. Message us on WhatsApp for the approval documents.` : "Please contact our team for the latest approval and RERA details." },
-    { q: "What is the price?", a: `${priceRange ? `Prices start around ${priceRange}` : "Pricing is shared on request"}, excluding GST, registration and other statutory charges. Tap “Get Price & Availability” or WhatsApp us for the exact, current price list.` },
+    {
+      q: "Is this project approved / RERA registered?",
+      a: approvalAuthority === "RERA"
+        ? project.reraStatus === "REGISTERED" && approvalIndependentlyVerified
+          ? `Truvi has checked the supplied RERA registration details against the recorded source ${project.verificationDetails?.verificationSource}. Registration number: ${project.reraNumber}. You should still confirm the project's exact phase, current status and disclosures on the official State RERA portal before booking.`
+          : reraExemptionReviewed
+            ? `Truvi has reviewed evidence concerning the project's RERA applicability / exemption assessment from ${project.verificationDetails?.verificationSource}. Recorded assessment: ${project.verificationDetails?.reraExemptionBasis}. This is not a RERA registration or a legal opinion. Confirm the exemption basis and all planning approvals with the competent authority and a qualified professional before paying or signing.`
+            : hasApprovalNumber
+              ? `The developer has supplied RERA details (${project.reraNumber}), but Truvi has not independently confirmed them against the official register. Do not treat this as RERA verification. Check the exact project phase and current status on the official State RERA portal before paying or signing.`
+              : "No RERA registration number is currently displayed and Truvi has not recorded a verified exemption assessment. Ask for official documents and independently confirm the project's legal status before paying or signing."
+        : approvalIndependentlyVerified
+          ? `Truvi has reviewed the ${approval?.toLowerCase() ?? "planning authority"} reference against the recorded source ${project.verificationDetails?.verificationSource}. RERA applicability / exemption evidence has also been reviewed. Reference: ${project.reraNumber}. This is not a RERA registration; confirm the applicable approvals and exemption basis with the competent authority.`
+          : hasApprovalNumber
+            ? `The developer has supplied a ${approval?.toLowerCase() ?? "planning authority"} reference (${project.reraNumber}), but it has not been independently confirmed by Truvi. A non-RERA approval reference is not a RERA registration. Verify the documents and whether RERA applies to this project before paying or signing.`
+            : `No ${approval?.toLowerCase() ?? "planning authority"} reference is displayed. Ask for official approval / exemption evidence and verify it with the competent authority before paying or signing.`
+    },
+    { q: "What is the price?", a: `${priceRange ? `The indicative price range starts around ${priceRange}` : "Pricing is shared on request"}. Ask the seller for a current itemised written quote showing any applicable tax, stamp duty, registration and other statutory charges before paying. Tap “Get Price & Availability” or WhatsApp us for the current price list.` },
     plotSizeLabel ? { q: "What plot sizes are available?", a: `Plots are available in ${plotSizeLabel}. Live availability is shown in the Inventory section above — it updates as plots are booked.` } : null,
     { q: "When is possession?", a: possession ? `Possession is planned for ${possession}. Construction milestones and the latest status are shared during your site visit.` : "Please contact our team for the current possession timeline." },
     { q: "Can I visit the site?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and is not accepting new site-visit bookings." : "Yes — book a free site visit using the form on this page. Our team arranges the visit and walks you through the project, plots and paperwork." },
-    { q: "Why should I trust this listing?", a: project.isVerified ? "This project is Truvi Verified — independently checked across legal, approval, on-ground and location data (see the Truvi Verification section above)." : "Truvi independently reviews every listing across legal, approval and on-ground checks. See the Truvi Verification section above for the current status." },
+    { q: "Why should I trust this listing?", a: listingIndependentlyReviewed ? "This project is marked Truvi Verified after an internal evidence review. Review the source and date for each recorded check, and independently verify title, registration, approvals and current project disclosures before paying or signing." : "This listing has passed the platform's publication review, but not all project evidence is independently verified. Developer-submitted and pending items are identified in the verification section. Confirm original documents with the competent authority before paying or signing." },
     { q: "How do I book?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and cannot accept new bookings. You can contact our team for more information." : "Share your details on this page or WhatsApp us. Our team confirms availability, arranges a site visit, and guides you through the booking and payment process end-to-end." },
   ].filter(Boolean) as { q: string; a: string }[];
 
@@ -549,7 +586,7 @@ export default function ProjectLandingPage() {
         <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-end px-4 pb-28 pt-24 sm:pb-16">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
             <div className="flex flex-wrap items-center gap-2">
-              {project.isVerified && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300"><ShieldCheck size={13} /> Truvi Verified</span>}
+              {listingIndependentlyReviewed && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-300"><ShieldCheck size={13} /> Approval evidence checked</span>}
               {project.availabilityStatus === "SOLD_OUT" && <SoldOutBadge className="px-3 py-1" />}
               {typeLabel && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90">{typeLabel}</span>}
               {approval && <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-200">{approval}</span>}
@@ -593,7 +630,7 @@ export default function ProjectLandingPage() {
             {project.description && <p className="max-w-3xl whitespace-pre-line text-[15px] leading-[1.8] text-white/75">{project.description}</p>}
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                project.isVerified && "Independently Truvi Verified — legal, approval & on-ground checks",
+                listingIndependentlyReviewed && "Approval / RERA applicability evidence checked by Truvi — review the source and date below",
                 approval && `${approval} — buy with confidence`,
                 priceRange && `Transparent pricing from ${priceRange} — no hidden brokerage`,
                 project.availabilityStatus !== "SOLD_OUT" && unitSummary && unitSummary.available > 0 && `${unitSummary.available} plots available right now`,
@@ -795,7 +832,7 @@ export default function ProjectLandingPage() {
                 </a>
                 <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
                   <span className="grid size-10 place-items-center rounded-xl bg-white/8 text-white/80"><Star size={18} /></span>
-                  <div><p className="text-sm font-semibold text-white">Verified &amp; RERA-checked</p><p className="text-xs text-white/55">Buy with confidence via Truvi</p></div>
+                  <div><p className="text-sm font-semibold text-white">Review the approval evidence</p><p className="text-xs text-white/55">Check the source, date and official authority record before booking</p></div>
                 </div>
               </div>
             </div>
