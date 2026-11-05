@@ -1143,6 +1143,10 @@ export const enquiries = pgTable(
     name: text("name").notNull(),
     purposeType: text("purpose_type").$type<EnquiryPurpose>().notNull(),
     message: text("message"),
+    // Server-recorded, versioned permission for the specific public enquiry.
+    // Nullable for historical enquiries submitted before this evidence existed.
+    privacyNoticeVersion: text("privacy_notice_version"),
+    privacyNoticeAcknowledgedAt: timestamp("privacy_notice_acknowledged_at", { withTimezone: true, mode: "date" }),
     uploadUrl: text("upload_url"),
     uploadFileName: text("upload_file_name"),
     projectId: uuid("project_id").references(() => projects._id),
