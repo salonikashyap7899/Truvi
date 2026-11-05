@@ -1,4 +1,5 @@
 import type { Lead, LeadStage, Project, Unit } from "@/types";
+import { isApprovalEvidenceVerified } from "@/lib/approvalEvidence";
 
 /**
  * Deterministic "AI" layer for the CP CRM — lead scoring, deal probability,
