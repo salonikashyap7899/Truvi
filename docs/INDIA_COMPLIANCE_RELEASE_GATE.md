@@ -8,9 +8,9 @@
 
 - Adds a public grievance submission route that does not require an account.
 - Gives each complaint a case number and immediate acknowledgement status.
-- Sends a receipt email containing the complaint copy; an email failure does not discard the case.
+- Sends a privacy-minimised email acknowledgement with the case number and summary; the full complaint stays in the restricted case system. Email failure does not discard the case.
 - Routes public complaints into the existing administrator Compliance Centre.
-- Records complainant contact data separately from an optional account ID.
+- Records complainant contact data and the privacy-notice version/acknowledgement separately from an optional account ID.
 - Sets a 15-calendar-day internal response target to support a stricter operational workflow. This is an internal target, not a statement that every complaint is governed by the same statutory deadline.
 - Removes a hard-coded 18% GST statement from generic Terms. Tax must be determined per service, registration, place of supply and CA-approved treatment.
 - Replaces the duplicate, abbreviated Legal & Methodology privacy/terms text with links to the canonical policy pages.
