@@ -153,7 +153,7 @@ export default function TruviInvestPage() {
         <div className="pointer-events-none absolute left-1/2 top-[-20%] h-[50vh] w-[70vw] -translate-x-1/2 rounded-full opacity-20 blur-3xl" style={{ background: "radial-gradient(circle, #10b981 0%, transparent 70%)" }} />
         <div className="relative mx-auto max-w-5xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-            <TrendingUp size={13} /> Truvi Invest · Capital into verified real estate
+            <TrendingUp size={13} /> Truvi Invest · Investor information and enquiries
           </span>
           <h1 className="mt-5 font-display text-3xl font-semibold leading-tight md:text-5xl">
             Explore Real Estate Opportunities. <span className="text-gradient-trust">Understand the evidence before you decide.</span>
@@ -293,7 +293,7 @@ export default function TruviInvestPage() {
                     <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white backdrop-blur">
                       {[o.city, th.label].filter(Boolean).join(" · ")}
                     </span>
-                    <span className="absolute right-3 top-3 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-xs font-bold text-white">Score {sc.overall}</span>
+                    <span className="absolute right-3 top-3 rounded-lg bg-emerald-500/90 px-2.5 py-1 text-xs font-bold text-white">Evidence score {sc.overall}</span>
                   </div>
                   <div className="flex flex-1 flex-col p-4">
                     <p className="font-semibold">{o.name}</p>
@@ -307,7 +307,7 @@ export default function TruviInvestPage() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
-                      {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Verified</span>}
+                      {o.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300"><BadgeCheck size={11} /> Approval evidence checked</span>}
                       {o.reraNumber && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-sky-300">
                           <ShieldCheck size={11} />
