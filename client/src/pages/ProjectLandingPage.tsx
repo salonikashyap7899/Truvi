@@ -511,7 +511,7 @@ export default function ProjectLandingPage() {
   // Key highlights: Location · Price · Plot Sizes · Connectivity · Verification.
   const highlights = [
     { icon: <MapPin size={16} />, label: "Location", value: formatProjectLocation(project.location, project.city) },
-    priceRange ? { icon: <Gauge size={16} />, label: "Price", value: priceRange, hint: "+ GST & charges" } : null,
+    priceRange ? { icon: <Gauge size={16} />, label: "Price", value: priceRange, hint: "taxes / statutory charges, if applicable" } : null,
     plotSizeLabel ? { icon: <Ruler size={16} />, label: "Plot Sizes", value: plotSizeLabel } : null,
     info?.connectivityNotes ? { icon: <Route size={16} />, label: "Connectivity", value: info.connectivityNotes } : null,
     (project.isVerified || typeof project.truviScore === "number")
@@ -535,7 +535,7 @@ export default function ProjectLandingPage() {
             ? `The developer has supplied a ${approval?.toLowerCase() ?? "planning authority"} reference (${project.reraNumber}), but it has not been independently confirmed by Truvi. A non-RERA approval reference is not a RERA registration. Verify the documents and whether RERA applies to this project before paying or signing.`
             : `No ${approval?.toLowerCase() ?? "planning authority"} reference is displayed. Ask for official approval / exemption evidence and verify it with the competent authority before paying or signing.`
     },
-    { q: "What is the price?", a: `${priceRange ? `Prices start around ${priceRange}` : "Pricing is shared on request"}, excluding GST, registration and other statutory charges. Tap “Get Price & Availability” or WhatsApp us for the exact, current price list.` },
+    { q: "What is the price?", a: `${priceRange ? `The indicative price range starts around ${priceRange}` : "Pricing is shared on request"}. Ask the seller for a current itemised written quote showing any applicable tax, stamp duty, registration and other statutory charges before paying. Tap “Get Price & Availability” or WhatsApp us for the current price list.` },
     plotSizeLabel ? { q: "What plot sizes are available?", a: `Plots are available in ${plotSizeLabel}. Live availability is shown in the Inventory section above — it updates as plots are booked.` } : null,
     { q: "When is possession?", a: possession ? `Possession is planned for ${possession}. Construction milestones and the latest status are shared during your site visit.` : "Please contact our team for the current possession timeline." },
     { q: "Can I visit the site?", a: project.availabilityStatus === "SOLD_OUT" ? "This project is currently sold out and is not accepting new site-visit bookings." : "Yes — book a free site visit using the form on this page. Our team arranges the visit and walks you through the project, plots and paperwork." },
