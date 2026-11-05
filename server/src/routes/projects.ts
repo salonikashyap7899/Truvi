@@ -275,6 +275,7 @@ router.patch("/:id", requireRole("DEVELOPER", "ADMIN"), async (req: AuthedReques
       ...(project.verificationDetails ?? {}),
       reraVerified: false,
       approvalVerified: false,
+      reraExemptionVerified: false,
       verificationSource: "",
       lastVerifiedAt: null,
     };
