@@ -1806,7 +1806,10 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE TABLE IF NOT EXISTS "grievance_tickets" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "case_number" text NOT NULL,
-       "requester_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "requester_user_id" uuid REFERENCES "users"("id"),
+       "requester_name" text,
+       "requester_email" text,
+       "requester_phone" text,
        "category" text NOT NULL,
        "subject" text NOT NULL,
        "description" text NOT NULL,
@@ -1814,10 +1817,20 @@ async function ensureSchema(db: Db): Promise<void> {
        "public_response" text,
        "internal_notes" text,
        "reviewer_user_id" uuid REFERENCES "users"("id"),
+       "acknowledged_at" timestamptz,
+       "response_due_at" timestamptz,
        "requested_at" timestamptz NOT NULL DEFAULT now(),
        "updated_at" timestamptz NOT NULL DEFAULT now(),
        "resolved_at" timestamptz
      )`,
+    // Allow complaints from consumers who do not have a Truvi account. Existing
+    // authenticated grievance rows retain their user foreign key.
+    `ALTER TABLE "grievance_tickets" ALTER COLUMN "requester_user_id" DROP NOT NULL`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_name" text`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_email" text`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "requester_phone" text`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "acknowledged_at" timestamptz`,
+    `ALTER TABLE "grievance_tickets" ADD COLUMN IF NOT EXISTS "response_due_at" timestamptz`,
     `CREATE UNIQUE INDEX IF NOT EXISTS "grievance_tickets_case_number_unique" ON "grievance_tickets" ("case_number")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_user_idx" ON "grievance_tickets" ("requester_user_id", "requested_at")`,
     `CREATE INDEX IF NOT EXISTS "grievance_tickets_status_idx" ON "grievance_tickets" ("status", "requested_at")`,
