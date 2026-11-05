@@ -46,7 +46,7 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
           <StatusIcon size={16} className={info.verified ? "shrink-0 text-green-400" : "shrink-0 text-amber-400"} />
           <span className="text-sm font-medium text-foreground/90">{heading}</span>
         </div>
-        <span className={\`inline-flex max-w-[60%] items-center rounded-full border px-3 py-1 text-right text-xs font-semibold \${info.verified ? "border-green-500/30 bg-green-500/15 text-green-300" : "border-amber-500/30 bg-amber-500/15 text-amber-300"}\`}>
+        <span className={`inline-flex max-w-[60%] items-center rounded-full border px-3 py-1 text-right text-xs font-semibold ${info.verified ? "border-green-500/30 bg-green-500/15 text-green-300" : "border-amber-500/30 bg-amber-500/15 text-amber-300"}`}>
           {statusLabel}
         </span>
       </div>
@@ -55,7 +55,7 @@ export default function ReraDetailsCard({ info }: ReraDetailsCardProps) {
         <p className="mt-3 text-xs leading-relaxed text-amber-200/80">
           {isRera
             ? "The RERA number and status were supplied by the developer. Truvi has not independently checked them against the official State RERA register."
-            : \`The \${authorityLabel} reference was supplied by the developer. It is not a RERA registration and does not by itself prove that RERA registration is not required.\`}
+            : `The ${authorityLabel} reference was supplied by the developer. It is not a RERA registration and does not by itself prove that RERA registration is not required.`}
         </p>
       )}
 
