@@ -953,6 +953,8 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_phone" text`,
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "lead_alert_email" text`,
     `ALTER TABLE "platform_settings" ADD COLUMN IF NOT EXISTS "onboarding_session" jsonb`,
+    `ALTER TABLE "platform_settings" ALTER COLUMN "gst_percent" SET DEFAULT 0`,
+    `ALTER TABLE "marketing_payments" ALTER COLUMN "gst_percent" SET DEFAULT 0`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_completed_at" timestamptz`,
     // CP joining flag. Added once; Channel Partners who had ALREADY finished
     // KYC + the WhatsApp channel when this shipped are marked joined, so the
