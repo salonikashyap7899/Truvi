@@ -115,7 +115,7 @@ export function buildIntelligenceProfile(project: IProject, rag: RagInput = {}):
     hasApprovalNumber &&
     vd?.reraVerified === true &&
     hasVerificationRecord;
-  const exemptionReviewed = vd?.reraExemptionVerified === true && hasVerificationRecord;
+  const exemptionReviewed = vd?.reraExemptionVerified === true && Boolean(vd?.reraExemptionBasis?.trim()) && hasVerificationRecord;
   const otherApprovalOk =
     !isReraAuthority &&
     hasApprovalNumber &&
