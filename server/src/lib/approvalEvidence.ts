@@ -17,6 +17,8 @@ export interface ApprovalEvidenceInput {
   verificationDetails?: {
     reraVerified?: boolean | null;
     approvalVerified?: boolean | null;
+    reraExemptionVerified?: boolean | null;
+    reraExemptionBasis?: string | null;
     verificationSource?: string | null;
     lastVerifiedAt?: Date | string | null;
   } | null;
@@ -27,9 +29,7 @@ export function isApprovalEvidenceVerified(
   now: Date = new Date(),
 ): boolean {
   const details = project.verificationDetails;
-  if (!project.reraNumber?.trim() || !details?.verificationSource?.trim() || !details.lastVerifiedAt) {
-    return false;
-  }
+  if (!details?.verificationSource?.trim() || !details.lastVerifiedAt) return false;
 
   const checkedAt = details.lastVerifiedAt instanceof Date
     ? details.lastVerifiedAt
@@ -47,9 +47,19 @@ export function isApprovalEvidenceVerified(
   }
 
   const authority = project.approvalAuthority ?? "RERA";
+  const hasReference = Boolean(project.reraNumber?.trim());
+  const exemptionReviewed =
+    details.reraExemptionVerified === true && Boolean(details.reraExemptionBasis?.trim());
+
   if (authority === "RERA") {
-    return project.reraStatus === "REGISTERED" && details.reraVerified === true;
+    if (project.reraStatus === "REGISTERED") {
+      return hasReference && details.reraVerified === true;
+    }
+    return project.reraStatus === "NOT_REGISTERED" && exemptionReviewed;
   }
 
-  return details.approvalVerified === true;
+  // A non-RERA planning approval is not a RERA registration. Both the
+  // authority's approval reference and the project's RERA applicability /
+  // exemption assessment must be independently reviewed.
+  return hasReference && details.approvalVerified === true && exemptionReviewed;
 }
