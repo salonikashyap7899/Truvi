@@ -10,6 +10,7 @@ const clean = (value: string | undefined): string | null => value?.trim() || nul
 export const legalDisclosure = {
   legalEntityName: clean(import.meta.env.VITE_LEGAL_ENTITY_NAME),
   registeredOfficeAddress: clean(import.meta.env.VITE_REGISTERED_OFFICE_ADDRESS),
+  headquartersAddress: clean(import.meta.env.VITE_COMPANY_HEADQUARTERS_ADDRESS),
   cinOrLlpNumber: clean(import.meta.env.VITE_COMPANY_CIN_OR_LLPIN),
   gstin: clean(import.meta.env.VITE_COMPANY_GSTIN),
   branchAddresses: clean(import.meta.env.VITE_COMPANY_BRANCH_ADDRESSES),
@@ -26,6 +27,9 @@ export const legalDisclosure = {
 export const missingLegalDisclosures = [
   ["VITE_LEGAL_ENTITY_NAME", legalDisclosure.legalEntityName],
   ["VITE_REGISTERED_OFFICE_ADDRESS", legalDisclosure.registeredOfficeAddress],
+  ["VITE_COMPANY_HEADQUARTERS_ADDRESS", legalDisclosure.headquartersAddress],
+  // Set to all current branch addresses, or an explicit "No branch offices" only after management confirms.
+  ["VITE_COMPANY_BRANCH_ADDRESSES", legalDisclosure.branchAddresses],
   ["VITE_CUSTOMER_CARE_PHONE", legalDisclosure.customerCarePhone],
   ["VITE_CUSTOMER_CARE_LANDLINE", legalDisclosure.customerCareLandline],
   ["VITE_GRIEVANCE_OFFICER_NAME", legalDisclosure.grievanceOfficerName],
