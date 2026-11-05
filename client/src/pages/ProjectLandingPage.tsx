@@ -498,7 +498,7 @@ export default function ProjectLandingPage() {
   const approvalIndependentlyVerified = approvalAuthority === "RERA"
     ? (project.reraStatus === "REGISTERED" && hasApprovalNumber &&
       project.verificationDetails?.reraVerified === true && hasApprovalVerificationRecord) ||
-      (project.reraStatus !== "REGISTERED" && reraExemptionReviewed)
+      (project.reraStatus === "NOT_REGISTERED" && reraExemptionReviewed)
     : hasApprovalNumber && project.verificationDetails?.approvalVerified === true &&
       reraExemptionReviewed;
   const listingIndependentlyReviewed = project.isVerified === true && approvalIndependentlyVerified;
