@@ -91,7 +91,7 @@ export default function AdminKycPage() {
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Every Channel Partner &amp; Ambassador and their KYC status — verified, pending, rejected, or still to submit.
-        Approving unlocks their workspace; documents are retained securely so you can re-view a verified user's identity anytime.
+        Approval unlocks the workspace after manual review. Do not approve an unmasked Aadhaar or retain identity documents longer than the documented review/retention need.
       </p>
 
       {counts && (
@@ -147,7 +147,7 @@ export default function AdminKycPage() {
           {reviewed.length > 0 && (
             <section className="mt-10">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-300/90">Verified &amp; reviewed identities ({reviewed.length})</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Documents stay available here for reference — open to view Aadhaar, PAN and selfie.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Documents stay restricted to authorised reviewers — check that the identity document is properly masked before reviewing it; access documents only when required.</p>
               <div className="mt-3 space-y-5">
                 {reviewed.map((s) => <SubmissionCard key={s._id} s={s} busyId={busyId} onDecide={decide} onRemove={remove} readOnly />)}
               </div>
@@ -231,7 +231,7 @@ function SubmissionCard({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <DocTile label="Aadhaar" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
+        <DocTile label="Identity document" userId={s._id} type="aadhaar" present={s.hasAadhaar} />
         <DocTile label="PAN" userId={s._id} type="pan" present={s.hasPan} />
         <DocTile label="Selfie" userId={s._id} type="selfie" present={s.hasSelfie} />
       </div>

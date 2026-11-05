@@ -101,7 +101,7 @@ export default function HabitatAdminPage() {
   const [refunds, setRefunds] = useState<FinanceRefund[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
-  const [policyDraft, setPolicyDraft] = useState({ cancellationFeePercent: "25", commissionTaxPercent: "18", autoCompleteHours: "72" });
+  const [policyDraft, setPolicyDraft] = useState({ cancellationFeePercent: "25", autoCompleteHours: "72" });
   const [commissionDraft, setCommissionDraft] = useState({ ratePercent: "10", projectId: "", providerId: "" });
 
   async function load() {
@@ -136,7 +136,6 @@ export default function HabitatAdminPage() {
       if (financeRes.data.settings) {
         setPolicyDraft({
           cancellationFeePercent: String(financeRes.data.settings.cancellationFeeBps / 100),
-          commissionTaxPercent: String(financeRes.data.settings.commissionTaxRateBps / 100),
           autoCompleteHours: String(financeRes.data.settings.autoCompleteHours),
         });
       }
@@ -294,17 +293,15 @@ export default function HabitatAdminPage() {
   async function saveFinancePolicy(event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
       const cancellationFeePercent = Number(policyDraft.cancellationFeePercent);
-      const commissionTaxPercent = Number(policyDraft.commissionTaxPercent);
       const autoCompleteHours = Number(policyDraft.autoCompleteHours);
-      if (![cancellationFeePercent, commissionTaxPercent].every((value) => Number.isFinite(value) && value >= 0 && value <= 100) ||
+      if (!Number.isFinite(cancellationFeePercent) || cancellationFeePercent < 0 || cancellationFeePercent > 100 ||
         !Number.isInteger(autoCompleteHours) || autoCompleteHours < 1 || autoCompleteHours > 720) {
-        toast.error("Enter valid percentages (0–100) and completion hours (1–720)");
+        toast.error("Enter a valid cancellation percentage (0–100) and completion hours (1–720)");
         return;
       }
       try {
         await api.patch("/habitat/admin/finance/settings", {
           cancellationFeeBps: Math.round(cancellationFeePercent * 100),
-          commissionTaxRateBps: Math.round(commissionTaxPercent * 100),
           autoCompleteHours,
         });
         toast.success("Habitat financial policy saved");
@@ -635,9 +632,13 @@ export default function HabitatAdminPage() {
                 <label className="text-xs text-white/65">Buyer cancellation fee (%)
                   <input type="number" min={0} max={100} step={0.01} value={policyDraft.cancellationFeePercent} onChange={(event) => setPolicyDraft((current) => ({ ...current, cancellationFeePercent: event.target.value }))} className={field} />
                 </label>
-                <label className="text-xs text-white/65">GST on Truvi commission (%)
-                  <input type="number" min={0} max={100} step={0.01} value={policyDraft.commissionTaxPercent} onChange={(event) => setPolicyDraft((current) => ({ ...current, commissionTaxPercent: event.target.value }))} className={field} />
-                </label>
+                <div className="text-xs text-white/65">
+                  GST on Truvi commission (server controlled)
+                  <div className={field + " mt-1 cursor-not-allowed text-white/70"} aria-readonly="true">
+                    {((finance?.settings?.commissionTaxRateBps ?? 0) / 100).toFixed(2)}% · configured from server GST registration settings
+                  </div>
+                  <p className="mt-1 text-[11px] text-white/40">This rate cannot be edited here. Keep GST disabled until the registered supplier and CA-approved treatment are confirmed.</p>
+                </div>
                 <label className="text-xs text-white/65">Buyer completion window (hours)
                   <input type="number" min={1} max={720} step={1} value={policyDraft.autoCompleteHours} onChange={(event) => setPolicyDraft((current) => ({ ...current, autoCompleteHours: event.target.value }))} className={field} />
                 </label>

@@ -88,8 +88,8 @@ export default function AmbassadorDashboardPage() {
   // TRUVI Students Ambassador Program WhatsApp channel.
   if (!user.whatsappChannelJoined) return <CpWhatsAppGate audience="AMBASSADOR" />;
 
-  // Identity gate — same full KYC (Aadhaar + PAN + live selfie → admin review)
-  // as Channel Partners. Ambassadors can't access tasks until verified.
+  // Identity-document gate — masked ID document + live selfie → manual review.
+  // Ambassadors cannot access tasks until an authorised reviewer approves.
   if (!user.onboardingVerified) return <CpKycOnboarding />;
 
   return (
