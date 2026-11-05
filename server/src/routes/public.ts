@@ -15,13 +15,13 @@ function approvalEvidenceVerified(project: typeof projects.$inferSelect): boolea
   const evidence = project.verificationDetails;
   const hasReference = Boolean(project.reraNumber?.trim());
   const hasSourceAndDate = Boolean(evidence?.verificationSource?.trim() && evidence?.lastVerifiedAt);
-  if (!hasReference || !hasSourceAndDate) return false;
+  if (!hasSourceAndDate) return false;
   const exemptionReviewed = evidence?.reraExemptionVerified === true;
   if (authority === "RERA") {
-    return (project.reraStatus === "REGISTERED" && evidence?.reraVerified === true) ||
+    return (project.reraStatus === "REGISTERED" && hasReference && evidence?.reraVerified === true) ||
       (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed);
   }
-  return evidence?.approvalVerified === true && exemptionReviewed;
+  return hasReference && evidence?.approvalVerified === true && exemptionReviewed;
 }
 
 router.get("/stats", async (_req, res) => {
