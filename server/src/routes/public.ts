@@ -19,7 +19,7 @@ function approvalEvidenceVerified(project: typeof projects.$inferSelect): boolea
   const exemptionReviewed = evidence?.reraExemptionVerified === true;
   if (authority === "RERA") {
     return (project.reraStatus === "REGISTERED" && evidence?.reraVerified === true) ||
-      (project.reraStatus !== "REGISTERED" && exemptionReviewed);
+      (project.reraStatus === "NOT_REGISTERED" && exemptionReviewed);
   }
   return evidence?.approvalVerified === true && exemptionReviewed;
 }
