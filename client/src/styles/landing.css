@@ -182,8 +182,9 @@
   .landing-page-backdrop__image {
     z-index: 2;
     background-image: url("/images/truvi-homepage-backdrop-desktop.webp");
-    background-position: center;
-    background-size: contain;
+    background-position: center 48%;
+    background-size: cover;
+    filter: saturate(1.14) brightness(1.12) contrast(1.06);
   }
 }
 
@@ -200,15 +201,15 @@
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.34) 0%, rgba(3, 10, 21, 0.2) 52%, rgba(3, 10, 21, 0.34) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.32) 0%, rgba(3, 9, 19, 0.42) 58%, rgba(3, 9, 19, 0.56) 100%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.12) 0%, rgba(3, 10, 21, 0.06) 52%, rgba(3, 10, 21, 0.16) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.08) 0%, rgba(3, 9, 19, 0.14) 58%, rgba(3, 9, 19, 0.32) 100%);
 }
 
 @media (max-width: 767px) {
   .landing-page-backdrop__veil {
     background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.36), rgba(3, 10, 21, 0.28)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.36), rgba(3, 9, 19, 0.54));
+      linear-gradient(90deg, rgba(3, 10, 21, 0.18), rgba(3, 10, 21, 0.12)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.16), rgba(3, 9, 19, 0.3));
   }
 }
 
@@ -398,10 +399,10 @@
 }
 
 .homepage-hero-section {
-  min-height: 548px;
+  min-height: 480px;
   justify-content: flex-start !important;
-  padding-top: 138px !important;
-  padding-bottom: 14px !important;
+  padding-top: 82px !important;
+  padding-bottom: 8px !important;
 }
 
 .homepage-hero-inner {
@@ -414,21 +415,23 @@
 
 .homepage-hero-title {
   max-width: 620px;
-  font-size: clamp(2.3rem, 3.35vw, 2.8rem);
-  line-height: 1.035;
+  font-size: clamp(2.15rem, 2.85vw, 2.55rem);
+  line-height: 1.04;
   letter-spacing: -0.035em;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .homepage-hero-copy-text {
-  max-width: 520px;
+  max-width: 470px;
+  font-size: 0.96rem;
+  line-height: 1.48;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.78);
 }
 
 .homepage-hero-demo {
   width: min(100%, 810px);
-  margin-top: 25px;
-  margin-left: clamp(0px, 16.2vw, 196px);
+  margin-top: 16px;
+  margin-left: clamp(0px, 13.5vw, 164px);
 }
 
 .homepage-hero-demo .homepage-hero-intelligence-card {
@@ -592,8 +595,8 @@
 @media (max-width: 1023px) {
   .homepage-hero-section {
     min-height: 0;
-    padding-top: 132px !important;
-    padding-bottom: 2rem !important;
+    padding-top: 108px !important;
+    padding-bottom: 1.5rem !important;
   }
 
   .homepage-hero-inner {
@@ -630,11 +633,11 @@
   }
 
   .homepage-hero-section {
-    padding-top: 142px !important;
+    padding-top: 122px !important;
   }
 
   .homepage-hero-title {
-    font-size: clamp(2.05rem, 8.6vw, 2.75rem);
+    font-size: clamp(2rem, 8.0vw, 2.55rem);
   }
 
   .homepage-hero-demo {
