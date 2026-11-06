@@ -58,30 +58,6 @@ export default function DataIngestPanel() {
 
   const selectedName = useMemo(() => projects.find((p) => p._id === projectId)?.name ?? "", [projects, projectId]);
 
-  /** Build the upload body: inject the chosen project_id into JSON rows when a
-   *  project is selected (leaves GeoJSON FeatureCollections and CSV untouched). */
-  async function buildUploadFile(src: File): Promise<File> {
-    if (!projectId) return src; // no project chosen → rows must carry their own id
-    const lower = src.name.toLowerCase();
-    if (!lower.endsWith(".json") && !lower.endsWith(".geojson")) return src; // CSV → pass through
-    try {
-      const text = await src.text();
-      const json = JSON.parse(text);
-      if (json && json.type === "FeatureCollection") return src; // don't rewrite GeoJSON shape
-      const inject = (row: any) => {
-        if (row && typeof row === "object") {
-          row.project_id = projectId;
-          delete row.projectId;
-        }
-        return row;
-      };
-      const next = Array.isArray(json) ? json.map(inject) : inject(json);
-      return new File([JSON.stringify(next)], src.name.replace(/\.geojson$/i, ".json"), { type: "application/json" });
-    } catch {
-      return src; // not parseable as JSON → let the server report the error
-    }
-  }
-
   async function upload() {
     if (!file) return toast.error("Choose a file first");
     if (!projectId) {
@@ -93,9 +69,9 @@ export default function DataIngestPanel() {
     setBusy(true);
     setResult(null);
     try {
-      const toSend = await buildUploadFile(file);
       const form = new FormData();
-      form.append("file", toSend);
+      form.append("file", file);
+      if (projectId) form.append("projectId", projectId);
       const { data } = await api.post(`/ingest/${category}`, form);
       const r: IngestResult = {
         successCount: data.successCount ?? 0,
@@ -179,7 +155,7 @@ export default function DataIngestPanel() {
 
         {projectId && (
           <p className="mt-2 text-[11px] text-emerald-300/80">
-            project_id will be set to “{selectedName}” for every JSON row in this file.
+            “{selectedName}” will be associated with each JSON row during ingestion; the archived source file remains unchanged.
           </p>
         )}
 
