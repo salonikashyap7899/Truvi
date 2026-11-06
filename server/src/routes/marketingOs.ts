@@ -829,6 +829,17 @@ router.post("/tasks/:id/updates", async (req: AuthedRequest, res) => {
   const visible = req.user!.role === "MARKETING_PARTNER" ? true : parsed.data.clientVisible;
   const [row] = await db.insert(marketingTaskUpdates).values({ taskId: task._id, authorUserId: req.user!.userId, body: parsed.data.body, progressPercent: task.progressPercent, clientVisible: visible }).returning();
   await logAudit({ userId: req.user!.userId, action: "marketing_os.task.update", resourceType: "employee_task", resourceId: String(task._id) });
+  if (req.user!.role === "MARKETING_PARTNER") {
+    await createNotifications([String(task.assignedByUserId)], { type: "marketing_partner_progress", title: "Client / partner shared an update", message: task.title + ": " + parsed.data.body, actorUserId: req.user!.userId, data: { href: "/employee/marketing", taskId: String(task._id) } }).catch(() => []);
+    await queueMarketingOsEmail(String(task.assignedByUserId), "TASK_PROGRESS", String(task._id), { title: "Client / partner shared an update", message: task.title + ": " + parsed.data.body, href: "https://truviventures.com/employee/marketing" }, "partner-shared-update:" + String(row._id));
+  } else if (visible) {
+    const shares = await db.select({ userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(eq(marketingTaskPartners.taskId, task._id));
+    const partnerIds = Array.from(new Set(shares.map((share) => String(share.userId))));
+    if (partnerIds.length) {
+      await createNotifications(partnerIds, { type: "marketing_partner_progress", title: "Shared marketing activity updated", message: task.title + ": " + parsed.data.body, actorUserId: req.user!.userId, data: { href: "/marketing/partner", taskId: String(task._id) } }).catch(() => []);
+      for (const partnerId of partnerIds) await queueMarketingOsEmail(partnerId, "TASK_PROGRESS", String(task._id), { title: "Shared marketing activity updated", message: task.title + ": " + parsed.data.body, href: "https://truviventures.com/marketing/partner" }, "employee-shared-update:" + String(row._id) + ":" + partnerId);
+    }
+  }
   res.status(201).json({ update: row });
 });
 
