@@ -141,7 +141,9 @@ export default function EmployeeDashboardPage() {
           return;
         }
         const status = result.reason?.response?.status;
-        failures.push(status ? `${label} (HTTP ${status})` : label);
+        failures.push(status === 403
+          ? `${label} (permission not enabled — ask an Admin to update access)`
+          : status ? `${label} (HTTP ${status})` : label);
       };
       assign(0, "Employee profile", (d) => { setEmployee(d.employee); setCallCount(d.callsLoggedToday ?? 0); });
       assign(1, "Tasks", (d) => setTasks(d.tasks ?? []));
