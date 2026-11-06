@@ -437,7 +437,11 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
     const [campaign] = task.marketingCampaignId ? await db.select({ name: marketingPartnerCampaigns.name }).from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, task.marketingCampaignId)).limit(1) : [];
     const assignees = await db.select({ employeeId: employeeTaskAssignments.employeeId, name: employees.name, status: employeeTaskAssignments.status })
       .from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id)).where(eq(employeeTaskAssignments.taskId, task._id));
-    return { ...task, project, campaign, assignees, partnerUserIds: partnerAssignments.filter((row) => String(row.taskId) === String(task._id)).map((row) => String(row.userId)) };
+    const attachments = await db.select({
+      id: employeeTaskAttachments._id, originalFileName: employeeTaskAttachments.originalFileName,
+      mimeType: employeeTaskAttachments.mimeType, sizeBytes: employeeTaskAttachments.sizeBytes, createdAt: employeeTaskAttachments.createdAt,
+    }).from(employeeTaskAttachments).where(eq(employeeTaskAttachments.taskId, task._id)).orderBy(desc(employeeTaskAttachments.createdAt));
+    return { ...task, project, campaign, assignees, attachments, partnerUserIds: partnerAssignments.filter((row) => String(row.taskId) === String(task._id)).map((row) => String(row.userId)) };
   }));
   res.json({ tasks: shaped });
 });
