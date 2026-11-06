@@ -191,7 +191,11 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
   // Avoid briefly displaying the signed-out navigation while a refresh
   // cookie is still being verified after reload or tab restoration.
   // If session restoration failed transiently, keep the public navigation visible rather than blanking the entire header.
-  const visibleLinks = isInitialized || sessionRestoreFailed ? navLinksForRole(user) : [];
+  // On the homepage, show the public marketing navigation for every account.
+  // The signed-in user's role dashboard remains available in the account menu.
+  const visibleLinks = isInitialized || sessionRestoreFailed
+    ? pathname === "/" ? NAV_LINKS : navLinksForRole(user)
+    : [];
 
   return (
     <InNavbarContext.Provider value={true}>
