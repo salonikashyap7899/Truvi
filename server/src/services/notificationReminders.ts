@@ -13,6 +13,7 @@ import { ambassadorOsFollowUps, ambassadorOsTasks, leadFollowUps, leads, users, 
 import { NotificationType, notifyUser } from "./notificationService";
 import { shouldSendTaskDeadlineReminder } from "../lib/employeeTaskRules";
 import { sendWhatsAppCampaign } from "./whatsappService";
+import { queueMarketingOsEmail } from "../routes/marketingOs";
 
 /** Remind the follow-up owner about due follow-ups, including employee-owned leads. */
 export async function runFollowUpReminders(): Promise<{ scanned: number; sent: number }> {
@@ -92,7 +93,14 @@ export async function runEmployeeTaskReminders(): Promise<{ scanned: number; sen
         data: { href: "/employee/dashboard?tab=tasks", taskId: String(task._id) },
         dedupeKey: "employee-task-deadline:" + String(task._id) + ":" + String(target.accountUserId) + ":" + task.deadlineAt!.toISOString() + ":" + today,
       });
-      if (created.length) sent++;
+      if (created.length) {
+        sent++;
+        await queueMarketingOsEmail(String(target.accountUserId), "TASK_REMINDER", String(task._id), {
+          title: overdue ? "Marketing task overdue" : "Marketing task due soon",
+          message: task.title + " — deadline " + deadlineLabel + ".",
+          href: "https://truviventures.com/employee/marketing",
+        }, "employee-task-reminder:" + String(task._id) + ":" + String(target.accountUserId) + ":" + task.deadlineAt!.toISOString() + ":" + today);
+      }
     }
   }
   return { scanned: tasks.length, sent };
