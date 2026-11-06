@@ -28,6 +28,7 @@ import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib
 import { aggregateAssignedTaskStatus } from "../lib/employeeTaskRules";
 import { fileMatchesExtension } from "../services/uploadService";
 import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
+import { queueMarketingOsEmail } from "./marketingOs";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -102,13 +103,19 @@ async function issueInvite(employeeId: string, actorUserId: string) {
     .where(and(eq(employeeInvites.employeeId, employeeId), isNull(employeeInvites.usedAt)));
   await db.insert(employeeInvites).values({ employeeId, tokenHash: hashToken(raw), createdById: actorUserId, expiresAt });
   const clientBase = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "");
-  const url = `${clientBase}/employee/activate?token=${raw}`;
-  const delivered = await sendEmail(
-    employee.officialEmail,
-    "Activate your Truvi employee account",
-    `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033"><h2>Welcome to Truvi, ${esc(employee.name)}</h2><p>Your employee account has been created. Use the secure link below to choose your password and activate access.</p><p><a href="${url}" style="display:inline-block;padding:12px 18px;background:#172033;color:#fff;text-decoration:none;border-radius:8px">Activate employee account</a></p><p>This one-time link expires in 48 hours. If you did not expect this invitation, contact your administrator.</p></div>`,
-  );
-  return { delivered, expiresAt };
+  const url = clientBase + "/employee/activate?token=" + raw;
+  const html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033"><h2>Welcome to Truvi, ' + esc(employee.name) + '</h2><p>Your employee account has been created. Use the secure link below to choose your password and activate access.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#172033;color:#fff;text-decoration:none;border-radius:8px">Activate employee account</a></p><p>This one-time link expires in 48 hours. If you did not expect this invitation, contact your administrator.</p></div>';
+  let delivered = false;
+  try { delivered = await sendEmail(employee.officialEmail, "Activate your Truvi employee account", html); }
+  catch (error) { console.warn("[employee-invite] direct email attempt failed; queued for retry:", error instanceof Error ? error.message : "unknown"); }
+  if (!delivered) {
+    await queueMarketingOsEmail(String(employee.accountUserId), "EMPLOYEE_INVITE", employeeId, {
+      title: "Welcome to Truvi — activate your employee account",
+      message: "Your employee account is ready. Use the secure activation link to choose your password and access your employee workspace.",
+      href: url,
+    }, "employee-invite:" + employeeId + ":" + expiresAt.getTime());
+  }
+  return { delivered, queuedForRetry: !delivered, expiresAt };
 }
 
 function isValidEmployeePhone(phone: string | null | undefined): boolean {
