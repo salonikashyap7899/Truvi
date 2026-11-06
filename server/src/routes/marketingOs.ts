@@ -736,6 +736,25 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res) => {
     if (!emp || !emp.permissions?.includes("task.read.own") || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
   }
   const [comment] = await db.insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: parsed.data.body }).returning();
+  const employeeRecipients = await db.select({ userId: employees.accountUserId }).from(employeeTaskAssignments)
+    .innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id))
+    .innerJoin(users, eq(employees.accountUserId, users._id))
+    .where(and(eq(employeeTaskAssignments.taskId, task._id), eq(users.disabled, false)));
+  const recipients = isAdmin(req) || (await canManage(req))
+    ? employeeRecipients.map((row) => row.userId).filter((id): id is string => !!id)
+    : [String(task.assignedByUserId)];
+  const uniqueRecipients = Array.from(new Set(recipients)).filter((id) => id !== req.user!.userId);
+  if (uniqueRecipients.length) await createNotifications(uniqueRecipients, {
+    type: "employee_task_updated",
+    title: "Marketing task comment added",
+    message: task.title + ": " + parsed.data.body,
+    actorUserId: req.user!.userId,
+    data: { href: isAdmin(req) || (await canManage(req)) ? "/employee/marketing" : "/admin/marketing-os", taskId: String(task._id) },
+  }).catch(() => []);
+  await db.insert(employeeTaskHistory).values({
+    taskId: task._id, actorUserId: req.user!.userId, action: "MARKETING_COMMENT_ADDED",
+    afterValue: { commentId: String(comment._id) },
+  });
   await logAudit({ userId: req.user!.userId, action: "marketing_os.task.comment", resourceType: "employee_task", resourceId: String(task._id) });
   res.status(201).json({ comment });
 });
