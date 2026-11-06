@@ -106,6 +106,34 @@ export const CATEGORY_TABLES = {
   community_intelligence: communityIntelligence,
 } as const;
 
+/**
+ * Durable archive of uploaded source JSON/GeoJSON files. Ingestion still
+ * upserts the live category rows; this table preserves each upload snapshot.
+ */
+export const projectDataUploads = pgTable(
+  "project_data_uploads",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "set null" }),
+    projectIds: jsonb("project_ids").$type<string[]>().notNull().default([]),
+    category: text("category").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull().default("application/json"),
+    fileSizeBytes: integer("file_size_bytes").notNull().default(0),
+    rowCount: integer("row_count").notNull().default(0),
+    successCount: integer("success_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    sourcePayload: jsonb("source_payload").$type<unknown>().notNull(),
+    uploadedById: uuid("uploaded_by_id").references(() => users._id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index().on(t.projectId, t.createdAt),
+    index().on(t.category, t.createdAt),
+    index().on(t.uploadedById, t.createdAt),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Config tables — admin-managed; drive the whole engine (no redeploy needed).
 // ---------------------------------------------------------------------------

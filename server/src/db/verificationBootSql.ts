@@ -151,6 +151,32 @@ export const VERIFICATION_BOOT_SQL: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS community_intelligence_project_id_data_key_unique ON "community_intelligence" (project_id, data_key)`,
   `CREATE INDEX IF NOT EXISTS community_intelligence_project_id_verified_idx ON "community_intelligence" (project_id, verified)`,
 
+  // Durable archive of original project JSON/GeoJSON source uploads.
+  // Database storage survives VPS redeploys and does not rely on server disk.
+  `CREATE TABLE IF NOT EXISTS project_data_uploads (
+     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id uuid REFERENCES projects(id) ON DELETE SET NULL,
+     project_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+     category text NOT NULL,
+     file_name text NOT NULL,
+     mime_type text NOT NULL DEFAULT 'application/json',
+     file_size_bytes integer NOT NULL DEFAULT 0,
+     row_count integer NOT NULL DEFAULT 0,
+     success_count integer NOT NULL DEFAULT 0,
+     failed_count integer NOT NULL DEFAULT 0,
+     source_payload jsonb NOT NULL,
+     uploaded_by_id uuid REFERENCES users(id) ON DELETE SET NULL,
+     created_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS project_data_uploads_project_created_idx
+     ON project_data_uploads (project_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS project_data_uploads_category_created_idx
+     ON project_data_uploads (category, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS project_data_uploads_uploader_created_idx
+     ON project_data_uploads (uploaded_by_id, created_at DESC)`,
+  `ALTER TABLE project_data_uploads ENABLE ROW LEVEL SECURITY`,
+  `REVOKE ALL ON TABLE project_data_uploads FROM PUBLIC, anon, authenticated`,
+
   // RAG embedding store — pgvector column + cosine IVFFLAT index.
   `CREATE TABLE IF NOT EXISTS document_embeddings (
      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

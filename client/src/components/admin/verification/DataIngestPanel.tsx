@@ -24,14 +24,17 @@ interface ProjectOpt {
 interface IngestResult {
   successCount: number;
   errors: { row: number; error: string }[];
+  archiveApplicable: boolean;
+  archiveSaved: boolean;
+  archiveWarning: string | null;
 }
 
 /**
  * Admin/verifier data-ingestion panel. Uploads a CSV/JSON/GeoJSON file to
  * POST /api/ingest/:category through the app's authenticated session — so the
  * RAG assistant (Ask Truvi) can answer from it. When a project is selected, the
- * chosen project's id is injected into every JSON row before upload, so a data
- * file with a placeholder project_id "just works".
+ * selected project id is sent separately and applied server-side during ingest,
+ * so the archived source JSON remains unchanged.
  */
 export default function DataIngestPanel() {
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
@@ -44,7 +47,7 @@ export default function DataIngestPanel() {
 
   useEffect(() => {
     api
-      .get("/admin/projects")
+      .get("/ingest/projects")
       .then((res) => {
         const list: ProjectOpt[] = (res.data.projects ?? []).map((p: any) => ({ _id: p._id, name: p.name, city: p.city }));
         list.sort((a, b) => a.name.localeCompare(b.name));
@@ -54,30 +57,6 @@ export default function DataIngestPanel() {
   }, []);
 
   const selectedName = useMemo(() => projects.find((p) => p._id === projectId)?.name ?? "", [projects, projectId]);
-
-  /** Build the upload body: inject the chosen project_id into JSON rows when a
-   *  project is selected (leaves GeoJSON FeatureCollections and CSV untouched). */
-  async function buildUploadFile(src: File): Promise<File> {
-    if (!projectId) return src; // no project chosen → rows must carry their own id
-    const lower = src.name.toLowerCase();
-    if (!lower.endsWith(".json") && !lower.endsWith(".geojson")) return src; // CSV → pass through
-    try {
-      const text = await src.text();
-      const json = JSON.parse(text);
-      if (json && json.type === "FeatureCollection") return src; // don't rewrite GeoJSON shape
-      const inject = (row: any) => {
-        if (row && typeof row === "object") {
-          row.project_id = projectId;
-          delete row.projectId;
-        }
-        return row;
-      };
-      const next = Array.isArray(json) ? json.map(inject) : inject(json);
-      return new File([JSON.stringify(next)], src.name.replace(/\.geojson$/i, ".json"), { type: "application/json" });
-    } catch {
-      return src; // not parseable as JSON → let the server report the error
-    }
-  }
 
   async function upload() {
     if (!file) return toast.error("Choose a file first");
@@ -90,11 +69,17 @@ export default function DataIngestPanel() {
     setBusy(true);
     setResult(null);
     try {
-      const toSend = await buildUploadFile(file);
       const form = new FormData();
-      form.append("file", toSend);
+      form.append("file", file);
+      if (projectId) form.append("projectId", projectId);
       const { data } = await api.post(`/ingest/${category}`, form);
-      const r: IngestResult = { successCount: data.successCount ?? 0, errors: data.errors ?? [] };
+      const r: IngestResult = {
+        successCount: data.successCount ?? 0,
+        errors: data.errors ?? [],
+        archiveApplicable: data.archiveApplicable === true,
+        archiveSaved: data.archiveSaved === true,
+        archiveWarning: data.archiveWarning ?? null,
+      };
       setResult(r);
       if (r.successCount > 0 && r.errors.length === 0) {
         toast.success(`Ingested ${r.successCount} row(s) into ${category}`);
@@ -170,7 +155,7 @@ export default function DataIngestPanel() {
 
         {projectId && (
           <p className="mt-2 text-[11px] text-emerald-300/80">
-            project_id will be set to “{selectedName}” for every JSON row in this file.
+            “{selectedName}” will be associated with each JSON row during ingestion; the archived source file remains unchanged.
           </p>
         )}
 
@@ -195,6 +180,16 @@ export default function DataIngestPanel() {
               ))}
               {result.errors.length > 20 && <li>…and {result.errors.length - 20} more</li>}
             </ul>
+          )}
+          {result.archiveSaved && (
+            <p className="mt-3 text-xs text-emerald-300">
+              Original JSON snapshot archived successfully. Open the Data Vault tab to download it later.
+            </p>
+          )}
+          {result.archiveApplicable && !result.archiveSaved && (
+            <p className="mt-3 text-xs text-amber-300">
+              {result.archiveWarning || "No source snapshot was archived because no rows were successfully ingested."}
+            </p>
           )}
           {result.successCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
