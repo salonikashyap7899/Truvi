@@ -4,7 +4,7 @@
  */
 import { Router } from "express";
 import fs from "node:fs";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, createCipheriv, createDecipheriv } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -26,6 +26,19 @@ import { privateFilePath } from "../services/privateFiles";
 
 const router = Router();
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+const inviteMailKey = () => createHash("sha256").update("truvi-marketing-os-invite:" + (process.env.JWT_ACCESS_SECRET || "local-development-only")).digest();
+function encryptInviteUrl(value: string): string {
+  const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", inviteMailKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return [iv.toString("hex"), cipher.getAuthTag().toString("hex"), encrypted.toString("hex")].join(".");
+}
+function decryptInviteUrl(value: string): string {
+  const [ivHex, tagHex, dataHex] = value.split(".");
+  if (!ivHex || !tagHex || !dataHex) throw new Error("INVALID_ENCRYPTED_INVITE_URL");
+  const decipher = createDecipheriv("aes-256-gcm", inviteMailKey(), Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(dataHex, "hex")), decipher.final()]).toString("utf8");
+}
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || ""));
 const partnerPermissionDefaults = ["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned"];
 
@@ -60,7 +73,7 @@ export async function queueMarketingOsEmail(userId: string, eventType: string, r
 function renderEmail(eventType: string, name: string, payload: Record<string, unknown>) {
   const title = String(payload.title || "A new update from Truvi");
   const message = String(payload.message || "");
-  const href = String(payload.href || "https://truviventures.com");
+  const href = typeof payload.hrefEncrypted === "string" ? decryptInviteUrl(payload.hrefEncrypted) : String(payload.href || "https://truviventures.com");
   const action = ["PARTNER_INVITE", "EMPLOYEE_INVITE"].includes(eventType) ? "Set up my account" : "Open Marketing OS";
   return {
     subject: eventType === "PARTNER_INVITE" ? "Your Truvi Marketing Partner invitation" : title + " | Truvi Ventures",
@@ -76,7 +89,7 @@ export async function processMarketingOsEmailOutbox(limit = 25) {
   }).where(and(
     eq(marketingOsEmailOutbox.status, "SENDING"),
     lt(marketingOsEmailOutbox.attempts, 5),
-    lt(marketingOsEmailOutbox.claimedAt, stale),
+    or(isNull(marketingOsEmailOutbox.claimedAt), lt(marketingOsEmailOutbox.claimedAt, stale)),
   ));
   const pending = await db.select({ id: marketingOsEmailOutbox._id }).from(marketingOsEmailOutbox)
     .where(and(inArray(marketingOsEmailOutbox.status, ["QUEUED", "RETRY_PENDING"]), lt(marketingOsEmailOutbox.attempts, 5), lte(marketingOsEmailOutbox.nextAttemptAt, now)))
@@ -639,7 +652,7 @@ router.post("/partners", async (req: AuthedRequest, res) => {
   await queueMarketingOsEmail(created.id, "PARTNER_INVITE", null, {
     title: "Your Truvi Marketing Partner account is ready",
     message: "Truvi has invited you to a secure project workspace. Activate your account to view assigned projects, campaign activity, progress and reports.",
-    href: inviteUrl,
+    hrefEncrypted: encryptInviteUrl(inviteUrl),
   }, "partner-invite:" + created.id);
   await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.create", resourceType: "marketing_partner", resourceId: created.id, metadata: { projectCount: d.projectIds.length } });
   res.status(201).json({ partnerId: created.id, inviteQueued: true, message: "Partner account created. The invitation email has been queued for delivery." });
@@ -662,7 +675,7 @@ router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
   await queueMarketingOsEmail(req.params.userId, "PARTNER_INVITE", null, {
     title: "Your Truvi Marketing Partner invitation",
     message: "Use the secure one-time link to activate your assigned project workspace. The link expires in 48 hours.",
-    href: inviteUrl,
+    hrefEncrypted: encryptInviteUrl(inviteUrl),
   }, "partner-invite:" + req.params.userId + ":" + expiresAt.getTime());
   await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.invite.resend", resourceType: "marketing_partner", resourceId: req.params.userId });
   res.json({ ok: true, queued: true });
