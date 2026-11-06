@@ -67,14 +67,16 @@ async function requireManager(req: AuthedRequest, res: import("express").Respons
   return true;
 }
 
-export async function queueMarketingOsEmail(userId: string, eventType: string, resourceId: string | null, payload: Record<string, unknown>, dedupeKey: string) {
+export async function queueMarketingOsEmail(userId: string, eventType: string, resourceId: string | null, payload: Record<string, unknown>, dedupeKey: string): Promise<boolean> {
   try {
     await getDb().insert(marketingOsEmailOutbox).values({
       recipientUserId: userId, eventType, resourceId, payload, dedupeKey,
       status: "QUEUED", attempts: 0, nextAttemptAt: new Date(),
     }).onConflictDoNothing();
+    return true;
   } catch (error) {
     console.warn("[marketing-os] email could not be queued:", error instanceof Error ? error.message : "unknown");
+    return false;
   }
 }
 
@@ -152,7 +154,7 @@ export async function queueMarketingOsDeadlineReminders(): Promise<{ scanned: nu
   const part = (kind: string) => parts.find((item) => item.type === kind)?.value ?? "";
   const dayKey = part("year") + "-" + part("month") + "-" + part("day");
   const rows = await db.select().from(employeeTasks)
-    .where(and(eq(employeeTasks.category, "MARKETING"), lte(employeeTasks.deadlineAt, soon)))
+    .where(and(eq(employeeTasks.taskType, "ASSIGNED"), eq(employeeTasks.category, "MARKETING"), lte(employeeTasks.deadlineAt, soon)))
     .orderBy(employeeTasks.deadlineAt).limit(1000);
   let queued = 0;
   for (const task of rows) {
@@ -926,7 +928,10 @@ router.post("/partners", async (req: AuthedRequest, res) => {
   const created = await db.transaction(async (tx) => {
     const [account] = await tx.insert(users).values({
       name: d.name, email: d.email, password: randomPassword, role: "MARKETING_PARTNER",
-      approvalStatus: "APPROVED", disabled: true, phone: d.phone || null, emailVerified: false, phoneVerified: !d.phone,
+      // The optional phone is stored on the partner profile as contact data. The
+      // emailed single-use invitation verifies the login identity, so do not
+      // attach an unverified phone number to an account that requires phone OTP.
+      approvalStatus: "APPROVED", disabled: true, phone: null, emailVerified: false, phoneVerified: true,
     }).returning({ id: users._id });
     await tx.insert(marketingPartnerProfiles).values({ userId: account.id, companyName: d.companyName || null, phone: d.phone || null, status: "ACTIVE", permissions: partnerPermissionDefaults, createdById: req.user!.userId });
     await tx.insert(marketingPartnerProjects).values(d.projectIds.map((id) => ({ partnerUserId: account.id, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
@@ -935,13 +940,19 @@ router.post("/partners", async (req: AuthedRequest, res) => {
   const token = randomBytes(32).toString("hex");
   await db.insert(marketingPartnerInvites).values({ userId: created.id, tokenHash: tokenHash(token), createdById: req.user!.userId, expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000) });
   const inviteUrl = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "") + "/marketing/activate?token=" + token;
-  await queueMarketingOsEmail(created.id, "PARTNER_INVITE", null, {
+  const inviteQueued = await queueMarketingOsEmail(created.id, "PARTNER_INVITE", null, {
     title: "Your Truvi Marketing Partner account is ready",
     message: "Truvi has invited you to a secure project workspace. Activate your account to view assigned projects, campaign activity, progress and reports.",
     hrefEncrypted: encryptInviteUrl(inviteUrl),
   }, "partner-invite:" + created.id);
   await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.create", resourceType: "marketing_partner", resourceId: created.id, metadata: { projectCount: d.projectIds.length } });
-  res.status(201).json({ partnerId: created.id, inviteQueued: true, message: "Partner account created. The invitation email has been queued for delivery." });
+  res.status(201).json({
+    partnerId: created.id,
+    inviteQueued,
+    message: inviteQueued
+      ? "Partner account created. The invitation email has been queued for delivery."
+      : "Partner account created, but the invitation could not be queued. Check the database and resend the invitation.",
+  });
 });
 
 router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
@@ -961,13 +972,13 @@ router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
     await tx.update(users).set({ disabled: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
   });
   const inviteUrl = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "") + "/marketing/activate?token=" + token;
-  await queueMarketingOsEmail(req.params.userId, "PARTNER_INVITE", null, {
+  const queued = await queueMarketingOsEmail(req.params.userId, "PARTNER_INVITE", null, {
     title: "Your Truvi Marketing Partner invitation",
     message: "Use the secure one-time link to activate your assigned project workspace. The link expires in 48 hours.",
     hrefEncrypted: encryptInviteUrl(inviteUrl),
   }, "partner-invite:" + req.params.userId + ":" + expiresAt.getTime());
   await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.invite.resend", resourceType: "marketing_partner", resourceId: req.params.userId });
-  res.json({ ok: true, queued: true });
+  res.json({ ok: queued, queued, message: queued ? "The new invitation was queued." : "The new invitation could not be queued. Check the database logs." });
 });
 
 router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
