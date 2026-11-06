@@ -275,7 +275,7 @@ export default function AdminEmployeeManagementPage() {
       employeeCode: employeeCode || undefined,
       monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
       // Blank means preserve existing permissions on edit; on create it lets the API apply its standard defaults.
-      permissions: permissionInput ? permissionInput.split(",").map((p) => p.trim()).filter(Boolean) : undefined,
+      permissions: permissionInput ? permissionInput.split(/[\\s,]+/).map((p) => p.trim()).filter(Boolean) : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
       interviewDate: employeeForm.interviewDate || null,
@@ -648,7 +648,8 @@ export default function AdminEmployeeManagementPage() {
               <p className="text-xs text-muted-foreground">Leave blank when editing to keep the employee’s current permissions. New employees receive the standard defaults when this field is blank.</p>
               <button type="button" onClick={() => setEmployeeForm((s) => ({ ...s, permissions: STANDARD_EMPLOYEE_PERMISSIONS.join(", ") }))} className="rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">Apply standard employee access</button>
             </div>
-            <Field label="Assigned permissions (comma-separated permission keys)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/>
+            <Field label="Assigned permissions (separate keys with commas, spaces, or new lines)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/>
+            <p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add <code>marketing.os.manage</code>. For campaign read-only access, add <code>marketing.os.read</code>. Employee-level task access remains controlled by the existing task permissions.</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><button disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Create employee & send invitation"}</button><button type="button" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button></div>
         </form>
