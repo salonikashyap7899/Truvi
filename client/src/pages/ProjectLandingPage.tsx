@@ -631,7 +631,9 @@ export default function ProjectLandingPage() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
                 listingIndependentlyReviewed && "Approval / RERA applicability evidence checked by Truvi — review the source and date below",
-                approval && `${approval} — buy with confidence`,
+                approval && (approvalIndependentlyVerified
+                  ? `${approval} evidence reviewed — see the recorded source and review date`
+                  : `${approval} details supplied by the developer — independent review pending`),
                 priceRange && `Transparent pricing from ${priceRange} — no hidden brokerage`,
                 project.availabilityStatus !== "SOLD_OUT" && unitSummary && unitSummary.available > 0 && `${unitSummary.available} plots available right now`,
                 possession && `Planned possession by ${possession}`,
@@ -795,7 +797,7 @@ export default function ProjectLandingPage() {
             <SectionHeading eyebrow="Developer" title="About the Developer" />
             <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[var(--trust)]/12 text-[var(--trust)]"><Building2 size={22} /></span>
-              <div><p className="text-base font-semibold text-white">{devName}</p><p className="text-sm text-white/60">Listed &amp; verified on Truvi Ventures</p></div>
+              <div><p className="text-base font-semibold text-white">{devName}</p><p className="text-sm text-white/60">{listingIndependentlyReviewed ? "Project evidence independently reviewed by Truvi" : "Developer profile listed on Truvi Ventures"}</p></div>
             </div>
           </section>
         )}
@@ -855,8 +857,9 @@ export default function ProjectLandingPage() {
           <p className="mt-6 text-[11px] leading-relaxed text-white/35">
             Disclaimer: The information on this page — including images, plans, prices, dimensions and specifications — is indicative and for
             general reference only. It does not constitute a legal offer or contract. Prices exclude GST, registration and other statutory
-            charges, and are subject to change without notice. Please verify all details, approvals and RERA registration with the Truvi
-            Ventures team before making any purchase decision. © {new Date().getFullYear()} Truvi Ventures.
+            charges, and are subject to change. Any applicable taxes, stamp duty, registration fees and other statutory
+            charges depend on the property and transaction and should be confirmed before payment. Verify all details, approvals
+            and RERA registration with the competent authority and the Truvi Ventures team before making a purchase decision. © {new Date().getFullYear()} Truvi Ventures.
           </p>
         </div>
       </footer>
