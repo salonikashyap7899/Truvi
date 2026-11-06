@@ -189,7 +189,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
   const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
   const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
-  const [tasks, employeesRows, campaigns, visits, allCampaignLeadRows] = await Promise.all([
+  const [tasks, employeesRows, campaigns, visits, allCampaignLeadRows, campaignEmployeeRows] = await Promise.all([
     db.select().from(employeeTasks)
       .where(or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!)
       .orderBy(desc(employeeTasks.createdAt)).limit(2000),
@@ -198,6 +198,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt)),
     db.select().from(siteVisits).orderBy(desc(siteVisits.scheduledAt)).limit(5000),
     db.select().from(marketingCampaignLeads),
+    db.select().from(marketingCampaignEmployees),
   ]);
   const taskIds = tasks.map((task) => task._id);
   const taskAssignments = taskIds.length
@@ -215,6 +216,29 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     : null;
   if (employeeId && !selectedEmployee) return res.status(404).json({ error: "Employee filter does not match an employee record." });
   const employeeUserId = selectedEmployee?.accountUserId ? String(selectedEmployee.accountUserId) : "";
+  const campaignIdsByEmployee = new Map<string, Set<string>>();
+  for (const assignment of campaignEmployeeRows) {
+    const id = String(assignment.employeeId);
+    if (!campaignIdsByEmployee.has(id)) campaignIdsByEmployee.set(id, new Set());
+    campaignIdsByEmployee.get(id)!.add(String(assignment.campaignId));
+  }
+  const marketingEmployeeIds = new Set([
+    ...campaignEmployeeRows.map((assignment) => String(assignment.employeeId)),
+    ...employeesRows.filter((row) =>
+      row.employee.department.toLowerCase().includes("marketing") ||
+      row.employee.permissions?.some((permission) => ["marketing.os.manage", "marketing.os.read"].includes(permission))
+    ).map((row) => String(row.employee._id)),
+  ]);
+  const marketingEmployeeRows = employeesRows.filter((row) => marketingEmployeeIds.has(String(row.employee._id)));
+  if (employeeId && !marketingEmployeeIds.has(employeeId)) return res.status(404).json({ error: "Employee filter does not match a Marketing OS employee." });
+
+  const scopedCampaigns = campaigns.filter((campaign) =>
+    (!projectId || String(campaign.projectId || "") === projectId) &&
+    (!campaignId || String(campaign._id) === campaignId) &&
+    (!employeeId || campaignIdsByEmployee.get(employeeId)?.has(String(campaign._id))) &&
+    (!from || Number.isNaN(from.getTime()) || (campaign.endsAt || campaign.startedAt || campaign.createdAt) >= from) &&
+    (!to || Number.isNaN(to.getTime()) || (campaign.startedAt || campaign.createdAt) <= to)
+  );
 
   let scopedTasks = tasks.filter((task) =>
     (!projectId || String(task.projectId || "") === projectId) &&
@@ -258,7 +282,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     (!to || Number.isNaN(to.getTime()) || visit.scheduledAt <= to)
   );
 
-  const campaignPerformance = campaigns.map((campaign) => {
+  const campaignPerformance = scopedCampaigns.map((campaign) => {
     const campaignLeadIds = new Set(allCampaignLeadRows.filter((row) => String(row.campaignId) === String(campaign._id)).map((row) => String(row.leadId)));
     const campaignLeads = relevantLeads.filter((lead) => campaignLeadIds.has(String(lead._id)));
     const campaignConversions = campaignLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
@@ -270,7 +294,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     };
   }).filter((campaign) => !campaignId || String(campaign._id) === campaignId);
 
-  const employeePerformance = employeesRows.filter((row) => row.employee.status !== "INACTIVE").map((row) => {
+  const employeePerformance = marketingEmployeeRows.filter((row) => row.employee.status !== "INACTIVE").map((row) => {
     const id = String(row.employee._id);
     const userId = row.employee.accountUserId ? String(row.employee.accountUserId) : "";
     const employeeTasks = scopedTasks.filter((task) => String(task.employeeId) === id || assignmentsByTask.get(String(task._id))?.has(id));
@@ -293,11 +317,33 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     };
   }).filter((row) => !employeeId || row.employeeId === employeeId);
 
+  const dailyMap = new Map<string, { date: string; leads: number; calls: number; followUps: number; siteVisits: number; conversions: number }>();
+  const dayKey = (date: Date) => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+  const dailyRow = (date: Date) => {
+    const key = dayKey(date);
+    if (!dailyMap.has(key)) dailyMap.set(key, { date: key, leads: 0, calls: 0, followUps: 0, siteVisits: 0, conversions: 0 });
+    return dailyMap.get(key)!;
+  };
+  for (const lead of relevantLeads) {
+    const row = dailyRow(lead.createdAt);
+    row.leads += 1;
+    if (["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)) row.conversions += 1;
+  }
+  for (const activity of activities) {
+    const row = dailyRow(activity.createdAt);
+    if (activity.type === "CALL") row.calls += 1;
+    if (activity.type === "FOLLOW_UP") row.followUps += 1;
+  }
+  for (const visit of relevantVisits) dailyRow(visit.scheduledAt).siteVisits += 1;
+
   res.json({
     filters: { employeeId: employeeId || null, projectId: projectId || null, campaignId: campaignId || null, status: statusFilter || null, from: from?.toISOString() || null, to: to?.toISOString() || null },
+    daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
     kpis: {
-      employees: employeesRows.filter((row) => row.employee.status !== "INACTIVE" && !row.disabled).length,
-      campaigns: campaigns.filter((campaign) => campaign.status === "ACTIVE").length,
+      employees: marketingEmployeeRows.filter((row) => row.employee.status !== "INACTIVE" && !row.disabled).length,
+      campaigns: scopedCampaigns.filter((campaign) => campaign.status === "ACTIVE").length,
       tasks: scopedTasks.length,
       inProgress: scopedTasks.filter((task) => task.status === "IN_PROGRESS").length,
       pending: scopedTasks.filter((task) => ["ASSIGNED", "ACCEPTED"].includes(task.status)).length,
@@ -309,16 +355,16 @@ router.get("/overview", async (req: AuthedRequest, res) => {
       siteVisits: relevantVisits.length, conversions: converted,
       conversionRate: relevantLeads.length ? Math.round(converted / relevantLeads.length * 1000) / 10 : 0,
       revenue: commissionRows.reduce((sum, commission) => sum + Number(commission.bookingValue || 0), 0),
-      campaignSpendPaise: campaigns.filter((campaign) => !campaignId || String(campaign._id) === campaignId).reduce((sum, campaign) => sum + Number(campaign.spendPaise || 0), 0),
+      campaignSpendPaise: scopedCampaigns.reduce((sum, campaign) => sum + Number(campaign.spendPaise || 0), 0),
     },
-    employees: employeesRows.map((row) => ({
+    employees: marketingEmployeeRows.map((row) => ({
       id: String(row.employee._id), name: row.employee.name, email: row.employee.officialEmail,
       department: row.employee.department, designation: row.employee.title, status: row.employee.status,
       accountActive: !!row.employee.accountUserId && !row.disabled,
     })),
     employeePerformance,
     campaignPerformance,
-    campaigns,
+    campaigns: scopedCampaigns,
     tasks: scopedTasks,
     projects: await db.select({ id: projects._id, name: projects.name, city: projects.city }).from(projects).orderBy(projects.name).limit(1000),
     leadsByStage: ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"].map((stage) => ({ stage, count: relevantLeads.filter((lead) => lead.stage === stage).length })),
