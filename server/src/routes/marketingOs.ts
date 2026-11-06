@@ -704,7 +704,7 @@ router.get("/tasks/:id/activity", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
   const db = getDb();
   const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task)) return res.status(404).json({ error: "Task not found." });
   const partner = req.user!.role === "MARKETING_PARTNER";
   if (partner) {
     const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
@@ -798,7 +798,7 @@ router.patch("/tasks/:id/review", async (req: AuthedRequest, res) => {
 router.get("/tasks/:id/updates", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
   const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task)) return res.status(404).json({ error: "Task not found." });
   const isPartner = req.user!.role === "MARKETING_PARTNER";
   if (isPartner) {
     const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
@@ -978,6 +978,8 @@ router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
 router.get("/partner/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, res) => {
   if (req.user!.role !== "MARKETING_PARTNER" || !isValidId(req.params.id) || !isValidId(req.params.attachmentId)) return res.status(404).end();
   const db = getDb();
+  const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task || !isMarketingTask(task)) return res.status(404).end();
   const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, req.params.id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
   const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
   if (!profile?.permissions.includes("report.read.assigned") || !share) return res.status(404).end();
