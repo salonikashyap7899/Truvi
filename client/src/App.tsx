@@ -134,6 +134,9 @@ const MarketingManagementPage = lazy(() => import("@/pages/admin/MarketingManage
 const AdminNotificationsPage = lazy(() => import("@/pages/admin/AdminNotificationsPage"));
 const AdminRequirementsPage = lazy(() => import("@/pages/admin/AdminRequirementsPage"));
 const MarketingDashboardPage = lazy(() => import("@/pages/marketing/MarketingDashboardPage"));
+const MarketingOsPage = lazy(() => import("@/pages/marketing/MarketingOsPage"));
+const PartnerMarketingDashboardPage = lazy(() => import("@/pages/marketing/PartnerMarketingDashboardPage"));
+const MarketingPartnerActivatePage = lazy(() => import("@/pages/marketing/MarketingPartnerActivatePage"));
 const PricingPage = lazy(() => import("@/pages/PricingPage"));
 const PaymentSuccessPage = lazy(() => import("@/pages/PaymentSuccessPage"));
 const PaymentFailedPage = lazy(() => import("@/pages/PaymentFailedPage"));
@@ -241,7 +244,7 @@ function EmployeePortalBoundary({ children }: { children: ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const { pathname } = useLocation();
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/help/meet", "/requirements", "/settings/notifications", "/privacy-center", "/restore-account"].includes(normalizedPath);
+  const employeeAllowedPaths = ["/", "/home", "/about", "/employee/dashboard", "/employee/marketing", "/help/meet", "/requirements", "/settings/notifications", "/privacy-center", "/restore-account"].includes(normalizedPath);
   if (user?.role === "EMPLOYEE" && !employeeAllowedPaths) {
     return <Navigate to="/employee/dashboard" replace />;
   }
@@ -378,6 +381,7 @@ export default function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/employee/activate" element={<EmployeeActivatePage />} />
+        <Route path="/marketing/activate" element={<MarketingPartnerActivatePage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
@@ -391,6 +395,7 @@ export default function App() {
 
         {/* Marketing Dashboard — access-gated per-user (server enforces). */}
         <Route path="/marketing" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER"]}><MarketingDashboardPage /></ProtectedRoute>} />
+        <Route path="/marketing/partner" element={<ProtectedRoute roles={["MARKETING_PARTNER"]}><PartnerMarketingDashboardPage /></ProtectedRoute>} />
 
         {/* Admin */}
         {/* Admin — one persistent OS shell (sidebar + top bar); each module opens
@@ -417,6 +422,7 @@ export default function App() {
           <Route path="ambassador-operating-system" element={<ProtectedRoute roles={["ADMIN"]}><AdminAmbassadorOperatingSystemPage /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute roles={["ADMIN"]}><AdminPaymentsPage /></ProtectedRoute>} />
           <Route path="marketing" element={<ProtectedRoute roles={["ADMIN"]}><MarketingManagementPage /></ProtectedRoute>} />
+          <Route path="marketing-os" element={<ProtectedRoute roles={["ADMIN"]}><MarketingOsPage /></ProtectedRoute>} />
           <Route path="notifications" element={<ProtectedRoute roles={["ADMIN"]}><AdminNotificationsPage /></ProtectedRoute>} />
           <Route path="requirements" element={<ProtectedRoute roles={["ADMIN"]}><AdminRequirementsPage /></ProtectedRoute>} />
           <Route path="verification" element={<ProtectedRoute roles={["ADMIN", "VERIFIER"]}><AdminVerificationPage /></ProtectedRoute>} />
@@ -433,6 +439,7 @@ export default function App() {
         </Route>
         <Route path="/founder/dashboard" element={<ProtectedRoute roles={["ADMIN"]}><FounderDashboardPage /></ProtectedRoute>} />
         <Route path="/employee/dashboard" element={<ProtectedRoute roles={["EMPLOYEE"]}><EmployeeDashboardPage /></ProtectedRoute>} />
+        <Route path="/employee/marketing" element={<ProtectedRoute roles={["EMPLOYEE"]}><MarketingOsPage /></ProtectedRoute>} />
         <Route path="/ambassador" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/signup" element={<AmbassadorSignupPage />} />
         <Route path="/ambassador/login" element={<AmbassadorLoginPage />} />

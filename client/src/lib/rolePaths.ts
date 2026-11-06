@@ -43,6 +43,8 @@ export function dashboardPath(user: Pick<User, "role" | "email" | "isFounder">):
     }
     case "EMPLOYEE":
       return "/employee/dashboard";
+    case "MARKETING_PARTNER":
+      return "/marketing/partner";
     case "DEVELOPER":
       return "/developer/dashboard";
     case "AMBASSADOR":
@@ -64,6 +66,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   AMBASSADOR: "Ambassador",
   VERIFIER: "Verifier",
   EMPLOYEE: "Employee",
+  MARKETING_PARTNER: "Marketing Partner",
 };
 
 export function roleLabel(role: Role): string {

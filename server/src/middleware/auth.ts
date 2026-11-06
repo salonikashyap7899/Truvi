@@ -103,7 +103,7 @@ export async function optionalAuthenticate(req: AuthedRequest, res: Response, ne
  * The CP onboarding gate (Aadhaar + phone + email, per the Ambassador SOP)
  * still applies before a CP can reach project details.
  */
-export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE">) {
+export function requireRole(...roles: Array<"ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE" | "MARKETING_PARTNER">) {
   return (req: AuthedRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Not authenticated" });
     if (!roles.includes(req.user.role)) {

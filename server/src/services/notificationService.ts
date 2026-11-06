@@ -110,6 +110,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   employee_task_assigned: "tasks",
   employee_task_reassigned: "tasks",
   employee_task_reminder: "tasks",
+  employee_task_updated: "tasks",
+  employee_task_review: "tasks",
   employee_leave_requested: "tasks",
   employee_leave_decision: "tasks",
   daily_task: "tasks",
@@ -124,6 +126,8 @@ const TYPE_CATEGORY: Record<string, string> = {
   marketing_access_revoked: "marketing",
   marketing_payment_recorded: "marketing",
   marketing_lead: "marketing",
+  marketing_campaign_assigned: "marketing",
+  marketing_partner_progress: "marketing",
 };
 
 export interface NotificationInput {
