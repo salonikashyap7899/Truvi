@@ -149,6 +149,18 @@ router.post("/:category", ingestLimiter, requireRole("ADMIN", "VERIFIER"), uploa
     return res.status(400).json({ error: `Could not parse file: ${err instanceof Error ? err.message : String(err)}` });
   }
 
+  // Apply the selected project to parsed JSON rows on the server. This keeps
+  // the uploaded source JSON unchanged for the downloadable archive.
+  const selectedProjectId = typeof req.body?.projectId === "string" ? req.body.projectId.trim() : "";
+  if (selectedProjectId && /\.(json|geojson)$/i.test(req.file.originalname)) {
+    if (!isValidId(selectedProjectId)) return res.status(400).json({ error: "Invalid projectId" });
+    rows = rows.map((row) => {
+      const next = { ...row, project_id: selectedProjectId };
+      delete next.projectId;
+      return next;
+    });
+  }
+
   const db = getDb();
   const errors: { row: number; error: string }[] = [];
   const affected = new Set<string>();
