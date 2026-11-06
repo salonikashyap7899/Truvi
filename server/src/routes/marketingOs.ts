@@ -44,6 +44,10 @@ const partnerPermissionDefaults = ["project.read.assigned", "campaign.read.assig
 const partnerPermissionAllowlist = [...partnerPermissionDefaults, "task.update.shared"];
 
 function isAdmin(req: AuthedRequest) { return req.user?.role === "ADMIN"; }
+function isMarketingEmployee(employee: typeof employees.$inferSelect) {
+  return employee.department.toLowerCase().includes("market") ||
+    Boolean(employee.permissions?.some((permission) => ["marketing.os.manage", "marketing.os.read"].includes(permission)));
+}
 async function actorEmployee(req: AuthedRequest) {
   if (req.user?.role !== "EMPLOYEE") return null;
   const [row] = await getDb().select().from(employees)
@@ -409,7 +413,7 @@ router.post("/campaigns", async (req: AuthedRequest, res) => {
   const d = parsed.data, db = getDb();
   if (d.projectId && !(await db.select({ id: projects._id }).from(projects).where(eq(projects._id, d.projectId)).limit(1)).length) return res.status(404).json({ error: "Selected project was not found." });
   const empRows = d.employeeIds.length ? await db.select().from(employees).where(inArray(employees._id, d.employeeIds)) : [];
-  if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Every campaign employee must have an active linked account." });
+  if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId || !isMarketingEmployee(e))) return res.status(400).json({ error: "Every campaign employee must be an active linked Marketing employee (Marketing department or Marketing OS permission)." });
   const [campaign] = await db.transaction(async (tx) => {
     const [row] = await tx.insert(marketingPartnerCampaigns).values({
       userId: req.user!.userId, name: d.name, objective: d.objective || null, projectId: d.projectId || null,
@@ -526,7 +530,7 @@ router.post("/tasks", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid task details.", issues: parsed.error.flatten() });
   const d = parsed.data, db = getDb();
   const emps = await db.select().from(employees).where(inArray(employees._id, d.employeeIds));
-  if (emps.length !== new Set(d.employeeIds).size || emps.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Select active employees with linked login accounts." });
+  if (emps.length !== new Set(d.employeeIds).size || emps.some((e) => e.status === "INACTIVE" || !e.accountUserId || !isMarketingEmployee(e))) return res.status(400).json({ error: "Select active linked Marketing employees (Marketing department or Marketing OS permission)." });
   if (d.projectId && !(await db.select({ id: projects._id }).from(projects).where(eq(projects._id, d.projectId)).limit(1)).length) return res.status(404).json({ error: "Project not found." });
   if (d.campaignId) {
     const [campaign] = await db.select().from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, d.campaignId)).limit(1);
@@ -572,7 +576,7 @@ router.patch("/tasks/:id/assignments", async (req: AuthedRequest, res) => {
   if (!task || task.taskType !== "ASSIGNED") return res.status(404).json({ error: "Task not found." });
   if (["COMPLETED", "CANCELLED"].includes(task.status)) return res.status(409).json({ error: "Closed tasks cannot be reassigned." });
   const employeeRows = await db.select().from(employees).where(inArray(employees._id, parsed.data.employeeIds));
-  if (employeeRows.length !== new Set(parsed.data.employeeIds).size || employeeRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Choose active employees with linked login accounts." });
+  if (employeeRows.length !== new Set(parsed.data.employeeIds).size || employeeRows.some((e) => e.status === "INACTIVE" || !e.accountUserId || !isMarketingEmployee(e))) return res.status(400).json({ error: "Choose active linked Marketing employees (Marketing department or Marketing OS permission)." });
   const partnerIds = Array.from(new Set(parsed.data.partnerUserIds || []));
   const partnerProfiles = partnerIds.length ? await db.select().from(marketingPartnerProfiles).where(inArray(marketingPartnerProfiles.userId, partnerIds)) : [];
   if (partnerProfiles.length !== partnerIds.length || partnerProfiles.some((p) => p.status !== "ACTIVE")) return res.status(400).json({ error: "Every shared partner must be active." });
