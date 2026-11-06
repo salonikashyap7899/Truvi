@@ -410,6 +410,8 @@ router.patch("/tasks/:id/progress", async (req: AuthedRequest, res) => {
   });
   await createNotifications([String(task.assignedByUserId)], { type: "employee_task_updated", title: nextStatus === "UNDER_REVIEW" ? "Marketing task submitted for review" : "Marketing task progress updated", message: emp.name + " updated " + task.title + " to " + parsed.data.progressPercent + "%.", actorUserId: req.user!.userId, data: { href: "/admin/marketing-os", taskId: String(task._id) } }).catch(() => []);
   const partnerShares = await db.select({ userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(eq(marketingTaskPartners.taskId, task._id));
+  await queueMarketingOsEmail(String(task.assignedByUserId), "TASK_PROGRESS", String(task._id), { title: "Marketing task progress updated", message: emp.name + " updated " + task.title + " to " + parsed.data.progressPercent + "%.", href: "https://truviventures.com/admin/marketing-os" }, "task-progress:" + String(task._id) + ":" + Date.now());
+  if (partnerShares.length) for (const share of partnerShares) await queueMarketingOsEmail(String(share.userId), "TASK_PROGRESS", String(task._id), { title: "Shared marketing activity updated", message: task.title + " is now " + parsed.data.progressPercent + "% complete.", href: "https://truviventures.com/marketing/partner" }, "task-partner-progress:" + String(task._id) + ":" + String(share.userId) + ":" + Date.now());
   if (partnerShares.length) await createNotifications(partnerShares.map((x) => String(x.userId)), { type: "marketing_partner_progress", title: "Shared work progress updated", message: task.title + " is now " + parsed.data.progressPercent + "% complete.", actorUserId: req.user!.userId, data: { href: "/marketing/partner" } }).catch(() => []);
   await logAudit({ userId: req.user!.userId, action: "marketing_os.task.progress", resourceType: "employee_task", resourceId: String(task._id), metadata: { status: nextStatus, progressPercent: parsed.data.progressPercent } });
   res.json({ ok: true, progressPercent: parsed.data.progressPercent, status: nextStatus });
@@ -432,6 +434,9 @@ router.patch("/tasks/:id/review", async (req: AuthedRequest, res) => {
   });
   const assignees = await db.select({ userId: employees.accountUserId }).from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id)).where(eq(employeeTaskAssignments.taskId, task._id));
   const partnerShares = await db.select({ userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(eq(marketingTaskPartners.taskId, task._id));
+  const reviewTitle = parsed.data.decision === "APPROVE" ? "Marketing task approved" : "Changes requested for your marketing task";
+  for (const row of assignees) if (row.userId) await queueMarketingOsEmail(String(row.userId), "TASK_REVIEW", String(task._id), { title: reviewTitle, message: task.title + ": " + parsed.data.notes, href: "https://truviventures.com/employee/marketing" }, "task-review:" + String(task._id) + ":" + String(row.userId) + ":" + Date.now());
+  for (const share of partnerShares) await queueMarketingOsEmail(String(share.userId), "TASK_REVIEW", String(task._id), { title: "Shared marketing activity reviewed", message: task.title + ": " + parsed.data.notes, href: "https://truviventures.com/marketing/partner" }, "task-partner-review:" + String(task._id) + ":" + String(share.userId) + ":" + Date.now());
   for (const row of assignees) if (row.userId) await createNotifications([String(row.userId)], { type: "employee_task_review", title: parsed.data.decision === "APPROVE" ? "Marketing task approved" : "Changes requested", message: task.title + ": " + parsed.data.notes, actorUserId: req.user!.userId, data: { href: "/employee/marketing" } }).catch(() => []);
   if (partnerShares.length) await createNotifications(partnerShares.map((x) => String(x.userId)), { type: "marketing_partner_progress", title: "Shared work updated", message: task.title + " has a new review update.", actorUserId: req.user!.userId, data: { href: "/marketing/partner" } }).catch(() => []);
   await logAudit({ userId: req.user!.userId, action: "marketing_os.task.review", resourceType: "employee_task", resourceId: String(task._id), metadata: { decision: parsed.data.decision } });
@@ -506,7 +511,7 @@ router.get("/partner/dashboard", async (req: AuthedRequest, res) => {
 });
 
 router.get("/partners", async (req: AuthedRequest, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
+  if (!isAdmin(req) && !(await canManage(req))) return res.status(403).json({ error: "Marketing manager access is required." });
   const rows = await getDb().select({ profile: marketingPartnerProfiles, name: users.name, email: users.email, disabled: users.disabled })
     .from(marketingPartnerProfiles).innerJoin(users, eq(marketingPartnerProfiles.userId, users._id)).orderBy(desc(marketingPartnerProfiles.createdAt));
   res.json({ partners: rows.map((r) => ({ id: String(r.profile.userId), name: r.name, email: r.email, companyName: r.profile.companyName, phone: r.profile.phone, status: r.profile.status, accountActive: !r.disabled, permissions: r.profile.permissions })) });
@@ -544,6 +549,29 @@ router.post("/partners", async (req: AuthedRequest, res) => {
   }, "partner-invite:" + created.id);
   await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.create", resourceType: "marketing_partner", resourceId: created.id, metadata: { projectCount: d.projectIds.length } });
   res.status(201).json({ partnerId: created.id, inviteQueued: true, message: "Partner account created. The invitation email has been queued for delivery." });
+});
+
+router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
+  if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
+  const db = getDb();
+  const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
+  if (!profile || profile.status !== "ACTIVE") return res.status(404).json({ error: "Active partner account not found." });
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  await db.transaction(async (tx) => {
+    await tx.update(marketingPartnerInvites).set({ usedAt: new Date() }).where(and(eq(marketingPartnerInvites.userId, req.params.userId), isNull(marketingPartnerInvites.usedAt)));
+    await tx.insert(marketingPartnerInvites).values({ userId: req.params.userId, tokenHash: tokenHash(token), createdById: req.user!.userId, expiresAt });
+    await tx.update(users).set({ disabled: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
+  });
+  const inviteUrl = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "") + "/marketing/activate?token=" + token;
+  await queueMarketingOsEmail(req.params.userId, "PARTNER_INVITE", null, {
+    title: "Your Truvi Marketing Partner invitation",
+    message: "Use the secure one-time link to activate your assigned project workspace. The link expires in 48 hours.",
+    href: inviteUrl,
+  }, "partner-invite:" + req.params.userId + ":" + expiresAt.getTime());
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.invite.resend", resourceType: "marketing_partner", resourceId: req.params.userId });
+  res.json({ ok: true, queued: true });
 });
 
 router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
