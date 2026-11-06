@@ -1,10 +1,10 @@
 import { Router } from "express";
 import multer from "multer";
 import Papa from "papaparse";
-import { eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
 import { projects } from "../db/schema";
-import { CATEGORY_TABLES } from "../db/verificationSchema";
+import { CATEGORY_TABLES, DATA_CATEGORIES, projectDataUploads } from "../db/verificationSchema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { ingestLimiter } from "../middleware/security";
@@ -52,6 +52,90 @@ function num(v: unknown): number | undefined {
  * collected, not fatal. After a successful load, re-verification is queued for
  * each affected project.
  */
+// Project options for the Admin / Verifier data-ingestion and archive screens.
+router.get("/projects", requireRole("ADMIN", "VERIFIER"), async (_req: AuthedRequest, res) => {
+  const db = getDb();
+  const rows = await db
+    .select({ _id: projects._id, name: projects.name, city: projects.city })
+    .from(projects)
+    .orderBy(asc(projects.name));
+  res.json({ projects: rows });
+});
+
+// List archived source JSON/GeoJSON uploads without returning large payloads.
+router.get("/uploads", requireRole("ADMIN", "VERIFIER"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const conditions: any[] = [];
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId.trim() : "";
+  const category = typeof req.query.category === "string" ? req.query.category.trim() : "";
+
+  if (projectId) {
+    if (!isValidId(projectId)) return res.status(400).json({ error: "Invalid projectId" });
+    conditions.push(sql`(
+      ${projectDataUploads.projectId} = ${projectId}::uuid
+      OR ${projectDataUploads.projectIds} @> ${JSON.stringify([projectId])}::jsonb
+    )`);
+  }
+  if (category) {
+    if (!(DATA_CATEGORIES as readonly string[]).includes(category)) {
+      return res.status(400).json({ error: "Unknown data category" });
+    }
+    conditions.push(eq(projectDataUploads.category, category));
+  }
+
+  const rows = await db
+    .select({
+      _id: projectDataUploads._id,
+      projectId: projectDataUploads.projectId,
+      projectIds: projectDataUploads.projectIds,
+      category: projectDataUploads.category,
+      fileName: projectDataUploads.fileName,
+      mimeType: projectDataUploads.mimeType,
+      fileSizeBytes: projectDataUploads.fileSizeBytes,
+      rowCount: projectDataUploads.rowCount,
+      successCount: projectDataUploads.successCount,
+      failedCount: projectDataUploads.failedCount,
+      uploadedById: projectDataUploads.uploadedById,
+      uploaderName: users.name,
+      createdAt: projectDataUploads.createdAt,
+    })
+    .from(projectDataUploads)
+    .leftJoin(users, eq(projectDataUploads.uploadedById, users._id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(projectDataUploads.createdAt))
+    .limit(200);
+
+  res.json({ uploads: rows });
+});
+
+// Download one archived source payload. Access is limited to Admin / Verifier.
+router.get("/uploads/:id/download", requireRole("ADMIN", "VERIFIER"), async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Upload not found" });
+  const db = getDb();
+  const [row] = await db
+    .select({
+      fileName: projectDataUploads.fileName,
+      mimeType: projectDataUploads.mimeType,
+      sourcePayload: projectDataUploads.sourcePayload,
+    })
+    .from(projectDataUploads)
+    .where(eq(projectDataUploads._id, req.params.id))
+    .limit(1);
+  if (!row) return res.status(404).json({ error: "Upload not found" });
+
+  const safeName = row.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^\.+/, "") || "project-data.json";
+  const downloadName = /\.(json|geojson)$/i.test(safeName)
+    ? safeName
+    : safeName.replace(/\.[^.]+$/, "") + ".json";
+  const contentType = downloadName.toLowerCase().endsWith(".geojson")
+    ? "application/geo+json; charset=utf-8"
+    : "application/json; charset=utf-8";
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
+  res.setHeader("Cache-Control", "private, no-store");
+  res.send(JSON.stringify(row.sourcePayload, null, 2));
+});
+
 router.post("/:category", ingestLimiter, requireRole("ADMIN", "VERIFIER"), upload.single("file"), async (req: AuthedRequest, res) => {
   const category = req.params.category as keyof typeof CATEGORY_TABLES;
   const table = CATEGORY_TABLES[category];
@@ -139,7 +223,43 @@ router.post("/:category", ingestLimiter, requireRole("ADMIN", "VERIFIER"), uploa
     void runFraudDetection(pid).catch(() => {});
   }
 
-  res.status(errors.length && !successCount ? 422 : 200).json({ successCount, failCount: errors.length, errors });
+  // Archive the original JSON/GeoJSON payload after at least one row is ingested.
+  // CSV ingestion remains unchanged and does not create a JSON archive record.
+  const archiveApplicable = /\.(json|geojson)$/i.test(req.file.originalname);
+  let archiveSaved = false;
+  let archiveWarning: string | null = null;
+  if (successCount > 0 && archiveApplicable) {
+    try {
+      const sourcePayload = JSON.parse(req.file.buffer.toString("utf8"));
+      const projectIds = [...affected];
+      await db.insert(projectDataUploads).values({
+        projectId: projectIds.length === 1 ? projectIds[0] : null,
+        projectIds,
+        category,
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype || "application/json",
+        fileSizeBytes: req.file.size,
+        rowCount: rows.length,
+        successCount,
+        failedCount: errors.length,
+        sourcePayload,
+        uploadedById: req.user!.userId,
+      });
+      archiveSaved = true;
+    } catch (archiveError) {
+      archiveWarning = "Data was ingested, but the original JSON snapshot could not be archived.";
+      console.error("[ingest] Failed to archive source JSON upload:", archiveError);
+    }
+  }
+
+  res.status(errors.length && !successCount ? 422 : 200).json({
+    successCount,
+    failCount: errors.length,
+    errors,
+    archiveApplicable,
+    archiveSaved,
+    archiveWarning,
+  });
 });
 
 export default router;
