@@ -5,7 +5,7 @@ import { legalDisclosure, missingLegalDisclosures } from "@/config/legalDisclosu
 
 const COMPANY = "Truvi Ventures";
 const SUPPORT_EMAIL = "info@truviventures.com";
-const UPDATED = "Last updated: 5 November 2026";
+const UPDATED = "Last updated: 6 November 2026";
 
 function PolicyShell({ title, children, updated }: { title: string; children: ReactNode; updated?: string }) {
   return (
@@ -103,8 +103,8 @@ export function PrivacyPolicyPage() {
     },
     {
       category: "KYC and identity documents",
-      data: "Aadhaar details/documents, PAN details/documents, selfie image, document type, masked identifiers and verification/review status, where KYC is requested for a role.",
-      use: "Channel Partner/Ambassador onboarding, identity checks, fraud prevention and manual compliance review.",
+      data: "For current CP/Ambassador onboarding: a masked Aadhaar image (first eight digits hidden) or another identity document accepted by Truvi, PAN details/document where required, selfie image, document type and manual review status. The current form does not ask for a full 12-digit Aadhaar number or biometric data.",
+      use: "Channel Partner/Ambassador onboarding, identity-document intake, fraud prevention and manual administrator review. This workflow is not UIDAI authentication or government-database identity verification.",
       access: "Restricted to authorised verification and administrator personnel. Channel Partner/Ambassador KYC image bytes are held in restricted PostgreSQL records and served only through authenticated review routes. Buyer identity, address and income-proof files submitted through Buyer Documents are stored separately in a private server directory outside the public uploads folder; only the document owner and authorised administrators receive access through expiring signed links.",
     },
     {
@@ -149,7 +149,7 @@ export function PrivacyPolicyPage() {
   ];
 
   return (
-    <PolicyShell title="Privacy Policy" updated="Last Updated: 5 November 2026 · Effective Date: 5 November 2026">
+    <PolicyShell title="Privacy Policy" updated="Last Updated: 6 November 2026 · Effective Date: 6 November 2026">
       <p>
         Truvi Ventures ("Truvi", "we", "us", or "our") explains here what personal information we collect,
         why we use it, which Truvi features use it, which service providers may receive it, and how you can
@@ -220,7 +220,7 @@ export function PrivacyPolicyPage() {
         "Employee/workforce details (for Employee accounts and staff records): work contact details, department/designation, employment and recruitment dates, attendance/check-in/check-out, leave requests, tasks, work activity, salary/payroll and manager notes.",
         "Property and project details: project name, description, locality/address, map coordinates, pricing, inventory, brochures, images, legal/approval documents and listing information.",
         "Buyer, enquiry and lead details: property preferences, budget, area, purchase purpose, timeline, contact details supplied by the buyer or by a lead submitter with the relevant client's permission, CRM notes, follow-ups and site visits.",
-        "KYC information, where required: Aadhaar number/details and document, PAN details/document, selfie image, masked identifier and verification/review state.",
+        "KYC information, where required: masked Aadhaar image (first eight digits hidden) or another accepted identity document, PAN details/document where required, selfie image, document type and manual review status. The current onboarding form does not request a full 12-digit Aadhaar number or biometric information.",
         "Financial information: checkout contact details, plan/product, amount and tax calculation, voucher, payment/order identifiers and status, subscription, commission, invoice and payout records.",
         "Communications: support messages, grievance and privacy-request details, notification preferences, SMS/email delivery metadata, and call metadata/recordings where telephony recording is enabled.",
         "Technical and security data: IP/network information, browser/device type, access times, routes/pages used, session and cookie data, security/audit events, rate-limit signals and error diagnostics.",
@@ -297,11 +297,14 @@ export function PrivacyPolicyPage() {
 
       <h2>6. KYC and identity verification</h2>
       <p>
-        Channel Partner and Ambassador onboarding may require identity information such as Aadhaar, PAN and
-        a selfie. The current application performs format/checksum-level validation and routes the submitted
-        documents for manual administrator review. The current KYC service code does not perform an automated
-        government-database identity check or an automated selfie/liveness match. Do not interpret an uploaded
-        document or a format check as government verification.
+        The current Channel Partner/Ambassador onboarding form asks for a masked Aadhaar image (the first
+        eight digits hidden) or another identity document accepted by Truvi, PAN for Channel Partners, and a
+        selfie. It does not ask for or accept a full 12-digit Aadhaar number or biometric data. The current
+        application does not authenticate Aadhaar with UIDAI, verify a Secure QR code, query government identity
+        databases, or perform selfie/liveness matching. The consent checkbox records the user’s declaration;
+        it does not automatically detect whether an uploaded image is correctly masked. An authorised reviewer
+        must inspect the document before making a manual onboarding decision. This is document review, not
+        UIDAI authentication, formal Aadhaar offline verification, or a guarantee of identity.
       </p>
       <p>
         Channel Partner/Ambassador KYC image bytes are stored as restricted records in PostgreSQL and are
@@ -311,7 +314,9 @@ export function PrivacyPolicyPage() {
         and files are not served through the public uploads directory. The app issues expiring signed links only
         to the document owner or an authorised administrator. Access is restricted to the people who need the
         documents for verification or review. KYC data may be retained where needed for onboarding, fraud
-        prevention, partner obligations, disputes or legal requirements.
+        prevention, partner obligations, disputes or legal requirements. Truvi must apply and document a
+        category-specific retention and deletion schedule; no fixed retention period is promised here until
+        that schedule has been approved against the applicable legal and contractual recordkeeping duties.
       </p>
 
       <h2>7. AI-assisted features</h2>
