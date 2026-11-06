@@ -28,7 +28,7 @@ import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib
 import { aggregateAssignedTaskStatus } from "../lib/employeeTaskRules";
 import { fileMatchesExtension } from "../services/uploadService";
 import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
-import { queueMarketingOsEmail } from "./marketingOs";
+import { encryptInviteUrl, queueMarketingOsEmail } from "./marketingOs";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -112,7 +112,7 @@ async function issueInvite(employeeId: string, actorUserId: string) {
     await queueMarketingOsEmail(String(employee.accountUserId), "EMPLOYEE_INVITE", employeeId, {
       title: "Welcome to Truvi — activate your employee account",
       message: "Your employee account is ready. Use the secure activation link to choose your password and access your employee workspace.",
-      href: url,
+      hrefEncrypted: encryptInviteUrl(url),
     }, "employee-invite:" + employeeId + ":" + expiresAt.getTime());
   }
   return { delivered, queuedForRetry: !delivered, expiresAt };
