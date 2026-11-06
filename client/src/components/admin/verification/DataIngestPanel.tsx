@@ -24,6 +24,9 @@ interface ProjectOpt {
 interface IngestResult {
   successCount: number;
   errors: { row: number; error: string }[];
+  archiveApplicable: boolean;
+  archiveSaved: boolean;
+  archiveWarning: string | null;
 }
 
 /**
@@ -94,7 +97,13 @@ export default function DataIngestPanel() {
       const form = new FormData();
       form.append("file", toSend);
       const { data } = await api.post(`/ingest/${category}`, form);
-      const r: IngestResult = { successCount: data.successCount ?? 0, errors: data.errors ?? [] };
+      const r: IngestResult = {
+        successCount: data.successCount ?? 0,
+        errors: data.errors ?? [],
+        archiveApplicable: data.archiveApplicable === true,
+        archiveSaved: data.archiveSaved === true,
+        archiveWarning: data.archiveWarning ?? null,
+      };
       setResult(r);
       if (r.successCount > 0 && r.errors.length === 0) {
         toast.success(`Ingested ${r.successCount} row(s) into ${category}`);
@@ -195,6 +204,16 @@ export default function DataIngestPanel() {
               ))}
               {result.errors.length > 20 && <li>…and {result.errors.length - 20} more</li>}
             </ul>
+          )}
+          {result.archiveSaved && (
+            <p className="mt-3 text-xs text-emerald-300">
+              Original JSON snapshot archived successfully. Open the Data Vault tab to download it later.
+            </p>
+          )}
+          {result.archiveApplicable && !result.archiveSaved && (
+            <p className="mt-3 text-xs text-amber-300">
+              {result.archiveWarning || "No source snapshot was archived because no rows were successfully ingested."}
+            </p>
           )}
           {result.successCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
