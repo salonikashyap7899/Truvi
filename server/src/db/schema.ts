@@ -1476,7 +1476,7 @@ export const employeeTasks = pgTable("employee_tasks", {
   category: text("category").notNull().default("GENERAL"),
   assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
   priority: text("priority").$type<"LOW" | "MEDIUM" | "HIGH" | "URGENT">().notNull().default("MEDIUM"),
-  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
   startAt: timestamp("start_at", { withTimezone: true, mode: "date" }),
   deadlineAt: timestamp("deadline_at", { withTimezone: true, mode: "date" }),
   estimatedMinutes: integer("estimated_minutes"),
