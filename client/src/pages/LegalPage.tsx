@@ -59,6 +59,7 @@ export default function LegalPage() {
               ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
               ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
               ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
+              ["UP RERA agent registration (if required)", legalDisclosure.upReraAgentRegistration],
             ] as Array<[string, string | null]>).map(([label, value]) => (
               <div key={label}>
                 <dt className="text-muted-foreground">{label}</dt>
