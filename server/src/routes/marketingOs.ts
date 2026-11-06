@@ -286,10 +286,14 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     const campaignLeadIds = new Set(allCampaignLeadRows.filter((row) => String(row.campaignId) === String(campaign._id)).map((row) => String(row.leadId)));
     const campaignLeads = relevantLeads.filter((lead) => campaignLeadIds.has(String(lead._id)));
     const campaignConversions = campaignLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
+    const campaignBookingValue = commissionRows
+      .filter((commission) => campaignLeadIds.has(String(commission.leadId)))
+      .reduce((sum, commission) => sum + Number(commission.bookingValue || 0), 0);
     return {
       ...campaign,
       attributedLeads: campaignLeads.length,
       convertedLeads: campaignConversions,
+      bookingValue: campaignBookingValue,
       conversionRate: campaignLeads.length ? Math.round(campaignConversions / campaignLeads.length * 1000) / 10 : 0,
     };
   }).filter((campaign) => !campaignId || String(campaign._id) === campaignId);
