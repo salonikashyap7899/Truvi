@@ -8,7 +8,7 @@ import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 import { startLifecycleReminderScheduler } from "./services/lifecycleEmails";
 import { startNotificationReminderScheduler } from "./services/notificationReminders";
-import { processMarketingOsEmailOutbox } from "./routes/marketingOs";
+import { processMarketingOsEmailOutbox, queueMarketingOsDeadlineReminders } from "./routes/marketingOs";
 import { startPropertyRequirementBackgroundWorkers } from "./services/propertyRequirementMatching";
 import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
 import { startHabitatPayoutScheduler } from "./routes/habitatFinance";
