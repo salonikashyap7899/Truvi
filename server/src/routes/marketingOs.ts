@@ -172,59 +172,139 @@ router.get("/overview", async (req: AuthedRequest, res) => {
   const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
   const projectId = typeof req.query.projectId === "string" ? req.query.projectId : "";
   const campaignId = typeof req.query.campaignId === "string" ? req.query.campaignId : "";
+  const statusFilter = typeof req.query.status === "string" ? req.query.status.trim().toUpperCase() : "";
   const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
   const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
-  const tasks = await db.select().from(employeeTasks).orderBy(desc(employeeTasks.createdAt)).limit(1000);
-  const employeesRows = await db.select({ employee: employees, disabled: users.disabled })
-    .from(employees).leftJoin(users, eq(employees.accountUserId, users._id)).orderBy(desc(employees.createdAt));
-  const campaigns = await db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt));
-  const campaignEmployeeIds = campaignId && isValidId(campaignId)
-    ? (await db.select({ id: marketingCampaignEmployees.employeeId }).from(marketingCampaignEmployees).where(eq(marketingCampaignEmployees.campaignId, campaignId))).map((r) => String(r.id))
+
+  const [tasks, employeesRows, campaigns, visits, allCampaignLeadRows] = await Promise.all([
+    db.select().from(employeeTasks).orderBy(desc(employeeTasks.createdAt)).limit(2000),
+    db.select({ employee: employees, disabled: users.disabled })
+      .from(employees).leftJoin(users, eq(employees.accountUserId, users._id)).orderBy(desc(employees.createdAt)),
+    db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt)),
+    db.select().from(siteVisits).orderBy(desc(siteVisits.scheduledAt)).limit(5000),
+    db.select().from(marketingCampaignLeads),
+  ]);
+  const taskIds = tasks.map((task) => task._id);
+  const taskAssignments = taskIds.length
+    ? await db.select({ taskId: employeeTaskAssignments.taskId, employeeId: employeeTaskAssignments.employeeId })
+        .from(employeeTaskAssignments).where(inArray(employeeTaskAssignments.taskId, taskIds))
     : [];
-  let scopedTasks = tasks.filter((t) => (!projectId || String(t.projectId || "") === projectId) && (!campaignId || String(t.marketingCampaignId || "") === campaignId));
-  if (employeeId) scopedTasks = scopedTasks.filter((t) => String(t.employeeId) === employeeId || campaignEmployeeIds.includes(String(t.employeeId)));
-  if (from && !Number.isNaN(from.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt >= from);
-  if (to && !Number.isNaN(to.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt <= to);
-  const selectedEmployee = employeeId ? employeesRows.find((r) => String(r.employee._id) === employeeId)?.employee : null;
+  const assignmentsByTask = new Map<string, Set<string>>();
+  for (const assignment of taskAssignments) {
+    const key = String(assignment.taskId);
+    if (!assignmentsByTask.has(key)) assignmentsByTask.set(key, new Set());
+    assignmentsByTask.get(key)!.add(String(assignment.employeeId));
+  }
+  const selectedEmployee = employeeId
+    ? employeesRows.find((row) => String(row.employee._id) === employeeId)?.employee
+    : null;
+  if (employeeId && !selectedEmployee) return res.status(404).json({ error: "Employee filter does not match an employee record." });
   const employeeUserId = selectedEmployee?.accountUserId ? String(selectedEmployee.accountUserId) : "";
-  let relevantLeads = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(5000);
-  relevantLeads = relevantLeads.filter((l) => (!projectId || String(l.projectId) === projectId) && (!employeeId || (employeeUserId && (String(l.submittedById) === employeeUserId || String(l.assignedToId || "") === employeeUserId))) && (!from || Number.isNaN(from.getTime()) || l.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || l.createdAt <= to));
+
+  let scopedTasks = tasks.filter((task) =>
+    (!projectId || String(task.projectId || "") === projectId) &&
+    (!campaignId || String(task.marketingCampaignId || "") === campaignId) &&
+    (!employeeId || String(task.employeeId) === employeeId || assignmentsByTask.get(String(task._id))?.has(employeeId)) &&
+    (!statusFilter || task.status === statusFilter) &&
+    (!from || Number.isNaN(from.getTime()) || task.createdAt >= from) &&
+    (!to || Number.isNaN(to.getTime()) || task.createdAt <= to)
+  );
+
+  let relevantLeads = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(10000);
+  relevantLeads = relevantLeads.filter((lead) =>
+    (!projectId || String(lead.projectId) === projectId) &&
+    (!employeeId || (!!employeeUserId && (String(lead.submittedById) === employeeUserId || String(lead.assignedToId || "") === employeeUserId))) &&
+    (!statusFilter || lead.stage === statusFilter) &&
+    (!from || Number.isNaN(from.getTime()) || lead.createdAt >= from) &&
+    (!to || Number.isNaN(to.getTime()) || lead.createdAt <= to)
+  );
   if (campaignId && isValidId(campaignId)) {
-    const campaignLeadRows = await db.select({ leadId: marketingCampaignLeads.leadId }).from(marketingCampaignLeads).where(eq(marketingCampaignLeads.campaignId, campaignId));
-    const linkedLeadIds = new Set(campaignLeadRows.map((row) => String(row.leadId)));
+    const linkedLeadIds = new Set(allCampaignLeadRows.filter((row) => String(row.campaignId) === campaignId).map((row) => String(row.leadId)));
     relevantLeads = relevantLeads.filter((lead) => linkedLeadIds.has(String(lead._id)));
   }
-  const leadIds = relevantLeads.map((l) => l._id);
-  const activities = leadIds.length ? await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds)) : [];
-  const visits = await db.select().from(siteVisits).orderBy(desc(siteVisits.scheduledAt)).limit(2000);
-  const visitCount = visits.filter((v) => (!projectId || String(v.projectId) === projectId) && (!employeeId || (employeeUserId && String(v.responsibleUserId || "") === employeeUserId)) && (!from || Number.isNaN(from.getTime()) || v.scheduledAt >= from) && (!to || Number.isNaN(to.getTime()) || v.scheduledAt <= to)).length;
-  const converted = relevantLeads.filter((l) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)).length;
-  const commissionRows = leadIds.length ? await db.select().from(commissions).where(inArray(commissions.leadId, leadIds)) : [];
-  const activeTasks = scopedTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
-  const completedTasks = scopedTasks.filter((t) => t.status === "COMPLETED");
-  const overdue = activeTasks.filter((t) => t.deadlineAt && t.deadlineAt.getTime() < Date.now());
+
+  const leadIds = relevantLeads.map((lead) => lead._id);
+  const activities = leadIds.length
+    ? await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds))
+    : [];
+  const converted = relevantLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
+  const commissionRows = leadIds.length
+    ? await db.select().from(commissions).where(inArray(commissions.leadId, leadIds))
+    : [];
+  const activeTasks = scopedTasks.filter((task) => !["COMPLETED", "CANCELLED"].includes(task.status));
+  const completedTasks = scopedTasks.filter((task) => task.status === "COMPLETED");
+  const overdue = activeTasks.filter((task) => task.deadlineAt && task.deadlineAt.getTime() < Date.now());
+  const relevantVisits = visits.filter((visit) =>
+    (!projectId || String(visit.projectId) === projectId) &&
+    (!employeeId || (!!employeeUserId && String(visit.responsibleUserId || "") === employeeUserId)) &&
+    (!from || Number.isNaN(from.getTime()) || visit.scheduledAt >= from) &&
+    (!to || Number.isNaN(to.getTime()) || visit.scheduledAt <= to)
+  );
+
+  const campaignPerformance = campaigns.map((campaign) => {
+    const campaignLeadIds = new Set(allCampaignLeadRows.filter((row) => String(row.campaignId) === String(campaign._id)).map((row) => String(row.leadId)));
+    const campaignLeads = relevantLeads.filter((lead) => campaignLeadIds.has(String(lead._id)));
+    const campaignConversions = campaignLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
+    return {
+      ...campaign,
+      attributedLeads: campaignLeads.length,
+      convertedLeads: campaignConversions,
+      conversionRate: campaignLeads.length ? Math.round(campaignConversions / campaignLeads.length * 1000) / 10 : 0,
+    };
+  }).filter((campaign) => !campaignId || String(campaign._id) === campaignId);
+
+  const employeePerformance = employeesRows.filter((row) => row.employee.status !== "INACTIVE").map((row) => {
+    const id = String(row.employee._id);
+    const userId = row.employee.accountUserId ? String(row.employee.accountUserId) : "";
+    const employeeTasks = scopedTasks.filter((task) => String(task.employeeId) === id || assignmentsByTask.get(String(task._id))?.has(id));
+    const employeeLeads = relevantLeads.filter((lead) => !!userId && (String(lead.submittedById) === userId || String(lead.assignedToId || "") === userId));
+    const employeeActivities = activities.filter((activity) => !!userId && String(activity.actorUserId || "") === userId);
+    const employeeVisits = relevantVisits.filter((visit) => !!userId && String(visit.responsibleUserId || "") === userId);
+    const employeeConverted = employeeLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
+    const employeeCompleted = employeeTasks.filter((task) => task.status === "COMPLETED").length;
+    return {
+      employeeId: id, name: row.employee.name, department: row.employee.department,
+      designation: row.employee.title, status: row.employee.status,
+      assignedTasks: employeeTasks.length, inProgress: employeeTasks.filter((task) => task.status === "IN_PROGRESS").length,
+      completedTasks: employeeCompleted,
+      overdueTasks: employeeTasks.filter((task) => task.deadlineAt && task.deadlineAt.getTime() < Date.now() && !["COMPLETED", "CANCELLED"].includes(task.status)).length,
+      completionPercent: employeeTasks.length ? Math.round(employeeCompleted / employeeTasks.length * 100) : 0,
+      leads: employeeLeads.length, calls: employeeActivities.filter((activity) => activity.type === "CALL").length,
+      followUps: employeeActivities.filter((activity) => activity.type === "FOLLOW_UP").length,
+      siteVisits: employeeVisits.length, conversions: employeeConverted,
+      conversionRate: employeeLeads.length ? Math.round(employeeConverted / employeeLeads.length * 1000) / 10 : 0,
+    };
+  }).filter((row) => !employeeId || row.employeeId === employeeId);
+
   res.json({
+    filters: { employeeId: employeeId || null, projectId: projectId || null, campaignId: campaignId || null, status: statusFilter || null, from: from?.toISOString() || null, to: to?.toISOString() || null },
     kpis: {
-      employees: employeesRows.filter((r) => r.employee.status !== "INACTIVE" && !r.disabled).length,
-      campaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
-      tasks: scopedTasks.length, inProgress: scopedTasks.filter((t) => t.status === "IN_PROGRESS").length,
-      pending: scopedTasks.filter((t) => ["ASSIGNED", "ACCEPTED"].includes(t.status)).length,
-      underReview: scopedTasks.filter((t) => t.status === "UNDER_REVIEW").length,
+      employees: employeesRows.filter((row) => row.employee.status !== "INACTIVE" && !row.disabled).length,
+      campaigns: campaigns.filter((campaign) => campaign.status === "ACTIVE").length,
+      tasks: scopedTasks.length,
+      inProgress: scopedTasks.filter((task) => task.status === "IN_PROGRESS").length,
+      pending: scopedTasks.filter((task) => ["ASSIGNED", "ACCEPTED"].includes(task.status)).length,
+      underReview: scopedTasks.filter((task) => task.status === "UNDER_REVIEW").length,
       completed: completedTasks.length, overdue: overdue.length,
       completionPercent: scopedTasks.length ? Math.round(completedTasks.length / scopedTasks.length * 100) : 0,
-      leads: relevantLeads.length, calls: activities.filter((a) => a.type === "CALL").length,
-      followUps: activities.filter((a) => a.type === "FOLLOW_UP").length, siteVisits: visitCount,
-      conversions: converted, conversionRate: relevantLeads.length ? Math.round(converted / relevantLeads.length * 1000) / 10 : 0,
-      revenue: commissionRows.reduce((sum, c) => sum + Number(c.bookingValue || 0), 0),
+      leads: relevantLeads.length, calls: activities.filter((activity) => activity.type === "CALL").length,
+      followUps: activities.filter((activity) => activity.type === "FOLLOW_UP").length,
+      siteVisits: relevantVisits.length, conversions: converted,
+      conversionRate: relevantLeads.length ? Math.round(converted / relevantLeads.length * 1000) / 10 : 0,
+      revenue: commissionRows.reduce((sum, commission) => sum + Number(commission.bookingValue || 0), 0),
+      campaignSpendPaise: campaigns.filter((campaign) => !campaignId || String(campaign._id) === campaignId).reduce((sum, campaign) => sum + Number(campaign.spendPaise || 0), 0),
     },
-    employees: employeesRows.map((r) => ({
-      id: String(r.employee._id), name: r.employee.name, email: r.employee.officialEmail,
-      department: r.employee.department, designation: r.employee.title, status: r.employee.status,
-      accountActive: !!r.employee.accountUserId && !r.disabled,
+    employees: employeesRows.map((row) => ({
+      id: String(row.employee._id), name: row.employee.name, email: row.employee.officialEmail,
+      department: row.employee.department, designation: row.employee.title, status: row.employee.status,
+      accountActive: !!row.employee.accountUserId && !row.disabled,
     })),
-    campaigns, tasks: scopedTasks,
+    employeePerformance,
+    campaignPerformance,
+    campaigns,
+    tasks: scopedTasks,
     projects: await db.select({ id: projects._id, name: projects.name, city: projects.city }).from(projects).orderBy(projects.name).limit(1000),
-    leadsByStage: ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"].map((stage) => ({ stage, count: relevantLeads.filter((l) => l.stage === stage).length })),
+    leadsByStage: ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"].map((stage) => ({ stage, count: relevantLeads.filter((lead) => lead.stage === stage).length })),
   });
 });
 
