@@ -388,6 +388,95 @@ router.post("/tasks", async (req: AuthedRequest, res) => {
   res.status(201).json({ task });
 });
 
+router.patch("/tasks/:id/assignments", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const parsed = z.object({
+    employeeIds: z.array(z.string().refine(isValidId)).min(1).max(100),
+    partnerUserIds: z.array(z.string().refine(isValidId)).max(50).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose one or more valid employee accounts." });
+  const db = getDb();
+  const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task || task.taskType !== "ASSIGNED") return res.status(404).json({ error: "Task not found." });
+  if (["COMPLETED", "CANCELLED"].includes(task.status)) return res.status(409).json({ error: "Closed tasks cannot be reassigned." });
+  const employeeRows = await db.select().from(employees).where(inArray(employees._id, parsed.data.employeeIds));
+  if (employeeRows.length !== new Set(parsed.data.employeeIds).size || employeeRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Choose active employees with linked login accounts." });
+  const partnerIds = Array.from(new Set(parsed.data.partnerUserIds || []));
+  const partnerProfiles = partnerIds.length ? await db.select().from(marketingPartnerProfiles).where(inArray(marketingPartnerProfiles.userId, partnerIds)) : [];
+  if (partnerProfiles.length !== partnerIds.length || partnerProfiles.some((p) => p.status !== "ACTIVE")) return res.status(400).json({ error: "Every shared partner must be active." });
+  for (const id of partnerIds) if (task.projectId) {
+    const [assignment] = await db.select({ id: marketingPartnerProjects._id }).from(marketingPartnerProjects).where(and(eq(marketingPartnerProjects.partnerUserId, id), eq(marketingPartnerProjects.projectId, task.projectId))).limit(1);
+    if (!assignment) return res.status(403).json({ error: "A partner can only be assigned tasks for a project in its approved project list." });
+  }
+  const existingAssignments = await db.select({ employeeId: employeeTaskAssignments.employeeId }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, task._id));
+  const oldEmployeeIds = new Set(existingAssignments.map((r) => String(r.employeeId)));
+  const oldPartners = await db.select({ userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(eq(marketingTaskPartners.taskId, task._id));
+  const oldPartnerIds = new Set(oldPartners.map((r) => String(r.userId)));
+  await db.transaction(async (tx) => {
+    await tx.delete(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, task._id));
+    await tx.insert(employeeTaskAssignments).values(employeeRows.map((e) => ({ taskId: task._id, employeeId: e._id, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const }))).onConflictDoNothing();
+    await tx.update(employeeTasks).set({ employeeId: employeeRows[0]._id, updatedAt: new Date() }).where(eq(employeeTasks._id, task._id));
+    await tx.delete(marketingTaskPartners).where(eq(marketingTaskPartners.taskId, task._id));
+    if (partnerIds.length) await tx.insert(marketingTaskPartners).values(partnerIds.map((id) => ({ taskId: task._id, partnerUserId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+    await tx.insert(employeeTaskHistory).values({
+      taskId: task._id, actorUserId: req.user!.userId, action: "MARKETING_TASK_REASSIGNED",
+      beforeValue: { employeeIds: [...oldEmployeeIds], partnerUserIds: [...oldPartnerIds] },
+      afterValue: { employeeIds: parsed.data.employeeIds, partnerUserIds: partnerIds },
+    });
+  });
+  const newEmployeeUsers = employeeRows.filter((e) => e.accountUserId).map((e) => String(e.accountUserId));
+  const newRecipients = newEmployeeUsers.concat(partnerIds);
+  await createNotifications(newRecipients, { type: "employee_task_reassigned", title: "Marketing task assignment updated", message: "The task was assigned or updated: " + task.title, actorUserId: req.user!.userId, data: { href: "/employee/marketing", taskId: String(task._id) } }).catch(() => []);
+  for (const recipient of newRecipients) await queueMarketingOsEmail(recipient, "TASK_ASSIGNED", String(task._id), { title: "Marketing task assignment updated", message: "A marketing task was assigned or updated: " + task.title, href: "https://truviventures.com/employee/marketing" }, "task-reassigned:" + String(task._id) + ":" + recipient + ":" + Date.now());
+  for (const oldId of oldEmployeeIds) if (!parsed.data.employeeIds.includes(oldId)) {
+    const [oldEmployee] = await db.select({ accountUserId: employees.accountUserId }).from(employees).where(eq(employees._id, oldId)).limit(1);
+    if (oldEmployee?.accountUserId) await createNotifications([String(oldEmployee.accountUserId)], { type: "employee_task_reassigned", title: "Task reassigned", message: "A task is no longer assigned to you: " + task.title, actorUserId: req.user!.userId }).catch(() => []);
+  }
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.reassign", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeCount: employeeRows.length, partnerCount: partnerIds.length } });
+  res.json({ ok: true });
+});
+
+router.get("/tasks/:id/activity", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const db = getDb();
+  const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task) return res.status(404).json({ error: "Task not found." });
+  const partner = req.user!.role === "MARKETING_PARTNER";
+  if (partner) {
+    const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
+    if (!share) return res.status(404).json({ error: "Task not found." });
+    const updates = await db.select().from(marketingTaskUpdates).where(and(eq(marketingTaskUpdates.taskId, task._id), eq(marketingTaskUpdates.clientVisible, true))).orderBy(desc(marketingTaskUpdates.createdAt)).limit(100);
+    return res.json({ updates, history: [], comments: [] });
+  }
+  if (!isAdmin(req) && !(await canManage(req))) {
+    const emp = await actorEmployee(req);
+    if (!emp || !emp.permissions?.includes("task.read.own") || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
+  }
+  const [updates, history, comments] = await Promise.all([
+    db.select().from(marketingTaskUpdates).where(eq(marketingTaskUpdates.taskId, task._id)).orderBy(desc(marketingTaskUpdates.createdAt)).limit(100),
+    db.select().from(employeeTaskHistory).where(eq(employeeTaskHistory.taskId, task._id)).orderBy(desc(employeeTaskHistory.createdAt)).limit(100),
+    db.select().from(employeeTaskComments).where(eq(employeeTaskComments.taskId, task._id)).orderBy(desc(employeeTaskComments.createdAt)).limit(100),
+  ]);
+  res.json({ updates, history, comments });
+});
+
+router.post("/tasks/:id/comments", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const parsed = z.object({ body: z.string().trim().min(1).max(3000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter a comment." });
+  const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the shared partner update channel." });
+  if (!isAdmin(req) && !(await canManage(req))) {
+    const emp = await actorEmployee(req);
+    if (!emp || !emp.permissions?.includes("task.read.own") || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
+  }
+  const [comment] = await db.insert(employeeTaskComments).values({ taskId: task._id, authorUserId: req.user!.userId, body: parsed.data.body }).returning();
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.comment", resourceType: "employee_task", resourceId: String(task._id) });
+  res.status(201).json({ comment });
+});
+
 router.patch("/tasks/:id/progress", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
   const parsed = z.object({ progressPercent: z.number().int().min(0).max(100), status: z.enum(["ACCEPTED", "IN_PROGRESS", "UNDER_REVIEW"]).optional(), update: z.string().trim().min(2).max(3000) }).safeParse(req.body);
