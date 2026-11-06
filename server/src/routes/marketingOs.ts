@@ -14,7 +14,7 @@ import {
   employeeTasks, employeeTaskAssignments, employeeTaskHistory, employeeTaskAttachments,
   marketingPartnerCampaigns, marketingPartnerProfiles, marketingPartnerInvites,
   marketingPartnerProjects, marketingCampaignEmployees, marketingTaskPartners,
-  marketingTaskUpdates, marketingOsEmailOutbox,
+  marketingTaskUpdates, marketingOsEmailOutbox, userConsentEvents,
 } from "../db/schema";
 import { authenticate, type AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
@@ -128,6 +128,10 @@ router.post("/partner/activate", async (req, res) => {
       .where(and(eq(marketingPartnerInvites._id, invite._id), isNull(marketingPartnerInvites.usedAt))).returning({ id: marketingPartnerInvites._id });
     if (!claimed) throw new Error("INVITATION_ALREADY_USED");
     await tx.update(users).set({ password, disabled: false, emailVerified: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, invite.userId));
+    await tx.insert(userConsentEvents).values([
+      { userId: invite.userId, policyType: "TERMS_OF_SERVICE", policyVersion: CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE, action: "ACKNOWLEDGED", source: "EMPLOYEE_ACTIVATION", occurredAt: new Date() },
+      { userId: invite.userId, policyType: "PRIVACY_NOTICE", policyVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE, action: "ACKNOWLEDGED", source: "EMPLOYEE_ACTIVATION", occurredAt: new Date() },
+    ]);
     await tx.update(marketingPartnerProfiles).set({
       termsAcceptedAt: new Date(), termsVersion: CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE,
       privacyAcknowledgedAt: new Date(), privacyNoticeVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE,
@@ -167,12 +171,19 @@ router.get("/overview", async (req: AuthedRequest, res) => {
   if (employeeId) scopedTasks = scopedTasks.filter((t) => String(t.employeeId) === employeeId || campaignEmployeeIds.includes(String(t.employeeId)));
   if (from && !Number.isNaN(from.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt >= from);
   if (to && !Number.isNaN(to.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt <= to);
+  const selectedEmployee = employeeId ? employeesRows.find((r) => String(r.employee._id) === employeeId)?.employee : null;
+  const employeeUserId = selectedEmployee?.accountUserId ? String(selectedEmployee.accountUserId) : "";
   let relevantLeads = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(5000);
-  relevantLeads = relevantLeads.filter((l) => (!projectId || String(l.projectId) === projectId) && (!employeeId || String(l.submittedById) === employeeId || String(l.assignedToId || "") === employeeId) && (!from || Number.isNaN(from.getTime()) || l.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || l.createdAt <= to));
+  relevantLeads = relevantLeads.filter((l) => (!projectId || String(l.projectId) === projectId) && (!employeeId || (employeeUserId && (String(l.submittedById) === employeeUserId || String(l.assignedToId || "") === employeeUserId))) && (!from || Number.isNaN(from.getTime()) || l.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || l.createdAt <= to));
+  if (campaignId && isValidId(campaignId)) {
+    const campaignLeadRows = await db.select({ leadId: marketingCampaignLeads.leadId }).from(marketingCampaignLeads).where(eq(marketingCampaignLeads.campaignId, campaignId));
+    const linkedLeadIds = new Set(campaignLeadRows.map((row) => String(row.leadId)));
+    relevantLeads = relevantLeads.filter((lead) => linkedLeadIds.has(String(lead._id)));
+  }
   const leadIds = relevantLeads.map((l) => l._id);
   const activities = leadIds.length ? await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds)) : [];
   const visits = await db.select().from(siteVisits).orderBy(desc(siteVisits.scheduledAt)).limit(2000);
-  const visitCount = visits.filter((v) => (!projectId || String(v.projectId) === projectId) && (!employeeId || String(v.responsibleUserId || "") === employeeId) && (!from || Number.isNaN(from.getTime()) || v.scheduledAt >= from) && (!to || Number.isNaN(to.getTime()) || v.scheduledAt <= to)).length;
+  const visitCount = visits.filter((v) => (!projectId || String(v.projectId) === projectId) && (!employeeId || (employeeUserId && String(v.responsibleUserId || "") === employeeUserId)) && (!from || Number.isNaN(from.getTime()) || v.scheduledAt >= from) && (!to || Number.isNaN(to.getTime()) || v.scheduledAt <= to)).length;
   const converted = relevantLeads.filter((l) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)).length;
   const commissionRows = leadIds.length ? await db.select().from(commissions).where(inArray(commissions.leadId, leadIds)) : [];
   const activeTasks = scopedTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
@@ -218,7 +229,8 @@ router.get("/campaigns", async (req: AuthedRequest, res) => {
     const [project] = campaign.projectId ? await db.select({ name: projects.name, city: projects.city }).from(projects).where(eq(projects._id, campaign.projectId)).limit(1) : [];
     const assignees = await db.select({ employeeId: marketingCampaignEmployees.employeeId, name: employees.name, designation: employees.title })
       .from(marketingCampaignEmployees).innerJoin(employees, eq(marketingCampaignEmployees.employeeId, employees._id)).where(eq(marketingCampaignEmployees.campaignId, campaign._id));
-    return { ...campaign, project, assignees };
+    const attributedLeads = await db.select({ id: marketingCampaignLeads._id }).from(marketingCampaignLeads).where(eq(marketingCampaignLeads.campaignId, campaign._id));
+    return { ...campaign, project, assignees, attributedLeads: attributedLeads.length };
   }));
   res.json({ campaigns: result });
 });
@@ -249,6 +261,23 @@ router.post("/campaigns", async (req: AuthedRequest, res) => {
   await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.create", resourceType: "marketing_campaign", resourceId: String(campaign._id), metadata: { projectId: campaign.projectId, employeeCount: empRows.length } });
   for (const e of empRows) if (e.accountUserId) await createNotifications([String(e.accountUserId)], { type: "marketing_campaign_assigned", title: "Marketing campaign assigned", message: "You were assigned to campaign: " + campaign.name, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(campaign._id) } }).catch(() => []);
   res.status(201).json({ campaign });
+});
+
+router.post("/campaigns/:id/leads", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Campaign not found." });
+  const parsed = z.object({ leadIds: z.array(z.string().refine(isValidId)).min(1).max(500) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose one or more valid CRM leads." });
+  const db = getDb();
+  const [campaign] = await db.select().from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, req.params.id)).limit(1);
+  if (!campaign) return res.status(404).json({ error: "Campaign not found." });
+  const leadRows = await db.select({ id: leads._id, projectId: leads.projectId }).from(leads).where(inArray(leads._id, parsed.data.leadIds));
+  if (leadRows.length !== new Set(parsed.data.leadIds).size) return res.status(400).json({ error: "One or more CRM leads do not exist." });
+  if (campaign.projectId && leadRows.some((row) => String(row.projectId) !== String(campaign.projectId))) return res.status(400).json({ error: "Campaign attribution can only include leads for its selected project." });
+  await db.insert(marketingCampaignLeads).values(leadRows.map((row) => ({ campaignId: campaign._id, leadId: row.id, linkedByUserId: req.user!.userId }))).onConflictDoNothing();
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.leads.link", resourceType: "marketing_campaign", resourceId: String(campaign._id), metadata: { leadCount: leadRows.length } });
+  const count = await db.select({ id: marketingCampaignLeads._id }).from(marketingCampaignLeads).where(eq(marketingCampaignLeads.campaignId, campaign._id));
+  res.json({ ok: true, attributedLeads: count.length });
 });
 
 router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
