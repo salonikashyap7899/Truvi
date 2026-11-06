@@ -135,6 +135,65 @@ export async function processMarketingOsEmailOutbox(limit = 25) {
   return { scanned: pending.length, accepted, retried, failed };
 }
 
+/**
+ * Queue one Marketing task deadline email per active assignee, at most once
+ * per India-local day and deadline. Delivery is handled by the durable outbox.
+ */
+export async function queueMarketingOsDeadlineReminders(): Promise<{ scanned: number; queued: number }> {
+  const db = getDb();
+  const now = new Date();
+  const soon = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const part = (kind: string) => parts.find((item) => item.type === kind)?.value ?? "";
+  const dayKey = part("year") + "-" + part("month") + "-" + part("day");
+  const rows = await db.select().from(employeeTasks)
+    .where(and(eq(employeeTasks.category, "MARKETING"), lte(employeeTasks.deadlineAt, soon)))
+    .orderBy(employeeTasks.deadlineAt).limit(1000);
+  let queued = 0;
+  for (const task of rows) {
+    if (!task.deadlineAt || ["COMPLETED", "CANCELLED", "UNDER_REVIEW"].includes(task.status)) continue;
+    const assignments = await db.select({
+      employeeId: employeeTaskAssignments.employeeId,
+      status: employeeTaskAssignments.status,
+    }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.taskId, task._id));
+    const activeAssignmentIds = assignments
+      .filter((row) => !["COMPLETED", "CANCELLED", "UNDER_REVIEW"].includes(row.status))
+      .map((row) => String(row.employeeId));
+    const targetIds = activeAssignmentIds.length
+      ? Array.from(new Set(activeAssignmentIds))
+      : assignments.length ? [] : [String(task.employeeId)];
+    if (!targetIds.length) continue;
+    const recipients = await db.select({
+      userId: employees.accountUserId,
+      name: employees.name,
+    }).from(employees).innerJoin(users, eq(employees.accountUserId, users._id))
+      .where(and(inArray(employees._id, targetIds), eq(users.disabled, false), eq(users.role, "EMPLOYEE")));
+    const overdue = task.deadlineAt.getTime() < now.getTime();
+    const deadlineLabel = task.deadlineAt.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+    for (const recipient of recipients) {
+      if (!recipient.userId) continue;
+      await queueMarketingOsEmail(
+        String(recipient.userId),
+        "TASK_DEADLINE",
+        String(task._id),
+        {
+          title: overdue ? "Marketing task overdue" : "Marketing task due soon",
+          message: (overdue ? "Your Marketing task is overdue: " : "Your Marketing task is due soon: ") +
+            task.title + ". Deadline: " + deadlineLabel + ".",
+          href: "https://truviventures.com/employee/marketing",
+        },
+        "marketing-deadline:" + String(task._id) + ":" + String(recipient.userId) + ":" + task.deadlineAt.toISOString() + ":" + dayKey,
+      );
+      queued++;
+    }
+  }
+  return { scanned: rows.length, queued };
+}
+
 // Public, single-use partner activation. This is deliberately registered before authenticate.
 router.post("/partner/activate", async (req, res) => {
   const parsed = z.object({
