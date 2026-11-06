@@ -107,6 +107,15 @@ function SelectField({ label, value, onChange, options, required = false }: { la
   return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
 }
 
+const STANDARD_EMPLOYEE_PERMISSIONS = [
+  "task.read.own", "task.create.own", "task.update.own", "task.complete.own",
+  "lead.create", "lead.read.own", "lead.read.assigned", "lead.update.own", "lead.update.assigned",
+  "lead.call.own", "lead.call.assigned", "telecalling.use", "followup.create.own", "followup.create.assigned",
+  "sitevisit.create", "sitevisit.read.own", "sitevisit.update.own", "attendance.read.own",
+  "attendance.checkin", "attendance.checkout", "leave.request.own", "leave.read.own",
+  "profile.read.own", "salary.read.own",
+] as const;
+
 const emptyEmployee = {
   name: "", employeeCode: "", officialEmail: "", phone: "", department: "Sales", designation: "Sales Executive",
   employmentType: "FULL_TIME", reportingManagerId: "", joiningDate: new Date().toISOString().slice(0, 10),
@@ -265,7 +274,8 @@ export default function AdminEmployeeManagementPage() {
       // "" fails the server schema's optional, non-empty employeeCode validation.
       employeeCode: employeeCode || undefined,
       monthlySalary: Number(employeeForm.monthlySalary), salaryDueDay: Number(employeeForm.salaryDueDay),
-      permissions: permissionInput ? permissionInput.split(",").map((p) => p.trim()).filter(Boolean) : editing ? [] : undefined,
+      // Blank means preserve existing permissions on edit; on create it lets the API apply its standard defaults.
+      permissions: permissionInput ? permissionInput.split(",").map((p) => p.trim()).filter(Boolean) : undefined,
       reportingManagerId: employeeForm.reportingManagerId || null,
       joiningDate: employeeForm.joiningDate || null, applicationDate: employeeForm.applicationDate || null,
       interviewDate: employeeForm.interviewDate || null,
@@ -633,7 +643,14 @@ export default function AdminEmployeeManagementPage() {
           <Field label="Monthly gross salary (₹)" type="number" value={employeeForm.monthlySalary} onChange={(v) => setEmployeeForm((s) => ({ ...s, monthlySalary: v }))}/>
           <Field label="Salary due day (1–28)" type="number" value={employeeForm.salaryDueDay} onChange={(v) => setEmployeeForm((s) => ({ ...s, salaryDueDay: v }))}/>
           <label className="block space-y-1.5 text-sm sm:col-span-2 xl:col-span-3"><span className="text-muted-foreground">Admin notes</span><textarea className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5" rows={2} value={employeeForm.notes} onChange={(e) => setEmployeeForm((s) => ({ ...s, notes: e.target.value }))}/></label>
-          <div className="sm:col-span-2 xl:col-span-3"><Field label="Assigned permissions (comma-separated permission keys; blank uses defaults on creation)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/><p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add marketing.os.manage. For campaign read-only access, add marketing.os.read. Employee-level task access remains controlled by the existing task permissions.</p></div>
+          <div className="sm:col-span-2 xl:col-span-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Leave blank when editing to keep the employee’s current permissions. New employees receive the standard defaults when this field is blank.</p>
+              <button type="button" onClick={() => setEmployeeForm((s) => ({ ...s, permissions: STANDARD_EMPLOYEE_PERMISSIONS.join(", ") }))} className="rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">Apply standard employee access</button>
+            </div>
+            <Field label="Assigned permissions (comma-separated permission keys)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/>
+            <p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add <code>marketing.os.manage</code>. For campaign read-only access, add <code>marketing.os.read</code>. Employee-level task access remains controlled by the existing task permissions.</p>
+          </div>
           <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><button disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Create employee & send invitation"}</button><button type="button" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button></div>
         </form>
       </Panel>}
