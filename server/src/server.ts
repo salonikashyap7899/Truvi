@@ -8,6 +8,7 @@ import { initSocket } from "./sockets";
 import { assertRequiredEnvForProduction, getEnv } from "./config/env";
 import { startLifecycleReminderScheduler } from "./services/lifecycleEmails";
 import { startNotificationReminderScheduler } from "./services/notificationReminders";
+import { processMarketingOsEmailOutbox } from "./routes/marketingOs";
 import { startPropertyRequirementBackgroundWorkers } from "./services/propertyRequirementMatching";
 import { isAiSensyEnabled, isWhatsAppEnabled } from "./services/whatsappService";
 import { startHabitatPayoutScheduler } from "./routes/habitatFinance";
@@ -135,6 +136,13 @@ async function main() {
   // Start DB-dependent background work only after the schema and database are ready.
   startLifecycleReminderScheduler();
   startNotificationReminderScheduler();
+  const runMarketingOsEmailOutbox = () => {
+    processMarketingOsEmailOutbox().then((r) => {
+      if (r.scanned > 0) console.log("[marketing-os] email queue scanned=" + r.scanned + ", accepted=" + r.accepted + ", retry=" + r.retried + ", failed=" + r.failed);
+    }).catch((err) => console.warn("[marketing-os] email queue sweep failed:", err instanceof Error ? err.message : err));
+  };
+  setTimeout(runMarketingOsEmailOutbox, 50_000).unref();
+  setInterval(runMarketingOsEmailOutbox, 60_000).unref();
   startPropertyRequirementBackgroundWorkers();
   startHabitatPayoutScheduler();
 }
