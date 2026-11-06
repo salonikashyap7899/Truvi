@@ -24,6 +24,8 @@ export const legalDisclosure = {
   upReraAgentRegistration: clean(import.meta.env.VITE_UP_RERA_AGENT_REGISTRATION),
 } as const;
 
+// Landlines are displayed when supplied, but are optional; mobile contacts are
+// used as the required customer-care and grievance contact channels.
 export const missingLegalDisclosures = [
   ["VITE_LEGAL_ENTITY_NAME", legalDisclosure.legalEntityName],
   ["VITE_REGISTERED_OFFICE_ADDRESS", legalDisclosure.registeredOfficeAddress],
@@ -31,10 +33,8 @@ export const missingLegalDisclosures = [
   // Set to all current branch addresses, or an explicit "No branch offices" only after management confirms.
   ["VITE_COMPANY_BRANCH_ADDRESSES", legalDisclosure.branchAddresses],
   ["VITE_CUSTOMER_CARE_PHONE", legalDisclosure.customerCarePhone],
-  ["VITE_CUSTOMER_CARE_LANDLINE", legalDisclosure.customerCareLandline],
   ["VITE_GRIEVANCE_OFFICER_NAME", legalDisclosure.grievanceOfficerName],
   ["VITE_GRIEVANCE_OFFICER_DESIGNATION", legalDisclosure.grievanceOfficerDesignation],
   ["VITE_GRIEVANCE_OFFICER_EMAIL", legalDisclosure.grievanceOfficerEmail],
   ["VITE_GRIEVANCE_OFFICER_PHONE", legalDisclosure.grievanceOfficerPhone],
-  ["VITE_GRIEVANCE_OFFICER_LANDLINE", legalDisclosure.grievanceOfficerLandline],
 ] as const;
