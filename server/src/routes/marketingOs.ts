@@ -1,0 +1,560 @@
+/**
+ * Truvi Marketing OS — integrated with the existing HR, employee task and CRM systems.
+ * Partner responses are explicitly allow-listed; operational writes are audited.
+ */
+import { Router } from "express";
+import fs from "node:fs";
+import { randomBytes, createHash } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { z } from "zod";
+import { getDb } from "../config/db";
+import {
+  users, employees, projects, leads, leadActivities, siteVisits, commissions,
+  employeeTasks, employeeTaskAssignments, employeeTaskHistory, employeeTaskAttachments,
+  marketingPartnerCampaigns, marketingPartnerProfiles, marketingPartnerInvites,
+  marketingPartnerProjects, marketingCampaignEmployees, marketingTaskPartners,
+  marketingTaskUpdates, marketingOsEmailOutbox,
+} from "../db/schema";
+import { authenticate, type AuthedRequest } from "../middleware/auth";
+import { isValidId } from "../lib/ids";
+import { CURRENT_POLICY_VERSIONS } from "../config/compliance";
+import { sendEmailWithStatus, MAIL_FROM } from "../services/emailService";
+import { createNotifications } from "../services/notificationService";
+import { logAudit } from "../services/audit";
+import { privateFilePath } from "../services/privateFiles";
+
+const router = Router();
+const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
+const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || ""));
+const partnerPermissionDefaults = ["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned"];
+
+function isAdmin(req: AuthedRequest) { return req.user?.role === "ADMIN"; }
+async function actorEmployee(req: AuthedRequest) {
+  if (req.user?.role !== "EMPLOYEE") return null;
+  const [row] = await getDb().select().from(employees)
+    .where(and(eq(employees.accountUserId, req.user.userId), eq(employees.status, "ACTIVE"))).limit(1);
+  return row ?? null;
+}
+async function canManage(req: AuthedRequest) {
+  if (isAdmin(req)) return true;
+  const emp = await actorEmployee(req);
+  return !!emp?.permissions?.includes("marketing.os.manage");
+}
+async function requireManager(req: AuthedRequest, res: import("express").Response) {
+  if (!(await canManage(req))) { res.status(403).json({ error: "Marketing management permission is required." }); return false; }
+  return true;
+}
+
+async function queueEmail(userId: string, eventType: string, resourceId: string | null, payload: Record<string, unknown>, dedupeKey: string) {
+  try {
+    await getDb().insert(marketingOsEmailOutbox).values({
+      recipientUserId: userId, eventType, resourceId, payload, dedupeKey,
+      status: "QUEUED", attempts: 0, nextAttemptAt: new Date(),
+    }).onConflictDoNothing();
+  } catch (error) {
+    console.warn("[marketing-os] email could not be queued:", error instanceof Error ? error.message : "unknown");
+  }
+}
+
+function renderEmail(eventType: string, name: string, payload: Record<string, unknown>) {
+  const title = String(payload.title || "A new update from Truvi");
+  const message = String(payload.message || "");
+  const href = String(payload.href || "https://truviventures.com");
+  const action = eventType === "PARTNER_INVITE" ? "Set up my account" : "Open Marketing OS";
+  return {
+    subject: eventType === "PARTNER_INVITE" ? "Your Truvi Marketing Partner invitation" : title + " | Truvi Ventures",
+    html: '<div style="margin:0;background:#071321;padding:32px 12px;font-family:Arial,sans-serif;color:#f8fafc"><div style="max-width:560px;margin:auto;border:1px solid #1d4056;border-radius:18px;background:#0b1b2b;padding:30px"><div style="font-size:12px;letter-spacing:3px;color:#38bdf8;font-weight:700">TRUVI VENTURES</div><h1 style="font-size:25px;line-height:1.25;margin:22px 0 12px">' + esc(title) + '</h1><p style="color:#cbd5e1;line-height:1.7">Hello ' + esc(name) + ',</p><p style="color:#cbd5e1;line-height:1.7">' + esc(message) + '</p><p style="margin:26px 0"><a href="' + esc(href) + '" style="background:#0ea5e9;color:#03111f;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px;display:inline-block">' + action + '</a></p><p style="font-size:12px;color:#94a3b8;line-height:1.6">This is an operational email about your Truvi account or assigned work. Promotional updates remain a separate optional preference.</p><p style="color:#cbd5e1">Team Truvi<br/>truviventures.com</p></div></div>',
+  };
+}
+
+/** Durable queue with atomic claiming, bounded retries and idempotent provider keys. */
+export async function processMarketingOsEmailOutbox(limit = 25) {
+  const db = getDb(), now = new Date(), stale = new Date(Date.now() - 10 * 60_000);
+  await db.update(marketingOsEmailOutbox).set({
+    status: "RETRY_PENDING", claimedAt: null, nextAttemptAt: now, lastError: "STALE_SEND_RECOVERED",
+  }).where(and(
+    eq(marketingOsEmailOutbox.status, "SENDING"),
+    lt(marketingOsEmailOutbox.attempts, 5),
+    lt(marketingOsEmailOutbox.claimedAt, stale),
+  ));
+  const pending = await db.select({ id: marketingOsEmailOutbox._id }).from(marketingOsEmailOutbox)
+    .where(and(inArray(marketingOsEmailOutbox.status, ["QUEUED", "RETRY_PENDING"]), lt(marketingOsEmailOutbox.attempts, 5), lte(marketingOsEmailOutbox.nextAttemptAt, now)))
+    .orderBy(marketingOsEmailOutbox.nextAttemptAt).limit(Math.max(1, Math.min(100, limit)));
+  let accepted = 0, retried = 0, failed = 0;
+  for (const item of pending) {
+    const [job] = await db.update(marketingOsEmailOutbox).set({
+      status: "SENDING", attempts: sql.raw('"attempts" + 1'), claimedAt: now,
+    }).where(and(eq(marketingOsEmailOutbox._id, item.id), inArray(marketingOsEmailOutbox.status, ["QUEUED", "RETRY_PENDING"]), lte(marketingOsEmailOutbox.nextAttemptAt, now))).returning();
+    if (!job) continue;
+    try {
+      const [recipient] = await db.select({ name: users.name, email: users.email, disabled: users.disabled }).from(users).where(eq(users._id, job.recipientUserId)).limit(1);
+      if (!recipient || recipient.disabled || !recipient.email) throw new Error("RECIPIENT_UNAVAILABLE");
+      const rendered = renderEmail(job.eventType, recipient.name, job.payload || {});
+      const result = await sendEmailWithStatus(recipient.email, rendered.subject, rendered.html, MAIL_FROM, { idempotencyKey: "marketing-os/" + String(job._id) });
+      if (result.status !== "SENT_TO_PROVIDER") throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
+      await db.update(marketingOsEmailOutbox).set({ status: "SENT_TO_PROVIDER", sentAt: new Date(), claimedAt: null, lastError: null }).where(eq(marketingOsEmailOutbox._id, job._id));
+      accepted++;
+    } catch (error) {
+      const terminal = job.attempts >= 5;
+      const delay = [1, 5, 15, 60, 180][Math.max(0, job.attempts - 1)] || 180;
+      await db.update(marketingOsEmailOutbox).set({
+        status: terminal ? "FAILED" : "RETRY_PENDING",
+        nextAttemptAt: terminal ? now : new Date(Date.now() + delay * 60_000),
+        claimedAt: null, lastError: error instanceof Error ? error.message.slice(0, 120) : "EMAIL_SEND_FAILED",
+      }).where(eq(marketingOsEmailOutbox._id, job._id));
+      if (terminal) failed++; else retried++;
+    }
+  }
+  return { scanned: pending.length, accepted, retried, failed };
+}
+
+// Public, single-use partner activation. This is deliberately registered before authenticate.
+router.post("/partner/activate", async (req, res) => {
+  const parsed = z.object({
+    token: z.string().regex(/^[a-f0-9]{64}$/i),
+    password: z.string().min(12).max(128).regex(/[a-z]/).regex(/[A-Z]/).regex(/[0-9]/).regex(/[^A-Za-z0-9]/),
+    acceptTerms: z.literal(true), acknowledgePrivacyNotice: z.literal(true),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Check your password and accept the required account policies." });
+  const db = getDb();
+  const [invite] = await db.select().from(marketingPartnerInvites).where(eq(marketingPartnerInvites.tokenHash, tokenHash(parsed.data.token))).limit(1);
+  if (!invite || invite.usedAt || invite.expiresAt.getTime() < Date.now()) return res.status(400).json({ error: "This invitation is invalid, expired or already used. Ask Truvi Admin to resend it." });
+  const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, invite.userId)).limit(1);
+  if (!profile || profile.status !== "ACTIVE") return res.status(403).json({ error: "This partner account is inactive. Contact Truvi Admin." });
+  const password = await bcrypt.hash(parsed.data.password, 12);
+  await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(marketingPartnerInvites).set({ usedAt: new Date() })
+      .where(and(eq(marketingPartnerInvites._id, invite._id), isNull(marketingPartnerInvites.usedAt))).returning({ id: marketingPartnerInvites._id });
+    if (!claimed) throw new Error("INVITATION_ALREADY_USED");
+    await tx.update(users).set({ password, disabled: false, emailVerified: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, invite.userId));
+    await tx.update(marketingPartnerProfiles).set({
+      termsAcceptedAt: new Date(), termsVersion: CURRENT_POLICY_VERSIONS.TERMS_OF_SERVICE,
+      privacyAcknowledgedAt: new Date(), privacyNoticeVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE,
+      updatedAt: new Date(),
+    }).where(eq(marketingPartnerProfiles.userId, invite.userId));
+  });
+  await logAudit({ userId: invite.userId, action: "marketing.partner.activate", resourceType: "marketing_partner", resourceId: String(invite.userId) });
+  return res.json({ ok: true, message: "Your Truvi Marketing Partner account is active. Sign in using your invited email." });
+});
+
+router.use(authenticate);
+
+router.get("/partner/me", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "MARKETING_PARTNER") return res.status(403).json({ error: "Partner access only." });
+  const [profile] = await getDb().select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.user!.userId)).limit(1);
+  if (!profile || profile.status !== "ACTIVE") return res.status(403).json({ error: "Partner access is inactive." });
+  const [user] = await getDb().select({ name: users.name, email: users.email }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
+  return res.json({ profile: { companyName: profile.companyName, permissions: profile.permissions }, user });
+});
+
+router.get("/overview", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  const db = getDb();
+  const employeeId = typeof req.query.employeeId === "string" ? req.query.employeeId : "";
+  const projectId = typeof req.query.projectId === "string" ? req.query.projectId : "";
+  const campaignId = typeof req.query.campaignId === "string" ? req.query.campaignId : "";
+  const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
+  const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+  const tasks = await db.select().from(employeeTasks).orderBy(desc(employeeTasks.createdAt)).limit(1000);
+  const employeesRows = await db.select({ employee: employees, disabled: users.disabled })
+    .from(employees).leftJoin(users, eq(employees.accountUserId, users._id)).orderBy(desc(employees.createdAt));
+  const campaigns = await db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt));
+  const campaignEmployeeIds = campaignId && isValidId(campaignId)
+    ? (await db.select({ id: marketingCampaignEmployees.employeeId }).from(marketingCampaignEmployees).where(eq(marketingCampaignEmployees.campaignId, campaignId))).map((r) => String(r.id))
+    : [];
+  let scopedTasks = tasks.filter((t) => (!projectId || String(t.projectId || "") === projectId) && (!campaignId || String(t.marketingCampaignId || "") === campaignId));
+  if (employeeId) scopedTasks = scopedTasks.filter((t) => String(t.employeeId) === employeeId || campaignEmployeeIds.includes(String(t.employeeId)));
+  if (from && !Number.isNaN(from.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt >= from);
+  if (to && !Number.isNaN(to.getTime())) scopedTasks = scopedTasks.filter((t) => t.createdAt <= to);
+  let relevantLeads = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(5000);
+  relevantLeads = relevantLeads.filter((l) => (!projectId || String(l.projectId) === projectId) && (!employeeId || String(l.submittedById) === employeeId || String(l.assignedToId || "") === employeeId) && (!from || Number.isNaN(from.getTime()) || l.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || l.createdAt <= to));
+  const leadIds = relevantLeads.map((l) => l._id);
+  const activities = leadIds.length ? await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds)) : [];
+  const visits = await db.select().from(siteVisits).orderBy(desc(siteVisits.scheduledAt)).limit(2000);
+  const visitCount = visits.filter((v) => (!projectId || String(v.projectId) === projectId) && (!employeeId || String(v.responsibleUserId || "") === employeeId) && (!from || Number.isNaN(from.getTime()) || v.scheduledAt >= from) && (!to || Number.isNaN(to.getTime()) || v.scheduledAt <= to)).length;
+  const converted = relevantLeads.filter((l) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(l.stage)).length;
+  const commissionRows = leadIds.length ? await db.select().from(commissions).where(inArray(commissions.leadId, leadIds)) : [];
+  const activeTasks = scopedTasks.filter((t) => !["COMPLETED", "CANCELLED"].includes(t.status));
+  const completedTasks = scopedTasks.filter((t) => t.status === "COMPLETED");
+  const overdue = activeTasks.filter((t) => t.deadlineAt && t.deadlineAt.getTime() < Date.now());
+  res.json({
+    kpis: {
+      employees: employeesRows.filter((r) => r.employee.status !== "INACTIVE" && !r.disabled).length,
+      campaigns: campaigns.filter((c) => c.status === "ACTIVE").length,
+      tasks: scopedTasks.length, inProgress: scopedTasks.filter((t) => t.status === "IN_PROGRESS").length,
+      pending: scopedTasks.filter((t) => ["ASSIGNED", "ACCEPTED"].includes(t.status)).length,
+      underReview: scopedTasks.filter((t) => t.status === "UNDER_REVIEW").length,
+      completed: completedTasks.length, overdue: overdue.length,
+      completionPercent: scopedTasks.length ? Math.round(completedTasks.length / scopedTasks.length * 100) : 0,
+      leads: relevantLeads.length, calls: activities.filter((a) => a.type === "CALL").length,
+      followUps: activities.filter((a) => a.type === "FOLLOW_UP").length, siteVisits: visitCount,
+      conversions: converted, conversionRate: relevantLeads.length ? Math.round(converted / relevantLeads.length * 1000) / 10 : 0,
+      revenue: commissionRows.reduce((sum, c) => sum + Number(c.bookingValue || 0), 0),
+    },
+    employees: employeesRows.map((r) => ({
+      id: String(r.employee._id), name: r.employee.name, email: r.employee.officialEmail,
+      department: r.employee.department, designation: r.employee.title, status: r.employee.status,
+      accountActive: !!r.employee.accountUserId && !r.disabled,
+    })),
+    campaigns, tasks: scopedTasks,
+    projects: await db.select({ id: projects._id, name: projects.name, city: projects.city }).from(projects).orderBy(projects.name).limit(1000),
+    leadsByStage: ["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"].map((stage) => ({ stage, count: relevantLeads.filter((l) => l.stage === stage).length })),
+  });
+});
+
+router.get("/campaigns", async (req: AuthedRequest, res) => {
+  const db = getDb();
+  if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the assigned partner workspace." });
+  const manager = await canManage(req), emp = manager ? null : await actorEmployee(req);
+  if (!manager && (!emp || !emp.permissions?.includes("marketing.os.read"))) return res.status(403).json({ error: "Marketing read permission is required." });
+  let rows = await db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt)).limit(500);
+  if (!manager && emp) {
+    const assignments = await db.select({ id: marketingCampaignEmployees.campaignId }).from(marketingCampaignEmployees).where(eq(marketingCampaignEmployees.employeeId, emp._id));
+    const ids = assignments.map((r) => String(r.id));
+    rows = rows.filter((r) => ids.includes(String(r._id)));
+  }
+  const result = await Promise.all(rows.map(async (campaign) => {
+    const [project] = campaign.projectId ? await db.select({ name: projects.name, city: projects.city }).from(projects).where(eq(projects._id, campaign.projectId)).limit(1) : [];
+    const assignees = await db.select({ employeeId: marketingCampaignEmployees.employeeId, name: employees.name, designation: employees.title })
+      .from(marketingCampaignEmployees).innerJoin(employees, eq(marketingCampaignEmployees.employeeId, employees._id)).where(eq(marketingCampaignEmployees.campaignId, campaign._id));
+    return { ...campaign, project, assignees };
+  }));
+  res.json({ campaigns: result });
+});
+
+router.post("/campaigns", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  const parsed = z.object({
+    name: z.string().trim().min(2).max(160), objective: z.string().max(2000).optional(),
+    projectId: z.string().refine(isValidId).nullable().optional(), channel: z.string().trim().max(60).optional(),
+    status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]).optional(), spendRupees: z.number().nonnegative().max(1000000000).optional(),
+    startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional(),
+    employeeIds: z.array(z.string().refine(isValidId)).max(100).default([]),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid campaign details.", issues: parsed.error.flatten() });
+  const d = parsed.data, db = getDb();
+  if (d.projectId && !(await db.select({ id: projects._id }).from(projects).where(eq(projects._id, d.projectId)).limit(1)).length) return res.status(404).json({ error: "Selected project was not found." });
+  const empRows = d.employeeIds.length ? await db.select().from(employees).where(inArray(employees._id, d.employeeIds)) : [];
+  if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Every campaign employee must have an active linked account." });
+  const [campaign] = await db.transaction(async (tx) => {
+    const [row] = await tx.insert(marketingPartnerCampaigns).values({
+      userId: req.user!.userId, name: d.name, objective: d.objective || null, projectId: d.projectId || null,
+      channel: d.channel || "Other", status: d.status || "ACTIVE", spendPaise: Math.round((d.spendRupees || 0) * 100),
+      startedAt: d.startsAt ? new Date(d.startsAt) : new Date(), endsAt: d.endsAt ? new Date(d.endsAt) : null, createdById: req.user!.userId,
+    }).returning();
+    if (empRows.length) await tx.insert(marketingCampaignEmployees).values(empRows.map((e) => ({ campaignId: row._id, employeeId: e._id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+    return [row];
+  });
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.create", resourceType: "marketing_campaign", resourceId: String(campaign._id), metadata: { projectId: campaign.projectId, employeeCount: empRows.length } });
+  for (const e of empRows) if (e.accountUserId) await createNotifications([String(e.accountUserId)], { type: "marketing_campaign_assigned", title: "Marketing campaign assigned", message: "You were assigned to campaign: " + campaign.name, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(campaign._id) } }).catch(() => []);
+  res.status(201).json({ campaign });
+});
+
+router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Campaign not found." });
+  const parsed = z.object({
+    name: z.string().trim().min(2).max(160).optional(), objective: z.string().max(2000).optional(),
+    projectId: z.string().refine(isValidId).nullable().optional(), status: z.enum(["ACTIVE", "PAUSED", "COMPLETED"]).optional(),
+    spendRupees: z.number().nonnegative().max(1000000000).optional(),
+    startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional(),
+    employeeIds: z.array(z.string().refine(isValidId)).max(100).optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid campaign update." });
+  const db = getDb(), d = parsed.data;
+  const [existing] = await db.select().from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, req.params.id)).limit(1);
+  if (!existing) return res.status(404).json({ error: "Campaign not found." });
+  const patch: Record<string, unknown> = {};
+  if (d.name !== undefined) patch.name = d.name;
+  if (d.objective !== undefined) patch.objective = d.objective;
+  if (d.projectId !== undefined) patch.projectId = d.projectId;
+  if (d.status !== undefined) patch.status = d.status;
+  if (d.spendRupees !== undefined) patch.spendPaise = Math.round(d.spendRupees * 100);
+  if (d.startsAt !== undefined) patch.startedAt = d.startsAt ? new Date(d.startsAt) : null;
+  if (d.endsAt !== undefined) patch.endsAt = d.endsAt ? new Date(d.endsAt) : null;
+  let empRows: (typeof employees.$inferSelect)[] = [];
+  if (d.employeeIds) {
+    empRows = await db.select().from(employees).where(inArray(employees._id, d.employeeIds));
+    if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Choose active linked employee accounts." });
+  }
+  const [updated] = await db.transaction(async (tx) => {
+    const [row] = await tx.update(marketingPartnerCampaigns).set(patch).where(eq(marketingPartnerCampaigns._id, existing._id)).returning();
+    if (d.employeeIds) {
+      await tx.delete(marketingCampaignEmployees).where(eq(marketingCampaignEmployees.campaignId, existing._id));
+      if (empRows.length) await tx.insert(marketingCampaignEmployees).values(empRows.map((e) => ({ campaignId: existing._id, employeeId: e._id, assignedByUserId: req.user!.userId })));
+    }
+    return [row];
+  });
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.update", resourceType: "marketing_campaign", resourceId: String(updated._id) });
+  res.json({ campaign: updated });
+});
+
+router.get("/tasks", async (req: AuthedRequest, res) => {
+  const db = getDb();
+  if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the assigned partner workspace." });
+  const manager = await canManage(req);
+  let tasks = await db.select().from(employeeTasks).orderBy(desc(employeeTasks.updatedAt)).limit(500);
+  if (!manager) {
+    const emp = await actorEmployee(req);
+    if (!emp || !emp.permissions?.includes("task.read.own")) return res.status(403).json({ error: "Task access is not enabled." });
+    const ids = await db.select({ taskId: employeeTaskAssignments.taskId }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.employeeId, emp._id));
+    const scope = [eq(employeeTasks.employeeId, emp._id)];
+    if (ids.length) scope.push(inArray(employeeTasks._id, ids.map((i) => i.taskId)));
+    tasks = await db.select().from(employeeTasks).where(or(...scope)!).orderBy(desc(employeeTasks.updatedAt)).limit(250);
+  }
+  const shaped = await Promise.all(tasks.map(async (task) => {
+    const [project] = task.projectId ? await db.select({ name: projects.name }).from(projects).where(eq(projects._id, task.projectId)).limit(1) : [];
+    const [campaign] = task.marketingCampaignId ? await db.select({ name: marketingPartnerCampaigns.name }).from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, task.marketingCampaignId)).limit(1) : [];
+    const assignees = await db.select({ employeeId: employeeTaskAssignments.employeeId, name: employees.name, status: employeeTaskAssignments.status })
+      .from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id)).where(eq(employeeTaskAssignments.taskId, task._id));
+    return { ...task, project, campaign, assignees };
+  }));
+  res.json({ tasks: shaped });
+});
+
+router.post("/tasks", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  const parsed = z.object({
+    title: z.string().trim().min(2).max(180), description: z.string().max(5000).optional(),
+    projectId: z.string().refine(isValidId).nullable().optional(), campaignId: z.string().refine(isValidId).nullable().optional(),
+    employeeIds: z.array(z.string().refine(isValidId)).min(1).max(100),
+    partnerUserIds: z.array(z.string().refine(isValidId)).max(50).default([]),
+    startAt: z.string().datetime().nullable().optional(), deadlineAt: z.string().datetime().nullable().optional(),
+    priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid task details.", issues: parsed.error.flatten() });
+  const d = parsed.data, db = getDb();
+  const emps = await db.select().from(employees).where(inArray(employees._id, d.employeeIds));
+  if (emps.length !== new Set(d.employeeIds).size || emps.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Select active employees with linked login accounts." });
+  if (d.projectId && !(await db.select({ id: projects._id }).from(projects).where(eq(projects._id, d.projectId)).limit(1)).length) return res.status(404).json({ error: "Project not found." });
+  if (d.campaignId) {
+    const [campaign] = await db.select().from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, d.campaignId)).limit(1);
+    if (!campaign) return res.status(404).json({ error: "Campaign not found." });
+    if (d.projectId && campaign.projectId && campaign.projectId !== d.projectId) return res.status(400).json({ error: "Task project must match the campaign project." });
+  }
+  const partnerIds = Array.from(new Set(d.partnerUserIds));
+  const profiles = partnerIds.length ? await db.select().from(marketingPartnerProfiles).where(inArray(marketingPartnerProfiles.userId, partnerIds)) : [];
+  if (profiles.length !== partnerIds.length || profiles.some((p) => p.status !== "ACTIVE")) return res.status(400).json({ error: "Every client/partner must be active before task sharing." });
+  for (const id of partnerIds) if (d.projectId) {
+    const [assignment] = await db.select({ id: marketingPartnerProjects._id }).from(marketingPartnerProjects).where(and(eq(marketingPartnerProjects.partnerUserId, id), eq(marketingPartnerProjects.projectId, d.projectId))).limit(1);
+    if (!assignment) return res.status(403).json({ error: "A client can only be shared tasks for a project assigned to that account." });
+  }
+  const [task] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(employeeTasks).values({
+      employeeId: emps[0]._id, taskType: "ASSIGNED", title: d.title, description: d.description || null,
+      category: "MARKETING", assignedByUserId: req.user!.userId, priority: d.priority, status: "ASSIGNED",
+      startAt: d.startAt ? new Date(d.startAt) : null, deadlineAt: d.deadlineAt ? new Date(d.deadlineAt) : null,
+      projectId: d.projectId || null, marketingCampaignId: d.campaignId || null,
+    }).returning();
+    await tx.insert(employeeTaskAssignments).values(emps.map((e) => ({ taskId: created._id, employeeId: e._id, assignedByUserId: req.user!.userId, status: "ASSIGNED" as const }))).onConflictDoNothing();
+    if (partnerIds.length) await tx.insert(marketingTaskPartners).values(partnerIds.map((id) => ({ taskId: created._id, partnerUserId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+    await tx.insert(employeeTaskHistory).values({ taskId: created._id, actorUserId: req.user!.userId, action: "MARKETING_TASK_ASSIGNED", afterValue: { employeeIds: d.employeeIds, partnerUserIds: partnerIds, campaignId: d.campaignId || null, status: "ASSIGNED" } });
+    return [created];
+  });
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.assign", resourceType: "employee_task", resourceId: String(task._id), metadata: { employeeCount: emps.length, partnerCount: partnerIds.length, campaignId: d.campaignId || null } });
+  const recipients = emps.map((e) => String(e.accountUserId)).concat(partnerIds);
+  await createNotifications(recipients, { type: "employee_task_assigned", title: "New marketing task assigned", message: "A new task was assigned: " + task.title, actorUserId: req.user!.userId, data: { href: "/employee/marketing", taskId: String(task._id) } }).catch(() => []);
+  for (const recipient of recipients) await queueEmail(recipient, "TASK_ASSIGNED", String(task._id), { title: "New marketing task assigned", message: "A new marketing task was assigned: " + task.title, href: "https://truviventures.com/employee/marketing" }, "task-assigned:" + String(task._id) + ":" + recipient);
+  res.status(201).json({ task });
+});
+
+router.patch("/tasks/:id/progress", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const parsed = z.object({ progressPercent: z.number().int().min(0).max(100), status: z.enum(["ACCEPTED", "IN_PROGRESS", "UNDER_REVIEW"]).optional(), update: z.string().trim().min(2).max(3000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter a progress update and a percentage from 0 to 100." });
+  const db = getDb();
+  const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task || task.taskType !== "ASSIGNED" || req.user!.role !== "EMPLOYEE") return res.status(404).json({ error: "Task not found." });
+  const emp = await actorEmployee(req);
+  if (!emp) return res.status(403).json({ error: "Active employee profile required." });
+  const [assignment] = await db.select().from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1);
+  if (!assignment || !emp.permissions?.includes("task.update.own")) return res.status(404).json({ error: "Task not found." });
+  if (["COMPLETED", "CANCELLED"].includes(task.status)) return res.status(409).json({ error: "This task is already closed." });
+  const nextStatus = parsed.data.status || "IN_PROGRESS";
+  if (nextStatus === "UNDER_REVIEW" && parsed.data.progressPercent !== 100) return res.status(400).json({ error: "Submit for review only after setting progress to 100%." });
+  await db.transaction(async (tx) => {
+    await tx.update(employeeTasks).set({ progressPercent: parsed.data.progressPercent, status: nextStatus, completionNotes: parsed.data.update, updatedAt: new Date() }).where(eq(employeeTasks._id, task._id));
+    await tx.update(employeeTaskAssignments).set({ status: nextStatus, updatedAt: new Date(), completedAt: null }).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id)));
+    await tx.insert(marketingTaskUpdates).values({ taskId: task._id, authorUserId: req.user!.userId, updateType: nextStatus === "UNDER_REVIEW" ? "SUBMITTED_FOR_REVIEW" : "PROGRESS", body: parsed.data.update, progressPercent: parsed.data.progressPercent, clientVisible: true });
+    await tx.insert(employeeTaskHistory).values({ taskId: task._id, actorUserId: req.user!.userId, action: nextStatus === "UNDER_REVIEW" ? "SUBMITTED_FOR_REVIEW" : "PROGRESS_UPDATED", beforeValue: { progressPercent: task.progressPercent, status: task.status }, afterValue: { progressPercent: parsed.data.progressPercent, status: nextStatus } });
+  });
+  await createNotifications([String(task.assignedByUserId)], { type: "employee_task_updated", title: nextStatus === "UNDER_REVIEW" ? "Marketing task submitted for review" : "Marketing task progress updated", message: emp.name + " updated " + task.title + " to " + parsed.data.progressPercent + "%.", actorUserId: req.user!.userId, data: { href: "/admin/marketing-os", taskId: String(task._id) } }).catch(() => []);
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.progress", resourceType: "employee_task", resourceId: String(task._id), metadata: { status: nextStatus, progressPercent: parsed.data.progressPercent } });
+  res.json({ ok: true, progressPercent: parsed.data.progressPercent, status: nextStatus });
+});
+
+router.patch("/tasks/:id/review", async (req: AuthedRequest, res) => {
+  if (!(await requireManager(req, res))) return;
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const parsed = z.object({ decision: z.enum(["APPROVE", "REVISE"]), notes: z.string().trim().min(2).max(3000) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose approval or revision and provide review notes." });
+  const db = getDb();
+  const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task || task.status !== "UNDER_REVIEW") return res.status(409).json({ error: "This task is not awaiting review." });
+  const status = parsed.data.decision === "APPROVE" ? "COMPLETED" : "IN_PROGRESS";
+  await db.transaction(async (tx) => {
+    await tx.update(employeeTasks).set({ status, progressPercent: status === "COMPLETED" ? 100 : Math.min(task.progressPercent, 99), reviewedByUserId: req.user!.userId, reviewedAt: new Date(), reviewNotes: parsed.data.notes, completedAt: status === "COMPLETED" ? new Date() : null, updatedAt: new Date() }).where(eq(employeeTasks._id, task._id));
+    await tx.update(employeeTaskAssignments).set({ status, completedAt: status === "COMPLETED" ? new Date() : null, updatedAt: new Date() }).where(eq(employeeTaskAssignments.taskId, task._id));
+    await tx.insert(marketingTaskUpdates).values({ taskId: task._id, authorUserId: req.user!.userId, updateType: parsed.data.decision, body: parsed.data.notes, progressPercent: status === "COMPLETED" ? 100 : Math.min(task.progressPercent, 99), clientVisible: true });
+    await tx.insert(employeeTaskHistory).values({ taskId: task._id, actorUserId: req.user!.userId, action: "REVIEW_" + parsed.data.decision, beforeValue: { status: task.status }, afterValue: { status, notes: parsed.data.notes } });
+  });
+  const assignees = await db.select({ userId: employees.accountUserId }).from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id)).where(eq(employeeTaskAssignments.taskId, task._id));
+  for (const row of assignees) if (row.userId) await createNotifications([String(row.userId)], { type: "employee_task_review", title: parsed.data.decision === "APPROVE" ? "Marketing task approved" : "Changes requested", message: task.title + ": " + parsed.data.notes, actorUserId: req.user!.userId, data: { href: "/employee/marketing" } }).catch(() => []);
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.review", resourceType: "employee_task", resourceId: String(task._id), metadata: { decision: parsed.data.decision } });
+  res.json({ ok: true, status });
+});
+
+router.get("/tasks/:id/updates", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task) return res.status(404).json({ error: "Task not found." });
+  const isPartner = req.user!.role === "MARKETING_PARTNER";
+  if (isPartner) {
+    const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
+    if (!share) return res.status(404).json({ error: "Task not found." });
+  } else if (req.user!.role === "EMPLOYEE") {
+    const emp = await actorEmployee(req);
+    if (!emp || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
+  } else if (!isAdmin(req) && !(await canManage(req))) return res.status(403).json({ error: "Not authorised." });
+  const updates = await db.select().from(marketingTaskUpdates).where(and(eq(marketingTaskUpdates.taskId, task._id), ...(isPartner ? [eq(marketingTaskUpdates.clientVisible, true)] : []))).orderBy(desc(marketingTaskUpdates.createdAt)).limit(100);
+  res.json({ updates });
+});
+
+router.post("/tasks/:id/updates", async (req: AuthedRequest, res) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Task not found." });
+  const parsed = z.object({ body: z.string().trim().min(2).max(3000), clientVisible: z.boolean().default(true) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Enter an update." });
+  const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
+  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (req.user!.role === "MARKETING_PARTNER") {
+    const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
+    if (!share) return res.status(404).json({ error: "Task not found." });
+  } else if (req.user!.role === "EMPLOYEE") {
+    const emp = await actorEmployee(req);
+    if (!emp || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
+  } else if (!isAdmin(req) && !(await canManage(req))) return res.status(403).json({ error: "Not authorised." });
+  const visible = req.user!.role === "MARKETING_PARTNER" ? true : parsed.data.clientVisible;
+  const [row] = await db.insert(marketingTaskUpdates).values({ taskId: task._id, authorUserId: req.user!.userId, body: parsed.data.body, progressPercent: task.progressPercent, clientVisible: visible }).returning();
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.task.update", resourceType: "employee_task", resourceId: String(task._id) });
+  res.status(201).json({ update: row });
+});
+
+router.get("/partner/dashboard", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "MARKETING_PARTNER") return res.status(403).json({ error: "Partner access only." });
+  const db = getDb();
+  const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
+  if (!profile) return res.status(403).json({ error: "Partner access is inactive." });
+  const projectLinks = await db.select({ project: projects }).from(marketingPartnerProjects).innerJoin(projects, eq(marketingPartnerProjects.projectId, projects._id)).where(eq(marketingPartnerProjects.partnerUserId, req.user!.userId));
+  const campaignRows = await db.select().from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns.userId, req.user!.userId)).orderBy(desc(marketingPartnerCampaigns.createdAt));
+  const taskLinks = await db.select({ task: employeeTasks }).from(marketingTaskPartners).innerJoin(employeeTasks, eq(marketingTaskPartners.taskId, employeeTasks._id)).where(eq(marketingTaskPartners.partnerUserId, req.user!.userId));
+  const tasks = await Promise.all(taskLinks.map(async ({ task }) => {
+    const [updates] = await db.select().from(marketingTaskUpdates).where(and(eq(marketingTaskUpdates.taskId, task._id), eq(marketingTaskUpdates.clientVisible, true))).orderBy(desc(marketingTaskUpdates.createdAt)).limit(1);
+    const [project] = task.projectId ? await db.select({ name: projects.name, city: projects.city }).from(projects).where(eq(projects._id, task.projectId)).limit(1) : [];
+    const [campaign] = task.marketingCampaignId ? await db.select({ name: marketingPartnerCampaigns.name }).from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, task.marketingCampaignId)).limit(1) : [];
+    const attachments = await db.select({ id: employeeTaskAttachments._id, fileName: employeeTaskAttachments.originalFileName, mimeType: employeeTaskAttachments.mimeType, createdAt: employeeTaskAttachments.createdAt }).from(employeeTaskAttachments).where(eq(employeeTaskAttachments.taskId, task._id)).orderBy(desc(employeeTaskAttachments.createdAt));
+    return { id: String(task._id), title: task.title, description: task.description, status: task.status, progressPercent: task.progressPercent, startAt: task.startAt, deadlineAt: task.deadlineAt, project, campaign, latestUpdate: updates ? { body: updates.body, createdAt: updates.createdAt } : null, attachments };
+  }));
+  const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
+  return res.json({
+    user, companyName: profile.companyName,
+    projects: projectLinks.map((r) => ({ id: String(r.project._id), name: r.project.name, city: r.project.city, location: r.project.location })),
+    campaigns: campaignRows.map((c) => ({ id: String(c._id), name: c.name, channel: c.channel, status: c.status, startedAt: c.startedAt, endsAt: c.endsAt, projectId: c.projectId })),
+    tasks, summary: {
+      tasks: tasks.length, completed: tasks.filter((t) => t.status === "COMPLETED").length,
+      inProgress: tasks.filter((t) => t.status === "IN_PROGRESS").length,
+      completionPercent: tasks.length ? Math.round(tasks.filter((t) => t.status === "COMPLETED").length / tasks.length * 100) : 0,
+    },
+  });
+});
+
+router.get("/partners", async (req: AuthedRequest, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
+  const rows = await getDb().select({ profile: marketingPartnerProfiles, name: users.name, email: users.email, disabled: users.disabled })
+    .from(marketingPartnerProfiles).innerJoin(users, eq(marketingPartnerProfiles.userId, users._id)).orderBy(desc(marketingPartnerProfiles.createdAt));
+  res.json({ partners: rows.map((r) => ({ id: String(r.profile.userId), name: r.name, email: r.email, companyName: r.profile.companyName, phone: r.profile.phone, status: r.profile.status, accountActive: !r.disabled, permissions: r.profile.permissions })) });
+});
+
+router.post("/partners", async (req: AuthedRequest, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Only Admin can provision client/partner accounts." });
+  const parsed = z.object({
+    name: z.string().trim().min(2).max(160), email: z.email().transform((v) => v.toLowerCase()),
+    phone: z.string().trim().max(24).optional().default(""), companyName: z.string().trim().max(180).optional(),
+    projectIds: z.array(z.string().refine(isValidId)).min(1).max(100),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Check the partner details and assigned projects.", issues: parsed.error.flatten() });
+  const d = parsed.data, db = getDb();
+  if ((await db.select({ id: users._id }).from(users).where(eq(users.email, d.email)).limit(1)).length) return res.status(409).json({ error: "An account already exists for that email." });
+  const pRows = await db.select({ id: projects._id }).from(projects).where(inArray(projects._id, d.projectIds));
+  if (pRows.length !== new Set(d.projectIds).size) return res.status(400).json({ error: "One or more assigned projects do not exist." });
+  const randomPassword = await bcrypt.hash(randomBytes(48).toString("hex"), 12);
+  const created = await db.transaction(async (tx) => {
+    const [account] = await tx.insert(users).values({
+      name: d.name, email: d.email, password: randomPassword, role: "MARKETING_PARTNER",
+      approvalStatus: "APPROVED", disabled: true, phone: d.phone || null, emailVerified: false, phoneVerified: true,
+    }).returning({ id: users._id });
+    await tx.insert(marketingPartnerProfiles).values({ userId: account.id, companyName: d.companyName || null, phone: d.phone || null, status: "ACTIVE", permissions: partnerPermissionDefaults, createdById: req.user!.userId });
+    await tx.insert(marketingPartnerProjects).values(d.projectIds.map((id) => ({ partnerUserId: account.id, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+    return { id: String(account.id) };
+  });
+  const token = randomBytes(32).toString("hex");
+  await db.insert(marketingPartnerInvites).values({ userId: created.id, tokenHash: tokenHash(token), createdById: req.user!.userId, expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000) });
+  const inviteUrl = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "") + "/marketing/activate?token=" + token;
+  await queueEmail(created.id, "PARTNER_INVITE", null, {
+    title: "Your Truvi Marketing Partner account is ready",
+    message: "Truvi has invited you to a secure project workspace. Activate your account to view assigned projects, campaign activity, progress and reports.",
+    href: inviteUrl,
+  }, "partner-invite:" + created.id);
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.create", resourceType: "marketing_partner", resourceId: created.id, metadata: { projectCount: d.projectIds.length } });
+  res.status(201).json({ partnerId: created.id, inviteQueued: true, message: "Partner account created. The invitation email has been queued for delivery." });
+});
+
+router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
+  if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
+  const parsed = z.object({ status: z.enum(["ACTIVE", "INACTIVE"]), projectIds: z.array(z.string().refine(isValidId)).max(100).optional() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid partner update." });
+  const db = getDb(), [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
+  if (!profile) return res.status(404).json({ error: "Partner not found." });
+  if (parsed.data.projectIds) {
+    const existing = await db.select({ id: projects._id }).from(projects).where(inArray(projects._id, parsed.data.projectIds));
+    if (existing.length !== new Set(parsed.data.projectIds).size) return res.status(400).json({ error: "One or more assigned projects do not exist." });
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(marketingPartnerProfiles).set({ status: parsed.data.status, updatedAt: new Date() }).where(eq(marketingPartnerProfiles.userId, req.params.userId));
+    await tx.update(users).set({ disabled: parsed.data.status !== "ACTIVE", authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
+    if (parsed.data.projectIds) {
+      await tx.delete(marketingPartnerProjects).where(eq(marketingPartnerProjects.partnerUserId, req.params.userId));
+      if (parsed.data.projectIds.length) await tx.insert(marketingPartnerProjects).values(parsed.data.projectIds.map((id) => ({ partnerUserId: req.params.userId, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+    }
+  });
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.update", resourceType: "marketing_partner", resourceId: req.params.userId, metadata: { status: parsed.data.status } });
+  res.json({ ok: true });
+});
+
+router.get("/partner/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, res) => {
+  if (req.user!.role !== "MARKETING_PARTNER" || !isValidId(req.params.id) || !isValidId(req.params.attachmentId)) return res.status(404).end();
+  const db = getDb();
+  const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, req.params.id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
+  if (!share) return res.status(404).end();
+  const [attachment] = await db.select().from(employeeTaskAttachments).where(and(eq(employeeTaskAttachments._id, req.params.attachmentId), eq(employeeTaskAttachments.taskId, req.params.id))).limit(1);
+  if (!attachment) return res.status(404).end();
+  const file = privateFilePath("private:" + attachment.storedFileName);
+  if (!file || !fs.existsSync(file)) return res.status(404).end();
+  res.setHeader("Content-Type", attachment.mimeType);
+  res.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodeURIComponent(attachment.originalFileName));
+  fs.createReadStream(file).pipe(res);
+});
+
+router.get("/outbox", async (req: AuthedRequest, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
+  const rows = await getDb().select({
+    id: marketingOsEmailOutbox._id, eventType: marketingOsEmailOutbox.eventType,
+    status: marketingOsEmailOutbox.status, attempts: marketingOsEmailOutbox.attempts,
+    nextAttemptAt: marketingOsEmailOutbox.nextAttemptAt, sentAt: marketingOsEmailOutbox.sentAt,
+    lastError: marketingOsEmailOutbox.lastError, createdAt: marketingOsEmailOutbox.createdAt,
+  }).from(marketingOsEmailOutbox).orderBy(desc(marketingOsEmailOutbox.createdAt)).limit(200);
+  res.json({ outbox: rows });
+});
+
+export default router;
