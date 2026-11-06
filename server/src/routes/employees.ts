@@ -1228,9 +1228,9 @@ router.get("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, re
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) return;
-      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
-        return res.status(404).json({ error: "Attachment not found." });
-      }
+      const assignedRead = hasPermission(emp.permissions, "task.read.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerRead = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedRead && !marketingManagerRead) return res.status(404).json({ error: "Attachment not found." });
     }
     const [attachment] = await getDb().select().from(employeeTaskAttachments)
       .where(and(eq(employeeTaskAttachments._id, attachmentId), eq(employeeTaskAttachments.taskId, taskId))).limit(1);
