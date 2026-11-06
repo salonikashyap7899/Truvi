@@ -3,7 +3,7 @@ import multer from "multer";
 import Papa from "papaparse";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects } from "../db/schema";
+import { projects, users } from "../db/schema";
 import { CATEGORY_TABLES, DATA_CATEGORIES, projectDataUploads } from "../db/verificationSchema";
 import { isValidId } from "../lib/ids";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
