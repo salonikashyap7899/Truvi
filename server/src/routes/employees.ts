@@ -28,6 +28,7 @@ import { dateRangesOverlap, inclusiveCalendarDays, isValidIsoDate } from "../lib
 import { aggregateAssignedTaskStatus } from "../lib/employeeTaskRules";
 import { fileMatchesExtension } from "../services/uploadService";
 import { privateFilePath, privateRef, privateUpload } from "../services/privateFiles";
+import { encryptInviteUrl, queueMarketingOsEmail } from "./marketingOs";
 
 const router = Router();
 const DEFAULT_EMPLOYEE_PERMISSIONS = [
@@ -102,13 +103,19 @@ async function issueInvite(employeeId: string, actorUserId: string) {
     .where(and(eq(employeeInvites.employeeId, employeeId), isNull(employeeInvites.usedAt)));
   await db.insert(employeeInvites).values({ employeeId, tokenHash: hashToken(raw), createdById: actorUserId, expiresAt });
   const clientBase = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "");
-  const url = `${clientBase}/employee/activate?token=${raw}`;
-  const delivered = await sendEmail(
-    employee.officialEmail,
-    "Activate your Truvi employee account",
-    `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033"><h2>Welcome to Truvi, ${esc(employee.name)}</h2><p>Your employee account has been created. Use the secure link below to choose your password and activate access.</p><p><a href="${url}" style="display:inline-block;padding:12px 18px;background:#172033;color:#fff;text-decoration:none;border-radius:8px">Activate employee account</a></p><p>This one-time link expires in 48 hours. If you did not expect this invitation, contact your administrator.</p></div>`,
-  );
-  return { delivered, expiresAt };
+  const url = clientBase + "/employee/activate?token=" + raw;
+  const html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#172033"><h2>Welcome to Truvi, ' + esc(employee.name) + '</h2><p>Your employee account has been created. Use the secure link below to choose your password and activate access.</p><p><a href="' + url + '" style="display:inline-block;padding:12px 18px;background:#172033;color:#fff;text-decoration:none;border-radius:8px">Activate employee account</a></p><p>This one-time link expires in 48 hours. If you did not expect this invitation, contact your administrator.</p></div>';
+  let delivered = false;
+  try { delivered = await sendEmail(employee.officialEmail, "Activate your Truvi employee account", html); }
+  catch (error) { console.warn("[employee-invite] direct email attempt failed; queued for retry:", error instanceof Error ? error.message : "unknown"); }
+  if (!delivered) {
+    await queueMarketingOsEmail(String(employee.accountUserId), "EMPLOYEE_INVITE", employeeId, {
+      title: "Welcome to Truvi — activate your employee account",
+      message: "Your employee account is ready. Use the secure activation link to choose your password and access your employee workspace.",
+      hrefEncrypted: encryptInviteUrl(url),
+    }, "employee-invite:" + employeeId + ":" + expiresAt.getTime());
+  }
+  return { delivered, queuedForRetry: !delivered, expiresAt };
 }
 
 function isValidEmployeePhone(phone: string | null | undefined): boolean {
@@ -178,7 +185,7 @@ const taskPatchSchema = z.object({
   description: z.string().max(5000).optional(),
   category: z.string().max(80).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-  status: z.enum(["ASSIGNED", "ACCEPTED", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED"]).optional(),
+  status: z.enum(["ASSIGNED", "ACCEPTED", "IN_PROGRESS", "UNDER_REVIEW", "ON_HOLD", "COMPLETED", "CANCELLED"]).optional(),
   startAt: z.string().optional().nullable(),
   deadlineAt: z.string().optional().nullable(),
   estimatedMinutes: z.coerce.number().int().min(1).max(100000).optional().nullable(),
@@ -587,7 +594,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
       }).returning();
       return { accountId: String(account.id), employee };
     });
-    const invite = await issueInvite(String(created.employee._id), req.user!.userId).catch(() => ({ delivered: false, expiresAt: null }));
+    const invite = await issueInvite(String(created.employee._id), req.user!.userId).catch(() => ({ delivered: false, queuedForRetry: false, expiresAt: null }));
     await logAudit({ userId: req.user!.userId, action: "employee.create", resourceType: "employee", resourceId: String(created.employee._id), metadata: { name: data.name, employeeCode: code, department: data.department, inviteDelivered: invite.delivered } });
     if (invite.delivered) {
       await notifyUser(req.user!.userId, "employee_invitation_sent", "Employee invitation sent", `Activation invitation sent to ${data.name}.`, req.user!.userId, "/admin/employees");
@@ -595,7 +602,12 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
     return res.status(201).json({
       employee: employeePublicShape(created.employee, { email: data.officialEmail, disabled: true, emailVerified: false, phoneVerified: false }),
       inviteDelivered: invite.delivered,
-      inviteMessage: invite.delivered ? "Activation invitation sent by email." : "Employee profile created but email delivery is not configured or failed. Configure SMTP, then resend the invitation.",
+      inviteQueuedForRetry: invite.queuedForRetry,
+      inviteMessage: invite.delivered
+        ? "Activation invitation sent by email."
+        : invite.queuedForRetry
+          ? "Employee profile created. Email delivery is queued for automatic retry; check the Marketing OS email outbox if it remains pending."
+          : "Employee profile created, but the activation email could not be queued. Check email configuration and resend the invitation.",
     });
   } catch (err) { next(err); }
 });
@@ -915,6 +927,10 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
     const [before] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, taskId)).limit(1);
     if (!before) return res.status(404).json({ error: "Task not found." });
     const admin = req.user!.role === "ADMIN";
+    // Marketing work must use the dedicated progress submission / review flow.
+    if (!admin && before.taskType === "ASSIGNED" && before.category === "MARKETING" && ["UNDER_REVIEW", "COMPLETED"].includes(parsed.data.status || "")) {
+      return res.status(403).json({ error: "Submit Marketing work for Admin approval from the Marketing OS workspace." });
+    }
     if (!admin && req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
     let emp: typeof employees.$inferSelect | null = null;
     if (!admin) {
@@ -1125,9 +1141,9 @@ router.get("/tasks/:id/attachments", async (req: AuthedRequest, res, next) => {
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) return;
-      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
-        return res.status(404).json({ error: "Task not found." });
-      }
+      const assignedRead = hasPermission(emp.permissions, "task.read.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerRead = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedRead && !marketingManagerRead) return res.status(404).json({ error: "Task not found." });
     }
     const rows = await getDb().select().from(employeeTaskAttachments)
       .where(eq(employeeTaskAttachments.taskId, taskId)).orderBy(desc(employeeTaskAttachments.createdAt));
@@ -1155,7 +1171,9 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) { cleanup(); return; }
-      if (!hasPermission(emp.permissions, "task.update.own") || !(await canEmployeeAccessTask(task, emp))) {
+      const assignedUpdate = hasPermission(emp.permissions, "task.update.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerUpdate = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedUpdate && !marketingManagerUpdate) {
         cleanup();
         return res.status(404).json({ error: "Task not found." });
       }
@@ -1210,9 +1228,9 @@ router.get("/tasks/:id/attachments/:attachmentId", async (req: AuthedRequest, re
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) return;
-      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
-        return res.status(404).json({ error: "Attachment not found." });
-      }
+      const assignedRead = hasPermission(emp.permissions, "task.read.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerRead = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedRead && !marketingManagerRead) return res.status(404).json({ error: "Attachment not found." });
     }
     const [attachment] = await getDb().select().from(employeeTaskAttachments)
       .where(and(eq(employeeTaskAttachments._id, attachmentId), eq(employeeTaskAttachments.taskId, taskId))).limit(1);
