@@ -27,7 +27,7 @@ import { privateFilePath } from "../services/privateFiles";
 const router = Router();
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const inviteMailKey = () => createHash("sha256").update("truvi-marketing-os-invite:" + (process.env.JWT_ACCESS_SECRET || "local-development-only")).digest();
-function encryptInviteUrl(value: string): string {
+export function encryptInviteUrl(value: string): string {
   const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", inviteMailKey(), iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   return [iv.toString("hex"), cipher.getAuthTag().toString("hex"), encrypted.toString("hex")].join(".");
@@ -102,7 +102,8 @@ export async function processMarketingOsEmailOutbox(limit = 25) {
     if (!job) continue;
     try {
       const [recipient] = await db.select({ name: users.name, email: users.email, disabled: users.disabled }).from(users).where(eq(users._id, job.recipientUserId)).limit(1);
-      if (!recipient || recipient.disabled || !recipient.email) throw new Error("RECIPIENT_UNAVAILABLE");
+      const activationInvite = job.eventType === "PARTNER_INVITE" || job.eventType === "EMPLOYEE_INVITE";
+      if (!recipient || (!activationInvite && recipient.disabled) || !recipient.email) throw new Error("RECIPIENT_UNAVAILABLE");
       const rendered = renderEmail(job.eventType, recipient.name, job.payload || {});
       const result = await sendEmailWithStatus(recipient.email, rendered.subject, rendered.html, MAIL_FROM, { idempotencyKey: "marketing-os/" + String(job._id) });
       if (result.status !== "SENT_TO_PROVIDER") throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
