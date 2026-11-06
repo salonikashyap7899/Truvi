@@ -48,6 +48,9 @@ function isMarketingEmployee(employee: typeof employees.$inferSelect) {
   return employee.department.toLowerCase().includes("market") ||
     Boolean(employee.permissions?.some((permission) => ["marketing.os.manage", "marketing.os.read"].includes(permission)));
 }
+function isMarketingTask(task: typeof employeeTasks.$inferSelect) {
+  return task.taskType === "ASSIGNED" && (task.category === "MARKETING" || Boolean(task.marketingCampaignId));
+}
 async function actorEmployee(req: AuthedRequest) {
   if (req.user?.role !== "EMPLOYEE") return null;
   const [row] = await getDb().select().from(employees)
@@ -658,7 +661,7 @@ router.patch("/tasks/:id/assignments", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Choose one or more valid employee accounts." });
   const db = getDb();
   const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task || task.taskType !== "ASSIGNED") return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task)) return res.status(404).json({ error: "Task not found." });
   if (["COMPLETED", "CANCELLED"].includes(task.status)) return res.status(409).json({ error: "Closed tasks cannot be reassigned." });
   const employeeRows = await db.select().from(employees).where(inArray(employees._id, parsed.data.employeeIds));
   if (employeeRows.length !== new Set(parsed.data.employeeIds).size || employeeRows.some((e) => e.status === "INACTIVE" || !e.accountUserId || !isMarketingEmployee(e))) return res.status(400).json({ error: "Choose active linked Marketing employees (Marketing department or Marketing OS permission)." });
@@ -726,7 +729,7 @@ router.post("/tasks/:id/comments", async (req: AuthedRequest, res) => {
   const parsed = z.object({ body: z.string().trim().min(1).max(3000) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter a comment." });
   const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task)) return res.status(404).json({ error: "Task not found." });
   if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the shared partner update channel." });
   if (!isAdmin(req) && !(await canManage(req))) {
     const emp = await actorEmployee(req);
@@ -743,7 +746,7 @@ router.patch("/tasks/:id/progress", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Enter a progress update and a percentage from 0 to 100." });
   const db = getDb();
   const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task || task.taskType !== "ASSIGNED" || req.user!.role !== "EMPLOYEE") return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task) || req.user!.role !== "EMPLOYEE") return res.status(404).json({ error: "Task not found." });
   const emp = await actorEmployee(req);
   if (!emp) return res.status(403).json({ error: "Active employee profile required." });
   const [assignment] = await db.select().from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1);
@@ -773,7 +776,7 @@ router.patch("/tasks/:id/review", async (req: AuthedRequest, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Choose approval or revision and provide review notes." });
   const db = getDb();
   const [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task || task.status !== "UNDER_REVIEW") return res.status(409).json({ error: "This task is not awaiting review." });
+  if (!task || !isMarketingTask(task) || task.status !== "UNDER_REVIEW") return res.status(409).json({ error: "This Marketing task is not awaiting review." });
   const status = parsed.data.decision === "APPROVE" ? "COMPLETED" : "IN_PROGRESS";
   await db.transaction(async (tx) => {
     await tx.update(employeeTasks).set({ status, progressPercent: status === "COMPLETED" ? 100 : Math.min(task.progressPercent, 99), reviewedByUserId: req.user!.userId, reviewedAt: new Date(), reviewNotes: parsed.data.notes, completedAt: status === "COMPLETED" ? new Date() : null, updatedAt: new Date() }).where(eq(employeeTasks._id, task._id));
@@ -814,7 +817,7 @@ router.post("/tasks/:id/updates", async (req: AuthedRequest, res) => {
   const parsed = z.object({ body: z.string().trim().min(2).max(3000), clientVisible: z.boolean().default(true) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Enter an update." });
   const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
-  if (!task) return res.status(404).json({ error: "Task not found." });
+  if (!task || !isMarketingTask(task)) return res.status(404).json({ error: "Task not found." });
   if (req.user!.role === "MARKETING_PARTNER") {
     const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
     const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
