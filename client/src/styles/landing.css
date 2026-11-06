@@ -399,10 +399,10 @@
 }
 
 .homepage-hero-section {
-  min-height: 548px;
+  min-height: 480px;
   justify-content: flex-start !important;
-  padding-top: 138px !important;
-  padding-bottom: 14px !important;
+  padding-top: 122px !important;
+  padding-bottom: 8px !important;
 }
 
 .homepage-hero-inner {
@@ -429,7 +429,7 @@
 .homepage-hero-demo {
   width: min(100%, 900px);
   margin-top: 25px;
-  margin-left: clamp(0px, 16.2vw, 196px);
+  margin-left: clamp(0px, 13.5vw, 164px);
 }
 
 .homepage-hero-demo .homepage-hero-intelligence-card {
@@ -593,7 +593,7 @@
 @media (max-width: 1023px) {
   .homepage-hero-section {
     min-height: 0;
-    padding-top: 132px !important;
+    padding-top: 108px !important;
     padding-bottom: 1.5rem !important;
   }
 
