@@ -1132,9 +1132,9 @@ router.get("/tasks/:id/attachments", async (req: AuthedRequest, res, next) => {
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) return;
-      if (!hasPermission(emp.permissions, "task.read.own") || !(await canEmployeeAccessTask(task, emp))) {
-        return res.status(404).json({ error: "Task not found." });
-      }
+      const assignedRead = hasPermission(emp.permissions, "task.read.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerRead = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedRead && !marketingManagerRead) return res.status(404).json({ error: "Task not found." });
     }
     const rows = await getDb().select().from(employeeTaskAttachments)
       .where(eq(employeeTaskAttachments.taskId, taskId)).orderBy(desc(employeeTaskAttachments.createdAt));
@@ -1162,7 +1162,9 @@ router.post("/tasks/:id/attachments", privateUpload.single("file"), async (req: 
     if (req.user!.role !== "ADMIN") {
       const emp = await needEmployee(req, res);
       if (!emp) { cleanup(); return; }
-      if (!hasPermission(emp.permissions, "task.update.own") || !(await canEmployeeAccessTask(task, emp))) {
+      const assignedUpdate = hasPermission(emp.permissions, "task.update.own") && await canEmployeeAccessTask(task, emp);
+      const marketingManagerUpdate = task.category === "MARKETING" && hasPermission(emp.permissions, "marketing.os.manage");
+      if (!assignedUpdate && !marketingManagerUpdate) {
         cleanup();
         return res.status(404).json({ error: "Task not found." });
       }
