@@ -532,7 +532,7 @@ router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
   let empRows: (typeof employees.$inferSelect)[] = [];
   if (d.employeeIds) {
     empRows = await db.select().from(employees).where(inArray(employees._id, d.employeeIds));
-    if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId)) return res.status(400).json({ error: "Choose active linked employee accounts." });
+    if (empRows.length !== new Set(d.employeeIds).size || empRows.some((e) => e.status === "INACTIVE" || !e.accountUserId || !isMarketingEmployee(e))) return res.status(400).json({ error: "Choose active linked Marketing employees." });
   }
   const [updated] = await db.transaction(async (tx) => {
     const [row] = await tx.update(marketingPartnerCampaigns).set(patch).where(eq(marketingPartnerCampaigns._id, existing._id)).returning();
@@ -543,6 +543,32 @@ router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
     return [row];
   });
   await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.update", resourceType: "marketing_campaign", resourceId: String(updated._id) });
+  const materialChange = d.name !== undefined || d.objective !== undefined || d.projectId !== undefined || d.status !== undefined || d.startsAt !== undefined || d.endsAt !== undefined;
+  if (materialChange) {
+    const [employeeRecipients, partnerRecipients] = await Promise.all([
+      db.select({ userId: employees.accountUserId, name: employees.name })
+        .from(marketingCampaignEmployees).innerJoin(employees, eq(marketingCampaignEmployees.employeeId, employees._id))
+        .innerJoin(users, eq(employees.accountUserId, users._id))
+        .where(and(eq(marketingCampaignEmployees.campaignId, updated._id), eq(users.disabled, false))),
+      updated.projectId
+        ? db.select({ userId: marketingPartnerProfiles.userId })
+            .from(marketingPartnerProjects).innerJoin(marketingPartnerProfiles, eq(marketingPartnerProjects.partnerUserId, marketingPartnerProfiles.userId))
+            .innerJoin(users, eq(marketingPartnerProfiles.userId, users._id))
+            .where(and(eq(marketingPartnerProjects.projectId, updated.projectId), eq(marketingPartnerProfiles.status, "ACTIVE"), eq(users.disabled, false)))
+        : Promise.resolve([]),
+    ]);
+    const message = "Campaign update: " + updated.name + " is now " + updated.status.toLowerCase().replaceAll("_", " ") + ".";
+    const employeeIds = Array.from(new Set(employeeRecipients.map((row) => row.userId).filter((id): id is string => !!id)));
+    const partnerIds = Array.from(new Set(partnerRecipients.map((row) => String(row.userId))));
+    if (employeeIds.length) {
+      await createNotifications(employeeIds, { type: "marketing_campaign_assigned", title: "Marketing campaign updated", message, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(updated._id) } }).catch(() => []);
+      for (const recipientUserId of employeeIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Marketing campaign updated", message, href: "https://truviventures.com/employee/marketing" }, "campaign-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(updated.updatedAt?.getTime?.() ?? Date.now()));
+    }
+    if (partnerIds.length) {
+      await createNotifications(partnerIds, { type: "marketing_campaign_assigned", title: "Shared campaign updated", message, actorUserId: req.user!.userId, data: { href: "/marketing/partner", campaignId: String(updated._id) } }).catch(() => []);
+      for (const recipientUserId of partnerIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Shared campaign updated", message, href: "https://truviventures.com/marketing/partner" }, "campaign-partner-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(updated.updatedAt?.getTime?.() ?? Date.now()));
+    }
+  }
   res.json({ campaign: updated });
 });
 
