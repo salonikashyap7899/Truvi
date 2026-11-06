@@ -47,7 +47,7 @@ export default function DataIngestPanel() {
 
   useEffect(() => {
     api
-      .get("/admin/projects")
+      .get("/ingest/projects")
       .then((res) => {
         const list: ProjectOpt[] = (res.data.projects ?? []).map((p: any) => ({ _id: p._id, name: p.name, city: p.city }));
         list.sort((a, b) => a.name.localeCompare(b.name));
