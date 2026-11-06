@@ -26,6 +26,32 @@ const resources = [
 ];
 
 export default function LegalPage() {
+  const disclosures: Array<[string, string | null]> = [
+    ["Legal entity name", legalDisclosure.legalEntityName],
+    ["Registered office", legalDisclosure.registeredOfficeAddress],
+    ["Headquarters / principal address", legalDisclosure.headquartersAddress],
+    ["All branch addresses", legalDisclosure.branchAddresses],
+    ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
+    ["GSTIN (only if registered)", legalDisclosure.gstin],
+    ["Website", "https://truviventures.com"],
+    ["Customer-care email", "info@truviventures.com"],
+    ["Customer-care mobile", legalDisclosure.customerCarePhone],
+    ["Customer-care landline", legalDisclosure.customerCareLandline],
+    ["Grievance Officer name", legalDisclosure.grievanceOfficerName],
+    ["Grievance Officer designation", legalDisclosure.grievanceOfficerDesignation],
+    ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
+    ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
+    ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
+    ["UP RERA agent registration (if required)", legalDisclosure.upReraAgentRegistration],
+  ];
+
+  // Landlines are optional. Do not display empty placeholders for contact
+  // channels the company does not currently maintain.
+  const visibleDisclosures = disclosures.filter(([label, value]) => {
+    const isOptionalLandline = label === "Customer-care landline" || label === "Grievance Officer landline";
+    return !isOptionalLandline || Boolean(value);
+  });
+
   return (
     <main className="min-h-screen px-4 pb-24 pt-28 sm:px-6 md:px-12">
       <SiteNav />
@@ -43,24 +69,7 @@ export default function LegalPage() {
             These details must be populated from current company records and the formal appointment of the grievance officer. Missing values are intentionally not guessed.
           </p>
           <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
-            {([
-              ["Legal entity name", legalDisclosure.legalEntityName],
-              ["Registered office", legalDisclosure.registeredOfficeAddress],
-              ["Headquarters / principal address", legalDisclosure.headquartersAddress],
-              ["All branch addresses", legalDisclosure.branchAddresses],
-              ["CIN / LLPIN", legalDisclosure.cinOrLlpNumber],
-              ["GSTIN (only if registered)", legalDisclosure.gstin],
-              ["Website", "https://truviventures.com"],
-              ["Customer-care email", "info@truviventures.com"],
-              ["Customer-care mobile", legalDisclosure.customerCarePhone],
-              ["Customer-care landline", legalDisclosure.customerCareLandline],
-              ["Grievance Officer name", legalDisclosure.grievanceOfficerName],
-              ["Grievance Officer designation", legalDisclosure.grievanceOfficerDesignation],
-              ["Grievance Officer email", legalDisclosure.grievanceOfficerEmail],
-              ["Grievance Officer mobile", legalDisclosure.grievanceOfficerPhone],
-              ["Grievance Officer landline", legalDisclosure.grievanceOfficerLandline],
-              ["UP RERA agent registration (if required)", legalDisclosure.upReraAgentRegistration],
-            ] as Array<[string, string | null]>).map(([label, value]) => (
+            {visibleDisclosures.map(([label, value]) => (
               <div key={label}>
                 <dt className="text-muted-foreground">{label}</dt>
                 <dd className="mt-1 break-words font-medium text-foreground">{value || "Not configured — management verification required"}</dd>
