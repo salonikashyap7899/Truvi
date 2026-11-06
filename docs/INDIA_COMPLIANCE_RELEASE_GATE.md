@@ -1,6 +1,6 @@
 # Truvi — India Compliance Release Gate
 
-**Review date:** 5 November 2026  
+**Review date:** 6 November 2026  
 **Purpose:** engineering and operational checklist for Indian-law readiness.  
 **Status:** implementation aid only; not legal advice, a compliance certificate, or proof that Truvi is compliant.
 
