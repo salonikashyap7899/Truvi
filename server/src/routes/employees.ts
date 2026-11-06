@@ -594,7 +594,7 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
       }).returning();
       return { accountId: String(account.id), employee };
     });
-    const invite = await issueInvite(String(created.employee._id), req.user!.userId).catch(() => ({ delivered: false, expiresAt: null }));
+    const invite = await issueInvite(String(created.employee._id), req.user!.userId).catch(() => ({ delivered: false, queuedForRetry: false, expiresAt: null }));
     await logAudit({ userId: req.user!.userId, action: "employee.create", resourceType: "employee", resourceId: String(created.employee._id), metadata: { name: data.name, employeeCode: code, department: data.department, inviteDelivered: invite.delivered } });
     if (invite.delivered) {
       await notifyUser(req.user!.userId, "employee_invitation_sent", "Employee invitation sent", `Activation invitation sent to ${data.name}.`, req.user!.userId, "/admin/employees");
@@ -602,7 +602,12 @@ router.post("/", requireRole("ADMIN"), async (req: AuthedRequest, res, next) => 
     return res.status(201).json({
       employee: employeePublicShape(created.employee, { email: data.officialEmail, disabled: true, emailVerified: false, phoneVerified: false }),
       inviteDelivered: invite.delivered,
-      inviteMessage: invite.delivered ? "Activation invitation sent by email." : "Employee profile created but email delivery is not configured or failed. Configure SMTP, then resend the invitation.",
+      inviteQueuedForRetry: invite.queuedForRetry,
+      inviteMessage: invite.delivered
+        ? "Activation invitation sent by email."
+        : invite.queuedForRetry
+          ? "Employee profile created. Email delivery is queued for automatic retry; check the Marketing OS email outbox if it remains pending."
+          : "Employee profile created, but the activation email could not be queued. Check email configuration and resend the invitation.",
     });
   } catch (err) { next(err); }
 });
