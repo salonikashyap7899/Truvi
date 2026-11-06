@@ -1485,6 +1485,7 @@ export const employeeTasks = pgTable("employee_tasks", {
   // Shared Marketing OS task workflow; status remains text-backed for additive compatibility.
   marketingCampaignId: uuid("marketing_campaign_id"),
   progressPercent: integer("progress_percent").notNull().default(0),
+  reviewStatus: text("review_status").$type<"NOT_SUBMITTED" | "SUBMITTED" | "APPROVED" | "REVISION_REQUESTED">().notNull().default("NOT_SUBMITTED"),
   reviewedByUserId: uuid("reviewed_by_user_id").references(() => users._id),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
   reviewNotes: text("review_notes"),
@@ -2368,6 +2369,17 @@ export const marketingPartnerProjects = pgTable("marketing_partner_projects", {
   uniqueIndex("marketing_partner_projects_unique").on(t.partnerUserId, t.projectId),
   index("marketing_partner_projects_partner_idx").on(t.partnerUserId),
   index("marketing_partner_projects_project_idx").on(t.projectId),
+]);
+
+export const marketingCampaignPartners = pgTable("marketing_campaign_partners", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => marketingPartnerCampaigns._id, { onDelete: "cascade" }),
+  partnerUserId: uuid("partner_user_id").notNull().references(() => users._id),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_campaign_partners_unique").on(t.campaignId, t.partnerUserId),
+  index("marketing_campaign_partners_user_idx").on(t.partnerUserId),
 ]);
 
 export const marketingCampaignEmployees = pgTable("marketing_campaign_employees", {
