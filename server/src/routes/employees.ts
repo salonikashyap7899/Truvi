@@ -178,7 +178,7 @@ const taskPatchSchema = z.object({
   description: z.string().max(5000).optional(),
   category: z.string().max(80).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-  status: z.enum(["ASSIGNED", "ACCEPTED", "IN_PROGRESS", "ON_HOLD", "COMPLETED", "CANCELLED"]).optional(),
+  status: z.enum(["ASSIGNED", "ACCEPTED", "IN_PROGRESS", "UNDER_REVIEW", "ON_HOLD", "COMPLETED", "CANCELLED"]).optional(),
   startAt: z.string().optional().nullable(),
   deadlineAt: z.string().optional().nullable(),
   estimatedMinutes: z.coerce.number().int().min(1).max(100000).optional().nullable(),
