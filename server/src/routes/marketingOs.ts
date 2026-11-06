@@ -41,6 +41,7 @@ function decryptInviteUrl(value: string): string {
 }
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || ""));
 const partnerPermissionDefaults = ["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned"];
+const partnerPermissionAllowlist = [...partnerPermissionDefaults, "task.update.shared"];
 
 function isAdmin(req: AuthedRequest) { return req.user?.role === "ADMIN"; }
 async function actorEmployee(req: AuthedRequest) {
@@ -637,8 +638,9 @@ router.get("/tasks/:id/updates", async (req: AuthedRequest, res) => {
   if (!task) return res.status(404).json({ error: "Task not found." });
   const isPartner = req.user!.role === "MARKETING_PARTNER";
   if (isPartner) {
+    const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
     const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
-    if (!share) return res.status(404).json({ error: "Task not found." });
+    if (!profile?.permissions.includes("task.read.shared") || !share) return res.status(404).json({ error: "Task not found." });
   } else if (req.user!.role === "EMPLOYEE") {
     const emp = await actorEmployee(req);
     if (!emp || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
@@ -654,8 +656,9 @@ router.post("/tasks/:id/updates", async (req: AuthedRequest, res) => {
   const db = getDb(), [task] = await db.select().from(employeeTasks).where(eq(employeeTasks._id, req.params.id)).limit(1);
   if (!task) return res.status(404).json({ error: "Task not found." });
   if (req.user!.role === "MARKETING_PARTNER") {
+    const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
     const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, task._id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
-    if (!share) return res.status(404).json({ error: "Task not found." });
+    if (!profile?.permissions.includes("task.update.shared") || !share) return res.status(403).json({ error: "Partner updates are not enabled for this account." });
   } else if (req.user!.role === "EMPLOYEE") {
     const emp = await actorEmployee(req);
     if (!emp || !(await db.select({ id: employeeTaskAssignments._id }).from(employeeTaskAssignments).where(and(eq(employeeTaskAssignments.taskId, task._id), eq(employeeTaskAssignments.employeeId, emp._id))).limit(1)).length) return res.status(404).json({ error: "Task not found." });
@@ -671,18 +674,27 @@ router.get("/partner/dashboard", async (req: AuthedRequest, res) => {
   const db = getDb();
   const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
   if (!profile) return res.status(403).json({ error: "Partner access is inactive." });
-  const projectLinks = await db.select({ project: projects }).from(marketingPartnerProjects).innerJoin(projects, eq(marketingPartnerProjects.projectId, projects._id)).where(eq(marketingPartnerProjects.partnerUserId, req.user!.userId));
-  const taskLinks = await db.select({ task: employeeTasks }).from(marketingTaskPartners).innerJoin(employeeTasks, eq(marketingTaskPartners.taskId, employeeTasks._id)).where(eq(marketingTaskPartners.partnerUserId, req.user!.userId));
+  const projectLinks = profile.permissions.includes("project.read.assigned")
+    ? await db.select({ project: projects }).from(marketingPartnerProjects).innerJoin(projects, eq(marketingPartnerProjects.projectId, projects._id)).where(eq(marketingPartnerProjects.partnerUserId, req.user!.userId))
+    : [];
+  const projectIds = projectLinks.map((row) => String(row.project._id));
+  const taskLinks = profile.permissions.includes("task.read.shared")
+    ? await db.select({ task: employeeTasks }).from(marketingTaskPartners).innerJoin(employeeTasks, eq(marketingTaskPartners.taskId, employeeTasks._id)).where(eq(marketingTaskPartners.partnerUserId, req.user!.userId))
+    : [];
   const taskCampaignIds = taskLinks.map((x) => String(x.task.marketingCampaignId || "")).filter(Boolean);
   const campaignRowsAll = await db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt));
-  const campaignRows = campaignRowsAll.filter((c) =>
-    (c.projectId && projectIds.includes(String(c.projectId))) || taskCampaignIds.includes(String(c._id))
-  );
+  const campaignRows = profile.permissions.includes("campaign.read.assigned")
+    ? campaignRowsAll.filter((campaign) =>
+        (campaign.projectId && projectIds.includes(String(campaign.projectId))) || taskCampaignIds.includes(String(campaign._id))
+      )
+    : [];
   const tasks = await Promise.all(taskLinks.map(async ({ task }) => {
     const [updates] = await db.select().from(marketingTaskUpdates).where(and(eq(marketingTaskUpdates.taskId, task._id), eq(marketingTaskUpdates.clientVisible, true))).orderBy(desc(marketingTaskUpdates.createdAt)).limit(1);
     const [project] = task.projectId ? await db.select({ name: projects.name, city: projects.city }).from(projects).where(eq(projects._id, task.projectId)).limit(1) : [];
     const [campaign] = task.marketingCampaignId ? await db.select({ name: marketingPartnerCampaigns.name }).from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, task.marketingCampaignId)).limit(1) : [];
-    const attachments = await db.select({ id: employeeTaskAttachments._id, fileName: employeeTaskAttachments.originalFileName, mimeType: employeeTaskAttachments.mimeType, createdAt: employeeTaskAttachments.createdAt }).from(employeeTaskAttachments).where(eq(employeeTaskAttachments.taskId, task._id)).orderBy(desc(employeeTaskAttachments.createdAt));
+    const attachments = profile.permissions.includes("report.read.assigned")
+      ? await db.select({ id: employeeTaskAttachments._id, fileName: employeeTaskAttachments.originalFileName, mimeType: employeeTaskAttachments.mimeType, createdAt: employeeTaskAttachments.createdAt }).from(employeeTaskAttachments).where(eq(employeeTaskAttachments.taskId, task._id)).orderBy(desc(employeeTaskAttachments.createdAt))
+      : [];
     return { id: String(task._id), title: task.title, description: task.description, status: task.status, progressPercent: task.progressPercent, startAt: task.startAt, deadlineAt: task.deadlineAt, project, campaign, latestUpdate: updates ? { body: updates.body, createdAt: updates.createdAt } : null, attachments };
   }));
   const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
@@ -765,7 +777,11 @@ router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
 router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
   if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
-  const parsed = z.object({ status: z.enum(["ACTIVE", "INACTIVE"]), projectIds: z.array(z.string().refine(isValidId)).max(100).optional() }).safeParse(req.body);
+  const parsed = z.object({
+    status: z.enum(["ACTIVE", "INACTIVE"]),
+    projectIds: z.array(z.string().refine(isValidId)).max(100).optional(),
+    permissions: z.array(z.enum(["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned", "task.update.shared"])).max(5).optional(),
+  }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid partner update." });
   const db = getDb(), [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
   if (!profile) return res.status(404).json({ error: "Partner not found." });
@@ -774,7 +790,11 @@ router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
     if (existing.length !== new Set(parsed.data.projectIds).size) return res.status(400).json({ error: "One or more assigned projects do not exist." });
   }
   await db.transaction(async (tx) => {
-    await tx.update(marketingPartnerProfiles).set({ status: parsed.data.status, updatedAt: new Date() }).where(eq(marketingPartnerProfiles.userId, req.params.userId));
+    await tx.update(marketingPartnerProfiles).set({
+      status: parsed.data.status,
+      ...(parsed.data.permissions ? { permissions: Array.from(new Set(parsed.data.permissions)) } : {}),
+      updatedAt: new Date(),
+    }).where(eq(marketingPartnerProfiles.userId, req.params.userId));
     await tx.update(users).set({ disabled: parsed.data.status !== "ACTIVE", authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
     if (parsed.data.projectIds) {
       await tx.delete(marketingPartnerProjects).where(eq(marketingPartnerProjects.partnerUserId, req.params.userId));
@@ -789,7 +809,8 @@ router.get("/partner/tasks/:id/attachments/:attachmentId", async (req: AuthedReq
   if (req.user!.role !== "MARKETING_PARTNER" || !isValidId(req.params.id) || !isValidId(req.params.attachmentId)) return res.status(404).end();
   const db = getDb();
   const [share] = await db.select({ id: marketingTaskPartners._id }).from(marketingTaskPartners).where(and(eq(marketingTaskPartners.taskId, req.params.id), eq(marketingTaskPartners.partnerUserId, req.user!.userId))).limit(1);
-  if (!share) return res.status(404).end();
+  const [profile] = await db.select().from(marketingPartnerProfiles).where(and(eq(marketingPartnerProfiles.userId, req.user!.userId), eq(marketingPartnerProfiles.status, "ACTIVE"))).limit(1);
+  if (!profile?.permissions.includes("report.read.assigned") || !share) return res.status(404).end();
   const [attachment] = await db.select().from(employeeTaskAttachments).where(and(eq(employeeTaskAttachments._id, req.params.attachmentId), eq(employeeTaskAttachments.taskId, req.params.id))).limit(1);
   if (!attachment) return res.status(404).end();
   const file = privateFilePath("private:" + attachment.storedFileName);
