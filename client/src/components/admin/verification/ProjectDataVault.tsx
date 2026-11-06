@@ -114,7 +114,7 @@ export default function ProjectDataVault() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.URL.revokeObjectURL(blobUrl);
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1_000);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Could not download this JSON file");
     } finally {
