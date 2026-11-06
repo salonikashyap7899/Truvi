@@ -1526,7 +1526,7 @@ export const employeeTaskAssignments = pgTable("employee_task_assignments", {
   taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
   employeeId: uuid("employee_id").notNull().references(() => employees._id),
   assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
-  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
   assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
