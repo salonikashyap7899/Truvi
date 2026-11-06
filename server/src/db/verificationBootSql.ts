@@ -174,6 +174,8 @@ export const VERIFICATION_BOOT_SQL: string[] = [
      ON project_data_uploads (category, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS project_data_uploads_uploader_created_idx
      ON project_data_uploads (uploaded_by_id, created_at DESC)`,
+  `ALTER TABLE project_data_uploads ENABLE ROW LEVEL SECURITY`,
+  `REVOKE ALL ON TABLE project_data_uploads FROM PUBLIC, anon, authenticated`,
 
   // RAG embedding store — pgvector column + cosine IVFFLAT index.
   `CREATE TABLE IF NOT EXISTS document_embeddings (
