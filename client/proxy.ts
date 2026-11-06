@@ -14,7 +14,7 @@ const exactRoutes = new Set([
   "/admin/kyc", "/admin/referral-leads", "/admin/documents", "/admin/finance",
   "/admin/commissions", "/admin/investments", "/admin/ambassador-knowledge",
   "/admin/academy", "/admin/audit-logs", "/admin/habitat",
-  "/founder/dashboard", "/employee/dashboard",
+  "/founder/dashboard", "/employee/dashboard", "/employee/marketing", "/marketing/activate", "/marketing/partner", "/admin/marketing-os",
   "/ambassador", "/ambassador/signup", "/ambassador/login", "/ambassador/dashboard",
   "/ambassador/operating-system", "/ambassador/staff-operating-system", "/ambassador/certificate",
   "/developer/dashboard", "/developer/guide", "/developer/inventory", "/developer/crm",
