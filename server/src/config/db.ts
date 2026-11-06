@@ -1860,6 +1860,109 @@ async function ensureSchema(db: Db): Promise<void> {
     `CREATE UNIQUE INDEX IF NOT EXISTS "account_deletion_requests_user_unique" ON "account_deletion_requests" ("user_id")`,
     `CREATE INDEX IF NOT EXISTS "account_deletion_requests_status_idx" ON "account_deletion_requests" ("status", "restore_expires_at")`,
 
+
+    // Marketing OS — additive extensions to the existing HR, campaign and CRM entities.
+    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "marketing_campaign_id" uuid`,
+    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "progress_percent" integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "reviewed_by_user_id" uuid REFERENCES "users"("id")`,
+    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "reviewed_at" timestamptz`,
+    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "review_notes" text`,
+    `CREATE INDEX IF NOT EXISTS "employee_tasks_marketing_campaign_idx" ON "employee_tasks" ("marketing_campaign_id", "status")`,
+    `ALTER TABLE "marketing_partner_campaigns" ADD COLUMN IF NOT EXISTS "project_id" uuid REFERENCES "projects"("id")`,
+    `ALTER TABLE "marketing_partner_campaigns" ADD COLUMN IF NOT EXISTS "objective" text`,
+    `ALTER TABLE "marketing_partner_campaigns" ADD COLUMN IF NOT EXISTS "ends_at" timestamptz`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_campaigns_project_idx" ON "marketing_partner_campaigns" ("project_id", "status")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_partner_profiles" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL UNIQUE REFERENCES "users"("id"),
+       "company_name" text,
+       "phone" text,
+       "status" text NOT NULL DEFAULT 'ACTIVE',
+       "permissions" jsonb NOT NULL DEFAULT '["project.read.assigned","campaign.read.assigned","task.read.shared","report.read.assigned"]'::jsonb,
+       "terms_accepted_at" timestamptz,
+       "terms_version" text,
+       "privacy_acknowledged_at" timestamptz,
+       "privacy_notice_version" text,
+       "created_by_id" uuid REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_profiles_status_idx" ON "marketing_partner_profiles" ("status")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_partner_invites" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "token_hash" text NOT NULL UNIQUE,
+       "created_by_id" uuid NOT NULL REFERENCES "users"("id"),
+       "expires_at" timestamptz NOT NULL,
+       "used_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_invites_user_idx" ON "marketing_partner_invites" ("user_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_partner_projects" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "partner_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "project_id" uuid NOT NULL REFERENCES "projects"("id"),
+       "assigned_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT "marketing_partner_projects_unique" UNIQUE ("partner_user_id", "project_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_projects_partner_idx" ON "marketing_partner_projects" ("partner_user_id")`,
+    `CREATE INDEX IF NOT EXISTS "marketing_partner_projects_project_idx" ON "marketing_partner_projects" ("project_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_campaign_employees" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "marketing_partner_campaigns"("id") ON DELETE CASCADE,
+       "employee_id" uuid NOT NULL REFERENCES "employees"("id"),
+       "assigned_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT "marketing_campaign_employees_unique" UNIQUE ("campaign_id", "employee_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_campaign_employees_employee_idx" ON "marketing_campaign_employees" ("employee_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_campaign_leads" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "campaign_id" uuid NOT NULL REFERENCES "marketing_partner_campaigns"("id") ON DELETE CASCADE,
+       "lead_id" uuid NOT NULL REFERENCES "leads"("id") ON DELETE CASCADE,
+       "linked_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT "marketing_campaign_leads_unique" UNIQUE ("campaign_id", "lead_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_campaign_leads_lead_idx" ON "marketing_campaign_leads" ("lead_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_task_partners" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "task_id" uuid NOT NULL REFERENCES "employee_tasks"("id") ON DELETE CASCADE,
+       "partner_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "assigned_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT "marketing_task_partners_unique" UNIQUE ("task_id", "partner_user_id")
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_task_partners_user_idx" ON "marketing_task_partners" ("partner_user_id")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_task_updates" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "task_id" uuid NOT NULL REFERENCES "employee_tasks"("id") ON DELETE CASCADE,
+       "author_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "update_type" text NOT NULL DEFAULT 'PROGRESS',
+       "body" text NOT NULL,
+       "progress_percent" integer NOT NULL DEFAULT 0,
+       "client_visible" boolean NOT NULL DEFAULT true,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_task_updates_task_idx" ON "marketing_task_updates" ("task_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "marketing_os_email_outbox" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "recipient_user_id" uuid NOT NULL REFERENCES "users"("id"),
+       "event_type" text NOT NULL,
+       "resource_id" uuid,
+       "payload" jsonb NOT NULL DEFAULT '{}'::jsonb,
+       "dedupe_key" text NOT NULL UNIQUE,
+       "status" text NOT NULL DEFAULT 'QUEUED',
+       "attempts" integer NOT NULL DEFAULT 0,
+       "next_attempt_at" timestamptz NOT NULL DEFAULT now(),
+       "claimed_at" timestamptz,
+       "sent_at" timestamptz,
+       "last_error" text,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "marketing_os_email_outbox_due_idx" ON "marketing_os_email_outbox" ("status", "next_attempt_at")`,
+    `CREATE INDEX IF NOT EXISTS "marketing_os_email_outbox_recipient_idx" ON "marketing_os_email_outbox" ("recipient_user_id", "created_at")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
