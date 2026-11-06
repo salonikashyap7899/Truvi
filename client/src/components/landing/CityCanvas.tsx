@@ -580,7 +580,7 @@ function ThrottledFrames({ fps = 30 }: { fps?: number }) {
 
 export function CityCanvas() {
   return (
-    <div className="city-canvas-layer absolute inset-0 z-0" aria-hidden="true">
+    <div className="city-canvas-layer pointer-events-none absolute inset-0 z-0" aria-hidden="true">
       <SilentErrorBoundary
         fallback={null}
       >

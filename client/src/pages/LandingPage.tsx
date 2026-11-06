@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
@@ -9,6 +9,10 @@ import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
 import { useAuthStore } from "@/store/authStore";
 import type { Project } from "@/types";
+
+const CityCanvas = lazy(() =>
+  import("@/components/landing/CityCanvas").then((module) => ({ default: module.CityCanvas })),
+);
 
 /** Opens the live Ask Truvi assistant (mounted globally in App). */
 function openAskTruvi() {
@@ -925,8 +929,9 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <div className="landing-page-backdrop" aria-hidden="true">
-        <div className="landing-page-backdrop__side-fill" />
-        <div className="landing-page-backdrop__image" />
+        <Suspense fallback={null}>
+          <CityCanvas />
+        </Suspense>
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
