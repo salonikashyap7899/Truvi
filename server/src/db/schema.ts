@@ -28,7 +28,7 @@ import {
 // Shared enum-ish types (kept identical to the old model exports)
 // ---------------------------------------------------------------------------
 
-export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE";
+export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE" | "MARKETING_PARTNER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type HabitatProviderStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
@@ -1476,12 +1476,18 @@ export const employeeTasks = pgTable("employee_tasks", {
   category: text("category").notNull().default("GENERAL"),
   assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
   priority: text("priority").$type<"LOW" | "MEDIUM" | "HIGH" | "URGENT">().notNull().default("MEDIUM"),
-  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
   startAt: timestamp("start_at", { withTimezone: true, mode: "date" }),
   deadlineAt: timestamp("deadline_at", { withTimezone: true, mode: "date" }),
   estimatedMinutes: integer("estimated_minutes"),
   projectId: uuid("project_id").references(() => projects._id),
   leadId: uuid("lead_id").references(() => leads._id),
+  // Shared Marketing OS task workflow; status remains text-backed for additive compatibility.
+  marketingCampaignId: uuid("marketing_campaign_id"),
+  progressPercent: integer("progress_percent").notNull().default(0),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users._id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "date" }),
+  reviewNotes: text("review_notes"),
   completionNotes: text("completion_notes"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -1520,7 +1526,7 @@ export const employeeTaskAssignments = pgTable("employee_task_assignments", {
   taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
   employeeId: uuid("employee_id").notNull().references(() => employees._id),
   assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
-  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
+  status: text("status").$type<"ASSIGNED" | "ACCEPTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "ON_HOLD" | "COMPLETED" | "CANCELLED">().notNull().default("ASSIGNED"),
   assignedAt: timestamp("assigned_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -2307,18 +2313,128 @@ export const marketingPartnerCampaigns = pgTable(
   {
     _id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").notNull().references(() => users._id),
+    projectId: uuid("project_id").references(() => projects._id),
     name: text("name").notNull(),
+    objective: text("objective"),
     channel: text("channel").notNull().default("Other"),
     status: text("status").$type<"ACTIVE" | "PAUSED" | "COMPLETED">().notNull().default("ACTIVE"),
     spendPaise: integer("spend_paise").notNull().default(0),
     leadsCount: integer("leads_count").notNull().default(0),
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" }),
+    endsAt: timestamp("ends_at", { withTimezone: true, mode: "date" }),
     createdById: uuid("created_by_id").references(() => users._id),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("marketing_partner_campaigns_user_idx").on(t.userId)]
 );
 export type IMarketingPartnerCampaign = typeof marketingPartnerCampaigns.$inferSelect;
+
+/** Admin-provisioned client/marketing partner identities and their scoped permissions. */
+export const marketingPartnerProfiles = pgTable("marketing_partner_profiles", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id).unique(),
+  companyName: text("company_name"),
+  phone: text("phone"),
+  status: text("status").$type<"ACTIVE" | "INACTIVE">().notNull().default("ACTIVE"),
+  permissions: jsonb("permissions").$type<string[]>().notNull().default(["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned"]),
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true, mode: "date" }),
+  termsVersion: text("terms_version"),
+  privacyAcknowledgedAt: timestamp("privacy_acknowledged_at", { withTimezone: true, mode: "date" }),
+  privacyNoticeVersion: text("privacy_notice_version"),
+  createdById: uuid("created_by_id").references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [index("marketing_partner_profiles_status_idx").on(t.status)]);
+export type IMarketingPartnerProfile = typeof marketingPartnerProfiles.$inferSelect;
+
+export const marketingPartnerInvites = pgTable("marketing_partner_invites", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users._id),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdById: uuid("created_by_id").notNull().references(() => users._id),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true, mode: "date" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("marketing_partner_invites_user_idx").on(t.userId, t.createdAt)]);
+export type IMarketingPartnerInvite = typeof marketingPartnerInvites.$inferSelect;
+
+export const marketingPartnerProjects = pgTable("marketing_partner_projects", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  partnerUserId: uuid("partner_user_id").notNull().references(() => users._id),
+  projectId: uuid("project_id").notNull().references(() => projects._id),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_partner_projects_unique").on(t.partnerUserId, t.projectId),
+  index("marketing_partner_projects_partner_idx").on(t.partnerUserId),
+  index("marketing_partner_projects_project_idx").on(t.projectId),
+]);
+
+export const marketingCampaignEmployees = pgTable("marketing_campaign_employees", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => marketingPartnerCampaigns._id, { onDelete: "cascade" }),
+  employeeId: uuid("employee_id").notNull().references(() => employees._id),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_campaign_employees_unique").on(t.campaignId, t.employeeId),
+  index("marketing_campaign_employees_employee_idx").on(t.employeeId),
+]);
+
+export const marketingCampaignLeads = pgTable("marketing_campaign_leads", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  campaignId: uuid("campaign_id").notNull().references(() => marketingPartnerCampaigns._id, { onDelete: "cascade" }),
+  leadId: uuid("lead_id").notNull().references(() => leads._id, { onDelete: "cascade" }),
+  linkedByUserId: uuid("linked_by_user_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_campaign_leads_unique").on(t.campaignId, t.leadId),
+  index("marketing_campaign_leads_lead_idx").on(t.leadId),
+]);
+
+export const marketingTaskPartners = pgTable("marketing_task_partners", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
+  partnerUserId: uuid("partner_user_id").notNull().references(() => users._id),
+  assignedByUserId: uuid("assigned_by_user_id").notNull().references(() => users._id),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("marketing_task_partners_unique").on(t.taskId, t.partnerUserId),
+  index("marketing_task_partners_user_idx").on(t.partnerUserId),
+]);
+
+/** Client-safe progress updates; internal employee comments remain in employee_task_comments. */
+export const marketingTaskUpdates = pgTable("marketing_task_updates", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id").notNull().references(() => employeeTasks._id, { onDelete: "cascade" }),
+  authorUserId: uuid("author_user_id").notNull().references(() => users._id),
+  updateType: text("update_type").notNull().default("PROGRESS"),
+  body: text("body").notNull(),
+  progressPercent: integer("progress_percent").notNull().default(0),
+  clientVisible: boolean("client_visible").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [index("marketing_task_updates_task_idx").on(t.taskId, t.createdAt)]);
+
+/** Durable transactional email queue; task/account writes never depend on SMTP availability. */
+export const marketingOsEmailOutbox = pgTable("marketing_os_email_outbox", {
+  _id: uuid("id").defaultRandom().primaryKey(),
+  recipientUserId: uuid("recipient_user_id").notNull().references(() => users._id),
+  eventType: text("event_type").notNull(),
+  resourceId: uuid("resource_id"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  dedupeKey: text("dedupe_key").notNull().unique(),
+  status: text("status").$type<"QUEUED" | "SENDING" | "SENT_TO_PROVIDER" | "RETRY_PENDING" | "FAILED">().notNull().default("QUEUED"),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "date" }),
+  sentAt: timestamp("sent_at", { withTimezone: true, mode: "date" }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_os_email_outbox_due_idx").on(t.status, t.nextAttemptAt),
+  index("marketing_os_email_outbox_recipient_idx").on(t.recipientUserId, t.createdAt),
+]);
+
 
 // Back-compat aliases used by services/intelligenceService and others
 export type IPresentationInfo = PresentationInfo;
