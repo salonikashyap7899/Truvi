@@ -703,7 +703,7 @@ router.get("/partner/dashboard", async (req: AuthedRequest, res) => {
   }));
   const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users._id, req.user!.userId)).limit(1);
   return res.json({
-    user, companyName: profile.companyName,
+    user, companyName: profile.companyName, permissions: profile.permissions,
     projects: projectLinks.map((r) => ({ id: String(r.project._id), name: r.project.name, city: r.project.city, location: r.project.location })),
     campaigns: campaignRows.map((c) => ({ id: String(c._id), name: c.name, channel: c.channel, status: c.status, startedAt: c.startedAt, endsAt: c.endsAt, projectId: c.projectId })),
     tasks, summary: {
