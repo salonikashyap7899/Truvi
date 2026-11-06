@@ -33,8 +33,8 @@ interface IngestResult {
  * Admin/verifier data-ingestion panel. Uploads a CSV/JSON/GeoJSON file to
  * POST /api/ingest/:category through the app's authenticated session — so the
  * RAG assistant (Ask Truvi) can answer from it. When a project is selected, the
- * chosen project's id is injected into every JSON row before upload, so a data
- * file with a placeholder project_id "just works".
+ * selected project id is sent separately and applied server-side during ingest,
+ * so the archived source JSON remains unchanged.
  */
 export default function DataIngestPanel() {
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
