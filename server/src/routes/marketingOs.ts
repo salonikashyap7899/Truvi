@@ -259,7 +259,10 @@ router.post("/campaigns", async (req: AuthedRequest, res) => {
     return [row];
   });
   await logAudit({ userId: req.user!.userId, action: "marketing_os.campaign.create", resourceType: "marketing_campaign", resourceId: String(campaign._id), metadata: { projectId: campaign.projectId, employeeCount: empRows.length } });
-  for (const e of empRows) if (e.accountUserId) await createNotifications([String(e.accountUserId)], { type: "marketing_campaign_assigned", title: "Marketing campaign assigned", message: "You were assigned to campaign: " + campaign.name, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(campaign._id) } }).catch(() => []);
+  for (const e of empRows) if (e.accountUserId) {
+    await createNotifications([String(e.accountUserId)], { type: "marketing_campaign_assigned", title: "Marketing campaign assigned", message: "You were assigned to campaign: " + campaign.name, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(campaign._id) } }).catch(() => []);
+    await queueMarketingOsEmail(String(e.accountUserId), "CAMPAIGN_UPDATE", String(campaign._id), { title: "Marketing campaign assigned", message: "You have been added to the campaign: " + campaign.name, href: "https://truviventures.com/employee/marketing" }, "campaign-assigned:" + String(campaign._id) + ":" + String(e.accountUserId));
+  }
   res.status(201).json({ campaign });
 });
 
@@ -332,12 +335,14 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
     if (ids.length) scope.push(inArray(employeeTasks._id, ids.map((i) => i.taskId)));
     tasks = await db.select().from(employeeTasks).where(or(...scope)!).orderBy(desc(employeeTasks.updatedAt)).limit(250);
   }
+  const taskIds = tasks.map((task) => task._id);
+  const partnerAssignments = taskIds.length ? await db.select({ taskId: marketingTaskPartners.taskId, userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(inArray(marketingTaskPartners.taskId, taskIds)) : [];
   const shaped = await Promise.all(tasks.map(async (task) => {
     const [project] = task.projectId ? await db.select({ name: projects.name }).from(projects).where(eq(projects._id, task.projectId)).limit(1) : [];
     const [campaign] = task.marketingCampaignId ? await db.select({ name: marketingPartnerCampaigns.name }).from(marketingPartnerCampaigns).where(eq(marketingPartnerCampaigns._id, task.marketingCampaignId)).limit(1) : [];
     const assignees = await db.select({ employeeId: employeeTaskAssignments.employeeId, name: employees.name, status: employeeTaskAssignments.status })
       .from(employeeTaskAssignments).innerJoin(employees, eq(employeeTaskAssignments.employeeId, employees._id)).where(eq(employeeTaskAssignments.taskId, task._id));
-    return { ...task, project, campaign, assignees };
+    return { ...task, project, campaign, assignees, partnerUserIds: partnerAssignments.filter((row) => String(row.taskId) === String(task._id)).map((row) => String(row.userId)) };
   }));
   res.json({ tasks: shaped });
 });
