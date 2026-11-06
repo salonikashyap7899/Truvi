@@ -65,8 +65,8 @@ function GlowButton({
   const ghostClass =
     "inline-flex items-center gap-2 rounded-full glass px-6 py-3 text-sm font-medium transition hover:bg-white/10";
   const primaryClass =
-    "group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-6 py-3 text-sm font-medium text-background glow-trust";
-  const primaryStyle = { background: "linear-gradient(135deg, #dbeafe, #ffffff)" };
+    "group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-6 py-3 text-sm font-medium text-white glow-trust";
+  const primaryStyle = { background: "linear-gradient(135deg, #11baf3 0%, #1674ef 100%)" };
 
   const inner =
     variant === "ghost" ? (
@@ -381,26 +381,24 @@ function deriveShowcase(listing: Project | null, intel: IntelSlim | null): Showc
 
 function HeroAskDemo({ s }: { s: Showcase }) {
   return (
-    <div className="homepage-hero-intelligence-card relative w-full max-w-[610px] text-left">
+    <div className="homepage-hero-intelligence-card relative w-full max-w-[710px] text-left">
       <div className="absolute -inset-6 -z-10 opacity-30 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
       <div className="rounded-2xl glass p-4">
-        {/* Query bar */}
         <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5">
           <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--trust)]/25 text-xs">✦</span>
-          <p className="text-sm text-foreground/90">{s.heroQuery}</p>
+          <p className="min-w-0 flex-1 text-sm text-foreground/90">{s.heroQuery}</p>
           <motion.span
-            className="ml-auto h-4 w-px shrink-0 bg-white/60"
+            className="h-4 w-px shrink-0 bg-white/60"
             animate={{ opacity: [1, 0, 1] }}
             transition={{ duration: 1.1, repeat: Infinity }}
           />
         </div>
 
-        {/* Animated intelligence response */}
         <div className="mt-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-300">
             Truvi Intelligence Engine™ · analysing signals…
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {s.heroChips.map((chip) => (
               <span
                 key={chip.label}
@@ -410,18 +408,9 @@ function HeroAskDemo({ s }: { s: Showcase }) {
                 <span className="font-semibold">{chip.value}</span>
               </span>
             ))}
-          </div>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5">
-          <p className="text-[11px] text-muted-foreground">Every signal traced to its source.</p>
-          <div className="flex items-center gap-3">
-            <Link to="/inventory" className="text-[10px] font-medium text-sky-200 transition hover:text-white">
-              Analyse a Property
-            </Link>
             <button
               onClick={openAskTruvi}
-              className="rounded-full bg-foreground px-4 py-1 text-[11px] font-semibold text-background transition hover:opacity-90"
+              className="ml-auto rounded-full bg-foreground px-4 py-1.5 text-[11px] font-semibold text-background transition hover:opacity-90"
             >
               Ask Truvi →
             </button>
@@ -731,8 +720,8 @@ function CountUpNum({ target }: { target: number }) {
 
 const HOMEPAGE_FEATURES = [
   {
-    title: "Project Listings",
-    description: "Developer-submitted listings with source-labelled project information.",
+    title: "Verified Projects",
+    description: "Approval evidence checked and source-labelled where records are available.",
     Icon: ShieldCheck,
   },
   {
@@ -791,6 +780,7 @@ function publicNetworkTiles(stats: PublicStats) {
     { label: "Developers", value: stats.developers, suffix: "+" },
     { label: "Channel Partners", value: stats.channelPartners, suffix: "+" },
     { label: "Cities", value: stats.cities, suffix: "" },
+    { label: "Verified Projects", value: stats.verifiedProjects, suffix: "" },
   ].filter((tile) => tile.value > 0);
 }
 

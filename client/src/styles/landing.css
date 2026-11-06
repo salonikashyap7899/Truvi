@@ -182,9 +182,9 @@
   .landing-page-backdrop__image {
     z-index: 2;
     background-image: url("/images/truvi-homepage-backdrop-desktop.webp");
-    background-position: center 48%;
-    background-size: cover;
-    filter: saturate(1.14) brightness(1.12) contrast(1.06);
+    background-position: center;
+    background-size: contain;
+    /* Keep the supplied source photography at its original colour and detail. */
   }
 }
 
@@ -201,15 +201,15 @@
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.12) 0%, rgba(3, 10, 21, 0.06) 52%, rgba(3, 10, 21, 0.16) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.08) 0%, rgba(3, 9, 19, 0.14) 58%, rgba(3, 9, 19, 0.32) 100%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.34) 0%, rgba(3, 10, 21, 0.20) 52%, rgba(3, 10, 21, 0.34) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.32) 0%, rgba(3, 9, 19, 0.42) 58%, rgba(3, 9, 19, 0.56) 100%);
 }
 
 @media (max-width: 767px) {
   .landing-page-backdrop__veil {
     background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.18), rgba(3, 10, 21, 0.12)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.16), rgba(3, 9, 19, 0.3));
+      linear-gradient(90deg, rgba(3, 10, 21, 0.36), rgba(3, 10, 21, 0.28)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.36), rgba(3, 9, 19, 0.54));
   }
 }
 
@@ -392,8 +392,8 @@
 
 .landing-page > header > div:first-child {
   /* Restore the compact navbar width used before the recent spacing change. */
-  width: min(calc(100% - 32px), 1048px);
-  max-width: 1048px;
+  width: min(calc(100% - 32px), 1096px);
+  max-width: 1096px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -401,12 +401,12 @@
 .homepage-hero-section {
   min-height: 480px;
   justify-content: flex-start !important;
-  padding-top: 82px !important;
+  padding-top: 122px !important;
   padding-bottom: 8px !important;
 }
 
 .homepage-hero-inner {
-  max-width: 1024px;
+  max-width: 1056px;
 }
 
 .homepage-hero-copy {
@@ -414,28 +414,26 @@
 }
 
 .homepage-hero-title {
-  max-width: 620px;
-  font-size: clamp(2.15rem, 2.85vw, 2.55rem);
-  line-height: 1.04;
+  max-width: 660px;
+  font-size: clamp(2.3rem, 3.35vw, 2.8rem);
+  line-height: 1.035;
   letter-spacing: -0.035em;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .homepage-hero-copy-text {
-  max-width: 470px;
-  font-size: 0.96rem;
-  line-height: 1.48;
+  max-width: 520px;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.78);
 }
 
 .homepage-hero-demo {
-  width: min(100%, 810px);
-  margin-top: 16px;
+  width: min(100%, 900px);
+  margin-top: 25px;
   margin-left: clamp(0px, 13.5vw, 164px);
 }
 
 .homepage-hero-demo .homepage-hero-intelligence-card {
-  width: min(610px, 100%);
+  width: min(710px, 100%);
   margin-left: 0;
   margin-right: 0;
 }
@@ -445,7 +443,7 @@
 }
 
 .homepage-feature-grid {
-  width: min(100%, 920px);
+  width: min(100%, 1020px);
   margin-left: auto;
   margin-right: auto;
 }
@@ -460,8 +458,8 @@
 }
 
 .homepage-feature-card > span:first-child {
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
   border-radius: 12px;
 }
 
@@ -471,12 +469,12 @@
 }
 
 .homepage-feature-card > span:last-child > span:first-child {
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   line-height: 1.15;
 }
 
 .homepage-feature-card > span:last-child > span:last-child {
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   line-height: 1.25;
 }
 
@@ -487,8 +485,8 @@
 
 .homepage-stats-panel {
   display: grid;
-  width: min(100%, 670px);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 760px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-left: auto;
   margin-right: auto;
   overflow: hidden;
