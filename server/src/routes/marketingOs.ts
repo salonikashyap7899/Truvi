@@ -191,7 +191,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
 
   const [tasks, employeesRows, campaigns, visits, allCampaignLeadRows, campaignEmployeeRows] = await Promise.all([
     db.select().from(employeeTasks)
-      .where(or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!)
+      .where(and(eq(employeeTasks.taskType, "ASSIGNED"), or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!))
       .orderBy(desc(employeeTasks.createdAt)).limit(2000),
     db.select({ employee: employees, disabled: users.disabled })
       .from(employees).leftJoin(users, eq(employees.accountUserId, users._id)).orderBy(desc(employees.createdAt)),
@@ -236,7 +236,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
     (!projectId || String(campaign.projectId || "") === projectId) &&
     (!campaignId || String(campaign._id) === campaignId) &&
     (!employeeId || campaignIdsByEmployee.get(employeeId)?.has(String(campaign._id))) &&
-    (!from || Number.isNaN(from.getTime()) || (campaign.endsAt || campaign.startedAt || campaign.createdAt) >= from) &&
+    (!from || Number.isNaN(from.getTime()) || (campaign.endsAt || new Date(8640000000000000)) >= from) &&
     (!to || Number.isNaN(to.getTime()) || (campaign.startedAt || campaign.createdAt) <= to)
   );
 
@@ -483,7 +483,7 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
   const db = getDb();
   if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the assigned partner workspace." });
   const manager = await canManage(req);
-  const marketingTaskScope = or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!;
+  const marketingTaskScope = and(eq(employeeTasks.taskType, "ASSIGNED"), or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!)!;
   let tasks = await db.select().from(employeeTasks).where(marketingTaskScope).orderBy(desc(employeeTasks.updatedAt)).limit(500);
   if (!manager) {
     const emp = await actorEmployee(req);
