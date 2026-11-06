@@ -6,7 +6,7 @@ import { Router } from "express";
 import fs from "node:fs";
 import { randomBytes, createHash, createCipheriv, createDecipheriv } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../config/db";
 import {
@@ -92,6 +92,13 @@ export async function processMarketingOsEmailOutbox(limit = 25) {
     lt(marketingOsEmailOutbox.attempts, 5),
     or(isNull(marketingOsEmailOutbox.claimedAt), lt(marketingOsEmailOutbox.claimedAt, stale)),
   ));
+  await db.update(marketingOsEmailOutbox).set({
+    status: "FAILED", claimedAt: null, nextAttemptAt: now, lastError: "STALE_SEND_EXHAUSTED",
+  }).where(and(
+    eq(marketingOsEmailOutbox.status, "SENDING"),
+    gte(marketingOsEmailOutbox.attempts, 5),
+    or(isNull(marketingOsEmailOutbox.claimedAt), lt(marketingOsEmailOutbox.claimedAt, stale)),
+  ));
   const pending = await db.select({ id: marketingOsEmailOutbox._id }).from(marketingOsEmailOutbox)
     .where(and(inArray(marketingOsEmailOutbox.status, ["QUEUED", "RETRY_PENDING"]), lt(marketingOsEmailOutbox.attempts, 5), lte(marketingOsEmailOutbox.nextAttemptAt, now)))
     .orderBy(marketingOsEmailOutbox.nextAttemptAt).limit(Math.max(1, Math.min(100, limit)));
@@ -135,6 +142,11 @@ router.post("/partner/activate", async (req, res) => {
   const db = getDb();
   const [invite] = await db.select().from(marketingPartnerInvites).where(eq(marketingPartnerInvites.tokenHash, tokenHash(parsed.data.token))).limit(1);
   if (!invite || invite.usedAt || invite.expiresAt.getTime() < Date.now()) return res.status(400).json({ error: "This invitation is invalid, expired or already used. Ask Truvi Admin to resend it." });
+  const [account] = await db.select({ role: users.role, disabled: users.disabled })
+    .from(users).where(eq(users._id, invite.userId)).limit(1);
+  if (!account || account.role !== "MARKETING_PARTNER" || !account.disabled) {
+    return res.status(409).json({ error: "This invitation is no longer active. Contact Truvi Admin for a new invitation." });
+  }
   const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, invite.userId)).limit(1);
   if (!profile || profile.status !== "ACTIVE") return res.status(403).json({ error: "This partner account is inactive. Contact Truvi Admin." });
   const password = await bcrypt.hash(parsed.data.password, 12);
@@ -178,7 +190,9 @@ router.get("/overview", async (req: AuthedRequest, res) => {
   const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
   const [tasks, employeesRows, campaigns, visits, allCampaignLeadRows] = await Promise.all([
-    db.select().from(employeeTasks).orderBy(desc(employeeTasks.createdAt)).limit(2000),
+    db.select().from(employeeTasks)
+      .where(or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!)
+      .orderBy(desc(employeeTasks.createdAt)).limit(2000),
     db.select({ employee: employees, disabled: users.disabled })
       .from(employees).leftJoin(users, eq(employees.accountUserId, users._id)).orderBy(desc(employees.createdAt)),
     db.select().from(marketingPartnerCampaigns).orderBy(desc(marketingPartnerCampaigns.createdAt)),
@@ -215,7 +229,7 @@ router.get("/overview", async (req: AuthedRequest, res) => {
   relevantLeads = relevantLeads.filter((lead) =>
     (!projectId || String(lead.projectId) === projectId) &&
     (!employeeId || (!!employeeUserId && (String(lead.submittedById) === employeeUserId || String(lead.assignedToId || "") === employeeUserId))) &&
-    (!statusFilter || lead.stage === statusFilter) &&
+    (!statusFilter || !["GENERATED", "ASSIGNED", "CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "BOOKING", "REGISTRATION", "COMPLETED", "LOST"].includes(statusFilter) || lead.stage === statusFilter) &&
     (!from || Number.isNaN(from.getTime()) || lead.createdAt >= from) &&
     (!to || Number.isNaN(to.getTime()) || lead.createdAt <= to)
   );
@@ -226,11 +240,13 @@ router.get("/overview", async (req: AuthedRequest, res) => {
 
   const leadIds = relevantLeads.map((lead) => lead._id);
   const activities = leadIds.length
-    ? await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds))
+    ? (await db.select().from(leadActivities).where(inArray(leadActivities.leadId, leadIds)))
+        .filter((activity) => (!from || Number.isNaN(from.getTime()) || activity.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || activity.createdAt <= to))
     : [];
   const converted = relevantLeads.filter((lead) => ["BOOKING", "REGISTRATION", "COMPLETED"].includes(lead.stage)).length;
   const commissionRows = leadIds.length
-    ? await db.select().from(commissions).where(inArray(commissions.leadId, leadIds))
+    ? (await db.select().from(commissions).where(inArray(commissions.leadId, leadIds)))
+        .filter((commission) => (!from || Number.isNaN(from.getTime()) || commission.createdAt >= from) && (!to || Number.isNaN(to.getTime()) || commission.createdAt <= to))
     : [];
   const activeTasks = scopedTasks.filter((task) => !["COMPLETED", "CANCELLED"].includes(task.status));
   const completedTasks = scopedTasks.filter((task) => task.status === "COMPLETED");
@@ -421,14 +437,15 @@ router.get("/tasks", async (req: AuthedRequest, res) => {
   const db = getDb();
   if (req.user!.role === "MARKETING_PARTNER") return res.status(403).json({ error: "Use the assigned partner workspace." });
   const manager = await canManage(req);
-  let tasks = await db.select().from(employeeTasks).orderBy(desc(employeeTasks.updatedAt)).limit(500);
+  const marketingTaskScope = or(eq(employeeTasks.category, "MARKETING"), isNotNull(employeeTasks.marketingCampaignId))!;
+  let tasks = await db.select().from(employeeTasks).where(marketingTaskScope).orderBy(desc(employeeTasks.updatedAt)).limit(500);
   if (!manager) {
     const emp = await actorEmployee(req);
     if (!emp || !emp.permissions?.includes("task.read.own")) return res.status(403).json({ error: "Task access is not enabled." });
     const ids = await db.select({ taskId: employeeTaskAssignments.taskId }).from(employeeTaskAssignments).where(eq(employeeTaskAssignments.employeeId, emp._id));
-    const scope = [eq(employeeTasks.employeeId, emp._id)];
-    if (ids.length) scope.push(inArray(employeeTasks._id, ids.map((i) => i.taskId)));
-    tasks = await db.select().from(employeeTasks).where(or(...scope)!).orderBy(desc(employeeTasks.updatedAt)).limit(250);
+    const ownScope = [eq(employeeTasks.employeeId, emp._id)];
+    if (ids.length) ownScope.push(inArray(employeeTasks._id, ids.map((i) => i.taskId)));
+    tasks = await db.select().from(employeeTasks).where(and(marketingTaskScope, or(...ownScope)!)).orderBy(desc(employeeTasks.updatedAt)).limit(250);
   }
   const taskIds = tasks.map((task) => task._id);
   const partnerAssignments = taskIds.length ? await db.select({ taskId: marketingTaskPartners.taskId, userId: marketingTaskPartners.partnerUserId }).from(marketingTaskPartners).where(inArray(marketingTaskPartners.taskId, taskIds)) : [];
@@ -737,7 +754,7 @@ router.post("/partners", async (req: AuthedRequest, res) => {
   const created = await db.transaction(async (tx) => {
     const [account] = await tx.insert(users).values({
       name: d.name, email: d.email, password: randomPassword, role: "MARKETING_PARTNER",
-      approvalStatus: "APPROVED", disabled: true, phone: d.phone || null, emailVerified: false, phoneVerified: true,
+      approvalStatus: "APPROVED", disabled: true, phone: d.phone || null, emailVerified: false, phoneVerified: !d.phone,
     }).returning({ id: users._id });
     await tx.insert(marketingPartnerProfiles).values({ userId: account.id, companyName: d.companyName || null, phone: d.phone || null, status: "ACTIVE", permissions: partnerPermissionDefaults, createdById: req.user!.userId });
     await tx.insert(marketingPartnerProjects).values(d.projectIds.map((id) => ({ partnerUserId: account.id, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
@@ -760,7 +777,10 @@ router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
   const db = getDb();
   const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
-  if (!profile || profile.status !== "ACTIVE") return res.status(404).json({ error: "Active partner account not found." });
+  const [account] = await db.select({ id: users._id, role: users.role, disabled: users.disabled, emailVerified: users.emailVerified })
+    .from(users).where(eq(users._id, req.params.userId)).limit(1);
+  if (!profile || profile.status !== "ACTIVE" || !account || account.role !== "MARKETING_PARTNER") return res.status(404).json({ error: "Active partner account not found." });
+  if (!account.disabled || account.emailVerified) return res.status(409).json({ error: "This partner account has already been activated. Use the normal password-reset flow instead of resending activation." });
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
   await db.transaction(async (tx) => {
@@ -799,7 +819,11 @@ router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
       ...(parsed.data.permissions ? { permissions: Array.from(new Set(parsed.data.permissions)) } : {}),
       updatedAt: new Date(),
     }).where(eq(marketingPartnerProfiles.userId, req.params.userId));
-    await tx.update(users).set({ disabled: parsed.data.status !== "ACTIVE", authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
+    const [account] = await tx.select({ emailVerified: users.emailVerified }).from(users).where(eq(users._id, req.params.userId)).limit(1);
+    await tx.update(users).set({
+      disabled: parsed.data.status !== "ACTIVE" || !account?.emailVerified,
+      authVersion: sql.raw('"auth_version" + 1'),
+    }).where(eq(users._id, req.params.userId));
     if (parsed.data.projectIds) {
       await tx.delete(marketingPartnerProjects).where(eq(marketingPartnerProjects.partnerUserId, req.params.userId));
       if (parsed.data.projectIds.length) await tx.insert(marketingPartnerProjects).values(parsed.data.projectIds.map((id) => ({ partnerUserId: req.params.userId, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
@@ -819,6 +843,8 @@ router.get("/partner/tasks/:id/attachments/:attachmentId", async (req: AuthedReq
   if (!attachment) return res.status(404).end();
   const file = privateFilePath("private:" + attachment.storedFileName);
   if (!file || !fs.existsSync(file)) return res.status(404).end();
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Type", attachment.mimeType);
   res.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + encodeURIComponent(attachment.originalFileName));
   fs.createReadStream(file).pipe(res);
