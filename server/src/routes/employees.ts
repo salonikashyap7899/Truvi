@@ -928,7 +928,7 @@ router.patch("/tasks/:id", async (req: AuthedRequest, res, next) => {
     if (!before) return res.status(404).json({ error: "Task not found." });
     const admin = req.user!.role === "ADMIN";
     // Marketing work must use the dedicated progress submission / review flow.
-    if (!admin && before.category === "MARKETING" && parsed.data.status === "COMPLETED") {
+    if (!admin && before.taskType === "ASSIGNED" && before.category === "MARKETING" && ["UNDER_REVIEW", "COMPLETED"].includes(parsed.data.status || "")) {
       return res.status(403).json({ error: "Submit Marketing work for Admin approval from the Marketing OS workspace." });
     }
     if (!admin && req.user!.role !== "EMPLOYEE") return res.status(403).json({ error: "Insufficient permissions." });
