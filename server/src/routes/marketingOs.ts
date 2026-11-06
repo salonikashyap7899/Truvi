@@ -571,7 +571,7 @@ router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
     }
     if (partnerIds.length) {
       await createNotifications(partnerIds, { type: "marketing_campaign_assigned", title: "Shared campaign updated", message, actorUserId: req.user!.userId, data: { href: "/marketing/partner", campaignId: String(updated._id) } }).catch(() => []);
-      for (const recipientUserId of partnerIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Shared campaign updated", message, href: "https://truviventures.com/marketing/partner" }, "campaign-partner-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(updated.updatedAt?.getTime?.() ?? Date.now()));
+      for (const recipientUserId of partnerIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Shared campaign updated", message, href: "https://truviventures.com/marketing/partner" }, "campaign-partner-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(Date.now()));
     }
   }
   res.json({ campaign: updated });
