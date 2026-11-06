@@ -1864,7 +1864,6 @@ async function ensureSchema(db: Db): Promise<void> {
     // Marketing OS — additive extensions to the existing HR, campaign and CRM entities.
     `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "marketing_campaign_id" uuid`,
     `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "progress_percent" integer NOT NULL DEFAULT 0`,
-    `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "review_status" text NOT NULL DEFAULT 'NOT_SUBMITTED'`,
     `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "reviewed_by_user_id" uuid REFERENCES "users"("id")`,
     `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "reviewed_at" timestamptz`,
     `ALTER TABLE "employee_tasks" ADD COLUMN IF NOT EXISTS "review_notes" text`,
@@ -1918,15 +1917,6 @@ async function ensureSchema(db: Db): Promise<void> {
        CONSTRAINT "marketing_campaign_employees_unique" UNIQUE ("campaign_id", "employee_id")
      )`,
     `CREATE INDEX IF NOT EXISTS "marketing_campaign_employees_employee_idx" ON "marketing_campaign_employees" ("employee_id")`,
-    `CREATE TABLE IF NOT EXISTS "marketing_campaign_partners" (
-       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-       "campaign_id" uuid NOT NULL REFERENCES "marketing_partner_campaigns"("id") ON DELETE CASCADE,
-       "partner_user_id" uuid NOT NULL REFERENCES "users"("id"),
-       "assigned_by_user_id" uuid NOT NULL REFERENCES "users"("id"),
-       "created_at" timestamptz NOT NULL DEFAULT now(),
-       CONSTRAINT "marketing_campaign_partners_unique" UNIQUE ("campaign_id", "partner_user_id")
-     )`,
-    `CREATE INDEX IF NOT EXISTS "marketing_campaign_partners_user_idx" ON "marketing_campaign_partners" ("partner_user_id")`,
     `CREATE TABLE IF NOT EXISTS "marketing_campaign_leads" (
        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
        "campaign_id" uuid NOT NULL REFERENCES "marketing_partner_campaigns"("id") ON DELETE CASCADE,
