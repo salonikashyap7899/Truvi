@@ -97,8 +97,11 @@ export function navLinksForRole(user?: Pick<User, "role" | "email"> | null): Nav
       // Google Meet, Home and Logout remain in the account dropdown.
       return [
         dash("Dashboard"),
+        { label: "Marketing OS", to: "/employee/marketing" },
         { label: "About", to: "/about" },
       ];
+    case "MARKETING_PARTNER":
+      return [dash("Partner workspace")];
     case "BUYER":
       return [
         dash("Dashboard"),
