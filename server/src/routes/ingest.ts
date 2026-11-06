@@ -155,7 +155,7 @@ router.post("/:category", ingestLimiter, requireRole("ADMIN", "VERIFIER"), uploa
   if (selectedProjectId && /\.(json|geojson)$/i.test(req.file.originalname)) {
     if (!isValidId(selectedProjectId)) return res.status(400).json({ error: "Invalid projectId" });
     rows = rows.map((row) => {
-      const next = { ...row, project_id: selectedProjectId };
+      const next: ParsedRow = { ...row, project_id: selectedProjectId };
       delete next.projectId;
       return next;
     });
