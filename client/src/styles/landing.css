@@ -323,9 +323,11 @@
   background-color: rgba(7, 27, 49, 0.5);
   background-image:
     linear-gradient(90deg, rgba(3, 13, 28, 0.78) 0%, rgba(4, 17, 34, 0.54) 42%, rgba(4, 17, 34, 0.16) 100%),
-    linear-gradient(180deg, rgba(4, 12, 23, 0.06), rgba(4, 12, 23, 0.4));
-  background-size: cover;
-  background-position: 58% 58%;
+    linear-gradient(180deg, rgba(4, 12, 23, 0.06), rgba(4, 12, 23, 0.4)),
+    url("/images/truvi-homepage-backdrop.webp");
+  background-size: cover, cover, 100% auto;
+  background-position: 58% 58%, 58% 58%, center bottom;
+  background-repeat: no-repeat;
   box-shadow: 0 25px 80px -42px rgba(0, 0, 0, 0.9);
 }
 
@@ -376,7 +378,7 @@
   .homepage-closing-cta {
     min-height: 0;
     border-radius: 22px;
-    background-position: 58% center;
+    background-position: 58% center, 58% center, center bottom;
   }
 }
 

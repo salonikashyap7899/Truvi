@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
 import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
-import { CityCanvas } from "@/components/landing/CityCanvas";
 import { VideoBand } from "@/components/landing/VideoBand";
 import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
@@ -936,7 +935,8 @@ export default function LandingPage() {
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
       <div className="landing-page-backdrop" aria-hidden="true">
-        <CityCanvas />
+        <div className="landing-page-backdrop__side-fill" />
+        <div className="landing-page-backdrop__image" />
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
