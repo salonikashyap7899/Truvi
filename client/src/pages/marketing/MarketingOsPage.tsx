@@ -1,0 +1,130 @@
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { Activity, BarChart3, CalendarClock, CheckCircle2, ClipboardList, Megaphone, RefreshCw, Users } from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
+import { useSocketEvent } from "@/lib/socket";
+
+type Employee = { id: string; name: string; email?: string; designation?: string | null; status?: string; accountActive?: boolean };
+type Project = { id: string; name: string; city?: string };
+type Campaign = { _id: string; name: string; objective?: string; channel: string; status: string; projectId?: string; spendPaise?: number };
+type Task = { _id: string; title: string; description?: string; status: string; priority: string; progressPercent?: number; deadlineAt?: string | null; projectId?: string | null; project?: { name: string }; campaign?: { name: string }; assignees?: Array<{ employeeId: string; name: string }> };
+type Partner = { id: string; name: string; email: string; companyName?: string; status: string; accountActive: boolean };
+type Overview = { kpis: Record<string, number>; employees: Employee[]; campaigns: Campaign[]; tasks: Task[]; projects: Project[]; leadsByStage: Array<{ stage: string; count: number }> };
+const panel = "rounded-2xl border border-white/10 bg-[#0b1725]/90";
+const field = "w-full rounded-xl border border-white/10 bg-[#091827] px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/60";
+const inr = (n: number) => "₹" + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const dateLabel = (v?: string | null) => v ? new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "No deadline";
+
+export default function MarketingOsPage() {
+ const user = useAuthStore(s => s.user), isAdmin = user?.role === "ADMIN";
+ const [overview,setOverview]=useState<Overview|null>(null),[tasks,setTasks]=useState<Task[]>([]),[campaigns,setCampaigns]=useState<Campaign[]>([]);
+ const [employees,setEmployees]=useState<Employee[]>([]),[projects,setProjects]=useState<Project[]>([]),[partners,setPartners]=useState<Partner[]>([]);
+ const [manager,setManager]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false);
+ const [tab,setTab]=useState("overview"),[search,setSearch]=useState(""),[status,setStatus]=useState("");
+ const [filters,setFilters]=useState({employeeId:"",projectId:"",campaignId:"",from:"",to:""});
+ const [task,setTask]=useState({title:"",description:"",projectId:"",campaignId:"",employeeIds:[] as string[],partnerUserIds:[] as string[],priority:"MEDIUM",startAt:"",deadlineAt:""});
+ const [campaign,setCampaign]=useState({name:"",objective:"",projectId:"",channel:"Digital",spendRupees:"",employeeIds:[] as string[]});
+ const [partner,setPartner]=useState({name:"",email:"",phone:"",companyName:"",projectIds:[] as string[]});
+ const [progressTask,setProgressTask]=useState<Task|null>(null),[progress,setProgress]=useState(0),[update,setUpdate]=useState(""),[submitReview,setSubmitReview]=useState(false);
+
+ const load=useCallback(async()=>{
+  setLoading(true);
+  const params=new URLSearchParams();
+  Object.entries(filters).forEach(([k,v])=>{if(v)params.set(k,v);});
+  if(filters.from)params.set("from",new Date(filters.from+"T00:00:00").toISOString());
+  if(filters.to)params.set("to",new Date(filters.to+"T23:59:59").toISOString());
+  const [o,t,c]=await Promise.allSettled([api.get("/marketing-os/overview?"+params.toString()),api.get("/marketing-os/tasks"),api.get("/marketing-os/campaigns")]);
+  if(o.status==="fulfilled"){const d=o.value.data as Overview;setOverview(d);setManager(true);setEmployees(d.employees||[]);setProjects(d.projects||[]);setCampaigns(d.campaigns||[]);setTasks(d.tasks||[]);}
+  else {setOverview(null);setManager(false);}
+  if(t.status==="fulfilled")setTasks(t.value.data.tasks||[]);
+  if(c.status==="fulfilled")setCampaigns(c.value.data.campaigns||[]);
+  if(isAdmin){try{const [p,e]=await Promise.all([api.get("/marketing-os/partners"),api.get("/employees")]);setPartners(p.data.partners||[]);setEmployees((e.data.employees||[]).map((x:any)=>({id:x.id,name:x.name,email:x.officialEmail,designation:x.designation,status:x.status,accountActive:x.accountStatus!=="DISABLED"})));}catch{}}
+  setLoading(false);
+ },[filters,isAdmin]);
+ useEffect(()=>{void load();},[load]);
+ useSocketEvent("notification:new",()=>{void load();});
+
+ const k=overview?.kpis||{tasks:tasks.length,inProgress:tasks.filter(t=>t.status==="IN_PROGRESS").length,pending:tasks.filter(t=>["ASSIGNED","ACCEPTED"].includes(t.status)).length,completed:tasks.filter(t=>t.status==="COMPLETED").length,overdue:tasks.filter(t=>t.deadlineAt&&new Date(t.deadlineAt)<new Date()&&!["COMPLETED","CANCELLED"].includes(t.status)).length,completionPercent:tasks.length?Math.round(tasks.filter(t=>t.status==="COMPLETED").length/tasks.length*100):0,leads:0,calls:0,followUps:0,siteVisits:0,conversions:0,conversionRate:0,revenue:0,employees:0,campaigns:campaigns.length};
+ const visibleTasks=useMemo(()=>tasks.filter(t=>(!status||t.status===status)&&(!search||t.title.toLowerCase().includes(search.toLowerCase()))),[tasks,status,search]);
+ const toggle=(id:string,arr:string[],set:(x:string[])=>void)=>set(arr.includes(id)?arr.filter(x=>x!==id):[...arr,id]);
+
+ async function createTask(e:FormEvent){e.preventDefault();setBusy(true);try{await api.post("/marketing-os/tasks",{...task,projectId:task.projectId||null,campaignId:task.campaignId||null,startAt:task.startAt?new Date(task.startAt).toISOString():null,deadlineAt:task.deadlineAt?new Date(task.deadlineAt).toISOString():null});toast.success("Marketing task assigned.");setTask({title:"",description:"",projectId:"",campaignId:"",employeeIds:[],partnerUserIds:[],priority:"MEDIUM",startAt:"",deadlineAt:""});await load();}catch(e:any){toast.error(e?.response?.data?.error||"Could not assign task.");}finally{setBusy(false);}}
+ async function createCampaign(e:FormEvent){e.preventDefault();setBusy(true);try{await api.post("/marketing-os/campaigns",{...campaign,projectId:campaign.projectId||null,spendRupees:Number(campaign.spendRupees||0)});toast.success("Campaign created.");setCampaign({name:"",objective:"",projectId:"",channel:"Digital",spendRupees:"",employeeIds:[]});await load();}catch(e:any){toast.error(e?.response?.data?.error||"Could not create campaign.");}finally{setBusy(false);}}
+ async function createPartner(e:FormEvent){e.preventDefault();setBusy(true);try{const r=await api.post("/marketing-os/partners",partner);toast.success(r.data?.message||"Invitation queued.");setPartner({name:"",email:"",phone:"",companyName:"",projectIds:[]});await load();}catch(e:any){toast.error(e?.response?.data?.error||"Could not create partner.");}finally{setBusy(false);}}
+ async function saveProgress(e:FormEvent){e.preventDefault();if(!progressTask)return;setBusy(true);try{const next=submitReview?"UNDER_REVIEW":"IN_PROGRESS";await api.patch("/marketing-os/tasks/"+progressTask._id+"/progress",{progressPercent:progress,status:next,update});toast.success(submitReview?"Submitted for review.":"Progress saved.");setProgressTask(null);await load();}catch(e:any){toast.error(e?.response?.data?.error||"Could not update task.");}finally{setBusy(false);}}
+ async function review(t:Task,decision:"APPROVE"|"REVISE"){const notes=window.prompt(decision==="APPROVE"?"Approval note":"What needs revision?");if(!notes?.trim())return;try{await api.patch("/marketing-os/tasks/"+t._id+"/review",{decision,notes});toast.success("Review recorded.");await load();}catch(e:any){toast.error(e?.response?.data?.error||"Review failed.");}}
+
+ const tabs=["overview","tasks","campaigns",...(isAdmin?["partners"]:[])];
+ return <main className="min-h-screen bg-[#050b14] px-4 py-6 text-white sm:px-6"><div className="mx-auto max-w-7xl space-y-6">
+  <header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[.24em] text-sky-300">Truvi Ventures</p><h1 className="mt-2 text-3xl font-semibold">Marketing OS</h1><p className="mt-2 max-w-2xl text-sm text-slate-400">Campaign execution, employee tasks and project-wise performance from live Truvi records.</p></div><div className="flex gap-2"><Link to={isAdmin?"/admin/employees":"/employee/dashboard"} className="rounded-xl border border-white/10 px-4 py-2 text-sm">Employee workspace ↗</Link><button onClick={()=>void load()} className="rounded-xl border border-white/10 px-3 py-2 text-sm"><RefreshCw size={15}/></button></div></header>
+  <nav className="flex flex-wrap gap-2 border-b border-white/10 pb-3">{tabs.map(x=><button key={x} onClick={()=>setTab(x)} className={"rounded-xl px-4 py-2 text-sm capitalize "+(tab===x?"bg-sky-500 font-semibold text-slate-950":"bg-white/5 text-slate-300")}>{x==="partners"?"Clients & Partners":x}</button>)}</nav>
+
+  {tab==="overview"&&<>
+   {manager&&<section className={panel+" p-4"}><div className="mb-3 flex items-center gap-2 text-sm"><BarChart3 size={15}/> Analytics filters</div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+    <select className={field} value={filters.employeeId} onChange={e=>setFilters(s=>({...s,employeeId:e.target.value}))}><option value="">All employees</option>{employees.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <select className={field} value={filters.projectId} onChange={e=>setFilters(s=>({...s,projectId:e.target.value}))}><option value="">All projects</option>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <select className={field} value={filters.campaignId} onChange={e=>setFilters(s=>({...s,campaignId:e.target.value}))}><option value="">All campaigns</option>{campaigns.map(x=><option key={x._id} value={x._id}>{x.name}</option>)}</select>
+    <input type="date" aria-label="From date" className={field} value={filters.from} onChange={e=>setFilters(s=>({...s,from:e.target.value}))}/>
+    <input type="date" aria-label="To date" className={field} value={filters.to} onChange={e=>setFilters(s=>({...s,to:e.target.value}))}/>
+   </div></section>}
+   <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Kpi label="Assigned tasks" value={k.tasks||0} foot={(k.pending||0)+" awaiting action"} icon={<ClipboardList/>}/>
+    <Kpi label="In progress" value={k.inProgress||0} foot={(k.completionPercent||0)+"% completion"} icon={<Activity/>}/>
+    <Kpi label="Overdue" value={k.overdue||0} foot={(k.underReview||0)+" awaiting review"} icon={<CalendarClock/>}/>
+    <Kpi label="Active campaigns" value={k.campaigns||0} foot={(k.employees||0)+" active employees"} icon={<Megaphone/>}/>
+    {manager&&<><Kpi label="Leads generated" value={k.leads||0} foot={(k.conversions||0)+" recorded conversions"} icon={<Users/>}/><Kpi label="Customer calls" value={k.calls||0} foot={(k.followUps||0)+" follow-up activities"} icon={<Activity/>}/><Kpi label="Site visits" value={k.siteVisits||0} foot="Recorded CRM visits" icon={<CheckCircle2/>}/><Kpi label="Attributed booking value" value={inr(k.revenue||0)} foot={(k.conversionRate||0)+"% stage conversion"} icon={<BarChart3/>}/></>}
+   </section>
+   <section className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]"><div className={panel+" p-5"}><h2 className="font-semibold">CRM lead pipeline</h2><p className="mb-4 text-xs text-slate-400">Live leads by recorded stage</p>{manager&&overview?.leadsByStage?.length?overview.leadsByStage.map(r=>{const max=Math.max(1,...overview.leadsByStage.map(x=>x.count));return <div key={r.stage} className="mb-3 grid grid-cols-[105px_1fr_30px] items-center gap-2 text-xs"><span className="truncate text-slate-400">{r.stage.replaceAll("_"," ")}</span><div className="h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-sky-400" style={{width:(r.count/max*100)+"%"}}/></div><span className="text-right">{r.count}</span></div>;}):<Empty text="Assigned work and task updates will appear here."/>}</div>
+   <div className={panel+" p-5"}><h2 className="font-semibold">Overall completion</h2><div className="mt-4 text-5xl font-semibold">{k.completionPercent||0}<span className="text-2xl text-slate-400">%</span></div><div className="mt-4 h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-emerald-400" style={{width:Math.min(100,k.completionPercent||0)+"%"}}/></div><div className="mt-5 grid grid-cols-2 gap-2"><Small label="Completed" value={k.completed||0}/><Small label="Pending" value={k.pending||0}/></div></div></section>
+  </>}
+
+  {tab==="tasks"&&<section className="space-y-4">
+   {manager&&<form onSubmit={createTask} className={panel+" grid gap-3 p-5 sm:grid-cols-2"}><div className="sm:col-span-2"><h2 className="font-semibold">Assign marketing task</h2><p className="text-xs text-slate-400">Assign an employee team and optionally share progress with a client or partner.</p></div>
+    <input required className={field} placeholder="Task name" value={task.title} onChange={e=>setTask(s=>({...s,title:e.target.value}))}/><select className={field} value={task.priority} onChange={e=>setTask(s=>({...s,priority:e.target.value}))}>{["LOW","MEDIUM","HIGH","URGENT"].map(x=><option key={x}>{x}</option>)}</select>
+    <textarea className={field+" sm:col-span-2"} placeholder="Description and expected outcome" value={task.description} onChange={e=>setTask(s=>({...s,description:e.target.value}))}/>
+    <select className={field} value={task.projectId} onChange={e=>setTask(s=>({...s,projectId:e.target.value}))}><option value="">No project linked</option>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <select className={field} value={task.campaignId} onChange={e=>setTask(s=>({...s,campaignId:e.target.value}))}><option value="">No campaign linked</option>{campaigns.map(x=><option key={x._id} value={x._id}>{x.name}</option>)}</select>
+    <label className="text-xs text-slate-400">Start<input type="datetime-local" className={field+" mt-1"} value={task.startAt} onChange={e=>setTask(s=>({...s,startAt:e.target.value}))}/></label><label className="text-xs text-slate-400">Deadline<input type="datetime-local" className={field+" mt-1"} value={task.deadlineAt} onChange={e=>setTask(s=>({...s,deadlineAt:e.target.value}))}/></label>
+    <Multi title="Assign employees" items={employees.filter(x=>x.status!=="INACTIVE"&&x.accountActive!==false).map(x=>({id:x.id,label:x.name}))} selected={task.employeeIds} toggle={id=>toggle(id,task.employeeIds,v=>setTask(s=>({...s,employeeIds:v})))}/>
+    <Multi title="Share with clients / partners" items={partners.filter(x=>x.status==="ACTIVE"&&x.accountActive).map(x=>({id:x.id,label:x.name+(x.companyName?" · "+x.companyName:"")}))} selected={task.partnerUserIds} toggle={id=>toggle(id,task.partnerUserIds,v=>setTask(s=>({...s,partnerUserIds:v})))}/>
+    <div className="flex justify-end sm:col-span-2"><button disabled={busy||!task.employeeIds.length} className="rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 disabled:opacity-50">Assign task</button></div>
+   </form>}
+   <div className={panel+" grid gap-2 p-3 sm:grid-cols-[1fr_190px]"}><input className={field} placeholder="Search tasks…" value={search} onChange={e=>setSearch(e.target.value)}/><select className={field} value={status} onChange={e=>setStatus(e.target.value)}><option value="">All statuses</option>{["ASSIGNED","ACCEPTED","IN_PROGRESS","UNDER_REVIEW","COMPLETED","CANCELLED"].map(x=><option key={x}>{x}</option>)}</select></div>
+   <div className="grid gap-3 lg:grid-cols-2"><TaskList tasks={visibleTasks} manager={manager} progress={t=>{setProgressTask(t);setProgress(t.progressPercent||0);setUpdate("");setSubmitReview(false);}} review={review}/></div>
+  </section>}
+
+  {tab==="campaigns"&&<section className="space-y-4">
+   {manager&&<form onSubmit={createCampaign} className={panel+" grid gap-3 p-5 sm:grid-cols-2"}><div className="sm:col-span-2"><h2 className="font-semibold">Create campaign</h2></div>
+    <input required className={field} placeholder="Campaign name" value={campaign.name} onChange={e=>setCampaign(s=>({...s,name:e.target.value}))}/><input className={field} placeholder="Channel" value={campaign.channel} onChange={e=>setCampaign(s=>({...s,channel:e.target.value}))}/>
+    <textarea className={field+" sm:col-span-2"} placeholder="Objective and expected outcome" value={campaign.objective} onChange={e=>setCampaign(s=>({...s,objective:e.target.value}))}/>
+    <select className={field} value={campaign.projectId} onChange={e=>setCampaign(s=>({...s,projectId:e.target.value}))}><option value="">No project linked</option>{projects.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+    <input type="number" min="0" className={field} placeholder="Spend (₹)" value={campaign.spendRupees} onChange={e=>setCampaign(s=>({...s,spendRupees:e.target.value}))}/>
+    <Multi title="Campaign team" items={employees.filter(x=>x.status!=="INACTIVE"&&x.accountActive!==false).map(x=>({id:x.id,label:x.name}))} selected={campaign.employeeIds} toggle={id=>toggle(id,campaign.employeeIds,v=>setCampaign(s=>({...s,employeeIds:v})))}/>
+    <div className="flex justify-end sm:col-span-2"><button disabled={busy} className="rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950">Create campaign</button></div>
+   </form>}
+   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{campaigns.map(c=><article key={c._id} className={panel+" p-5"}><div className="flex justify-between gap-2"><span className="text-xs uppercase tracking-wider text-sky-300">{c.channel}</span><Pill value={c.status}/></div><h3 className="mt-2 text-lg font-semibold">{c.name}</h3><p className="mt-2 text-sm text-slate-400">{c.objective||"No objective recorded."}</p><div className="mt-4 flex justify-between border-t border-white/10 pt-3 text-xs text-slate-400"><span>{projects.find(p=>p.id===c.projectId)?.name||"Project not linked"}</span><span>{inr((c.spendPaise||0)/100)} spend</span></div></article>)}{!campaigns.length&&<Empty text="No assigned campaigns found."/>}</div>
+  </section>}
+
+  {tab==="partners"&&isAdmin&&<section className="space-y-4">
+   <form onSubmit={createPartner} className={panel+" grid gap-3 p-5 sm:grid-cols-2"}><div className="sm:col-span-2"><h2 className="font-semibold">Invite client / marketing partner</h2><p className="text-xs text-slate-400">The partner gets access only to selected projects and tasks you share.</p></div>
+    <input required className={field} placeholder="Full name" value={partner.name} onChange={e=>setPartner(s=>({...s,name:e.target.value}))}/><input required type="email" className={field} placeholder="Email address" value={partner.email} onChange={e=>setPartner(s=>({...s,email:e.target.value}))}/>
+    <input className={field} placeholder="Mobile (optional)" value={partner.phone} onChange={e=>setPartner(s=>({...s,phone:e.target.value}))}/><input className={field} placeholder="Company (optional)" value={partner.companyName} onChange={e=>setPartner(s=>({...s,companyName:e.target.value}))}/>
+    <Multi title="Projects they may view" items={projects.map(x=>({id:x.id,label:x.name+(x.city?" · "+x.city:"")}))} selected={partner.projectIds} toggle={id=>toggle(id,partner.projectIds,v=>setPartner(s=>({...s,projectIds:v})))}/>
+    <div className="flex items-end justify-end"><button disabled={busy||!partner.projectIds.length} className="rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950">Create & invite partner</button></div>
+   </form>
+   <div className={panel+" divide-y divide-white/5"}>{partners.map(p=><div key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{p.name} <span className="text-xs text-slate-500">{p.companyName}</span></p><p className="text-xs text-slate-400">{p.email}</p></div><div className="flex items-center gap-2"><Pill value={p.accountActive?p.status:"INVITED"}/><button onClick={async()=>{try{await api.patch("/marketing-os/partners/"+p.id,{status:p.status==="ACTIVE"?"INACTIVE":"ACTIVE"});toast.success("Partner updated.");await load();}catch(e:any){toast.error(e?.response?.data?.error||"Could not update partner.");}}} className="rounded-lg border border-white/10 px-3 py-2 text-xs">{p.status==="ACTIVE"?"Deactivate":"Activate"}</button></div></div>)}{!partners.length&&<Empty text="No client or partner accounts yet."/>}</div>
+  </section>}
+ </div>
+ {progressTask&&<div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4 backdrop-blur-sm"><form onSubmit={saveProgress} className={panel+" w-full max-w-lg space-y-4 p-5"}><div><h2 className="text-lg font-semibold">Update task progress</h2><p className="mt-1 text-sm text-slate-400">{progressTask.title}</p></div><label className="block text-sm">Progress: {progress}%<input type="range" min="0" max="100" step="5" className="mt-3 w-full accent-sky-400" value={progress} onChange={e=>setProgress(Number(e.target.value))}/></label><textarea required minLength={2} className={field+" min-h-24"} placeholder="Completed work, evidence or next steps" value={update} onChange={e=>setUpdate(e.target.value)}/><label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={submitReview} onChange={e=>setSubmitReview(e.target.checked)}/> Submit for review (requires 100%)</label><div className="flex justify-end gap-2"><button type="button" onClick={()=>setProgressTask(null)} className="rounded-xl border border-white/10 px-4 py-2 text-sm">Cancel</button><button disabled={busy||(submitReview&&progress!==100)} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950">Save progress</button></div></form></div>}
+ {loading&&<div className="fixed bottom-4 right-4 rounded-xl border border-white/10 bg-[#0b1725] px-3 py-2 text-xs text-slate-300"><RefreshCw size={13} className="mr-2 inline animate-spin"/> Syncing records…</div>}
+ </main>;
+}
+
+function Kpi({label,value,foot,icon}:{label:string;value:string|number;foot:string;icon:ReactNode}){return <article className={panel+" p-4"}><div className="flex justify-between text-xs text-slate-400"><span>{label}</span><span className="text-sky-300">{icon}</span></div><div className="mt-3 text-3xl font-semibold tabular-nums">{value}</div><p className="mt-1 text-xs text-slate-500">{foot}</p></article>;}
+function Small({label,value}:{label:string;value:number}){return <div className="rounded-xl border border-white/10 bg-white/[.03] p-3"><div className="text-xs text-slate-400">{label}</div><div className="mt-1 text-xl font-semibold">{value}</div></div>;}
+function Pill({value}:{value:string}){const green=["ACTIVE","COMPLETED","APPROVED"].includes(value);return <span className={"rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide "+(green?"border-emerald-400/25 bg-emerald-400/10 text-emerald-300":"border-sky-400/25 bg-sky-400/10 text-sky-200")}>{value.replaceAll("_"," ")}</span>;}
+function Empty({text}:{text:string}){return <div className="p-8 text-center text-sm text-slate-500">{text}</div>;}
+function Multi({title,items,selected,toggle}:{title:string;items:Array<{id:string;label:string}>;selected:string[];toggle:(id:string)=>void}){return <div className="rounded-xl border border-white/10 bg-white/[.025] p-3"><div className="mb-2 flex justify-between text-xs"><span className="font-semibold text-slate-300">{title}</span><span className="text-slate-500">{selected.length} selected</span></div><div className="max-h-36 space-y-2 overflow-y-auto">{items.map(x=><label key={x.id} className="flex cursor-pointer items-center gap-2 text-xs text-slate-400"><input type="checkbox" className="accent-sky-400" checked={selected.includes(x.id)} onChange={()=>toggle(x.id)}/>{x.label}</label>)}{!items.length&&<span className="text-xs text-slate-500">No available records.</span>}</div></div>;}
+function TaskList({tasks,manager,progress,review}:{tasks:Task[];manager:boolean;progress:(t:Task)=>void;review:(t:Task,d:"APPROVE"|"REVISE")=>void}){return <>{tasks.map(t=><article key={t._id} className={panel+" p-4"}><div className="flex justify-between gap-2"><div><h3 className="font-semibold">{t.title}</h3><p className="mt-1 text-xs text-slate-400">{t.project?.name||"Project not linked"}{t.campaign?.name?" · "+t.campaign.name:""}</p></div><Pill value={t.status}/></div>{t.description&&<p className="mt-3 text-sm text-slate-400">{t.description}</p>}<div className="mt-3 flex justify-between text-xs text-slate-400"><span>{t.priority} priority</span><span>Due {dateLabel(t.deadlineAt)}</span></div><div className="mt-3 h-2 rounded-full bg-white/10"><div className="h-2 rounded-full bg-sky-400" style={{width:Math.max(0,Math.min(100,t.progressPercent||0))+"%"}}/></div><p className="mt-1 text-right text-[11px] text-slate-400">{t.progressPercent||0}%</p>{t.assignees?.length&&<p className="mt-2 text-xs text-slate-500">Assigned: {t.assignees.map(a=>a.name).join(", ")}</p>}{manager&&t.status==="UNDER_REVIEW"?<div className="mt-3 flex justify-end gap-2"><button onClick={()=>review(t,"REVISE")} className="rounded-lg border border-amber-300/20 px-3 py-2 text-xs text-amber-200">Request revision</button><button onClick={()=>review(t,"APPROVE")} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-semibold text-slate-950">Approve</button></div>:!manager&&!["COMPLETED","CANCELLED"].includes(t.status)?<div className="mt-3 flex justify-end"><button onClick={()=>progress(t)} className="rounded-lg bg-sky-500/15 px-3 py-2 text-xs text-sky-200">Update progress</button></div>:null}</article>)}{!tasks.length&&<div className="col-span-full"><Empty text="No task records found."/></div>}</>;}
