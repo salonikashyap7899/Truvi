@@ -11,9 +11,9 @@ import { z } from "zod";
 import { getDb } from "../config/db";
 import {
   users, employees, projects, leads, leadActivities, siteVisits, commissions,
-  employeeTasks, employeeTaskAssignments, employeeTaskHistory, employeeTaskAttachments,
+  employeeTasks, employeeTaskAssignments, employeeTaskHistory, employeeTaskAttachments, employeeTaskComments,
   marketingPartnerCampaigns, marketingPartnerProfiles, marketingPartnerInvites,
-  marketingPartnerProjects, marketingCampaignEmployees, marketingTaskPartners,
+  marketingPartnerProjects, marketingCampaignEmployees, marketingCampaignLeads, marketingTaskPartners,
   marketingTaskUpdates, marketingOsEmailOutbox, userConsentEvents,
 } from "../db/schema";
 import { authenticate, type AuthedRequest } from "../middleware/auth";
@@ -567,7 +567,7 @@ router.patch("/campaigns/:id", async (req: AuthedRequest, res) => {
     const partnerIds = Array.from(new Set(partnerRecipients.map((row) => String(row.userId))));
     if (employeeIds.length) {
       await createNotifications(employeeIds, { type: "marketing_campaign_assigned", title: "Marketing campaign updated", message, actorUserId: req.user!.userId, data: { href: "/employee/marketing", campaignId: String(updated._id) } }).catch(() => []);
-      for (const recipientUserId of employeeIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Marketing campaign updated", message, href: "https://truviventures.com/employee/marketing" }, "campaign-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(updated.updatedAt?.getTime?.() ?? Date.now()));
+      for (const recipientUserId of employeeIds) await queueMarketingOsEmail(recipientUserId, "CAMPAIGN_UPDATE", String(updated._id), { title: "Marketing campaign updated", message, href: "https://truviventures.com/employee/marketing" }, "campaign-update:" + String(updated._id) + ":" + recipientUserId + ":" + String(Date.now()));
     }
     if (partnerIds.length) {
       await createNotifications(partnerIds, { type: "marketing_campaign_assigned", title: "Shared campaign updated", message, actorUserId: req.user!.userId, data: { href: "/marketing/partner", campaignId: String(updated._id) } }).catch(() => []);
@@ -957,40 +957,42 @@ router.post("/partners", async (req: AuthedRequest, res) => {
 
 router.post("/partners/:userId/invite", async (req: AuthedRequest, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
-  if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
+  const partnerUserId = String(req.params.userId || "");
+  if (!isValidId(partnerUserId)) return res.status(404).json({ error: "Partner not found." });
   const db = getDb();
-  const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
+  const [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, partnerUserId)).limit(1);
   const [account] = await db.select({ id: users._id, role: users.role, disabled: users.disabled, emailVerified: users.emailVerified })
-    .from(users).where(eq(users._id, req.params.userId)).limit(1);
+    .from(users).where(eq(users._id, partnerUserId)).limit(1);
   if (!profile || profile.status !== "ACTIVE" || !account || account.role !== "MARKETING_PARTNER") return res.status(404).json({ error: "Active partner account not found." });
   if (!account.disabled || account.emailVerified) return res.status(409).json({ error: "This partner account has already been activated. Use the normal password-reset flow instead of resending activation." });
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
   await db.transaction(async (tx) => {
-    await tx.update(marketingPartnerInvites).set({ usedAt: new Date() }).where(and(eq(marketingPartnerInvites.userId, req.params.userId), isNull(marketingPartnerInvites.usedAt)));
-    await tx.insert(marketingPartnerInvites).values({ userId: req.params.userId, tokenHash: tokenHash(token), createdById: req.user!.userId, expiresAt });
-    await tx.update(users).set({ disabled: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, req.params.userId));
+    await tx.update(marketingPartnerInvites).set({ usedAt: new Date() }).where(and(eq(marketingPartnerInvites.userId, partnerUserId), isNull(marketingPartnerInvites.usedAt)));
+    await tx.insert(marketingPartnerInvites).values({ userId: partnerUserId, tokenHash: tokenHash(token), createdById: req.user!.userId, expiresAt });
+    await tx.update(users).set({ disabled: true, authVersion: sql.raw('"auth_version" + 1') }).where(eq(users._id, partnerUserId));
   });
   const inviteUrl = (process.env.CLIENT_URL || "https://truviventures.com").replace(/\/$/, "") + "/marketing/activate?token=" + token;
-  const queued = await queueMarketingOsEmail(req.params.userId, "PARTNER_INVITE", null, {
+  const queued = await queueMarketingOsEmail(partnerUserId, "PARTNER_INVITE", null, {
     title: "Your Truvi Marketing Partner invitation",
     message: "Use the secure one-time link to activate your assigned project workspace. The link expires in 48 hours.",
     hrefEncrypted: encryptInviteUrl(inviteUrl),
-  }, "partner-invite:" + req.params.userId + ":" + expiresAt.getTime());
-  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.invite.resend", resourceType: "marketing_partner", resourceId: req.params.userId });
+  }, "partner-invite:" + partnerUserId + ":" + expiresAt.getTime());
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.invite.resend", resourceType: "marketing_partner", resourceId: partnerUserId });
   res.json({ ok: queued, queued, message: queued ? "The new invitation was queued." : "The new invitation could not be queued. Check the database logs." });
 });
 
 router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
   if (!isAdmin(req)) return res.status(403).json({ error: "Admin access only." });
-  if (!isValidId(req.params.userId)) return res.status(404).json({ error: "Partner not found." });
+  const partnerUserId = String(req.params.userId || "");
+  if (!isValidId(partnerUserId)) return res.status(404).json({ error: "Partner not found." });
   const parsed = z.object({
     status: z.enum(["ACTIVE", "INACTIVE"]),
     projectIds: z.array(z.string().refine(isValidId)).max(100).optional(),
     permissions: z.array(z.enum(["project.read.assigned", "campaign.read.assigned", "task.read.shared", "report.read.assigned", "task.update.shared"])).max(5).optional(),
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid partner update." });
-  const db = getDb(), [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, req.params.userId)).limit(1);
+  const db = getDb(), [profile] = await db.select().from(marketingPartnerProfiles).where(eq(marketingPartnerProfiles.userId, partnerUserId)).limit(1);
   if (!profile) return res.status(404).json({ error: "Partner not found." });
   if (parsed.data.projectIds) {
     const existing = await db.select({ id: projects._id }).from(projects).where(inArray(projects._id, parsed.data.projectIds));
@@ -1001,18 +1003,18 @@ router.patch("/partners/:userId", async (req: AuthedRequest, res) => {
       status: parsed.data.status,
       ...(parsed.data.permissions ? { permissions: Array.from(new Set(parsed.data.permissions)) } : {}),
       updatedAt: new Date(),
-    }).where(eq(marketingPartnerProfiles.userId, req.params.userId));
-    const [account] = await tx.select({ emailVerified: users.emailVerified }).from(users).where(eq(users._id, req.params.userId)).limit(1);
+    }).where(eq(marketingPartnerProfiles.userId, partnerUserId));
+    const [account] = await tx.select({ emailVerified: users.emailVerified }).from(users).where(eq(users._id, partnerUserId)).limit(1);
     await tx.update(users).set({
       disabled: parsed.data.status !== "ACTIVE" || !account?.emailVerified,
       authVersion: sql.raw('"auth_version" + 1'),
-    }).where(eq(users._id, req.params.userId));
+    }).where(eq(users._id, partnerUserId));
     if (parsed.data.projectIds) {
-      await tx.delete(marketingPartnerProjects).where(eq(marketingPartnerProjects.partnerUserId, req.params.userId));
-      if (parsed.data.projectIds.length) await tx.insert(marketingPartnerProjects).values(parsed.data.projectIds.map((id) => ({ partnerUserId: req.params.userId, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
+      await tx.delete(marketingPartnerProjects).where(eq(marketingPartnerProjects.partnerUserId, partnerUserId));
+      if (parsed.data.projectIds.length) await tx.insert(marketingPartnerProjects).values(parsed.data.projectIds.map((id) => ({ partnerUserId: partnerUserId, projectId: id, assignedByUserId: req.user!.userId }))).onConflictDoNothing();
     }
   });
-  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.update", resourceType: "marketing_partner", resourceId: req.params.userId, metadata: { status: parsed.data.status } });
+  await logAudit({ userId: req.user!.userId, action: "marketing_os.partner.update", resourceType: "marketing_partner", resourceId: partnerUserId, metadata: { status: parsed.data.status } });
   res.json({ ok: true });
 });
 
