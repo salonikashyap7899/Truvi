@@ -40,6 +40,75 @@ function isKnownSpaRoute(pathname: string): boolean {
   return exactRoutes.has(normalized) || dynamicRoutePatterns.some((pattern) => pattern.test(normalized));
 }
 
+/** Accept only exact HTTPS origins from deployment configuration. */
+function configuredHttpsOrigin(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    if (url.pathname !== "/" || url.search || url.hash) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function configuredHttpsOrigins(value: string | undefined): string[] {
+  return [...new Set((value ?? "").split(",").map((entry) => configuredHttpsOrigin(entry)).filter((entry): entry is string => Boolean(entry)))];
+}
+
+function websocketOrigin(origin: string): string {
+  return "wss://" + new URL(origin).host;
+}
+
+/**
+ * Build a restrictive page policy from exact deploy-time API/media origins.
+ * CSP_MEDIA_ORIGINS is a comma-separated allowlist for external project media.
+ * No scheme-wide https: or wss: source expressions are used.
+ */
+function pageContentSecurityPolicy(requestUrl: string): string {
+  const pageOrigin = new URL(requestUrl).origin;
+  const apiOrigin = configuredHttpsOrigin(process.env.VITE_API_URL) ?? pageOrigin;
+  const mediaOrigins = configuredHttpsOrigins(process.env.CSP_MEDIA_ORIGINS);
+  const connectSources = [...new Set([
+    "'self'", apiOrigin, websocketOrigin(pageOrigin), websocketOrigin(apiOrigin),
+    "https://maps.googleapis.com", "https://maps.gstatic.com",
+    "https://api.razorpay.com", "https://checkout.razorpay.com",
+  ])];
+  const imageSources = [...new Set([
+    "'self'", "data:", "blob:", apiOrigin, ...mediaOrigins,
+    "https://maps.googleapis.com", "https://maps.gstatic.com",
+  ])];
+  const mediaSources = [...new Set(["'self'", "data:", "blob:", apiOrigin, ...mediaOrigins])];
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+    "script-src 'self' https://checkout.razorpay.com https://maps.googleapis.com https://maps.gstatic.com",
+    "script-src-attr 'none'",
+    "style-src 'self' https://fonts.googleapis.com",
+    "style-src-attr 'unsafe-inline'",
+    "img-src " + imageSources.join(" "),
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src " + connectSources.join(" "),
+    "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com",
+    "media-src " + mediaSources.join(" "),
+    "worker-src 'self' blob:",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
+function withPageSecurityHeaders(response: Response, request: Request): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Content-Security-Policy", pageContentSecurityPolicy(request.url));
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("X-Frame-Options", "SAMEORIGIN");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 /**
  * Vercel runs this before its catch-all rewrite. Known React routes continue
  * into the SPA rewrite; unknown extensionless routes receive the same React
@@ -47,7 +116,7 @@ function isKnownSpaRoute(pathname: string): boolean {
  */
 export default async function proxy(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  if (isKnownSpaRoute(url.pathname)) return next();
+  if (isKnownSpaRoute(url.pathname)) return withPageSecurityHeaders(await next(), request);
 
   const shellUrl = new URL("/index.html", url.origin);
   const shell = await fetch(shellUrl, {
@@ -57,19 +126,19 @@ export default async function proxy(request: Request): Promise<Response> {
   });
 
   if (!shell.ok || !shell.body) {
-    return new Response("Not Found", {
+    return withPageSecurityHeaders(new Response("Not Found", {
       status: 404,
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-    });
+    }), request);
   }
 
   const headers = new Headers(shell.headers);
   headers.set("cache-control", "no-store");
   headers.set("x-robots-tag", "noindex, nofollow");
 
-  return new Response(request.method === "HEAD" ? null : shell.body, {
+  return withPageSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, {
     status: 404,
     statusText: "Not Found",
     headers,
-  });
+  }), request);
 }
