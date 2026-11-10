@@ -5,13 +5,13 @@ import type { AuthedRequest } from "./auth";
 
 /**
  * Content Security Policy for pages served directly by Express (the VPS setup).
- * The same policy is configured in client/vercel.json for static-site hosting.
- * Keep the external script list limited to the integrations actually used by
- * Truvi: Razorpay Checkout and Google Maps/Places. Organization JSON-LD is
- * structured data, not executable JavaScript, so it needs no script hash.
+ * The Vercel static frontend builds its corresponding policy in client/proxy.ts.
+ * Keep the external script list limited to integrations actually used by Truvi:
+ * Razorpay Checkout and Google Maps/Places. Organization JSON-LD is structured
+ * data, not executable JavaScript, so it needs no script hash.
  *
- * This policy must be exercised against staging before deployment because
- * payments, Maps/Places, uploaded media and the live API all depend on origins.
+ * Exercise this policy against staging before deployment because payments,
+ * Maps/Places, uploaded media and the live API all depend on configured origins.
  */
 /**
  * Parse exact HTTPS origins from deployment variables. Ignore paths, wildcard
