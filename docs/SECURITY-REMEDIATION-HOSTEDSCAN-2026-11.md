@@ -10,6 +10,9 @@ The HostedScan report for `https://truviventures.com`, scanned on 5 November 202
 - Read the frontend API origin from `VITE_API_URL`; the Express policy reads `CLIENT_URL`, `PUBLIC_URL` / `RENDER_EXTERNAL_URL`, and `CSP_MEDIA_ORIGINS`.
 - Restrict `form-action` to `'self'`.
 - Move required inline React style attributes from `style-src` to `style-src-attr`. Inline style elements remain disallowed.
+- Self-host the Inter, Inter Tight, and Playfair Display variable WOFF2 fonts (Latin and Latin-Extended subsets) under `client/public/fonts`. The site keeps the existing family names and variable weight ranges; the primary Playfair Display file is preloaded for first paint.
+- Remove the Google Fonts stylesheet/preconnect from `client/index.html` and the Google Fonts CSS import from Founder OS. Remove `fonts.googleapis.com` and `fonts.gstatic.com` from both CSP implementations.
+- Include the corresponding SIL Open Font License 1.1 notices beside the redistributed font assets.
 - Apply the Vercel CSP in the page proxy so it can use deployment environment variables. The static duplicate in `vercel.json` is removed.
 
 ## Required deployment configuration
@@ -31,7 +34,7 @@ These cannot be fixed by a frontend or Express code change.
 
 ## Findings not claimed as fixed by this PR
 
-- **Subresource Integrity on Google Fonts:** The report identifies the remote Google Fonts CSS link. Do not paste a guessed SRI hash: Google Fonts can serve different CSS for different user agents. A durable fix is to self-host the exact font files/CSS (or use a fixed, versioned asset with a verified integrity hash). This PR preserves the existing font URLs and explicitly leaves this finding for a separate asset migration.
+- **Subresource Integrity on Google Fonts:** Remediated by removing the remote Google Fonts stylesheet and CSS import instead of adding a fragile browser-dependent SRI hash. Inter, Inter Tight, and Playfair Display are now served as same-origin WOFF2 assets with their SIL Open Font License notices. Re-run HostedScan after deployment to confirm the external stylesheet finding is cleared.
 - TLS, origin firewall/port exposure and TCP timestamps are not changed by this PR. Cloudflare/VPS settings must be verified and changed by an authorized operator.
 
 ## Validation checklist
@@ -43,4 +46,4 @@ cd client && npm run build
 cd ../server && npm run typecheck && npm test
 ```
 
-Then run `npm run test:security` from `truvi-tests/` against staging. Do not merge or deploy until the media-origin allowlist is checked against existing production content and payment, authentication and live-update flows pass.
+Then run `npm run test:security` from `truvi-tests/` against staging. The security test also verifies the local WOFF2 asset set and checks that neither the source tree nor the browser reintroduces requests to Google Fonts. Do not deploy until the media-origin allowlist is checked against existing production content and payment, authentication and live-update flows pass.

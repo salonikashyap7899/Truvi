@@ -3,9 +3,44 @@
 // is served over HTTPS and redirects HTTP→HTTPS, and watches for insecure
 // (http://) subresources loaded on the HTTPS page.
 
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { standalone, isMain } from "../lib/runner.mjs";
 import { Findings, SEVERITY, clip } from "../lib/findings.mjs";
 import { BASE_URL, TIMEOUTS } from "../config.mjs";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const LOCAL_FONT_FILES = [
+  "inter-latin-wght-normal.woff2",
+  "inter-latin-ext-wght-normal.woff2",
+  "inter-tight-latin-wght-normal.woff2",
+  "inter-tight-latin-ext-wght-normal.woff2",
+  "playfair-display-latin-wght-normal.woff2",
+  "playfair-display-latin-ext-wght-normal.woff2",
+  "playfair-display-latin-wght-italic.woff2",
+  "playfair-display-latin-ext-wght-italic.woff2",
+];
+const FONT_SOURCE_FILES = [
+  "client/index.html",
+  "client/src/index.css",
+  "client/src/styles/fonts.css",
+  "client/src/styles/founder-os.css",
+  "client/proxy.ts",
+  "server/src/middleware/security.ts",
+];
+
+function inspectLocalFonts() {
+  const externalRefs = [];
+  for (const relativePath of FONT_SOURCE_FILES) {
+    const absolutePath = path.join(REPO_ROOT, relativePath);
+    if (!existsSync(absolutePath)) continue;
+    const source = readFileSync(absolutePath, "utf8");
+    if (/fonts\\.(?:googleapis|gstatic)\\.com/i.test(source)) externalRefs.push(relativePath);
+  }
+  const missingAssets = LOCAL_FONT_FILES.filter((file) => !existsSync(path.join(REPO_ROOT, "client/public/fonts", file)));
+  return { externalRefs, missingAssets };
+}
 
 const REQUIRED = [
   {
@@ -42,6 +77,22 @@ const REQUIRED = [
 
 export async function run(shared) {
   const f = new Findings("Security Headers");
+  // Font assets are now served from the same origin. Check source and build
+  // inputs as well as browser requests so a lazy-loaded Founder OS stylesheet
+  // cannot quietly reintroduce the remote Google Fonts CSS dependency.
+  const localFontCheck = inspectLocalFonts();
+  if (localFontCheck.externalRefs.length || localFontCheck.missingAssets.length) {
+    f.add({
+      issue: "Google Fonts are not fully self-hosted",
+      steps: "Inspect client font imports, CSP sources, and client/public/fonts assets",
+      severity: SEVERITY.LOW,
+      evidence: clip(JSON.stringify(localFontCheck), 240),
+      fix: "Serve Inter, Inter Tight, and Playfair Display from client/public/fonts and remove fonts.googleapis.com / fonts.gstatic.com references.",
+    });
+  } else {
+    f.pass("Google Fonts are self-hosted", "Local WOFF2 assets and local font CSS are present; no Google Fonts host references remain.");
+  }
+
 
   if (!/^https:/i.test(BASE_URL)) {
     f.add({
@@ -148,8 +199,13 @@ export async function run(shared) {
   // --- Mixed content: load page in browser, watch for insecure subresources ---
   const page = await shared.context.newPage();
   const insecure = [];
+  const externalGoogleFonts = [];
   page.on("request", (req) => {
     if (/^http:\/\//i.test(req.url())) insecure.push(req.url());
+    try {
+      const hostname = new URL(req.url()).hostname;
+      if (hostname === "fonts.googleapis.com" || hostname === "fonts.gstatic.com") externalGoogleFonts.push(req.url());
+    } catch {}
   });
   const mixedWarnings = [];
   page.on("console", (msg) => {
@@ -171,6 +227,18 @@ export async function run(shared) {
     });
   } else {
     f.pass("No mixed-content requests observed", "All subresources loaded over HTTPS");
+  }
+
+  if (externalGoogleFonts.length) {
+    f.add({
+      issue: "Third-party Google Fonts request detected",
+      steps: "Inspect browser network requests for fonts.googleapis.com or fonts.gstatic.com",
+      severity: SEVERITY.LOW,
+      evidence: clip(externalGoogleFonts.slice(0, 3).join(", "), 240),
+      fix: "Self-host the required WOFF2 font assets and remove remote Google Fonts stylesheet/import requests.",
+    });
+  } else {
+    f.pass("No third-party Google Fonts requests observed", "Browser loaded no resources from fonts.googleapis.com or fonts.gstatic.com.");
   }
 
   return f.save("08-security-headers");
