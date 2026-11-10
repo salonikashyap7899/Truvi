@@ -46,4 +46,4 @@ cd client && npm run build
 cd ../server && npm run typecheck && npm test
 ```
 
-Then run `npm run test:security` from `truvi-tests/` against staging. The security test also verifies the local WOFF2 asset set and checks that neither the source tree nor the browser reintroduces requests to Google Fonts. Do not deploy until the media-origin allowlist is checked against existing production content and payment, authentication and live-update flows pass.
+Then run `npm run test:security` from `truvi-tests/` against staging. The security test verifies the local WOFF2 asset set and source tree on every run; set `EXPECT_SELF_HOSTED_FONTS=true` for the deployed staging/production run to assert that the browser makes no requests to Google Fonts. Do not deploy until the media-origin allowlist is checked against existing production content and payment, authentication and live-update flows pass.

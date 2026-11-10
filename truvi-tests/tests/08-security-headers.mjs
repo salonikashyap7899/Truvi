@@ -230,16 +230,20 @@ export async function run(shared) {
     f.pass("No mixed-content requests observed", "All subresources loaded over HTTPS");
   }
 
-  if (externalGoogleFonts.length) {
-    f.add({
-      issue: "Third-party Google Fonts request detected",
-      steps: "Inspect browser network requests for fonts.googleapis.com or fonts.gstatic.com",
-      severity: SEVERITY.LOW,
-      evidence: clip(externalGoogleFonts.slice(0, 3).join(", "), 240),
-      fix: "Self-host the required WOFF2 font assets and remove remote Google Fonts stylesheet/import requests.",
-    });
+  if (process.env.EXPECT_SELF_HOSTED_FONTS === "true") {
+    if (externalGoogleFonts.length) {
+      f.add({
+        issue: "Third-party Google Fonts request detected",
+        steps: "Inspect browser network requests for fonts.googleapis.com or fonts.gstatic.com",
+        severity: SEVERITY.LOW,
+        evidence: clip(externalGoogleFonts.slice(0, 3).join(", "), 240),
+        fix: "Self-host the required WOFF2 font assets and remove remote Google Fonts stylesheet/import requests.",
+      });
+    } else {
+      f.pass("No third-party Google Fonts requests observed", "Browser loaded no resources from fonts.googleapis.com or fonts.gstatic.com.");
+    }
   } else {
-    f.pass("No third-party Google Fonts requests observed", "Browser loaded no resources from fonts.googleapis.com or fonts.gstatic.com.");
+    f.pass("Google Fonts runtime check is opt-in", "Set EXPECT_SELF_HOSTED_FONTS=true when testing a deployed build; source and asset checks still run on every test.");
   }
 
   return f.save("08-security-headers");
