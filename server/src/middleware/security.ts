@@ -13,33 +13,79 @@ import type { AuthedRequest } from "./auth";
  * This policy must be exercised against staging before deployment because
  * payments, Maps/Places, uploaded media and the live API all depend on origins.
  */
-const SECURITY_CSP_DIRECTIVES = {
-  defaultSrc: ["'self'"],
-  baseUri: ["'self'"],
-  objectSrc: ["'none'"],
-  frameAncestors: ["'self'"],
-  formAction: ["'self'", "https:"],
-  scriptSrc: [
-    "'self'",
-    "https://checkout.razorpay.com",
-    "https://maps.googleapis.com",
-    "https://maps.gstatic.com",
-  ],
-  scriptSrcAttr: ["'none'"],
-  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-  imgSrc: ["'self'", "data:", "blob:", "https:"],
-  fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
-  connectSrc: ["'self'", "https:", "wss:"],
-  frameSrc: ["'self'", "https://checkout.razorpay.com", "https://api.razorpay.com"],
-  mediaSrc: ["'self'", "data:", "blob:", "https:"],
-  workerSrc: ["'self'", "blob:"],
-  upgradeInsecureRequests: [],
-};
+/**
+ * Parse exact HTTPS origins from deployment variables. Ignore paths, wildcard
+ * expressions, credentials, malformed values and non-HTTPS origins.
+ */
+function configuredHttpsOrigins(...values: (string | undefined)[]): string[] {
+  const origins = new Set<string>();
+  for (const raw of values) {
+    for (const entry of (raw ?? "").split(",")) {
+      if (!entry.trim()) continue;
+      try {
+        const url = new URL(entry.trim());
+        if (url.protocol !== "https:" || url.username || url.password) continue;
+        if (url.pathname !== "/" || url.search || url.hash) continue;
+        origins.add(url.origin);
+      } catch {
+        // Ignore invalid deployment input; the policy remains same-origin.
+      }
+    }
+  }
+  return [...origins];
+}
 
-export const securityHeaders = helmet({
-  contentSecurityPolicy: { directives: SECURITY_CSP_DIRECTIVES },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-});
+function websocketOrigins(origins: string[]): string[] {
+  return origins.map((origin) => "wss://" + new URL(origin).host);
+}
+
+/**
+ * Content Security Policy for pages served directly by Express (VPS setup).
+ * API, client and uploaded-media origins are configured explicitly; arbitrary
+ * https: and wss: source expressions are never allowed.
+ */
+export const securityHeaders = (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+  const clientOrigins = configuredHttpsOrigins(process.env.CLIENT_URL);
+  const apiOrigins = configuredHttpsOrigins(process.env.PUBLIC_URL, process.env.RENDER_EXTERNAL_URL);
+  const mediaOrigins = configuredHttpsOrigins(process.env.CSP_MEDIA_ORIGINS);
+  const socketOrigins = websocketOrigins([...new Set([...clientOrigins, ...apiOrigins])]);
+
+  const directives = {
+    defaultSrc: ["'self'"],
+    baseUri: ["'self'"],
+    objectSrc: ["'none'"],
+    frameAncestors: ["'self'"],
+    formAction: ["'self'"],
+    scriptSrc: [
+      "'self'",
+      "https://checkout.razorpay.com",
+      "https://maps.googleapis.com",
+      "https://maps.gstatic.com",
+    ],
+    scriptSrcAttr: ["'none'"],
+    styleSrc: ["'self'", "https://fonts.googleapis.com"],
+    styleSrcAttr: ["'unsafe-inline'"],
+    imgSrc: [
+      "'self'", "data:", "blob:", ...apiOrigins, ...mediaOrigins,
+      "https://maps.googleapis.com", "https://maps.gstatic.com",
+    ],
+    fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+    connectSrc: [
+      "'self'", ...apiOrigins, ...clientOrigins, ...socketOrigins,
+      "https://maps.googleapis.com", "https://maps.gstatic.com",
+      "https://api.razorpay.com", "https://checkout.razorpay.com",
+    ],
+    frameSrc: ["'self'", "https://checkout.razorpay.com", "https://api.razorpay.com"],
+    mediaSrc: ["'self'", "data:", "blob:", ...apiOrigins, ...mediaOrigins],
+    workerSrc: ["'self'", "blob:"],
+    upgradeInsecureRequests: [],
+  };
+
+  return helmet({
+    contentSecurityPolicy: { directives },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })(req, res, next);
+};
 
 // ── User-uploaded files (/uploads) ─────────────────────────────────────────
 // Uploads are served from the app's own origin, so a file that a browser
