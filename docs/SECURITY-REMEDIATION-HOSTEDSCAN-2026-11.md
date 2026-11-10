@@ -32,7 +32,7 @@ These cannot be fixed by a frontend or Express code change.
 - **Open ports:** The report's listed set (80, 443, 2052, 2053, 2082, 2083, 2086, 2087, 2095, 2096, 8080, 8443, 8880) exactly matches the standard HTTP/HTTPS ports Cloudflare proxies. That is not proof those ports are open on the Truvi VPS. Do not close them blindly. First confirm whether the scan resolved to Cloudflare edge addresses or directly to the origin. If it reached the origin, restrict inbound web traffic to the ports actually required by Truvi and allow origin HTTP/HTTPS only from Cloudflare's published IP ranges; keep SSH restricted to administrator IPs.
 - **TCP timestamps:** Check this on the actual origin host only after confirming the scanned IP belongs to the VPS. A Cloudflare edge response cannot be corrected from the application. If the VPS itself exposes TCP timestamps and operational testing permits disabling them, apply the OS-level setting through the server's change-control process and verify after reboot.
 
-## Findings not claimed as fixed by this PR
+## Findings requiring separate verification
 
 - **Subresource Integrity on Google Fonts:** Remediated by removing the remote Google Fonts stylesheet and CSS import instead of adding a fragile browser-dependent SRI hash. Inter, Inter Tight, and Playfair Display are now served as same-origin WOFF2 assets with their SIL Open Font License notices. Re-run HostedScan after deployment to confirm the external stylesheet finding is cleared.
 - TLS, origin firewall/port exposure and TCP timestamps are not changed by this PR. Cloudflare/VPS settings must be verified and changed by an authorized operator.
