@@ -95,16 +95,16 @@ export async function run(shared) {
   // components; the high-risk exception is inline/eval JavaScript. Inspect
   // script directives rather than treating every style exception as unsafe.
   const directives = csp.split(";").map((value) => value.trim()).filter(Boolean);
-  const scriptDirectives = directives.filter((directive) => /^script-src(?:-elem|attr)?\\b/i.test(directive));
+  const scriptDirectives = directives.filter((directive) => /^script-src(?:-elem|attr)?\b/i.test(directive));
   const unsafeInlineScript = scriptDirectives.some((directive) => /'unsafe-inline'|'unsafe-eval'/i.test(directive));
   const unsafeEval = directives.some((directive) => /'unsafe-eval'/i.test(directive));
-  const unrestrictedWildcard = directives.some((directive) => /(?:^|\\s)\\*(?:\\s|$)/.test(directive));
-  const schemeWideSource = directives.some((directive) => /(?:^|\\s)(?:https?:|wss?:)(?:\\s|$)/i.test(directive));
-  const inlineStyleElement = directives.some((directive) => /^style-src(?:\\s|$)/i.test(directive) && /'unsafe-inline'/i.test(directive));
+  const unrestrictedWildcard = directives.some((directive) => /(?:^|\s)\*(?:\s|$)/.test(directive));
+  const schemeWideSource = directives.some((directive) => /(?:^|\s)(?:https?:|wss?:)(?:\s|$)/i.test(directive));
+  const inlineStyleElement = directives.some((directive) => /^style-src(?:\s|$)/i.test(directive) && /'unsafe-inline'/i.test(directive));
   if (csp && (unsafeInlineScript || unsafeEval || unrestrictedWildcard || schemeWideSource || inlineStyleElement)) {
     f.add({
       issue: "Content-Security-Policy is permissive",
-      steps: `Inspect the CSP header on ${BASE_URL}`,
+      steps: "Inspect the CSP header on " + BASE_URL,
       severity: SEVERITY.LOW,
       evidence: clip(csp, 240),
       fix: "Use exact HTTPS origins instead of scheme-wide https:/wss: sources; avoid inline/eval scripts and inline style elements. Put required React inline styles in style-src-attr only.",
