@@ -32,14 +32,15 @@ const FONT_SOURCE_FILES = [
 
 function inspectLocalFonts() {
   const externalRefs = [];
+  const missingSources = FONT_SOURCE_FILES.filter((relativePath) => !existsSync(path.join(REPO_ROOT, relativePath)));
   for (const relativePath of FONT_SOURCE_FILES) {
     const absolutePath = path.join(REPO_ROOT, relativePath);
     if (!existsSync(absolutePath)) continue;
     const source = readFileSync(absolutePath, "utf8");
-    if (/fonts\\.(?:googleapis|gstatic)\\.com/i.test(source)) externalRefs.push(relativePath);
+    if (/fonts\.(?:googleapis|gstatic)\.com/i.test(source)) externalRefs.push(relativePath);
   }
   const missingAssets = LOCAL_FONT_FILES.filter((file) => !existsSync(path.join(REPO_ROOT, "client/public/fonts", file)));
-  return { externalRefs, missingAssets };
+  return { externalRefs, missingAssets, missingSources };
 }
 
 const REQUIRED = [
@@ -81,7 +82,7 @@ export async function run(shared) {
   // inputs as well as browser requests so a lazy-loaded Founder OS stylesheet
   // cannot quietly reintroduce the remote Google Fonts CSS dependency.
   const localFontCheck = inspectLocalFonts();
-  if (localFontCheck.externalRefs.length || localFontCheck.missingAssets.length) {
+  if (localFontCheck.externalRefs.length || localFontCheck.missingAssets.length || localFontCheck.missingSources.length) {
     f.add({
       issue: "Google Fonts are not fully self-hosted",
       steps: "Inspect client font imports, CSP sources, and client/public/fonts assets",
