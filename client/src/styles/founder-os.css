@@ -4,7 +4,6 @@
  * app's global (dark) Tailwind theme. Light by default; `.founder-os.dark`
  * flips the tokens.
  * =================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@600;700;800&display=swap');
 
 /* Dark is the DEFAULT — it matches the Truvi website (near-black navy glass,
    violet/purple/teal accents). `.founder-os.light` flips to a light variant. */

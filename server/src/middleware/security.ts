@@ -63,13 +63,13 @@ export const securityHeaders = (req: import("express").Request, res: import("exp
       "https://maps.gstatic.com",
     ],
     scriptSrcAttr: ["'none'"],
-    styleSrc: ["'self'", "https://fonts.googleapis.com"],
+    styleSrc: ["'self'"],
     styleSrcAttr: ["'unsafe-inline'"],
     imgSrc: [
       "'self'", "data:", "blob:", ...apiOrigins, ...mediaOrigins,
       "https://maps.googleapis.com", "https://maps.gstatic.com",
     ],
-    fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+    fontSrc: ["'self'", "data:"],
     connectSrc: [
       "'self'", ...apiOrigins, ...clientOrigins, ...socketOrigins,
       "https://maps.googleapis.com", "https://maps.gstatic.com",

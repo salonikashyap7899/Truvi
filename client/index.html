@@ -44,16 +44,13 @@
         "areaServed": "IN"
       }
     </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Primary typeface is self-hosted. Preload the latin Playfair Display face used on first paint. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <!-- Playfair Display — primary typeface used site-wide (headings + body). -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/playfair-display-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
     <!-- Payment SDKs are loaded on demand by the checkout flow, not on every page. -->
   </head>
