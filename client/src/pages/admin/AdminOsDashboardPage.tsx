@@ -185,13 +185,13 @@ export function AdminOsLayout() {
 
   return (
     // Light mode only restyles the home view; modules keep their dark design.
-    <div className={`founder-os ${light && isHome ? "light" : ""}`}>
+    <div className={`founder-os admin-os-shell ${light && isHome ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark">T</div>
+          <div className="brand-mark"><img src="/brand/icon.png" alt="" /></div>
           <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
         </div>
         <nav className="nav-scroll">
@@ -308,9 +308,9 @@ export default function AdminOsDashboardPage() {
   }
 
   return (
-    <section className="page">
+    <section className="page admin-command-center">
       <div className="page-header">
-        <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
+        <div><div className="page-title">Admin Command Center</div></div>
         <div className="header-actions">
           <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
           <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
