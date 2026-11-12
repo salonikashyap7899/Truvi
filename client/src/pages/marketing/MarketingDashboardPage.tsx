@@ -7,6 +7,7 @@ import {
 import { api } from "@/lib/api";
 import { SiteNav } from "@/components/SiteNav";
 import { StatCard } from "@/components/ui/stat";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { Badge, Card, Input, Label, Textarea } from "@/components/ui/primitives";
 import { toast } from "sonner";
 
@@ -48,6 +49,8 @@ export default function MarketingDashboardPage() {
       .finally(() => setLoading(false));
   }
   useEffect(() => { load(); }, []);
+
+  if (loading && !data && !denied) return <DashboardSkeleton variant="content" />;
 
   async function addLead(e: React.FormEvent) {
     e.preventDefault();

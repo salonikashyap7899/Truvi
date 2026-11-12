@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { formatCompactINR, formatINR } from "@/lib/utils";
 import { toast } from "sonner";
 import { Kpi, Panel, type Overview, type FinanceSummary } from "@/pages/dashboard/DashboardOS";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 
 /* ------------------------------------------------------------------ types */
 interface TeamSummary {
@@ -113,7 +114,7 @@ function DelBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-function Loading() { return <section className="page"><p style={{ color: "var(--ink-500)", padding: 20 }}>Loading…</p></section>; }
+function Loading() { return <DashboardSkeleton variant="content" />; }
 const statusBadge = (s: string) => {
   const green = ["ACTIVE", "VERIFIED", "ACQUIRED", "OPEN"];
   const amber = ["ON_LEAVE", "PAUSED", "PIPELINE", "DUE_DILIGENCE", "OPPORTUNITY"];
