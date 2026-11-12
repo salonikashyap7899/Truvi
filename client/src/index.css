@@ -771,17 +771,17 @@ textarea::placeholder {
   color: inherit !important;
 }
 
-:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust) {
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust) {
   color: #243247 !important;
   border-color: #cbd5e1 !important;
   background: rgba(255, 255, 255, .76) !important;
 }
 
-:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust) svg {
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust) svg {
   color: #1d4ed8 !important;
 }
 
-:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust):hover {
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust):hover {
   border-color: #93c5fd !important;
   background: #eff6ff !important;
 }
@@ -792,4 +792,11 @@ textarea::placeholder {
 :root[data-theme="light"] .landing-page .homepage-hero-copy {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+
+/* Same shield asset in both themes: light mode keeps its original brand colors,
+   while dark mode renders the same mark in crisp white for contrast. */
+:root[data-theme="dark"] .truvi-nav-brand-icon {
+  filter: brightness(0) invert(1);
 }
