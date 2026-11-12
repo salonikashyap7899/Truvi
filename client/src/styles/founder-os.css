@@ -391,12 +391,12 @@
 }
 
 .founder-os.admin-os-shell .brand {
-  gap: 12px;
+  gap: 10px;
 }
 
 .founder-os.admin-os-shell .brand-mark {
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 12px;
   background: transparent;
   box-shadow: none;
