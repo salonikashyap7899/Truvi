@@ -185,10 +185,6 @@ textarea::placeholder {
   background-color: #f7f9fc !important;
 }
 
-:root[data-theme="light"] .landing-page-backdrop {
-  opacity: .22;
-}
-
 :root[data-theme="light"] .min-h-screen[class*="bg-"] {
   background-color: rgba(247, 249, 252, .94) !important;
 }
