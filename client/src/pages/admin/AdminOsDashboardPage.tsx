@@ -192,7 +192,7 @@ export function AdminOsLayout() {
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
           <div className="brand-mark"><img src="/brand/icon.png" alt="" /></div>
-          <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
+          <div className="brand-text">Truvi</div>
         </div>
         <nav className="nav-scroll">
           <div>
