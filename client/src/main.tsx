@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import AppErrorBoundary from '@/components/AppErrorBoundary'
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { reloadForStaleBuild } from '@/lib/staleReload'
 import { reportClientError } from '@/lib/errorTelemetry'
 
@@ -27,8 +28,10 @@ window.addEventListener('vite:preloadError', (e) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppErrorBoundary>
-      <App />
-    </AppErrorBoundary>
+    <ThemeProvider>
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
+    </ThemeProvider>
   </StrictMode>,
 )
