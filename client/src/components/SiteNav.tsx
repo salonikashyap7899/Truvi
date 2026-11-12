@@ -22,29 +22,19 @@ const WA_URL =
  * navbar never shows a broken image.
  */
 function BrandLogo() {
-  const [wordmarkFailed, setWordmarkFailed] = useState(false);
   const { theme } = useTheme();
 
-  // The supplied wordmark is white-only. Use the icon plus a real text wordmark
-  // in light mode so the brand remains crisp and accessible on the white nav.
-  if (theme === "light" || wordmarkFailed) {
-    return (
-      <>
-        <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
-          <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
-        </span>
-        <span className={`truncate font-display text-[13px] font-semibold tracking-[0.14em] ${theme === "light" ? "text-slate-900" : "text-white"}`}>TRUVI VENTURES</span>
-      </>
-    );
-  }
+  // Use the same official Truvi shield asset in both themes. Only the live-text
+  // wordmark changes color so the exact same mark remains visible on each nav.
   return (
-    <img
-      src="/brand/wordmark.png"
-      alt="Truvi Ventures"
-      onError={() => setWordmarkFailed(true)}
-      // Shrinks on narrow phones so it never runs into the account buttons.
-      className="h-5 w-auto min-w-0 max-w-full object-contain object-left min-[400px]:h-6 sm:h-7 sm:max-w-[175px]"
-    />
+    <>
+      <span className="grid size-7 shrink-0 place-items-center overflow-hidden">
+        <img src="/brand/icon.png" alt="" className="truvi-nav-brand-icon h-full w-full object-contain" />
+      </span>
+      <span className={`truncate font-display text-[13px] font-semibold tracking-[0.14em] ${theme === "light" ? "text-slate-900" : "text-white"}`}>
+        TRUVI VENTURES
+      </span>
+    </>
   );
 }
 
