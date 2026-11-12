@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { HeartButton } from "@/components/HeartButton";
@@ -205,6 +206,8 @@ export default function BuyerDashboardPage() {
       .then((res) => setMyDocs(res.data.documents || []))
       .catch(() => {});
   }
+
+  if (savedLoading) return <DashboardSkeleton variant="content" />;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10 pb-28">
