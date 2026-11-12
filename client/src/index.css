@@ -675,3 +675,121 @@ textarea::placeholder {
 :root[data-theme="light"] .truvi-global-nav-surface > div:first-child {
   color: #172033;
 }
+
+
+/* Light-mode homepage readability refinement.
+   Keep the existing plain Light/Dark surfaces and improve small copy, chips,
+   demo-card details and secondary controls without changing the layout. */
+:root[data-theme="light"] {
+  --muted-foreground: oklch(0.39 0.025 255);
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy-text {
+  color: #26364d !important;
+  opacity: 1 !important;
+  font-size: clamp(1rem, 1.1vw, 1.08rem);
+  font-weight: 550;
+  line-height: 1.72;
+  text-shadow: none !important;
+}
+
+:root[data-theme="light"] .landing-page :is(
+  [class~="text-slate-200"],
+  [class~="text-slate-200/90"],
+  [class~="text-slate-300"],
+  [class~="text-slate-300/85"],
+  [class~="text-slate-400"],
+  [class~="text-slate-400/85"],
+  [class~="text-slate-500"]
+) {
+  color: #3e4d63 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div.rounded-2xl.glass {
+  color: #243247;
+  background: rgba(255, 255, 255, .97) !important;
+  border: 1px solid #d8e1ec;
+  box-shadow: 0 16px 38px rgba(31, 52, 78, .10);
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child {
+  color: #25344a;
+  border-color: #cbd5e1 !important;
+  background: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child p {
+  color: #26364d !important;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child > span:last-child {
+  background: #64748b !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > p {
+  color: #43536a !important;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > div > span {
+  opacity: 1 !important;
+  font-weight: 650;
+}
+
+/* Trust / growth / legal / liquidity pills: preserve their semantic hues but
+   replace pale-on-pale text with high-contrast foreground colors. */
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-sky-300"] {
+  color: #075985 !important;
+  border-color: #a9d8ef !important;
+  background-color: #edf8ff !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-emerald-300"] {
+  color: #166534 !important;
+  border-color: #a9d8b6 !important;
+  background-color: #effaf2 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-amber-300"] {
+  color: #92400e !important;
+  border-color: #f1d39a !important;
+  background-color: #fff8e8 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-foreground/80"] {
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+  background-color: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > div > span > span:first-child {
+  opacity: 1 !important;
+  color: inherit !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust) {
+  color: #243247 !important;
+  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, .76) !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust) svg {
+  color: #1d4ed8 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy > div > button:not(.glow-trust):hover {
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+}
+
+/* The tiny engine label and body copy remain readable at normal zoom and on
+   high-density displays; keep antialiasing without adding a blur or shadow. */
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card,
+:root[data-theme="light"] .landing-page .homepage-hero-copy {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
