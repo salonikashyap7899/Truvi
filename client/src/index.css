@@ -795,8 +795,7 @@ textarea::placeholder {
 }
 
 
-/* Same shield asset in both themes: light mode keeps its original brand colors,
-   while dark mode renders the same mark in crisp white for contrast. */
-:root[data-theme="dark"] .truvi-nav-brand-icon {
-  filter: brightness(0) invert(1);
+/* Keep the original Truvi shield artwork and colors unchanged in both themes. */
+.truvi-nav-brand-icon {
+  filter: none;
 }
