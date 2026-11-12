@@ -8,6 +8,8 @@ import { Ic, Kpi, Panel } from "@/pages/dashboard/DashboardOS";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
+import { useTheme, ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import type { Project } from "@/types";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import "@/styles/founder-os.css";
@@ -223,7 +225,7 @@ export function AdminOsLayout() {
   const [allUsers, setAllUsers] = useState<Array<{ _id: string; name: string; email?: string; phone?: string; role?: string }>>([]);
   const [searchLoaded, setSearchLoaded] = useState(false);
   const [q, setQ] = useState("");
-  const [light, setLight] = useState(false);
+  const { theme } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Bumped by the refresh button to reload whichever module is open.
@@ -270,8 +272,7 @@ export function AdminOsLayout() {
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
 
   return (
-    // Light mode only restyles the home view; modules keep their dark design.
-    <div className={`founder-os admin-os-shell ${light && isHome ? "light" : ""}`}>
+    <div className={`founder-os admin-os-shell ${theme === "light" ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
@@ -327,9 +328,7 @@ export function AdminOsLayout() {
             )}
           </div>
           <div className="top-actions">
-            {isHome && (
-              <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
-            )}
+            <ThemeToggle showLabel={false} />
             <button className="icon-btn" onClick={() => setRefreshKey((k) => k + 1)} title="Refresh"><Ic n="refresh" /></button>
             <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
             <NotificationBell />
@@ -342,7 +341,7 @@ export function AdminOsLayout() {
 
         <div className="content">
           {/* Only this area changes when a module is picked — the shell stays. */}
-          <Suspense fallback={<p className="os-loading">Loading…</p>}>
+          <Suspense fallback={<DashboardSkeleton variant="content" />}>
             <div key={`${pathname}:${refreshKey}`} className={isHome ? undefined : "os-embedded"}>
               <Outlet />
             </div>
@@ -359,6 +358,7 @@ export function AdminOsLayout() {
 export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
   const [platformUsers, setPlatformUsers] = useState<DashboardUserAddition[]>([]);
   const [platformProjects, setPlatformProjects] = useState<DashboardProjectAddition[]>([]);
@@ -376,29 +376,32 @@ export default function AdminOsDashboardPage() {
   function load() {
     setPlatformUsersStatus("loading");
     setPlatformProjectsStatus("loading");
-    api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
-      .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
-    api.get("/admin/users", { params: { all: "true" } })
-      .then((res) => {
-        const users = (res.data.users ?? []) as DashboardUserAddition[];
-        setPlatformUsers(users);
-        setStats((s) => ({ ...s, totalUsers: users.length }));
-        setPlatformUsersStatus("loaded");
-      }).catch(() => setPlatformUsersStatus("error"));
-    api.get("/admin/projects")
-      .then((res) => {
-        const projects = (res.data.projects ?? []) as DashboardProjectAddition[];
-        setPlatformProjects(projects);
-        setStats((s) => ({ ...s, totalProjects: projects.length }));
-        setPlatformProjectsStatus("loaded");
-      }).catch(() => setPlatformProjectsStatus("error"));
-    api.get("/revenue")
-      .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
-    api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
-    api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
-    api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
-    api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
-    api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {});
+    const requests: Promise<unknown>[] = [
+      api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
+        .then((res) => setPendingProjects(res.data.projects)).catch(() => {}),
+      api.get("/admin/users", { params: { all: "true" } })
+        .then((res) => {
+          const users = (res.data.users ?? []) as DashboardUserAddition[];
+          setPlatformUsers(users);
+          setStats((s) => ({ ...s, totalUsers: users.length }));
+          setPlatformUsersStatus("loaded");
+        }).catch(() => setPlatformUsersStatus("error")),
+      api.get("/admin/projects")
+        .then((res) => {
+          const projects = (res.data.projects ?? []) as DashboardProjectAddition[];
+          setPlatformProjects(projects);
+          setStats((s) => ({ ...s, totalProjects: projects.length }));
+          setPlatformProjectsStatus("loaded");
+        }).catch(() => setPlatformProjectsStatus("error")),
+      api.get("/revenue")
+        .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {}),
+      api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {}),
+      api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {}),
+      api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {}),
+      api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {}),
+      api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {}),
+    ];
+    void Promise.all(requests).finally(() => setInitialLoading(false));
   }
   useEffect(() => { load(); }, []);
 
@@ -426,6 +429,8 @@ export default function AdminOsDashboardPage() {
       toast.error(err?.response?.data?.error || "Action failed");
     }
   }
+
+  if (initialLoading) return <DashboardSkeleton variant="content" />;
 
   return (
     <section className="page admin-command-center">
