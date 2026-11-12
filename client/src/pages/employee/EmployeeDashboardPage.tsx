@@ -551,7 +551,7 @@ export default function EmployeeDashboardPage() {
       <div className="truvi-employee-app-shell">
         <aside className="truvi-employee-sidebar" aria-label="Employee navigation">
           <div className="truvi-employee-brand">
-            <span className="truvi-employee-brand__mark">T</span>
+            <span className="truvi-employee-brand__mark"><img src="/brand/icon.png" alt="Truvi" /></span>
             <span className="truvi-employee-brand__words">
               <strong>TRUVI VENTURES</strong>
               <small>EMPLOYEE WORKSPACE</small>

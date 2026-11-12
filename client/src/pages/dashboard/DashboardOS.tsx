@@ -183,7 +183,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
       {/* Sidebar */}
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark">T</div>
+          <div className="brand-mark"><img src="/brand/icon.png" alt="Truvi" /></div>
           <div>
             <div className="brand-text">Truvi</div>
             <div className="brand-sub">{config.brandSub}</div>
