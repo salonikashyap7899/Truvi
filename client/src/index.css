@@ -795,7 +795,31 @@ textarea::placeholder {
 }
 
 
-/* Keep the original Truvi shield artwork and colors unchanged in both themes. */
-.truvi-nav-brand-icon {
-  filter: none;
+/* The exact full horizontal Truvi wordmark asset is shared by both themes. */
+.truvi-nav-brand-wordmark {
+  display: flex;
+  min-width: 0;
+  max-width: 220px;
+  flex: 0 1 220px;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.truvi-nav-brand-wordmark img {
+  display: block;
+  width: clamp(128px, 16vw, 204px);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* The uploaded wordmark has white lettering and a gold shield. Keep the
+   artwork pixel-identical in Light Mode by giving it a dark brand backing. */
+:root[data-theme="light"] .truvi-nav-brand-wordmark {
+  padding: 5px 8px;
+  background: #071321;
 }
