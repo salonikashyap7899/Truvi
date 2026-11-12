@@ -75,13 +75,11 @@ function Status({ value }: { value: string }) {
 }
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm transition duration-200 hover:border-primary/30 hover:bg-white/[0.05]">
-      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-primary/70 via-primary/20 to-transparent" />
+    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
-        <span aria-hidden="true" className="mt-1 size-2 shrink-0 rounded-full bg-primary/80 shadow-[0_0_12px_rgba(124,92,255,0.22)]" />
+        <p className="text-xs font-semibold leading-5 text-foreground">{label}</p>
       </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{value}</p>
+      <p className="mt-2 text-2xl font-normal tracking-tight sm:text-3xl">{value}</p>
       {sub && <p className="mt-1 text-xs leading-5 text-muted-foreground">{sub}</p>}
     </div>
   );
@@ -459,7 +457,7 @@ export default function AdminEmployeeManagementPage() {
   return (
     <div className="truvi-erm truvi-erm-admin mx-auto max-w-[1600px] space-y-6 p-4 text-foreground sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Operations</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Employee Management</h1><p className="mt-2 max-w-2xl text-sm text-muted-foreground">Employee accounts, work allocation, central buyer leads, attendance and controlled payroll records.</p></div>
+        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Operations</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Employee Management</h1></div>
         <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/> Refresh data</button><Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Activity &amp; audit logs</Link><button onClick={() => { setEditing(null); setEmployeeForm({ ...emptyEmployee }); setShowForm((v) => !v); }} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{showForm ? "Close form" : "+ Add employee"}</button></div>
       </header>
 
