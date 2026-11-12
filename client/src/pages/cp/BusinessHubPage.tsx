@@ -9,6 +9,7 @@ import UserMenu from "@/components/UserMenu";
 import { useEntitlement } from "@/lib/entitlements";
 import { scoreLead } from "@/lib/crmAi";
 import { formatINR, cn } from "@/lib/utils";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { BarChart3, PhoneCall, CalendarClock, MapPin, Handshake, IndianRupee, Target } from "lucide-react";
 import type { CrmSummary, Lead } from "@/types";
 
@@ -58,15 +59,7 @@ export default function BusinessHubPage() {
     return Math.round(active.reduce((s, l) => s + scoreLead(l).score, 0) / active.length);
   }, [leads]);
 
-  if (entLoading || !summary) {
-    return (
-      <main className="min-h-screen p-6 text-white md:p-10">
-        <h1 className="text-2xl font-semibold">Business Hub</h1>
-        <CpHubNav />
-        <p className="mt-10 text-sm text-muted-foreground">Loading analytics…</p>
-      </main>
-    );
-  }
+  if (entLoading || !summary) return <DashboardSkeleton variant="content" />;
 
   const { today, kpis, monthlyEarnings } = summary;
   const thisMonth = monthlyEarnings[monthlyEarnings.length - 1]?.earned ?? 0;
