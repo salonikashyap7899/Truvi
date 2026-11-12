@@ -229,9 +229,6 @@ export default function AdminListingsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Listings Management</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Approve new developer submissions, then manage Featured, Verified, Prime Listing status and verification details.
-          </p>
         </div>
         <Button onClick={() => navigate("/developer/projects/new")}>+ Add new project</Button>
       </div>
@@ -324,7 +321,7 @@ export default function AdminListingsPage() {
           return (
             <Card key={p._id} className="flex flex-col gap-3 border-white/10 glass text-white">
               {/* Main row */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-4">
                 <div>
                   <p className="font-medium flex flex-wrap items-center gap-2">
                     {p.name}
@@ -348,7 +345,7 @@ export default function AdminListingsPage() {
                   <p className="text-sm text-muted-foreground">{p.city} · {nameOf(p.developerId)}</p>
                 </div>
 
-                <div className="flex flex-wrap gap-2 items-center">
+                <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 [&>button]:min-w-0 [&>button]:justify-center [&>button]:whitespace-nowrap [&>button]:px-2 [&>button]:text-xs [&>div]:w-full [&>div>button]:min-h-10 [&>div>button]:w-full [&>div>button]:justify-center [&>div>button]:whitespace-normal [&>div>button]:px-2 [&>div>button]:text-xs">
                   {/* Prime Listing */}
                   <Button
                     size="sm"
