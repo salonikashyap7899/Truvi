@@ -73,7 +73,7 @@ export function StatCard({
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       style={{ animationDelay: `${delay}ms` }}
       className={cn(
-        cn(lift && "tv-lift", "tv-fade-up relative overflow-hidden rounded-2xl border bg-white/[0.03] p-4"),
+        lift ? "tv-lift tv-fade-up relative overflow-hidden rounded-2xl border bg-white/[0.03] p-4" : "tv-fade-up relative overflow-hidden rounded-2xl border bg-white/[0.03] p-4",
         t.ring,
         onClick && "cursor-pointer",
         className
