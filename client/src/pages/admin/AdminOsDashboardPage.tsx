@@ -185,13 +185,13 @@ export function AdminOsLayout() {
 
   return (
     // Light mode only restyles the home view; modules keep their dark design.
-    <div className={`founder-os ${light && isHome ? "light" : ""}`}>
+    <div className={`founder-os admin-os-shell ${light && isHome ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark">T</div>
+          <div className="brand-mark"><img src="/brand/icon.png" alt="" /></div>
           <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
         </div>
         <nav className="nav-scroll">
@@ -308,9 +308,9 @@ export default function AdminOsDashboardPage() {
   }
 
   return (
-    <section className="page">
+    <section className="page admin-command-center">
       <div className="page-header">
-        <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
+        <div><div className="page-title">Admin Command Center</div></div>
         <div className="header-actions">
           <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
           <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
@@ -319,7 +319,7 @@ export default function AdminOsDashboardPage() {
 
       {/* Platform stats */}
       <div className="kpi-grid">
-        <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
+        <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel users" onClick={() => navigate("/admin/users")} />
         <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} trend={trendBadge(trends?.projects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
         <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
         <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
@@ -349,8 +349,8 @@ export default function AdminOsDashboardPage() {
 
       {/* Investor / SaaS metrics — admin's existing live numbers */}
       {investor && (
-        <Panel title="Platform metrics" sub="Live SaaS + marketplace numbers">
-          <div className="kpi-grid" style={{ marginBottom: 0 }}>
+        <Panel title="Platform metrics">
+          <div className="kpi-grid admin-platform-metrics" style={{ marginBottom: 0 }}>
             <div><div className="kpi-label">Total Buyers</div><div className="kpi-value">{investor.totalBuyers}</div></div>
             <div><div className="kpi-label">Total Developers</div><div className="kpi-value">{investor.totalDevelopers}</div></div>
             <div><div className="kpi-label">Total CPs</div><div className="kpi-value">{investor.totalCPs}</div></div>
@@ -364,7 +364,6 @@ export default function AdminOsDashboardPage() {
             <div><div className="kpi-label">Churn</div><div className="kpi-value">{investor.churnPercent}%</div></div>
             <div><div className="kpi-label">Conversion</div><div className="kpi-value">{investor.conversionPercent}%</div></div>
           </div>
-          <p style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" }}>GMV (booking value routed through Truvi): {paise(investor.gmvPaise)}</p>
         </Panel>
       )}
 

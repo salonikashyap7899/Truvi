@@ -232,9 +232,7 @@ export default function AdminUsersPage() {
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">User Management</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {counts.total} accounts · {counts.active} active · {counts.kycVerified} KYC-verified{counts.kycPending ? ` · ${counts.kycPending} KYC pending` : ""} · {counts.subscribers} with an active subscription. Remove (deactivate) accounts, and cancel a subscription only where one exists.
-          </p>
+          
         </div>
       </div>
 
@@ -291,37 +289,32 @@ export default function AdminUsersPage() {
             className="border-white/15 bg-card pl-9 text-white"
           />
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {ROLE_FILTERS.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRoleFilter(r)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                roleFilter === r ? "border-blue-500/60 bg-blue-500/15 text-blue-200" : "border-white/15 text-muted-foreground hover:bg-white/5"
-              }`}
-            >
-              {r === "ALL" ? "All" : roleLabel(r)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* KYC / identity-verification filter */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Identity (KYC):</span>
-        {KYC_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setKycFilter(f.key)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-              kycFilter === f.key ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200" : "border-white/15 text-muted-foreground hover:bg-white/5"
-            }`}
+        <label className="flex min-w-[170px] flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
+          <span>Account role</span>
+          <select
+            aria-label="Filter users by account role"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as Role | "ALL")}
+            className="h-10 w-full rounded-xl border border-white/15 bg-card px-3 text-sm font-medium text-white outline-none transition focus:border-blue-500/60"
           >
-            {f.label}
-            {f.key === "VERIFIED" && counts.kycVerified > 0 && <span className="ml-1 opacity-70">({counts.kycVerified})</span>}
-            {f.key === "PENDING" && counts.kycPending > 0 && <span className="ml-1 opacity-70">({counts.kycPending})</span>}
-          </button>
-        ))}
+            {ROLE_FILTERS.map((r) => <option key={r} value={r}>{r === "ALL" ? "All roles" : roleLabel(r)}</option>)}
+          </select>
+        </label>
+        <label className="flex min-w-[170px] flex-col gap-1.5 text-xs font-semibold text-muted-foreground">
+          <span>Identity (KYC)</span>
+          <select
+            aria-label="Filter users by KYC status"
+            value={kycFilter}
+            onChange={(e) => setKycFilter(e.target.value as "ALL" | KycState)}
+            className="h-10 w-full rounded-xl border border-white/15 bg-card px-3 text-sm font-medium text-white outline-none transition focus:border-emerald-500/60"
+          >
+            {KYC_FILTERS.map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}{f.key === "VERIFIED" && counts.kycVerified > 0 ? ` (${counts.kycVerified})` : ""}{f.key === "PENDING" && counts.kycPending > 0 ? ` (${counts.kycPending})` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Users list */}
