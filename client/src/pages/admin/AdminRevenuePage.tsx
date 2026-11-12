@@ -61,9 +61,7 @@ export default function AdminRevenuePage() {
     <main className="min-h-screen p-6 text-white md:p-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-widest text-violet-300/70">Truvi · Founder</p>
-          <h1 className="mt-1 text-2xl font-semibold md:text-3xl">Revenue Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ecosystem revenue, computed live from the database.</p>
+          <h1 className="text-2xl font-semibold md:text-3xl">Revenue Dashboard</h1>
         </div>
         {data && (
           <button onClick={exportCsv} className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 transition hover:bg-white/10">
@@ -78,10 +76,10 @@ export default function AdminRevenuePage() {
         <>
           {/* KPI strip */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Total Revenue" value={data.totalRevenue} format={formatCompactINR} icon={<Wallet size={16} />} tone="violet" foot="All sources · live" delay={0} />
-            <StatCard label="Platform Fee" value={data.platformFeeRevenue} format={formatCompactINR} icon={<TrendingUp size={16} />} tone="emerald" foot="Commission-linked" delay={60} />
-            <StatCard label="Featured Listings" value={data.featuredRevenueEstimate} format={formatCompactINR} icon={<Star size={16} />} tone="amber" foot={`${data.featuredCount} projects`} delay={120} />
-            <StatCard label="Premium CPs" value={data.premiumRevenue} format={formatCompactINR} icon={<Users size={16} />} tone="sky" foot={`${data.premiumCount} members`} delay={180} />
+            <StatCard label="Total Revenue" value={data.totalRevenue} format={formatCompactINR} icon={<Wallet size={16} />} tone="violet" foot="All sources · live" delay={0} lift={false} glow={false} />
+            <StatCard label="Platform Fee" value={data.platformFeeRevenue} format={formatCompactINR} icon={<TrendingUp size={16} />} tone="emerald" foot="Commission-linked" delay={60} lift={false} glow={false} />
+            <StatCard label="Featured Listings" value={data.featuredRevenueEstimate} format={formatCompactINR} icon={<Star size={16} />} tone="amber" foot={`${data.featuredCount} projects`} delay={120} lift={false} glow={false} />
+            <StatCard label="Premium CPs" value={data.premiumRevenue} format={formatCompactINR} icon={<Users size={16} />} tone="sky" foot={`${data.premiumCount} members`} delay={180} lift={false} glow={false} />
           </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-5">
