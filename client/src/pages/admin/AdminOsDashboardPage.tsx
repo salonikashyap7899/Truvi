@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -50,6 +50,22 @@ interface KpiTrends {
   leadRevenue: number;
 }
 
+interface DashboardUserAddition {
+  _id: string;
+  name: string;
+  role?: string;
+  createdAt?: string | null;
+}
+
+type DashboardProjectAddition = Project & { createdAt?: string | null };
+
+interface GrowthDay {
+  key: string;
+  label: string;
+  users: number;
+  projects: number;
+}
+
 /** Growth badge for a KPI card ("↑ 27% this month"), or flat when no growth. */
 function trendBadge(pct?: number): { text: string; up?: boolean } | undefined {
   if (pct === undefined) return undefined;
@@ -92,6 +108,76 @@ function timeAgo(iso: string): string {
   const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+function createdAtMs(value?: string | null): number | null {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function indiaDayKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function formatIndiaDateTime(value?: string | null): string {
+  const timestamp = createdAtMs(value);
+  if (timestamp === null) return "Date not recorded";
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function buildGrowthDays(
+  users: DashboardUserAddition[],
+  projects: DashboardProjectAddition[],
+  now = new Date(),
+): GrowthDay[] {
+  const todayParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  const dateParts = Object.fromEntries(todayParts.map((part) => [part.type, part.value]));
+  const todayUtc = Date.UTC(Number(dateParts.year), Number(dateParts.month) - 1, Number(dateParts.day));
+
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(todayUtc + (index - 6) * 86_400_000 + 12 * 60 * 60 * 1000);
+    return {
+      key: indiaDayKey(date),
+      label: new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" }).format(date),
+      users: 0,
+      projects: 0,
+    };
+  });
+  const dayByKey = new Map(days.map((day) => [day.key, day]));
+
+  for (const user of users) {
+    const timestamp = createdAtMs(user.createdAt);
+    if (timestamp === null) continue;
+    const day = dayByKey.get(indiaDayKey(new Date(timestamp)));
+    if (day) day.users += 1;
+  }
+  for (const project of projects) {
+    const timestamp = createdAtMs(project.createdAt);
+    if (timestamp === null) continue;
+    const day = dayByKey.get(indiaDayKey(new Date(timestamp)));
+    if (day) day.projects += 1;
+  }
+  return days;
 }
 
 /** Sidebar links map to the admin panel's real workspaces (existing features). */
@@ -192,7 +278,10 @@ export function AdminOsLayout() {
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
           <div className="brand-mark"><img src="/brand/icon.png" alt="" /></div>
-          <div className="brand-text">Truvi</div>
+          <div className="brand-copy">
+            <div className="brand-text">Truvi</div>
+            <div className="brand-sub">Admin OS</div>
+          </div>
         </div>
         <nav className="nav-scroll">
           <div>
@@ -271,6 +360,10 @@ export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
+  const [platformUsers, setPlatformUsers] = useState<DashboardUserAddition[]>([]);
+  const [platformProjects, setPlatformProjects] = useState<DashboardProjectAddition[]>([]);
+  const [platformUsersStatus, setPlatformUsersStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [platformProjectsStatus, setPlatformProjectsStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -281,12 +374,24 @@ export default function AdminOsDashboardPage() {
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
   // the rest or throws a scary "failed to load" for the whole page.
   function load() {
+    setPlatformUsersStatus("loading");
+    setPlatformProjectsStatus("loading");
     api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
       .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
-    api.get("/admin/users")
-      .then((res) => setStats((s) => ({ ...s, totalUsers: res.data.users.length }))).catch(() => {});
+    api.get("/admin/users", { params: { all: "true" } })
+      .then((res) => {
+        const users = (res.data.users ?? []) as DashboardUserAddition[];
+        setPlatformUsers(users);
+        setStats((s) => ({ ...s, totalUsers: users.length }));
+        setPlatformUsersStatus("loaded");
+      }).catch(() => setPlatformUsersStatus("error"));
     api.get("/admin/projects")
-      .then((res) => setStats((s) => ({ ...s, totalProjects: res.data.projects.length }))).catch(() => {});
+      .then((res) => {
+        const projects = (res.data.projects ?? []) as DashboardProjectAddition[];
+        setPlatformProjects(projects);
+        setStats((s) => ({ ...s, totalProjects: projects.length }));
+        setPlatformProjectsStatus("loaded");
+      }).catch(() => setPlatformProjectsStatus("error"));
     api.get("/revenue")
       .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
     api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
@@ -296,6 +401,21 @@ export default function AdminOsDashboardPage() {
     api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {});
   }
   useEffect(() => { load(); }, []);
+
+  const growthDays = useMemo(() => buildGrowthDays(platformUsers, platformProjects), [platformUsers, platformProjects]);
+  const latestUsers = useMemo(
+    () => [...platformUsers].filter((user) => createdAtMs(user.createdAt) !== null)
+      .sort((a, b) => (createdAtMs(b.createdAt) ?? 0) - (createdAtMs(a.createdAt) ?? 0)).slice(0, 3),
+    [platformUsers],
+  );
+  const latestProjects = useMemo(
+    () => [...platformProjects].filter((project) => createdAtMs(project.createdAt) !== null)
+      .sort((a, b) => (createdAtMs(b.createdAt) ?? 0) - (createdAtMs(a.createdAt) ?? 0)).slice(0, 3),
+    [platformProjects],
+  );
+  const usersAddedIn7Days = growthDays.reduce((total, day) => total + day.users, 0);
+  const projectsAddedIn7Days = growthDays.reduce((total, day) => total + day.projects, 0);
+  const maxGrowthCount = Math.max(1, ...growthDays.map((day) => Math.max(day.users, day.projects)));
 
   async function approveProject(projectId: string, approvalStatus: "APPROVED" | "REJECTED") {
     try {
@@ -327,7 +447,7 @@ export default function AdminOsDashboardPage() {
 
       {/* Lead management — inventory + pipeline leads (opens the Leads module) */}
       {leadStats && (
-        <div className="kpi-grid">
+        <div className="kpi-grid admin-five-column-grid">
           <Kpi icon="target" tone="blue" label="Total Leads" value={String(leadStats.total)} foot="Open lead management" onClick={() => navigate("/admin/leads")} />
           <Kpi icon="spark" tone="amber" label="New Leads" value={String(leadStats.new)} foot="Waiting to be contacted" onClick={() => navigate("/admin/leads?status=NEW")} />
           <Kpi icon="building" tone="blue" label="Visits Scheduled" value={String(leadStats.visitsScheduled)} foot="Upcoming site visits" onClick={() => navigate("/admin/leads?status=SITE_VISIT_SCHEDULED")} />
@@ -336,9 +456,113 @@ export default function AdminOsDashboardPage() {
         </div>
       )}
 
+      {/* Live account/project creation activity — derived from actual createdAt timestamps. */}
+      <Panel title="Platform growth & recent additions" sub="New accounts and projects recorded by Truvi · dates shown in IST" icon="chart" iconTone="blue">
+        <div className="admin-growth-summary">
+          <div className="admin-growth-highlight">
+            <div className="admin-growth-highlight__label">Users added · last 7 days</div>
+            <div className="admin-growth-highlight__value">{platformUsersStatus === "loaded" ? usersAddedIn7Days : "—"}</div>
+            <div className="admin-growth-highlight__detail">
+              {platformUsersStatus === "loading"
+                ? "Loading account activity…"
+                : platformUsersStatus === "error"
+                  ? "Account activity could not be loaded."
+                  : latestUsers[0]
+                    ? `Latest: ${latestUsers[0].name} · ${latestUsers[0].role ?? "User"} · ${formatIndiaDateTime(latestUsers[0].createdAt)}`
+                    : "No user creation timestamp is available yet."}
+            </div>
+            <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/users")}>View users <span aria-hidden="true">→</span></button>
+          </div>
+          <div className="admin-growth-highlight">
+            <div className="admin-growth-highlight__label">Projects added · last 7 days</div>
+            <div className="admin-growth-highlight__value">{platformProjectsStatus === "loaded" ? projectsAddedIn7Days : "—"}</div>
+            <div className="admin-growth-highlight__detail">
+              {platformProjectsStatus === "loading"
+                ? "Loading project activity…"
+                : platformProjectsStatus === "error"
+                  ? "Project activity could not be loaded."
+                  : latestProjects[0]
+                    ? `Latest: ${latestProjects[0].name} · ${latestProjects[0].city || latestProjects[0].location || "Location not set"} · ${formatIndiaDateTime(latestProjects[0].createdAt)}`
+                    : "No project creation timestamp is available yet."}
+            </div>
+            <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/listings")}>View listings <span aria-hidden="true">→</span></button>
+          </div>
+        </div>
+
+        <div className="admin-growth-chart-card">
+          <div className="admin-growth-chart-head">
+            <div>
+              <div className="admin-growth-chart-title">Daily additions</div>
+              <div className="admin-growth-chart-subtitle">New users and projects · last 7 days</div>
+            </div>
+            <div className="admin-growth-legend">
+              <span><i className="is-users" /> Users</span>
+              <span><i className="is-projects" /> Projects</span>
+            </div>
+          </div>
+          {platformUsersStatus === "loaded" && platformProjectsStatus === "loaded" ? (
+            <div className="admin-growth-chart" role="img" aria-label="Daily new users and project additions for the last seven days">
+              {growthDays.map((day) => (
+                <div className="admin-growth-day" key={day.key}>
+                  <div className="admin-growth-day-total">{day.users + day.projects}</div>
+                  <div className="admin-growth-bars">
+                    <div className="admin-growth-bar-track" title={`${day.users} new users`}>
+                      <span className="is-users" style={{ height: day.users ? `${Math.max(8, (day.users / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
+                    <div className="admin-growth-bar-track" title={`${day.projects} new projects`}>
+                      <span className="is-projects" style={{ height: day.projects ? `${Math.max(8, (day.projects / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
+                  </div>
+                  <div className="admin-growth-day-label">{day.label}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="admin-growth-empty">
+              {platformUsersStatus === "error" || platformProjectsStatus === "error"
+                ? "The daily chart is unavailable because activity data could not be retrieved."
+                : "Loading daily activity…"}
+            </p>
+          )}
+        </div>
+
+        <div className="admin-growth-recent-grid">
+          <section>
+            <div className="admin-growth-list-title">Latest user accounts</div>
+            {latestUsers.length === 0
+              ? <p className="admin-growth-empty">{platformUsersStatus === "error" ? "User activity unavailable." : platformUsersStatus === "loading" ? "Loading users…" : "No user creation dates available."}</p>
+              : latestUsers.map((user) => (
+                <div className="admin-growth-list-row" key={user._id}>
+                  <div className="admin-growth-list-avatar">{initials(user.name || "User")}</div>
+                  <div className="admin-growth-list-copy">
+                    <strong>{user.name || "Unnamed account"}</strong>
+                    <span>{user.role ?? "User"}</span>
+                  </div>
+                  <time>{formatIndiaDateTime(user.createdAt)}</time>
+                </div>
+              ))}
+          </section>
+          <section>
+            <div className="admin-growth-list-title">Latest projects added</div>
+            {latestProjects.length === 0
+              ? <p className="admin-growth-empty">{platformProjectsStatus === "error" ? "Project activity unavailable." : platformProjectsStatus === "loading" ? "Loading projects…" : "No project creation dates available."}</p>
+              : latestProjects.map((project) => (
+                <div className="admin-growth-list-row" key={project._id}>
+                  <div className="admin-growth-list-avatar is-project">{initials(project.name || "Project")}</div>
+                  <div className="admin-growth-list-copy">
+                    <strong>{project.name || "Unnamed project"}</strong>
+                    <span>{[project.city, project.location].filter(Boolean).join(" · ") || "Location not set"}</span>
+                  </div>
+                  <time>{formatIndiaDateTime(project.createdAt)}</time>
+                </div>
+              ))}
+          </section>
+        </div>
+      </Panel>
+
       {/* Operations today — live counts (from founder-overview) */}
       {overview && (
-        <div className="kpi-grid">
+        <div className="kpi-grid admin-five-column-grid">
           <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
           <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
           <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
