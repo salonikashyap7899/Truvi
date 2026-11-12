@@ -10,6 +10,8 @@ import { TeamPage, MarketingPage, LandBankPage, InvestorPage, CustomerExperience
 import { FinancialsPage, FinancialCards, MonthlyCostingPage, useCommandFinance, type FinSection } from "@/pages/dashboard/CommandCenterFinance";
 import { EmployerManagementPage, TotalEmployerCard } from "@/pages/dashboard/EmployerManagement";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
+import { useTheme, ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { NotificationBell } from "@/components/NotificationBell";
 import "@/styles/founder-os.css";
 
@@ -143,7 +145,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const [fin, setFin] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<Page>("overview");
-  const [light, setLight] = useState(false);
+  const { theme } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -169,7 +171,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   function openFinancials(section: FinSection) { setFinSection(section); setPage("financials"); setNavOpen(false); }
   function doLogout() { clearAuth(); navigate("/login"); }
 
-  if (loading) return <div className="founder-os" style={{ padding: 40 }}><p style={{ color: "var(--ink-500)" }}>Loading command center…</p></div>;
+  if (loading) return <DashboardSkeleton variant="founder" />;
   if (!d) return <div className="founder-os" style={{ padding: 40 }}><p>Could not load the dashboard. Please retry.</p></div>;
 
   const nav = config.buildNav(d);
@@ -177,7 +179,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
   const current: Page = reachable.has(page) ? page : "overview";
 
   return (
-    <div className={`founder-os ${light ? "light" : ""}`}>
+    <div className={`founder-os ${theme === "light" ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
@@ -214,9 +216,7 @@ export default function DashboardOS({ config }: { config: DashboardOSConfig }) {
           <button className="menu-toggle" onClick={() => setNavOpen(true)}><Ic n="grid" /></button>
           <div className="search-wrap"><Ic n="search" /><input placeholder="Search projects, CPs, leads…" /></div>
           <div className="top-actions">
-            <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme">
-              <span className="knob"><Ic n="sun" /></span>
-            </button>
+            <ThemeToggle showLabel={false} />
             <button className="icon-btn" onClick={load} title="Refresh"><Ic n="refresh" /></button>
             <NotificationBell />
             <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
