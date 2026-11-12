@@ -35,7 +35,6 @@ export default function AskTruviPage() {
               <span className="grid size-7 place-items-center rounded-full bg-[var(--trust)]/20 text-sm">✦</span>
               <div>
                 <h1 className="text-sm font-semibold">Ask Truvi™</h1>
-                <p className="text-[10px] text-muted-foreground">Property Intelligence · Source-backed</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
