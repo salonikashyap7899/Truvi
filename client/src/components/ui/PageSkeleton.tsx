@@ -35,17 +35,19 @@ function SkeletonPanel({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function RouteSkeleton() {
+export function RouteSkeleton({ showTopBar = true }: { showTopBar?: boolean }) {
   return (
     <div className="truvi-page-skeleton" role="status" aria-label="Loading page" aria-busy="true">
-      <div className="truvi-page-skeleton__top">
-        <Shimmer className="h-7 w-28" />
-        <div className="flex items-center gap-2">
-          <Shimmer className="h-9 w-9 rounded-full" />
-          <Shimmer className="h-9 w-9 rounded-full" />
+      {showTopBar && (
+        <div className="truvi-page-skeleton__top">
+          <Shimmer className="h-7 w-28" />
+          <div className="flex items-center gap-2">
+            <Shimmer className="h-9 w-9 rounded-full" />
+            <Shimmer className="h-9 w-9 rounded-full" />
+          </div>
         </div>
-      </div>
-      <main className="truvi-page-skeleton__body">
+      )}
+      <main className={showTopBar ? "truvi-page-skeleton__body" : "truvi-page-skeleton__body truvi-page-skeleton__body--nav"}>
         <Shimmer className="h-8 w-64 max-w-[70%]" />
         <Shimmer className="mt-3 h-3 w-96 max-w-[90%]" />
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
