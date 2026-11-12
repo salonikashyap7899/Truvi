@@ -10,8 +10,8 @@ import WhatsAppChannelPrompt from "@/components/WhatsAppChannelPrompt";
 import OnboardingMeetPrompt from "@/components/OnboardingMeetPrompt";
 import AskTruvi from "@/components/AskTruvi";
 import { CursorGlow } from "@/components/landing/CursorGlow";
-import { useTheme } from "@/components/theme/ThemeProvider";
-import { RouteSkeleton } from "@/components/ui/PageSkeleton";
+import { useTheme, ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton, RouteSkeleton } from "@/components/ui/PageSkeleton";
 
 const AmbientBackground = lazy(() =>
   import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
@@ -145,9 +145,25 @@ const PaymentFailedPage = lazy(() => import("@/pages/PaymentFailedPage"));
 
 // The Founder Dashboard ships its own AI Copilot FAB, so suppress the global
 // floating assistants there to avoid two overlapping buttons.
-/** Shared full-page skeleton shown while a lazy route chunk is loading. */
+/** Route-aware skeleton while a lazy page chunk is loading. */
 function RouteFallback() {
-  return <RouteSkeleton />;
+  const { pathname } = useLocation();
+  if (pathname.startsWith("/admin/")) return <DashboardSkeleton variant="admin" />;
+  if (pathname === "/founder/dashboard") return <DashboardSkeleton variant="founder" />;
+  if (pathname === "/employee/dashboard") return <DashboardSkeleton variant="employee" />;
+  return <RouteSkeleton showTopBar={!useGlobalNavVisible()} />;
+}
+
+/** Routes with a dedicated full-screen shell (welcome tour / 3D viewer) still
+ * expose the same theme preference even though they don't render SiteNav. */
+function StandaloneThemeToggle() {
+  const { pathname } = useLocation();
+  const visible = pathname === "/welcome" || /^\/inventory\/[^/]+\/3d$/.test(pathname);
+  return visible ? (
+    <div className="fixed right-4 top-4 z-[120]">
+      <ThemeToggle showLabel={false} />
+    </div>
+  ) : null;
 }
 
 function FloatingAssistants() {
@@ -345,6 +361,7 @@ export default function App() {
       <FloatingAssistants />
       <InvestFab />
       <GlobalNav />
+      <StandaloneThemeToggle />
       <PageTransition>
       <Suspense fallback={<RouteFallback />}>
       <EmployeePortalBoundary>
