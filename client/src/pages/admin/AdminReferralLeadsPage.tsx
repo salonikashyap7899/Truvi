@@ -82,9 +82,6 @@ export default function AdminReferralLeadsPage() {
       <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold">
         <Handshake size={22} className="text-emerald-400" /> Referral Developer Leads
       </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Every developer referred by a Channel Partner, Ambassador or existing Developer — with full details, so you can verify, contact and approve without hunting through notifications.
-      </p>
 
       {/* Summary */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
