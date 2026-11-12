@@ -376,3 +376,157 @@
 .founder-os .os-embedded{animation:osFade .25s ease;}
 .founder-os .os-embedded > *{min-height:0 !important; padding:0 !important; background:transparent !important;}
 .founder-os .os-loading{font-size:13px; color:var(--ink-500); padding:8px 2px;}
+
+/* -------------------------------------------------------------------------
+   Admin OS visual refinement
+   Keep the existing modules and data intact while using a restrained,
+   solid-color system throughout the Admin OS.
+   ------------------------------------------------------------------------- */
+.founder-os.admin-os-shell {
+  --brand-grad: #7C5CFF;
+}
+
+.founder-os.admin-os-shell::before {
+  background: none;
+}
+
+.founder-os.admin-os-shell .brand {
+  gap: 12px;
+}
+
+.founder-os.admin-os-shell .brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.founder-os.admin-os-shell .brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.founder-os.admin-os-shell .brand-text {
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.founder-os.admin-os-shell .nav-item.active {
+  background: var(--blue-100);
+}
+
+.founder-os.admin-os-shell .btn-primary {
+  background: var(--blue-600);
+  box-shadow: none;
+}
+
+/* Dashboard KPI cards: consistent dimensions and spacing, without hover
+   movement, trend pills, hidden arrow affordances, or colored glow gradients. */
+.founder-os.admin-os-shell .kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+  margin-bottom: 22px;
+}
+
+.founder-os.admin-os-shell .kpi-card {
+  min-height: 196px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: var(--surface);
+  backdrop-filter: none;
+  box-shadow: var(--shadow-sm);
+  transition: none;
+}
+
+.founder-os.admin-os-shell .kpi-card::after {
+  display: none;
+  content: none;
+}
+
+.founder-os.admin-os-shell .kpi-card:hover,
+.founder-os.admin-os-shell .card:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border);
+}
+
+.founder-os.admin-os-shell .kpi-trend,
+.founder-os.admin-os-shell .kpi-open {
+  display: none;
+}
+
+.founder-os.admin-os-shell .kpi-label {
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.founder-os.admin-os-shell .kpi-value {
+  font-size: 30px;
+  font-weight: 600;
+}
+
+.founder-os.admin-os-shell .kpi-foot {
+  font-weight: 500;
+}
+
+/* Replace Admin OS decorative gradients with solid brand/surface colors. */
+.founder-os.admin-os-shell .brief-card {
+  background: var(--surface);
+}
+
+.founder-os.admin-os-shell .brief-card::before {
+  background: var(--blue-600);
+}
+
+.founder-os.admin-os-shell .brief-icon,
+.founder-os.admin-os-shell .theme-toggle .knob,
+.founder-os.admin-os-shell .copilot-fab,
+.founder-os.admin-os-shell .copilot-head {
+  background: var(--blue-600);
+  box-shadow: none;
+}
+
+.founder-os.admin-os-shell .hero-tile::after {
+  display: none;
+  content: none;
+}
+
+.founder-os.admin-os-shell .hero-tile:hover,
+.founder-os.admin-os-shell .workspace-link:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--border-strong);
+}
+
+.founder-os.admin-os-shell .hero-priority {
+  background: var(--surface);
+}
+
+.founder-os.admin-os-shell .progress-fill {
+  background: var(--blue-600);
+}
+
+@media (max-width: 1180px) {
+  .founder-os.admin-os-shell .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .founder-os.admin-os-shell .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .founder-os.admin-os-shell .kpi-card {
+    min-height: 176px;
+  }
+}
+
