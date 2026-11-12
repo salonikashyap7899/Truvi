@@ -1138,9 +1138,9 @@
 .truvi-dashboard-kpi__top p {
   overflow: hidden;
   margin: 0;
-  color: #9aaac2;
+  color: #b3c0d5;
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1168,7 +1168,7 @@
   margin: 12px 0 0;
   color: #f5f7ff;
   font-size: clamp(23px, 2.15vw, 30px);
-  font-weight: 750;
+  font-weight: 500;
   letter-spacing: -.04em;
   line-height: 1.13;
   text-overflow: ellipsis;
@@ -2826,5 +2826,72 @@
   .truvi-employee-account-menu button > span:not(:first-child),
   .truvi-employee-account-menu button > svg {
     display: none;
+  }
+}
+
+
+/* Employee dashboard/profile refinements from the workspace review. */
+.truvi-erm-employee .truvi-dashboard-kpi__top p {
+  font-weight: 750;
+}
+
+.truvi-erm-employee .truvi-dashboard-kpi__value {
+  font-weight: 500;
+}
+
+.truvi-erm .truvi-erm-profile-photo {
+  margin-bottom: 18px;
+}
+
+.truvi-erm form.truvi-profile-settings-card {
+  display: block;
+  margin-top: 18px;
+}
+
+.truvi-erm form.truvi-profile-settings-card .truvi-profile-personal-fields > label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.truvi-erm form.truvi-profile-settings-card .truvi-profile-personal-fields > label > span {
+  display: block;
+  width: 100%;
+  color: #b3c0d5;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.truvi-erm form.truvi-profile-settings-card .truvi-profile-personal-fields > label > input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 1px solid rgba(139, 160, 194, .28);
+  border-radius: 10px;
+  color: #eef4ff;
+  background: #080f1b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.truvi-erm form.truvi-profile-settings-card .truvi-profile-personal-fields > label > input:focus {
+  outline: none;
+  border-color: rgba(113, 139, 255, .92);
+  box-shadow: 0 0 0 3px rgba(92, 112, 235, .17);
+}
+
+@media (max-width: 680px) {
+  .truvi-erm .truvi-erm-profile-photo {
+    margin-bottom: 14px;
+  }
+
+  .truvi-erm form.truvi-profile-settings-card {
+    margin-top: 14px;
   }
 }
