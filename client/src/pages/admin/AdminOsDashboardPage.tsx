@@ -362,6 +362,8 @@ export default function AdminOsDashboardPage() {
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
   const [platformUsers, setPlatformUsers] = useState<DashboardUserAddition[]>([]);
   const [platformProjects, setPlatformProjects] = useState<DashboardProjectAddition[]>([]);
+  const [platformUsersStatus, setPlatformUsersStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [platformProjectsStatus, setPlatformProjectsStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -372,6 +374,8 @@ export default function AdminOsDashboardPage() {
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
   // the rest or throws a scary "failed to load" for the whole page.
   function load() {
+    setPlatformUsersStatus("loading");
+    setPlatformProjectsStatus("loading");
     api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
       .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
     api.get("/admin/users", { params: { all: "true" } })
@@ -379,13 +383,15 @@ export default function AdminOsDashboardPage() {
         const users = (res.data.users ?? []) as DashboardUserAddition[];
         setPlatformUsers(users);
         setStats((s) => ({ ...s, totalUsers: users.length }));
-      }).catch(() => {});
+        setPlatformUsersStatus("loaded");
+      }).catch(() => setPlatformUsersStatus("error"));
     api.get("/admin/projects")
       .then((res) => {
         const projects = (res.data.projects ?? []) as DashboardProjectAddition[];
         setPlatformProjects(projects);
         setStats((s) => ({ ...s, totalProjects: projects.length }));
-      }).catch(() => {});
+        setPlatformProjectsStatus("loaded");
+      }).catch(() => setPlatformProjectsStatus("error"));
     api.get("/revenue")
       .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
     api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
@@ -455,21 +461,29 @@ export default function AdminOsDashboardPage() {
         <div className="admin-growth-summary">
           <div className="admin-growth-highlight">
             <div className="admin-growth-highlight__label">Users added · last 7 days</div>
-            <div className="admin-growth-highlight__value">{usersAddedIn7Days}</div>
+            <div className="admin-growth-highlight__value">{platformUsersStatus === "loaded" ? usersAddedIn7Days : "—"}</div>
             <div className="admin-growth-highlight__detail">
-              {latestUsers[0]
-                ? `Latest: ${latestUsers[0].name} · ${latestUsers[0].role ?? "User"} · ${formatIndiaDateTime(latestUsers[0].createdAt)}`
-                : "No user creation timestamp is available yet."}
+              {platformUsersStatus === "loading"
+                ? "Loading account activity…"
+                : platformUsersStatus === "error"
+                  ? "Account activity could not be loaded."
+                  : latestUsers[0]
+                    ? `Latest: ${latestUsers[0].name} · ${latestUsers[0].role ?? "User"} · ${formatIndiaDateTime(latestUsers[0].createdAt)}`
+                    : "No user creation timestamp is available yet."}
             </div>
             <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/users")}>View users <span aria-hidden="true">→</span></button>
           </div>
           <div className="admin-growth-highlight">
             <div className="admin-growth-highlight__label">Projects added · last 7 days</div>
-            <div className="admin-growth-highlight__value">{projectsAddedIn7Days}</div>
+            <div className="admin-growth-highlight__value">{platformProjectsStatus === "loaded" ? projectsAddedIn7Days : "—"}</div>
             <div className="admin-growth-highlight__detail">
-              {latestProjects[0]
-                ? `Latest: ${latestProjects[0].name} · ${latestProjects[0].city || latestProjects[0].location || "Location not set"} · ${formatIndiaDateTime(latestProjects[0].createdAt)}`
-                : "No project creation timestamp is available yet."}
+              {platformProjectsStatus === "loading"
+                ? "Loading project activity…"
+                : platformProjectsStatus === "error"
+                  ? "Project activity could not be loaded."
+                  : latestProjects[0]
+                    ? `Latest: ${latestProjects[0].name} · ${latestProjects[0].city || latestProjects[0].location || "Location not set"} · ${formatIndiaDateTime(latestProjects[0].createdAt)}`
+                    : "No project creation timestamp is available yet."}
             </div>
             <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/listings")}>View listings <span aria-hidden="true">→</span></button>
           </div>
@@ -486,29 +500,37 @@ export default function AdminOsDashboardPage() {
               <span><i className="is-projects" /> Projects</span>
             </div>
           </div>
-          <div className="admin-growth-chart" role="img" aria-label="Daily new users and project additions for the last seven days">
-            {growthDays.map((day) => (
-              <div className="admin-growth-day" key={day.key}>
-                <div className="admin-growth-day-total">{day.users + day.projects}</div>
-                <div className="admin-growth-bars">
-                  <div className="admin-growth-bar-track" title={`${day.users} new users`}>
-                    <span className="is-users" style={{ height: day.users ? `${Math.max(8, (day.users / maxGrowthCount) * 100)}%` : "2px" }} />
+          {platformUsersStatus === "loaded" && platformProjectsStatus === "loaded" ? (
+            <div className="admin-growth-chart" role="img" aria-label="Daily new users and project additions for the last seven days">
+              {growthDays.map((day) => (
+                <div className="admin-growth-day" key={day.key}>
+                  <div className="admin-growth-day-total">{day.users + day.projects}</div>
+                  <div className="admin-growth-bars">
+                    <div className="admin-growth-bar-track" title={`${day.users} new users`}>
+                      <span className="is-users" style={{ height: day.users ? `${Math.max(8, (day.users / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
+                    <div className="admin-growth-bar-track" title={`${day.projects} new projects`}>
+                      <span className="is-projects" style={{ height: day.projects ? `${Math.max(8, (day.projects / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
                   </div>
-                  <div className="admin-growth-bar-track" title={`${day.projects} new projects`}>
-                    <span className="is-projects" style={{ height: day.projects ? `${Math.max(8, (day.projects / maxGrowthCount) * 100)}%` : "2px" }} />
-                  </div>
+                  <div className="admin-growth-day-label">{day.label}</div>
                 </div>
-                <div className="admin-growth-day-label">{day.label}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="admin-growth-empty">
+              {platformUsersStatus === "error" || platformProjectsStatus === "error"
+                ? "The daily chart is unavailable because activity data could not be retrieved."
+                : "Loading daily activity…"}
+            </p>
+          )}
         </div>
 
         <div className="admin-growth-recent-grid">
           <section>
             <div className="admin-growth-list-title">Latest user accounts</div>
             {latestUsers.length === 0
-              ? <p className="admin-growth-empty">No user creation dates available.</p>
+              ? <p className="admin-growth-empty">{platformUsersStatus === "error" ? "User activity unavailable." : platformUsersStatus === "loading" ? "Loading users…" : "No user creation dates available."}</p>
               : latestUsers.map((user) => (
                 <div className="admin-growth-list-row" key={user._id}>
                   <div className="admin-growth-list-avatar">{initials(user.name || "User")}</div>
@@ -523,7 +545,7 @@ export default function AdminOsDashboardPage() {
           <section>
             <div className="admin-growth-list-title">Latest projects added</div>
             {latestProjects.length === 0
-              ? <p className="admin-growth-empty">No project creation dates available.</p>
+              ? <p className="admin-growth-empty">{platformProjectsStatus === "error" ? "Project activity unavailable." : platformProjectsStatus === "loading" ? "Loading projects…" : "No project creation dates available."}</p>
               : latestProjects.map((project) => (
                 <div className="admin-growth-list-row" key={project._id}>
                   <div className="admin-growth-list-avatar is-project">{initials(project.name || "Project")}</div>
