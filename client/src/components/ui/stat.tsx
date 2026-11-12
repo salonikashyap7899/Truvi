@@ -44,6 +44,8 @@ export function StatCard({
   delay = 0,
   onClick,
   className,
+  lift = true,
+  glow = true,
 }: {
   label: string;
   value: number | string;
@@ -55,6 +57,8 @@ export function StatCard({
   delay?: number;
   onClick?: () => void;
   className?: string;
+  lift?: boolean;
+  glow?: boolean;
 }) {
   const numeric = typeof value === "number";
   const animated = useCountUp(numeric ? value : 0);
@@ -69,13 +73,13 @@ export function StatCard({
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       style={{ animationDelay: `${delay}ms` }}
       className={cn(
-        "tv-lift tv-fade-up relative overflow-hidden rounded-2xl border bg-white/[0.03] p-4",
+        cn(lift && "tv-lift", "tv-fade-up relative overflow-hidden rounded-2xl border bg-white/[0.03] p-4"),
         t.ring,
         onClick && "cursor-pointer",
         className
       )}
     >
-      <div className={cn("pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-gradient-to-b to-transparent blur-2xl", t.glow)} />
+      {glow && <div className={cn("pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-gradient-to-b to-transparent blur-2xl", t.glow)} />}
       <div className="relative flex items-start justify-between gap-2">
         <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">{label}</p>
         {icon && <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", t.icon)}>{icon}</span>}
