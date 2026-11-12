@@ -97,10 +97,6 @@ export default function AdminDocumentsPage() {
       <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold">
         <FileText size={22} className="text-[var(--trust)]" /> Documents
       </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Every document uploaded across the platform — buyer KYC, project legal docs, vault assets and shared files.
-        {counts.pending > 0 ? ` ${counts.pending} awaiting your review.` : " All reviewed."} {counts.total} total.
-      </p>
 
       {/* Filters */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
