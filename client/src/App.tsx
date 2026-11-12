@@ -10,6 +10,8 @@ import WhatsAppChannelPrompt from "@/components/WhatsAppChannelPrompt";
 import OnboardingMeetPrompt from "@/components/OnboardingMeetPrompt";
 import AskTruvi from "@/components/AskTruvi";
 import { CursorGlow } from "@/components/landing/CursorGlow";
+import { useTheme } from "@/components/theme/ThemeProvider";
+import { RouteSkeleton } from "@/components/ui/PageSkeleton";
 
 const AmbientBackground = lazy(() =>
   import("@/components/landing/AmbientBackground").then((m) => ({ default: m.AmbientBackground })),
@@ -143,13 +145,9 @@ const PaymentFailedPage = lazy(() => import("@/pages/PaymentFailedPage"));
 
 // The Founder Dashboard ships its own AI Copilot FAB, so suppress the global
 // floating assistants there to avoid two overlapping buttons.
-/** Tiny centered spinner shown while a lazy route chunk is loading. */
+/** Shared full-page skeleton shown while a lazy route chunk is loading. */
 function RouteFallback() {
-  return (
-    <div className="grid min-h-screen place-items-center bg-[#06090f]">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-    </div>
-  );
+  return <RouteSkeleton />;
 }
 
 function FloatingAssistants() {
@@ -259,6 +257,8 @@ function WelcomeRoute() {
 
 
 export default function App() {
+  const { theme } = useTheme();
+
   // Access tokens are memory-only. Restore a valid session from the HTTP-only
   // refresh cookie before protected routes decide whether to redirect to login.
   useEffect(() => {
@@ -312,7 +312,7 @@ export default function App() {
       <OfflineBanner />
       <Toaster
         position="top-center"
-        theme="dark"
+        theme={theme}
         closeButton
         expand
         gap={10}
@@ -325,13 +325,13 @@ export default function App() {
           // A clean glassy card instead of a flat colour bar — the status icon
           // (green tick / red cross) carries the colour, the surface stays dark.
           style: {
-            background: "rgba(13,18,25,0.96)",
-            border: "1px solid rgba(255,255,255,0.10)",
+            background: theme === "light" ? "rgba(255,255,255,0.97)" : "rgba(13,18,25,0.96)",
+            border: theme === "light" ? "1px solid rgba(71,85,105,0.18)" : "1px solid rgba(255,255,255,0.10)",
             borderRadius: "18px",
-            boxShadow: "0 20px 55px -12px rgba(0,0,0,.65)",
+            boxShadow: theme === "light" ? "0 16px 40px -12px rgba(28,44,68,.18)" : "0 20px 55px -12px rgba(0,0,0,.65)",
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
-            color: "#f1f5f9",
+            color: theme === "light" ? "#1e293b" : "#f1f5f9",
             padding: "15px 16px",
             fontSize: "14px",
             lineHeight: "1.4",
