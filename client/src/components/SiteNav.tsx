@@ -29,7 +29,7 @@ function BrandLogo() {
   return (
     <>
       <span className="grid size-7 shrink-0 place-items-center overflow-hidden">
-        <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
+        <img src="/brand/icon.png" alt="" className="truvi-nav-brand-icon h-full w-full object-contain" />
       </span>
       <span className={`truncate font-display text-[13px] font-semibold tracking-[0.14em] ${theme === "light" ? "text-slate-900" : "text-white"}`}>
         TRUVI VENTURES
