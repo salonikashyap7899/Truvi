@@ -525,8 +525,7 @@ export function AskTruviChat({
         </div>
       </div>
 
-      {/* Footer — like the home card: a divider, then the input and the
-          "Not a chatbot" line with an optional action on the right. */}
+      {/* Footer — input and optional full-chat action. */}
       <div className="shrink-0 border-t border-white/10 pt-4">
         <div>
           <div className="flex items-center gap-2 rounded-xl border border-white/15 glass px-3 py-2 focus-within:border-[var(--trust)] transition-colors">
@@ -548,12 +547,7 @@ export function AskTruviChat({
               <Send size={13} />
             </button>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
-              Not a chatbot — a property-intelligence assistant grounded in Truvi's data.
-            </p>
-            {footerAction}
-          </div>
+          {footerAction && <div className="mt-3 flex items-center justify-end gap-3">{footerAction}</div>}
         </div>
       </div>
     </>
