@@ -391,12 +391,14 @@
 }
 
 .founder-os.admin-os-shell .brand {
-  gap: 10px;
+  gap: 9px;
+  padding-top: 16px;
+  padding-bottom: 14px;
 }
 
 .founder-os.admin-os-shell .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 12px;
   background: transparent;
   box-shadow: none;
@@ -409,10 +411,26 @@
   object-fit: contain;
 }
 
+.founder-os.admin-os-shell .brand-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .founder-os.admin-os-shell .brand-text {
-  font-size: 23px;
+  font-size: 17px;
   font-weight: 800;
+  line-height: 1.05;
+}
+
+.founder-os.admin-os-shell .brand-sub {
+  color: var(--ink-400);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: .09em;
   line-height: 1.1;
+  text-transform: uppercase;
 }
 
 .founder-os.admin-os-shell .nav-item.active {
@@ -433,15 +451,51 @@
 }
 
 .founder-os.admin-os-shell .kpi-card {
-  min-height: 196px;
+  min-height: 142px;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 14px 16px 12px;
   background: var(--surface);
   background-image: none;
   backdrop-filter: none;
   box-shadow: var(--shadow-sm);
   transition: transform .16s cubic-bezier(.22,1,.36,1), box-shadow .16s ease, border-color .16s ease;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-top {
+  margin-bottom: 7px;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-label {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-value {
+  font-size: 23px;
+  line-height: 1.12;
+}
+
+.founder-os.admin-os-shell .admin-command-center .kpi-foot {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.founder-os.admin-os-shell .admin-command-center .admin-five-column-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .founder-os.admin-os-shell .kpi-card::after {
@@ -526,7 +580,8 @@
   }
 
   .founder-os.admin-os-shell .kpi-card {
-    min-height: 176px;
+    min-height: 132px;
+    padding: 12px;
   }
 }
 
@@ -540,4 +595,276 @@
 
 .founder-os.admin-os-shell .admin-platform-metrics .kpi-value {
   font-weight: 500;
+}
+
+
+/* Admin Command Center: compact live growth panel (real user/project timestamps). */
+.founder-os.admin-os-shell .admin-growth-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.founder-os.admin-os-shell .admin-growth-highlight {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+}
+
+.founder-os.admin-os-shell .admin-growth-highlight__label {
+  color: var(--ink-500);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.founder-os.admin-os-shell .admin-growth-highlight__value {
+  margin-top: 3px;
+  color: var(--ink-900);
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.founder-os.admin-os-shell .admin-growth-highlight__detail {
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+  color: var(--ink-500);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.founder-os.admin-os-shell .admin-growth-link {
+  margin-top: 8px;
+  color: var(--blue-600);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.founder-os.admin-os-shell .admin-growth-link:hover {
+  text-decoration: underline;
+}
+
+.founder-os.admin-os-shell .admin-growth-chart-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px 10px;
+  background: var(--surface);
+}
+
+.founder-os.admin-os-shell .admin-growth-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.founder-os.admin-os-shell .admin-growth-chart-title,
+.founder-os.admin-os-shell .admin-growth-list-title {
+  color: var(--ink-700);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.founder-os.admin-os-shell .admin-growth-chart-subtitle {
+  margin-top: 2px;
+  color: var(--ink-500);
+  font-size: 10px;
+}
+
+.founder-os.admin-os-shell .admin-growth-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--ink-500);
+  font-size: 10px;
+}
+
+.founder-os.admin-os-shell .admin-growth-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.founder-os.admin-os-shell .admin-growth-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+.founder-os.admin-os-shell .admin-growth-legend .is-users,
+.founder-os.admin-os-shell .admin-growth-bar-track .is-users {
+  background: #5295f6;
+}
+
+.founder-os.admin-os-shell .admin-growth-legend .is-projects,
+.founder-os.admin-os-shell .admin-growth-bar-track .is-projects {
+  background: #8b6cf6;
+}
+
+.founder-os.admin-os-shell .admin-growth-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.founder-os.admin-os-shell .admin-growth-day {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.founder-os.admin-os-shell .admin-growth-day-total {
+  min-height: 12px;
+  color: var(--ink-500);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.founder-os.admin-os-shell .admin-growth-bars {
+  display: flex;
+  height: 72px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.founder-os.admin-os-shell .admin-growth-bar-track {
+  display: flex;
+  width: 12px;
+  height: 100%;
+  align-items: flex-end;
+}
+
+.founder-os.admin-os-shell .admin-growth-bar-track span {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 1px 1px;
+}
+
+.founder-os.admin-os-shell .admin-growth-day-label {
+  color: var(--ink-500);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.founder-os.admin-os-shell .admin-growth-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-title {
+  margin-bottom: 6px;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.founder-os.admin-os-shell .admin-growth-list-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: #dceaff;
+  background: rgba(82, 149, 246, .16);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-avatar.is-project {
+  color: #e8ddff;
+  background: rgba(139, 108, 246, .16);
+}
+
+.founder-os.admin-os-shell .admin-growth-list-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-copy strong {
+  overflow: hidden;
+  color: var(--ink-700);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-copy span,
+.founder-os.admin-os-shell .admin-growth-list-row time {
+  overflow: hidden;
+  color: var(--ink-500);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.founder-os.admin-os-shell .admin-growth-list-row time {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.founder-os.admin-os-shell .admin-growth-empty {
+  padding: 8px 0;
+  color: var(--ink-500);
+  font-size: 10.5px;
+}
+
+@media (max-width: 1180px) {
+  .founder-os.admin-os-shell .admin-command-center .admin-five-column-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .founder-os.admin-os-shell .admin-growth-summary,
+  .founder-os.admin-os-shell .admin-growth-recent-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .founder-os.admin-os-shell .admin-command-center .admin-five-column-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .founder-os.admin-os-shell .admin-command-center .admin-five-column-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .founder-os.admin-os-shell .admin-growth-chart {
+    gap: 3px;
+  }
+
+  .founder-os.admin-os-shell .admin-growth-bar-track {
+    width: 9px;
+  }
+
+  .founder-os.admin-os-shell .admin-growth-day-label {
+    font-size: 8px;
+  }
 }
