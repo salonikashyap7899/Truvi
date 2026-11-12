@@ -530,3 +530,14 @@
   }
 }
 
+
+
+/* Admin Command Center platform-metric typography. */
+.founder-os.admin-os-shell .admin-platform-metrics .kpi-label {
+  color: var(--ink-900);
+  font-weight: 700;
+}
+
+.founder-os.admin-os-shell .admin-platform-metrics .kpi-value {
+  font-weight: 500;
+}
