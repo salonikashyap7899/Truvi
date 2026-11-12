@@ -424,8 +424,8 @@
   box-shadow: none;
 }
 
-/* Dashboard KPI cards: consistent dimensions and spacing, without hover
-   movement, trend pills, hidden arrow affordances, or colored glow gradients. */
+/* Dashboard KPI cards: solid surfaces with the original subtle lift effect.
+   Keep the labels emphasized; the metric values remain calm and regular-weight. */
 .founder-os.admin-os-shell .kpi-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px;
@@ -438,9 +438,10 @@
   flex-direction: column;
   padding: 20px;
   background: var(--surface);
+  background-image: none;
   backdrop-filter: none;
   box-shadow: var(--shadow-sm);
-  transition: none;
+  transition: transform .16s cubic-bezier(.22,1,.36,1), box-shadow .16s ease, border-color .16s ease;
 }
 
 .founder-os.admin-os-shell .kpi-card::after {
@@ -448,11 +449,10 @@
   content: none;
 }
 
-.founder-os.admin-os-shell .kpi-card:hover,
-.founder-os.admin-os-shell .card:hover {
-  transform: none;
-  box-shadow: var(--shadow-sm);
-  border-color: var(--border);
+.founder-os.admin-os-shell .kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
 .founder-os.admin-os-shell .kpi-trend,
@@ -467,12 +467,12 @@
 }
 
 .founder-os.admin-os-shell .kpi-value {
-  font-size: 30px;
-  font-weight: 600;
+  font-size: 25px;
+  font-weight: 400;
 }
 
 .founder-os.admin-os-shell .kpi-foot {
-  font-weight: 500;
+  font-weight: 400;
 }
 
 /* Replace Admin OS decorative gradients with solid brand/surface colors. */
