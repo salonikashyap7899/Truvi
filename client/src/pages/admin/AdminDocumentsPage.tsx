@@ -69,11 +69,6 @@ export default function AdminDocumentsPage() {
     }
   }
 
-  const counts = useMemo(() => ({
-    total: docs.length,
-    pending: docs.filter((d) => d.status === "PENDING" && d.approvable).length,
-  }), [docs]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return docs.filter((d) => {
