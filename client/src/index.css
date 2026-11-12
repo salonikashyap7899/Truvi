@@ -571,3 +571,55 @@ textarea::placeholder {
 :root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile > span:nth-child(2) small {
   color: #64748b !important;
 }
+
+
+/* Light surfaces for operational pages that use Tailwind's literal dark
+   background classes rather than the shared glass/card utility. Text remains
+   white on their own accent buttons because those are not dark-surface hosts. */
+:root[data-theme="light"] [class*="bg-[#06090f]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#070b15]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#080e18]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#0a0d14]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#0b1220]"] :is([class~="text-white"], [class*="text-white/"]) {
+  color: #263449 !important;
+}
+
+:root[data-theme="light"] .founder-os.light .page-title,
+:root[data-theme="light"] .founder-os.light .panel-title,
+:root[data-theme="light"] .founder-os.light .kpi-value,
+:root[data-theme="light"] .founder-os.light .hero-value,
+:root[data-theme="light"] .founder-os.light .profile-name {
+  color: var(--ink-900);
+}
+
+:root[data-theme="light"] .founder-os.light .page-sub,
+:root[data-theme="light"] .founder-os.light .panel-sub,
+:root[data-theme="light"] .founder-os.light .kpi-foot,
+:root[data-theme="light"] .founder-os.light .hero-foot {
+  color: var(--ink-500);
+}
+
+:root[data-theme="light"] .founder-os.light .search-wrap input {
+  color: var(--ink-900);
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-panel,
+:root[data-theme="light"] .founder-os.light .settings-modal {
+  color: var(--ink-900);
+  background: var(--surface) !important;
+  border-color: var(--border-strong);
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-body .msg.bot {
+  color: var(--ink-900);
+  background: #eef2f8;
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-input input {
+  color: var(--ink-900);
+  background: var(--surface);
+}
+
+.truvi-page-skeleton__body--nav {
+  margin-top: clamp(92px, 11vh, 132px);
+}
