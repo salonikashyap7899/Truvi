@@ -623,3 +623,59 @@ textarea::placeholder {
 .truvi-page-skeleton__body--nav {
   margin-top: clamp(92px, 11vh, 132px);
 }
+
+
+/* -------------------------------------------------------------------------
+   Light-mode homepage typography.
+   The homepage hero was authored for a dark cityscape (white/slate text and
+   strong dark text shadows). Override only its light-theme presentation so
+   glyphs stay crisp and readable over the unchanged city background.
+   ------------------------------------------------------------------------- */
+:root[data-theme="light"] .landing-page .homepage-hero-title {
+  color: #14233b !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy-text {
+  color: #34445b !important;
+  opacity: 1 !important;
+  font-weight: 500;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] .landing-page .homepage-intelligence-highlight {
+  background-image: linear-gradient(
+    105deg,
+    #2456a6 0%,
+    #176fae 42%,
+    #2466d3 72%,
+    #4d58bd 100%
+  );
+  -webkit-text-fill-color: transparent;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-section .text-sky-200 {
+  color: #2458a6 !important;
+}
+
+:root[data-theme="light"] .landing-page :is(
+  [class~="text-slate-200"],
+  [class~="text-slate-200/90"],
+  [class~="text-slate-300"],
+  [class~="text-slate-300/85"],
+  [class~="text-slate-400/85"]
+) {
+  color: #526176 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Keep the white-only image wordmark out of the light navbar; BrandLogo
+   switches to an icon + dark live text wordmark in that mode. */
+:root[data-theme="light"] .truvi-global-nav-surface > div:first-child {
+  color: #172033;
+}
