@@ -7,6 +7,8 @@ import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
+import { ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { useAuthStore } from "@/store/authStore";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -546,6 +548,8 @@ export default function EmployeeDashboardPage() {
   }
   const [showLeadForm, setShowLeadForm] = useState(false);
 
+  if (loading) return <DashboardSkeleton variant="employee" />;
+
   return (
     <main className="truvi-erm truvi-erm-employee">
       <div className="truvi-employee-app-shell">
@@ -644,6 +648,7 @@ export default function EmployeeDashboardPage() {
             </div>
 
             <div className="truvi-employee-topbar-actions">
+              <ThemeToggle showLabel={false} />
               <NotificationBell />
               <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
                 <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
