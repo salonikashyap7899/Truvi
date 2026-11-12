@@ -108,10 +108,6 @@ export default function AdminScoresPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold"><Gauge size={22} className="text-sky-400" /> Truvi Scores</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Each score is calculated from the project's data. Increase or decrease it after review — buyers see the
-            adjusted score on listings (always between 0 and 100). The reason is internal and only visible to admins.
-          </p>
         </div>
         <div className="relative w-full sm:w-72">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
