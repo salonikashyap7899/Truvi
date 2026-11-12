@@ -148,10 +148,11 @@ const PaymentFailedPage = lazy(() => import("@/pages/PaymentFailedPage"));
 /** Route-aware skeleton while a lazy page chunk is loading. */
 function RouteFallback() {
   const { pathname } = useLocation();
+  const globalNavVisible = useGlobalNavVisible();
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return <DashboardSkeleton variant="admin" />;
   if (pathname === "/founder/dashboard") return <DashboardSkeleton variant="founder" />;
   if (pathname === "/employee/dashboard") return <DashboardSkeleton variant="employee" />;
-  return <RouteSkeleton showTopBar={!useGlobalNavVisible()} />;
+  return <RouteSkeleton showTopBar={!globalNavVisible} />;
 }
 
 /** Routes with a dedicated full-screen shell (welcome tour / 3D viewer) still
