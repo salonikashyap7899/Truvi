@@ -9,7 +9,7 @@ import UserMenu from "@/components/UserMenu";
 import { useAuthStore } from "@/store/authStore";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import PageBackLink from "@/components/PageBackLink";
-import { ThemeToggle } from "@/components/theme/ThemeProvider";
+import { ThemeToggle, useTheme } from "@/components/theme/ThemeProvider";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -23,14 +23,17 @@ const WA_URL =
  */
 function BrandLogo() {
   const [wordmarkFailed, setWordmarkFailed] = useState(false);
+  const { theme } = useTheme();
 
-  if (wordmarkFailed) {
+  // The supplied wordmark is white-only. Use the icon plus a real text wordmark
+  // in light mode so the brand remains crisp and accessible on the white nav.
+  if (theme === "light" || wordmarkFailed) {
     return (
       <>
         <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
           <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
         </span>
-        <span className="truncate">TRUVI VENTURES</span>
+        <span className={`truncate font-display text-[13px] font-semibold tracking-[0.14em] ${theme === "light" ? "text-slate-900" : "text-white"}`}>TRUVI VENTURES</span>
       </>
     );
   }
