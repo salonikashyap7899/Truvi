@@ -166,7 +166,6 @@ textarea::placeholder {
   background-attachment: fixed;
 }
 
-:root[data-theme="light"] html,
 :root[data-theme="light"] body,
 :root[data-theme="light"] #root {
   background-color: var(--background);
@@ -469,4 +468,106 @@ textarea::placeholder {
   .truvi-page-skeleton__body {
     margin-top: 32px;
   }
+}
+
+
+/* Employee Workspace: replace its custom dark gradients/hex colors with
+   readable light surfaces while keeping brand accents and status colors. */
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile,
+:root[data-theme="light"] .truvi-erm .truvi-employee-search,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-alert,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-notice,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-list-card {
+  color: #243247 !important;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .18) !important;
+  box-shadow: 0 5px 18px rgba(28, 44, 68, .045);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home .truvi-dashboard-panel,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo-list,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-notifications {
+  color: #243247 !important;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .18) !important;
+  box-shadow: 0 8px 24px rgba(28, 44, 68, .045);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-page-heading h1,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__value,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll__summary strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile__identity strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table__main strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__copy > strong {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-page-heading p:not(.truvi-employee-eyebrow),
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__note,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll__summary p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile__identity small,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__copy > small,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table tbody td {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__top p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section > div:first-child h2,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section > div:first-child p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile-meta,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-panel-footer {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table thead th {
+  color: #526176 !important;
+  border-color: rgba(71, 85, 105, .16) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table tbody td,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-panel-footer {
+  border-color: rgba(71, 85, 105, .13) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__check,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table__task-icon {
+  color: #4759bc !important;
+  background: rgba(93, 112, 220, .09) !important;
+  border-color: rgba(93, 112, 220, .2) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search input {
+  color: #1e293b !important;
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search > svg,
+:root[data-theme="light"] .truvi-erm .truvi-employee-topbar-user > svg {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search-results button {
+  color: #243247 !important;
+  border-color: rgba(71, 85, 105, .12) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search-results button:hover {
+  background: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile {
+  border-top-color: rgba(71, 85, 105, .15) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile > span:nth-child(2) strong {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile > span:nth-child(2) small {
+  color: #64748b !important;
 }
