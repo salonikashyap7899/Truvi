@@ -144,9 +144,9 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot™" : "Ask Truvi™"}</p>
-                <p className="truncate text-[10px] text-muted-foreground">
-                  {tab === "copilot" ? "Sales scripts · WhatsApp · Objections" : null}
-                </p>
+{tab === "copilot" && (
+                  <p className="truncate text-[10px] text-muted-foreground">Sales scripts · WhatsApp · Objections</p>
+                )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
