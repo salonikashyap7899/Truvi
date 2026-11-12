@@ -27,7 +27,7 @@ function BrandLogo() {
   // small navy backing rather than recoloring or replacing the logo.
   return (
     <span className="truvi-nav-brand-wordmark">
-      <img src="/brand/wordmark.png" alt="Truvi Ventures" />
+      <img src="/brand/wordmark.svg" alt="Truvi Ventures" />
     </span>
   );
 }
