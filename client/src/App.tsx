@@ -24,7 +24,6 @@ import PageBackLink from "@/components/PageBackLink";
 import { showsNavBack } from "@/lib/navChrome";
 import { dashboardPath } from "@/lib/rolePaths";
 import { useAuthStore } from "@/store/authStore";
-import InvestFab from "@/components/InvestFab";
 import OfflineBanner from "@/components/OfflineBanner";
 import { IS_TOUCH } from "@/lib/device";
 import { initializeAuthSession } from "@/lib/api";
@@ -360,7 +359,6 @@ export default function App() {
       <WhatsAppChannelPrompt />
       <OnboardingMeetPrompt />
       <FloatingAssistants />
-      <InvestFab />
       <GlobalNav />
       <StandaloneThemeToggle />
       <PageTransition>
