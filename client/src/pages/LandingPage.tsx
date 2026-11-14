@@ -926,6 +926,15 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
+ frontend
+      <div className="landing-page-backdrop" aria-hidden="true">
+        <div className="landing-page-backdrop__side-fill" />
+        <div className="landing-page-backdrop__image" />
+        <div className="landing-page-backdrop__veil" />
+      </div>
+      <CursorGlow />
+
+ main
       <SiteNav transparent />
 
       <main id="main-content" className="relative z-10">
@@ -1046,7 +1055,7 @@ export default function LandingPage() {
       </Section>
 
       {/* ---------- 3 · TRUVI INTELLIGENCE ENGINE ---------- */}
-      <Section id="intelligence">
+      <Section id="intelligence" className="homepage-intelligence-section">
         <Reveal delay={0.1}>
           <h2 className="max-w-4xl font-display text-3xl font-medium leading-[1.05] sm:text-4xl md:text-6xl">
             Data goes in. <span className="text-gradient-trust">Intelligence comes out.</span>

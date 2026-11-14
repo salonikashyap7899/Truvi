@@ -140,6 +140,75 @@
   background-color: #071321;
 }
 
+frontend
+.landing-page-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #030a15;
+}
+
+.landing-page-backdrop__side-fill {
+  display: none;
+}
+
+.landing-page-backdrop__image {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  background-image: url("/images/truvi-luxury-dark-bg.jpg");
+  background-position: center 36%;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+@media (min-width: 1024px) {
+  .landing-page-backdrop__side-fill {
+    display: block;
+    position: absolute;
+    inset: -48px;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(3, 10, 21, 0.6) 0%, rgba(3, 10, 21, 0.15) 30%, rgba(3, 10, 21, 0.15) 70%, rgba(3, 10, 21, 0.6) 100%),
+      url("/images/truvi-luxury-dark-bg.jpg") center / cover no-repeat;
+    filter: blur(20px) brightness(0.7) saturate(1.05);
+    opacity: 0.9;
+  }
+
+  .landing-page-backdrop__image {
+    z-index: 2;
+    background-image: url("/images/truvi-luxury-dark-bg.jpg");
+    background-position: center 30%;
+    background-size: cover;
+  }
+}
+
+.landing-page-backdrop__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(3, 10, 21, 0.72) 0%, rgba(3, 10, 21, 0.42) 48%, rgba(3, 10, 21, 0.16) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.45) 0%, rgba(3, 9, 19, 0.22) 50%, rgba(3, 9, 19, 0.85) 100%);
+}
+
+@media (max-width: 767px) {
+  .landing-page-backdrop__veil {
+    background:
+      linear-gradient(90deg, rgba(3, 10, 21, 0.78), rgba(3, 10, 21, 0.58)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.5) 0%, rgba(3, 9, 19, 0.25) 50%, rgba(3, 9, 19, 0.88) 100%);
+  }
+}
+
+
+
+ main
 
 /* Deep navy glass styling, limited to the public homepage. */
 .landing-page .glass {
@@ -243,16 +312,18 @@
 .homepage-closing-cta {
   position: relative;
   isolation: isolate;
-  min-height: 300px;
+  min-height: 340px;
   overflow: hidden;
   border: 1px solid rgba(140, 193, 232, 0.3);
   border-radius: 30px;
   background-color: rgba(7, 27, 49, 0.5);
   background-image:
-    linear-gradient(90deg, rgba(3, 13, 28, 0.78) 0%, rgba(4, 17, 34, 0.54) 42%, rgba(4, 17, 34, 0.16) 100%),
-    linear-gradient(180deg, rgba(4, 12, 23, 0.06), rgba(4, 12, 23, 0.4));
+    linear-gradient(90deg, rgba(3, 13, 28, 0.88) 0%, rgba(4, 17, 34, 0.54) 45%, rgba(4, 17, 34, 0.22) 100%),
+    linear-gradient(180deg, rgba(4, 12, 23, 0.15), rgba(4, 12, 23, 0.72)),
+    url("/images/truvi-closing-dark-bg.jpg");
   background-size: cover;
-  background-position: 58% 58%;
+  background-position: center;
+  background-repeat: no-repeat;
   box-shadow: 0 25px 80px -42px rgba(0, 0, 0, 0.9);
 }
 
@@ -303,7 +374,17 @@
   .homepage-closing-cta {
     min-height: 0;
     border-radius: 22px;
-    background-position: 58% center;
+    background-position: center;
+  }
+
+  .homepage-project-section,
+  .homepage-intelligence-section {
+    border-radius: 20px;
+    padding-top: 2rem !important;
+    padding-bottom: 2.2rem !important;
+    margin-top: 1.25rem !important;
+    margin-bottom: 1.25rem !important;
+    background-position: center;
   }
 }
 
@@ -431,8 +512,43 @@
 }
 
 .homepage-project-section {
-  padding-top: 1.8rem !important;
-  padding-bottom: 2rem !important;
+  position: relative;
+  isolation: isolate;
+  padding-top: 3.2rem !important;
+  padding-bottom: 3.5rem !important;
+  border-radius: 28px;
+  border: 1px solid rgba(142, 194, 231, 0.16);
+  background-color: #030a15;
+  background-image:
+    linear-gradient(180deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.62) 35%, rgba(3, 10, 21, 0.62) 65%, rgba(3, 10, 21, 0.95) 100%),
+    linear-gradient(90deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.45) 50%, rgba(3, 10, 21, 0.9) 100%),
+    url("/images/truvi-projects-dark-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 30px 90px -40px rgba(0, 0, 0, 0.95);
+  margin-top: 2rem !important;
+  margin-bottom: 2rem !important;
+}
+
+.homepage-intelligence-section {
+  position: relative;
+  isolation: isolate;
+  padding-top: 3.5rem !important;
+  padding-bottom: 4rem !important;
+  border-radius: 28px;
+  border: 1px solid rgba(142, 194, 231, 0.16);
+  background-color: #030a15;
+  background-image:
+    linear-gradient(180deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.65) 35%, rgba(3, 10, 21, 0.65) 65%, rgba(3, 10, 21, 0.95) 100%),
+    linear-gradient(90deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.4) 50%, rgba(3, 10, 21, 0.92) 100%),
+    url("/images/truvi-intelligence-dark-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 30px 90px -40px rgba(0, 0, 0, 0.95);
+  margin-top: 2.5rem !important;
+  margin-bottom: 2.5rem !important;
 }
 
 .homepage-project-section > div {
