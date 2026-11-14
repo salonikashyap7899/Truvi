@@ -842,29 +842,37 @@ textarea::placeholder {
   background: #071321;
 }
 
-/* Property Passport brand mark: use the official shield instead of a letter
-   tile. Pick the appropriate supplied shield artwork for the active theme. */
-.truvi-passport-brand-mark {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: 0 0 2.5rem;
+/* Shared Truvi shield mark: original brand artwork adapts to the active theme. */
+.truvi-mark {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
   place-items: center;
+  line-height: 0;
+  vertical-align: middle;
 }
 
-.truvi-passport-brand-mark__light {
+.truvi-mark__asset {
+  grid-area: 1 / 1;
+  display: block;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  object-fit: contain;
+}
+
+.truvi-mark__light {
   display: none;
 }
 
-.truvi-passport-brand-mark__dark {
+.truvi-mark__dark {
   display: block;
 }
 
-:root[data-theme="light"] .truvi-passport-brand-mark__light {
+:root[data-theme="light"] .truvi-mark__light {
   display: block;
 }
 
-:root[data-theme="light"] .truvi-passport-brand-mark__dark {
+:root[data-theme="light"] .truvi-mark__dark {
   display: none;
 }
 

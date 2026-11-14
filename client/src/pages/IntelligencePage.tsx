@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { SiteNav } from "@/components/SiteNav";
+import { TruviMark } from "@/components/TruviMark";
 import {
   Database, ShieldCheck, LayoutGrid, Zap, ArrowRight, Check, Clock, HelpCircle,
   FileText, Landmark, Newspaper, Map, ScrollText, HardHat, Building2,
@@ -251,8 +252,8 @@ export default function IntelligencePage() {
                 <p className="font-display text-lg font-medium">Skyline Meridian — Tower B</p>
                 <p className="text-xs text-muted-foreground">Sample project record</p>
               </div>
-              <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-lg font-bold">
-                A
+              <span className="grid size-11 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)]">
+                <TruviMark size={36} />
               </span>
             </div>
             <div className="mt-4 divide-y divide-white/5">

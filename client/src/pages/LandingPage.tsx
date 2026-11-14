@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
 import { SiteNav } from "@/components/SiteNav";
+import { TruviMark } from "@/components/TruviMark";
 import { VideoBand } from "@/components/landing/VideoBand";
 import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
@@ -452,7 +453,9 @@ function EngineDiagram() {
         <div className="absolute -inset-px rounded-2xl opacity-30" style={{ boxShadow: "0 0 50px var(--trust)" }} />
         <div className="relative">
           <div className="mb-2 flex items-center justify-center gap-2">
-            <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[11px] font-bold">T</span>
+            <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)]">
+              <TruviMark size={24} />
+            </span>
           </div>
           <p className="font-display text-xl font-semibold text-white md:text-2xl">
             TRUVI INTELLIGENCE ENGINE™
@@ -1102,10 +1105,7 @@ export default function LandingPage() {
                 <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Truvi Property Passport™</p>
                 <p className="mt-1 font-display text-base font-semibold text-white">{showcase.passportTitle}</p>
               </div>
-              <span className="truvi-passport-brand-mark grid size-10 shrink-0 place-items-center" role="img" aria-label="Truvi Ventures">
-                <img src="/brand/icon.png" alt="" className="truvi-passport-brand-mark__light size-9 object-contain" />
-                <img src="/brand/icon-white.png" alt="" className="truvi-passport-brand-mark__dark size-9 object-contain" />
-              </span>
+              <TruviMark size={40} className="shrink-0" />
             </div>
             <div className="divide-y divide-white/5">
               {showcase.passportFields.map((f) => (
