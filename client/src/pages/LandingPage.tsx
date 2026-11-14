@@ -908,6 +908,37 @@ export default function LandingPage() {
   }, [hash]);
 
   useEffect(() => {
+    const backdropImage = document.querySelector<HTMLElement>(".landing-page-backdrop__image");
+    const pageContent = document.querySelector<HTMLElement>(".landing-page main");
+    if (!backdropImage || !pageContent) return;
+
+    let frame = 0;
+    const updateBackgroundPan = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        const progress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
+        backdropImage.style.setProperty("--homepage-background-pan", `${progress * 100}%`);
+      });
+    };
+
+    const contentObserver = new ResizeObserver(updateBackgroundPan);
+    contentObserver.observe(pageContent);
+    window.addEventListener("scroll", updateBackgroundPan, { passive: true });
+    window.addEventListener("resize", updateBackgroundPan);
+    updateBackgroundPan();
+
+    return () => {
+      contentObserver.disconnect();
+      window.removeEventListener("scroll", updateBackgroundPan);
+      window.removeEventListener("resize", updateBackgroundPan);
+      if (frame) window.cancelAnimationFrame(frame);
+      backdropImage.style.removeProperty("--homepage-background-pan");
+    };
+  }, []);
+
+  useEffect(() => {
     const prevTitle = document.title;
     document.title = "TRUVI — The Intelligence Layer for Indian Real Estate";
     const meta = document.querySelector('meta[name="description"]');
@@ -926,15 +957,11 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
- frontend
       <div className="landing-page-backdrop" aria-hidden="true">
         <div className="landing-page-backdrop__side-fill" />
         <div className="landing-page-backdrop__image" />
         <div className="landing-page-backdrop__veil" />
       </div>
-      <CursorGlow />
-
- main
       <SiteNav transparent />
 
       <main id="main-content" className="relative z-10">
@@ -1277,7 +1304,7 @@ export default function LandingPage() {
           <div className="mt-14 flex flex-wrap items-center justify-center gap-3">
             {FLYWHEEL.map((step) => (
               <span key={step} className="flex items-center gap-3">
-                <span className="rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-4 py-2 text-sm font-medium text-white">
+                <span className="homepage-flywheel-step rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-4 py-2 text-sm font-medium text-white">
                   {step}
                 </span>
                 <span className="text-[var(--trust)]" aria-hidden>→</span>
@@ -1476,7 +1503,7 @@ export default function LandingPage() {
         <Reveal delay={0.4}>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {PARTNER_BADGES.map((t) => (
-              <span key={t} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-3 py-1.5 text-xs font-medium text-white">
+              <span key={t} className="homepage-partner-badge inline-flex items-center gap-1.5 rounded-full border border-[var(--trust)]/30 bg-[var(--trust)]/10 px-3 py-1.5 text-xs font-medium text-white">
                 <span className="text-emerald-400">✓</span> {t}
               </span>
             ))}

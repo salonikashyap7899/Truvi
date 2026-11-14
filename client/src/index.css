@@ -22,7 +22,9 @@
 }
 
 html, body, #root {
-  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   /* Paint the root dark so third-party overlays (e.g. the Razorpay checkout)
      never reveal a white page behind them. */
   background-color: var(--background);
@@ -182,7 +184,29 @@ textarea::placeholder {
 
 :root[data-theme="light"] .landing-page {
   color: #162033;
-  background-color: #f7f9fc !important;
+  background-color: transparent !important;
+}
+
+:root[data-theme="light"] .landing-page-backdrop {
+  background: #030a15 !important;
+}
+
+:root[data-theme="light"] .landing-page-backdrop__side-fill {
+  display: none !important;
+}
+
+:root[data-theme="light"] .landing-page-backdrop__image {
+  display: block !important;
+  background-image: url("/images/truvi-luxury-dark-bg.jpg") !important;
+  background-position: var(--homepage-background-pan, 0%) center !important;
+  background-repeat: no-repeat !important;
+  background-size: auto 130% !important;
+  filter: none;
+}
+
+:root[data-theme="light"] .landing-page-backdrop__veil {
+  display: block !important;
+  background: transparent !important;
 }
 
 :root[data-theme="light"] .min-h-screen[class*="bg-"] {
@@ -219,7 +243,7 @@ textarea::placeholder {
    coloured background (status badges and semantic action chips). */
 :root[data-theme="light"] .glass :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
 :root[data-theme="light"] .card :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
-:root[data-theme="light"] .min-h-screen :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]) {
+:root[data-theme="light"] .min-h-screen :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]):not(.homepage-closing-cta *) {
   color: #263449 !important;
 }
 
@@ -661,22 +685,21 @@ textarea::placeholder {
 
 /* -------------------------------------------------------------------------
    Light-mode homepage typography.
-   The homepage hero was authored for a dark cityscape (white/slate text and
-   strong dark text shadows). Override only its light-theme presentation so
-   glyphs stay crisp and readable over the unchanged city background.
+   The homepage photo stays visible in both themes, so retain crisp, bright
+   hero copy over the dark luxury image while keeping cards on light surfaces.
    ------------------------------------------------------------------------- */
 :root[data-theme="light"] .landing-page .homepage-hero-title {
-  color: #14233b !important;
-  text-shadow: none !important;
+  color: #f8fbff !important;
+  text-shadow: 0 2px 18px rgba(2, 10, 24, .76), 0 1px 3px rgba(2, 10, 24, .92) !important;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 :root[data-theme="light"] .landing-page .homepage-hero-copy-text {
-  color: #34445b !important;
+  color: #edf5ff !important;
   opacity: 1 !important;
   font-weight: 500;
-  text-shadow: none !important;
+  text-shadow: 0 1px 12px rgba(2, 10, 24, .9), 0 1px 3px rgba(2, 10, 24, .96) !important;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -684,16 +707,16 @@ textarea::placeholder {
 :root[data-theme="light"] .landing-page .homepage-intelligence-highlight {
   background-image: linear-gradient(
     105deg,
-    #2456a6 0%,
-    #176fae 42%,
-    #2466d3 72%,
-    #4d58bd 100%
+    #a9dcff 0%,
+    #f7fbff 42%,
+    #a8d1ff 72%,
+    #c7c4ff 100%
   );
   -webkit-text-fill-color: transparent;
 }
 
 :root[data-theme="light"] .landing-page .homepage-hero-section .text-sky-200 {
-  color: #2458a6 !important;
+  color: #c5e7ff !important;
 }
 
 :root[data-theme="light"] .landing-page :is(
@@ -723,12 +746,12 @@ textarea::placeholder {
 }
 
 :root[data-theme="light"] .landing-page .homepage-hero-copy-text {
-  color: #26364d !important;
+  color: #edf5ff !important;
   opacity: 1 !important;
   font-size: clamp(1rem, 1.1vw, 1.08rem);
   font-weight: 550;
   line-height: 1.72;
-  text-shadow: none !important;
+  text-shadow: 0 1px 12px rgba(2, 10, 24, .9), 0 1px 3px rgba(2, 10, 24, .96) !important;
 }
 
 :root[data-theme="light"] .landing-page :is(
@@ -849,7 +872,7 @@ textarea::placeholder {
 
 .truvi-nav-brand-wordmark img {
   display: block;
-  width: clamp(128px, 16vw, 204px);
+  width: clamp(120px, 14vw, 176px);
   max-width: 100%;
   height: auto;
   object-fit: contain;
@@ -874,9 +897,9 @@ textarea::placeholder {
 
 .truvi-nav-brand-light img {
   display: block;
-  width: 25px;
-  height: 25px;
-  flex: 0 0 25px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
   object-fit: contain;
 }
 
@@ -912,5 +935,89 @@ textarea::placeholder {
 
 :root[data-theme="light"] .truvi-mark__dark {
   display: none;
+}
+
+/* Keep landing-page accent text readable against pale light-mode surfaces. */
+:root[data-theme="light"] .landing-page :is(.text-gradient-trust, .text-gradient-aurora) {
+  background: none !important;
+  color: #1c4f88 !important;
+  -webkit-text-fill-color: #1c4f88 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-flywheel-step {
+  color: #17466f !important;
+  border-color: #a8c9e8 !important;
+  background: #eaf3fc !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-partner-badge {
+  color: #17466f !important;
+  border-color: #a8c9e8 !important;
+  background: #eaf3fc !important;
+}
+
+/* The closing CTA keeps its dark photo treatment in both themes, so its text
+   and ghost actions must stay light instead of inheriting the page foreground. */
+:root[data-theme="light"] .landing-page .homepage-closing-cta :is(h2, p) {
+  color: #f5f8fc !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-closing-cta .text-gradient-trust {
+  background: linear-gradient(135deg, #ffffff 0%, #b9dcff 100%) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-closing-cta p .text-white {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-closing-cta :is(a, button):not(.glow-trust) {
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, .34) !important;
+  background-color: rgba(15, 23, 42, .56) !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-closing-cta .glow-trust {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* The light theme now shows the homepage photo without a white wash. Keep
+   standalone section copy legible on that image; opaque cards retain their
+   light surfaces and dark text. */
+:root[data-theme="light"] .landing-page main > section :is(h1, h2, h3, p):not(.glass *):not(.card *):not(.homepage-feature-card *):not(.homepage-project-card *):not(.homepage-hero-demo *):not(.homepage-closing-cta *) {
+  color: #f8fbff !important;
+  text-shadow: 0 2px 14px rgba(2, 10, 24, .86) !important;
+}
+
+:root[data-theme="light"] .landing-page main > section :is(.text-gradient-trust, .text-gradient-aurora):not(.glass *):not(.card *):not(.homepage-feature-card *):not(.homepage-project-card *):not(.homepage-hero-demo *):not(.homepage-closing-cta *) {
+  background: linear-gradient(100deg, #b9e2ff 0%, #ffffff 48%, #cbd8ff 100%) !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 2px 14px rgba(2, 10, 24, .86) !important;
+}
+
+:root[data-theme="light"] .landing-page > div:last-child > footer {
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, .12) !important;
+  background: rgba(3, 10, 21, .58);
+}
+
+:root[data-theme="light"] .landing-page > div:last-child > footer :is(.text-muted-foreground, [class*="text-foreground/80"]) {
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme="light"] .landing-page > div:last-child > footer a {
+  color: #e2e8f0 !important;
+}
+
+:root[data-theme="light"] .landing-page > div:last-child > footer a:hover {
+  color: #ffffff !important;
 }
 

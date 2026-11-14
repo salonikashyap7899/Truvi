@@ -134,13 +134,12 @@
 ::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 20%); }
 
 
-/* A single fixed cityscape stays behind every public homepage section while scrolling. */
+/* Scroll a luxury property photo behind the entire public homepage. */
 .landing-page {
   isolation: isolate;
-  background-color: #071321;
+  background-color: transparent;
 }
 
-frontend
 .landing-page-backdrop {
   position: fixed;
   inset: 0;
@@ -161,31 +160,10 @@ frontend
   overflow: hidden;
   pointer-events: none;
   background-image: url("/images/truvi-luxury-dark-bg.jpg");
-  background-position: center 36%;
+  background-position: var(--homepage-background-pan, 0%) center;
   background-repeat: no-repeat;
-  background-size: cover;
-}
-
-@media (min-width: 1024px) {
-  .landing-page-backdrop__side-fill {
-    display: block;
-    position: absolute;
-    inset: -48px;
-    z-index: 1;
-    pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(3, 10, 21, 0.6) 0%, rgba(3, 10, 21, 0.15) 30%, rgba(3, 10, 21, 0.15) 70%, rgba(3, 10, 21, 0.6) 100%),
-      url("/images/truvi-luxury-dark-bg.jpg") center / cover no-repeat;
-    filter: blur(20px) brightness(0.7) saturate(1.05);
-    opacity: 0.9;
-  }
-
-  .landing-page-backdrop__image {
-    z-index: 2;
-    background-image: url("/images/truvi-luxury-dark-bg.jpg");
-    background-position: center 30%;
-    background-size: cover;
-  }
+  /* Oversize the single photo so it has room to pan horizontally. */
+  background-size: auto 130%;
 }
 
 .landing-page-backdrop__veil {
@@ -194,21 +172,11 @@ frontend
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.72) 0%, rgba(3, 10, 21, 0.42) 48%, rgba(3, 10, 21, 0.16) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.45) 0%, rgba(3, 9, 19, 0.22) 50%, rgba(3, 9, 19, 0.85) 100%);
-}
-
-@media (max-width: 767px) {
-  .landing-page-backdrop__veil {
-    background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.78), rgba(3, 10, 21, 0.58)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.5) 0%, rgba(3, 9, 19, 0.25) 50%, rgba(3, 9, 19, 0.88) 100%);
-  }
+    linear-gradient(90deg, rgba(3, 10, 21, 0.12) 0%, rgba(3, 10, 21, 0.04) 48%, rgba(3, 10, 21, 0.08) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.08) 0%, rgba(3, 9, 19, 0.02) 50%, rgba(3, 9, 19, 0.18) 100%);
 }
 
 
-
- main
 
 /* Deep navy glass styling, limited to the public homepage. */
 .landing-page .glass {
@@ -316,12 +284,11 @@ frontend
   overflow: hidden;
   border: 1px solid rgba(140, 193, 232, 0.3);
   border-radius: 30px;
-  background-color: rgba(7, 27, 49, 0.5);
+  background-color: rgba(7, 27, 49, 0.22);
   background-image:
-    linear-gradient(90deg, rgba(3, 13, 28, 0.88) 0%, rgba(4, 17, 34, 0.54) 45%, rgba(4, 17, 34, 0.22) 100%),
-    linear-gradient(180deg, rgba(4, 12, 23, 0.15), rgba(4, 12, 23, 0.72)),
-    url("/images/truvi-closing-dark-bg.jpg");
-  background-size: cover;
+    linear-gradient(90deg, rgba(3, 13, 28, 0.38) 0%, rgba(4, 17, 34, 0.18) 45%, rgba(4, 17, 34, 0.08) 100%),
+    linear-gradient(180deg, rgba(4, 12, 23, 0.06), rgba(4, 12, 23, 0.22));
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
   box-shadow: 0 25px 80px -42px rgba(0, 0, 0, 0.9);
@@ -423,11 +390,15 @@ frontend
   font-size: clamp(2.3rem, 3.35vw, 2.8rem);
   line-height: 1.035;
   letter-spacing: -0.035em;
+  color: #f8fbff !important;
+  -webkit-text-fill-color: #f8fbff !important;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 
 .homepage-hero-copy-text {
   max-width: 520px;
+  color: #edf5ff !important;
+  -webkit-text-fill-color: #edf5ff !important;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.78);
 }
 
@@ -518,14 +489,8 @@ frontend
   padding-bottom: 3.5rem !important;
   border-radius: 28px;
   border: 1px solid rgba(142, 194, 231, 0.16);
-  background-color: #030a15;
-  background-image:
-    linear-gradient(180deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.62) 35%, rgba(3, 10, 21, 0.62) 65%, rgba(3, 10, 21, 0.95) 100%),
-    linear-gradient(90deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.45) 50%, rgba(3, 10, 21, 0.9) 100%),
-    url("/images/truvi-projects-dark-bg.jpg");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: rgba(3, 10, 21, 0.18);
+  background-image: none;
   box-shadow: 0 30px 90px -40px rgba(0, 0, 0, 0.95);
   margin-top: 2rem !important;
   margin-bottom: 2rem !important;
@@ -538,14 +503,8 @@ frontend
   padding-bottom: 4rem !important;
   border-radius: 28px;
   border: 1px solid rgba(142, 194, 231, 0.16);
-  background-color: #030a15;
-  background-image:
-    linear-gradient(180deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.65) 35%, rgba(3, 10, 21, 0.65) 65%, rgba(3, 10, 21, 0.95) 100%),
-    linear-gradient(90deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.4) 50%, rgba(3, 10, 21, 0.92) 100%),
-    url("/images/truvi-intelligence-dark-bg.jpg");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: rgba(3, 10, 21, 0.18);
+  background-image: none;
   box-shadow: 0 30px 90px -40px rgba(0, 0, 0, 0.95);
   margin-top: 2.5rem !important;
   margin-bottom: 2.5rem !important;
