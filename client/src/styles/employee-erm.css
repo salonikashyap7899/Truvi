@@ -2961,3 +2961,41 @@
   color: #1e293b !important;
   background: #e2e8f0 !important;
 }
+
+
+/* Employee global search: keep one rounded frame only. The shared Light Mode
+   form-control theme has higher specificity than the local input reset, so
+   explicitly neutralize it for this input without changing header geometry. */
+.truvi-erm .truvi-employee-search {
+  border-radius: 12px;
+}
+
+.truvi-erm .truvi-employee-search > input:not([type="checkbox"]):not([type="radio"]) {
+  display: block;
+  flex: 1 1 0%;
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Beat the shared Light Mode input selector specifically, so it cannot paint
+   a second pale rectangle inside the rounded search shell. */
+:root[data-theme="light"] .truvi-erm .truvi-employee-search > input:not([type="checkbox"]):not([type="radio"]) {
+  color: #1e293b !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
