@@ -337,9 +337,10 @@
   }
 }
 
-/* KPI tiles read as operational metrics rather than generic cards. */
-.truvi-erm .grid > div.rounded-2xl.border,
-.truvi-erm .group.relative.overflow-hidden.rounded-2xl {
+/* KPI tiles in the Employee Workspace read as operational metrics rather
+   than generic cards. Do not apply this dark-only surface to the Admin HRMS. */
+.truvi-erm-employee .grid > div.rounded-2xl.border,
+.truvi-erm-employee .group.relative.overflow-hidden.rounded-2xl {
   background: linear-gradient(150deg, rgba(20, 31, 49, 0.96), rgba(12, 20, 32, 0.96)) !important;
   border-color: rgba(148, 163, 184, 0.19) !important;
   border-radius: 14px !important;
@@ -778,16 +779,19 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: auto minmax(230px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(38px, auto) 39px;
   align-items: center;
-  gap: 23px;
+  gap: 8px 16px;
   border-bottom: 1px solid rgba(148, 163, 184, .14);
-  padding: 0 28px;
+  padding: 12px 28px;
   background: rgba(10, 17, 29, .93);
 }
 
 .truvi-employee-breadcrumb {
   display: flex;
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   align-items: center;
   gap: 8px;
@@ -814,8 +818,12 @@
 .truvi-employee-search {
   position: relative;
   display: flex;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: min(100%, 760px);
   min-width: 0;
   height: 39px;
+  box-sizing: border-box;
   align-items: center;
   gap: 10px;
   border: 1px solid rgba(148, 163, 184, .17);
@@ -837,9 +845,12 @@
 }
 
 .truvi-employee-search input {
-  width: 100%;
+  display: block;
+  flex: 1 1 0%;
+  width: 0;
   min-width: 0;
   height: 100%;
+  box-sizing: border-box;
   min-height: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -950,6 +961,8 @@
 
 .truvi-employee-topbar-actions {
   display: flex;
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
@@ -1927,6 +1940,7 @@
   .truvi-employee-search {
     grid-column: 1 / -1;
     grid-row: 2;
+    width: 100%;
     height: 36px;
   }
   .truvi-employee-topbar-actions {
@@ -2896,4 +2910,50 @@
   .truvi-erm form.truvi-profile-settings-card {
     margin-top: 14px;
   }
+}
+
+
+/* Admin Employee Management: keep its KPI tiles and tab strip legible when the
+   shared Admin OS is in Light Mode. Dark Mode retains the existing navy cards. */
+.truvi-erm-admin .truvi-admin-employee-kpi {
+  border-radius: 14px !important;
+  background: linear-gradient(150deg, rgba(20, 31, 49, 0.96), rgba(12, 20, 32, 0.96)) !important;
+  border-color: rgba(148, 163, 184, 0.19) !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-admin-employee-kpi {
+  color: #1e293b !important;
+  background: #ffffff !important;
+  border-color: rgba(100, 116, 139, 0.22) !important;
+  box-shadow: 0 6px 20px rgba(30, 48, 73, 0.07) !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-admin-employee-kpi > div > p {
+  color: #344256 !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-admin-employee-kpi > p.mt-2 {
+  color: #14233b !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-admin-employee-kpi > p.mt-1 {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-erm-tabs {
+  border: 1px solid #dbe3ee !important;
+  border-bottom: 1px solid #dbe3ee !important;
+  border-radius: 14px;
+  background: #f1f5f9 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-erm-tabs button:not([aria-current="page"]) {
+  color: #475569 !important;
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .truvi-erm-admin .truvi-erm-tabs button:not([aria-current="page"]):hover {
+  color: #1e293b !important;
+  background: #e2e8f0 !important;
 }

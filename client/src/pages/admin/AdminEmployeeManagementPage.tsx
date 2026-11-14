@@ -75,7 +75,7 @@ function Status({ value }: { value: string }) {
 }
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm">
+    <div className="truvi-admin-employee-kpi relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-semibold leading-5 text-foreground">{label}</p>
       </div>
