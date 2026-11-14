@@ -9,7 +9,7 @@ import UserMenu from "@/components/UserMenu";
 import { useAuthStore } from "@/store/authStore";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import PageBackLink from "@/components/PageBackLink";
-import { ThemeToggle } from "@/components/theme/ThemeProvider";
+import { ThemeToggle, useTheme } from "@/components/theme/ThemeProvider";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -22,9 +22,20 @@ const WA_URL =
  * navbar never shows a broken image.
  */
 function BrandLogo() {
-  // Use the supplied full horizontal shield + wordmark artwork in both modes.
-  // Its lettering is white, so Light Mode places the unchanged asset on a
-  // small navy backing rather than recoloring or replacing the logo.
+  const { theme } = useTheme();
+
+  // The supplied horizontal wordmark is white-only. In Light Mode, pair the
+  // full-colour shield with live navy lettering so it stays clear on the glass
+  // navbar without a dark badge behind it.
+  if (theme === "light") {
+    return (
+      <span className="truvi-nav-brand-light">
+        <img src="/brand/icon.png" alt="" aria-hidden="true" />
+        <span>TRUVI VENTURES</span>
+      </span>
+    );
+  }
+
   return (
     <span className="truvi-nav-brand-wordmark">
       <img src="/brand/wordmark.svg" alt="Truvi Ventures" />

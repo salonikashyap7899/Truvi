@@ -279,10 +279,30 @@ textarea::placeholder {
   outline-offset: 2px;
 }
 
+.truvi-theme-toggle-icon-only {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 :root[data-theme="light"] .truvi-theme-toggle {
   color: #24334a;
   border-color: rgba(71, 85, 105, .2);
   background: #fff;
+}
+
+:root[data-theme="light"] .truvi-theme-toggle-icon-only {
+  color: #244a79;
+  border-color: rgba(36, 74, 121, .14);
+  background: #eef4fb;
+}
+
+:root[data-theme="light"] .truvi-theme-toggle-icon-only:hover {
+  border-color: rgba(36, 74, 121, .28);
+  background: #e3edf8;
 }
 
 /* The employee workspace has its own shell and surfaces, so theme its panels,
@@ -813,7 +833,7 @@ textarea::placeholder {
 }
 
 
-/* The exact full horizontal Truvi wordmark asset is shared by both themes. */
+/* The horizontal white Truvi wordmark is used in Dark Mode. */
 .truvi-nav-brand-wordmark {
   display: flex;
   min-width: 0;
@@ -835,11 +855,29 @@ textarea::placeholder {
   object-fit: contain;
 }
 
-/* The uploaded wordmark has white lettering and a gold shield. Keep the
-   artwork pixel-identical in Light Mode by giving it a dark brand backing. */
-:root[data-theme="light"] .truvi-nav-brand-wordmark {
-  padding: 5px 8px;
-  background: #071321;
+/* Light Mode uses the full-colour shield plus live navy lettering, with no
+   badge behind the brand on the pale glass navbar. */
+.truvi-nav-brand-light {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  color: #172033;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .045em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.truvi-nav-brand-light img {
+  display: block;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  object-fit: contain;
 }
 
 /* Shared Truvi shield mark: original brand artwork adapts to the active theme. */

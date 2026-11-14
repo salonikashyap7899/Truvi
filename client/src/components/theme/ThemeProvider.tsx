@@ -80,7 +80,7 @@ export function ThemeToggle({ className = "", showLabel = true }: { className?: 
   return (
     <button
       type="button"
-      className={`truvi-theme-toggle ${className}`.trim()}
+      className={`truvi-theme-toggle ${showLabel ? "" : "truvi-theme-toggle-icon-only"} ${className}`.trim()}
       onClick={toggleTheme}
       aria-label={`Switch to ${nextTheme} mode`}
       aria-pressed={theme === "light"}
