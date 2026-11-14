@@ -21,6 +21,7 @@ import DeveloperReferralPanel from "@/components/DeveloperReferralPanel";
 import CpReferralPanel from "@/components/CpReferralPanel";
 import BuyerReferralPanel from "@/components/BuyerReferralPanel";
 import AmbassadorKnowledgeHub from "@/components/AmbassadorKnowledgeHub";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 
 function statusBadge(status: AmbassadorTask["status"]) {
   // SOP colour logic: GREEN = Available, YELLOW = Locked (in-progress), RED = Completed
@@ -91,6 +92,7 @@ export default function AmbassadorDashboardPage() {
   // Identity-document gate — masked ID document + live selfie → manual review.
   // Ambassadors cannot access tasks until an authorised reviewer approves.
   if (!user.onboardingVerified) return <CpKycOnboarding />;
+  if (loading) return <DashboardSkeleton variant="content" />;
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">

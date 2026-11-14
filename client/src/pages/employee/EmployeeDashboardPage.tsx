@@ -7,6 +7,8 @@ import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
+import { ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { useAuthStore } from "@/store/authStore";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -546,12 +548,14 @@ export default function EmployeeDashboardPage() {
   }
   const [showLeadForm, setShowLeadForm] = useState(false);
 
+  if (loading) return <DashboardSkeleton variant="employee" />;
+
   return (
     <main className="truvi-erm truvi-erm-employee">
       <div className="truvi-employee-app-shell">
         <aside className="truvi-employee-sidebar" aria-label="Employee navigation">
           <div className="truvi-employee-brand">
-            <span className="truvi-employee-brand__mark">T</span>
+            <span className="truvi-employee-brand__mark"><img src="/brand/icon.png" alt="Truvi" /></span>
             <span className="truvi-employee-brand__words">
               <strong>TRUVI VENTURES</strong>
               <small>EMPLOYEE WORKSPACE</small>
@@ -644,6 +648,7 @@ export default function EmployeeDashboardPage() {
             </div>
 
             <div className="truvi-employee-topbar-actions">
+              <ThemeToggle showLabel={false} />
               <NotificationBell />
               <button type="button" className="truvi-employee-icon-button" onClick={() => void load()} disabled={loading} aria-label="Refresh workspace" title="Refresh workspace">
                 <RefreshCw size={17} aria-hidden="true" className={loading ? "animate-spin" : ""} />
@@ -671,7 +676,7 @@ export default function EmployeeDashboardPage() {
                     <Users size={15} aria-hidden="true" /> Share Lead Requirement
                   </button>
                 )}
-                <div className="truvi-employee-heading-status"><span className="truvi-employee-status-dot" /> Workspace active</div>
+                
               </div>
             </div>
 
@@ -913,9 +918,9 @@ export default function EmployeeDashboardPage() {
           </section>
           <form onSubmit={savePersonalProfile} className="truvi-profile-settings-card">
             <div className="truvi-profile-settings-card__heading"><div><h3>Personal details</h3><p>These details appear on your Truvi employee profile.</p></div></div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Display name</span><input required minLength={2} maxLength={80} value={profileNameDraft} onChange={(event) => setProfileNameDraft(event.target.value)} autoComplete="name"/></label>
-              <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">Bio / role summary</span><input maxLength={500} value={profileBioDraft} onChange={(event) => setProfileBioDraft(event.target.value)} placeholder="A short introduction (optional)"/></label>
+            <div className="truvi-profile-personal-fields grid min-w-0 gap-4 sm:grid-cols-2">
+              <label className="flex min-w-0 flex-col gap-2 text-sm"><span className="text-muted-foreground">Display name</span><input className="w-full min-w-0 rounded-xl border border-white/10 bg-background px-3 py-3 outline-none focus:border-primary" required minLength={2} maxLength={80} value={profileNameDraft} onChange={(event) => setProfileNameDraft(event.target.value)} autoComplete="name"/></label>
+              <label className="flex min-w-0 flex-col gap-2 text-sm"><span className="text-muted-foreground">Bio / role summary</span><input className="w-full min-w-0 rounded-xl border border-white/10 bg-background px-3 py-3 outline-none focus:border-primary" maxLength={500} value={profileBioDraft} onChange={(event) => setProfileBioDraft(event.target.value)} placeholder="A short introduction (optional)"/></label>
             </div>
             <div className="truvi-profile-settings-actions"><span>Changes are saved to your own account.</span><button type="submit" disabled={contactBusy}>{contactBusy ? "Saving…" : "Save personal details"}</button></div>
           </form>

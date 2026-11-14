@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, BarChart3, MapPin, TrendingUp, PlayCircle } from "lucide-react";
-import { CursorGlow } from "@/components/landing/CursorGlow";
 import { SiteNav } from "@/components/SiteNav";
+import { TruviMark } from "@/components/TruviMark";
 import { VideoBand } from "@/components/landing/VideoBand";
 import { api } from "@/lib/api";
 import SoldOutBadge from "@/components/SoldOutBadge";
@@ -453,7 +453,9 @@ function EngineDiagram() {
         <div className="absolute -inset-px rounded-2xl opacity-30" style={{ boxShadow: "0 0 50px var(--trust)" }} />
         <div className="relative">
           <div className="mb-2 flex items-center justify-center gap-2">
-            <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] text-[11px] font-bold">T</span>
+            <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-[var(--trust)] to-[var(--tech)]">
+              <TruviMark size={24} />
+            </span>
           </div>
           <p className="font-display text-xl font-semibold text-white md:text-2xl">
             TRUVI INTELLIGENCE ENGINE™
@@ -924,12 +926,15 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
+ frontend
       <div className="landing-page-backdrop" aria-hidden="true">
         <div className="landing-page-backdrop__side-fill" />
         <div className="landing-page-backdrop__image" />
         <div className="landing-page-backdrop__veil" />
       </div>
       <CursorGlow />
+
+ main
       <SiteNav transparent />
 
       <main id="main-content" className="relative z-10">
@@ -1109,7 +1114,7 @@ export default function LandingPage() {
                 <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Truvi Property Passport™</p>
                 <p className="mt-1 font-display text-base font-semibold text-white">{showcase.passportTitle}</p>
               </div>
-              <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-sm font-bold">T</span>
+              <TruviMark size={40} className="shrink-0" />
             </div>
             <div className="divide-y divide-white/5">
               {showcase.passportFields.map((f) => (

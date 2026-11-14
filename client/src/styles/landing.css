@@ -140,6 +140,7 @@
   background-color: #071321;
 }
 
+frontend
 .landing-page-backdrop {
   position: fixed;
   inset: 0;
@@ -206,6 +207,8 @@
 }
 
 
+
+ main
 
 /* Deep navy glass styling, limited to the public homepage. */
 .landing-page .glass {

@@ -20,6 +20,7 @@ import {
   salesIntelligence, avgUnitPrice, BOOKED_STAGES,
 } from "@/lib/devIntel";
 import { formatCompactINR } from "@/lib/utils";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 
 const isToday = (d: string | Date) => {
   const x = new Date(d);
@@ -33,9 +34,11 @@ const isThisMonth = (d: string | Date) => {
 };
 
 export default function DeveloperDashboardPage() {
-  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject } = useDeveloperData();
+  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject, loading } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [upsell, setUpsell] = useState<{ plan: DevUpsellPlan; feature?: string } | null>(null);
+
+  if (loading) return <DashboardSkeleton variant="content" />;
 
   const aiUnlocked = !!entitlement?.ai;
   const tierLabel = entitlement ? DEV_TIER_LABELS[entitlement.tier] : "Free";

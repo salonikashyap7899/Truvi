@@ -134,3 +134,745 @@ textarea::placeholder {
 :where([class~="hover:bg-[var(--trust)]/85"]:hover) {
   background-color: oklch(0.47 0.19 250) !important;
 }
+
+
+/* -------------------------------------------------------------------------
+   Truvi site-wide theme system.
+   Preference is applied to the document root so public pages and every role
+   workspace read the same Light/Dark setting.
+   ------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: oklch(0.985 0.004 250);
+  --foreground: oklch(0.22 0.02 250);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.955 0.006 250);
+  --muted-foreground: oklch(0.48 0.02 250);
+  --border: oklch(0.28 0.02 250 / 12%);
+  --input: oklch(0.28 0.02 250 / 15%);
+  --glass: oklch(1 0 0 / 88%);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] body {
+  background-color: var(--background);
+  color: var(--foreground);
+  background-image:
+    radial-gradient(1000px 520px at 50% -15%, oklch(0.88 0.055 250 / 0.42), transparent 64%),
+    radial-gradient(760px 420px at 92% 26%, oklch(0.92 0.045 295 / 0.22), transparent 64%);
+  background-attachment: fixed;
+}
+
+:root[data-theme="light"] body,
+:root[data-theme="light"] #root {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+:root[data-theme="light"] .glass,
+:root[data-theme="light"] .truvi-global-nav-surface {
+  color: #172033;
+  border-color: rgba(100, 116, 139, .2);
+  background-color: rgba(255, 255, 255, .93) !important;
+  box-shadow: 0 12px 32px rgba(28, 44, 68, .08);
+}
+
+:root[data-theme="light"] .landing-page {
+  color: #162033;
+  background-color: #f7f9fc !important;
+}
+
+:root[data-theme="light"] .min-h-screen[class*="bg-"] {
+  background-color: rgba(247, 249, 252, .94) !important;
+}
+
+:root[data-theme="light"] [class*="bg-[#06090f]"],
+:root[data-theme="light"] [class*="bg-[#070b15]"],
+:root[data-theme="light"] [class*="bg-[#080e18]"],
+:root[data-theme="light"] [class*="bg-[#0a0d14]"],
+:root[data-theme="light"] [class*="bg-[#0b1220]"] {
+  background-color: #f4f7fb !important;
+}
+
+:root[data-theme="light"] [class*="bg-white/"] {
+  background-color: rgba(23, 37, 58, .035) !important;
+}
+
+:root[data-theme="light"] [class*="border-white/"] {
+  border-color: rgba(51, 65, 85, .14) !important;
+}
+
+/* In Light Mode, reset pages/cards that explicitly carry the legacy
+   dark-theme `text-white` root class. This fixes inherited white headings
+   without changing the component layout or its semantic accent colours. */
+:root[data-theme="light"] .min-h-screen.text-white,
+:root[data-theme="light"] .glass.text-white,
+:root[data-theme="light"] .card.text-white {
+  color: #263449 !important;
+}
+
+/* Convert legacy white copy on neutral page/card surfaces to readable slate.
+   Do not touch button labels, role=button controls, or elements with their own
+   coloured background (status badges and semantic action chips). */
+:root[data-theme="light"] .glass :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
+:root[data-theme="light"] .card :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
+:root[data-theme="light"] .min-h-screen :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]) {
+  color: #263449 !important;
+}
+
+/* Admin module headings use Truvi navy-blue in Light Mode. Explicit semantic
+   heading colors (amber, sky, emerald, violet, etc.) remain untouched. */
+:root[data-theme="light"] .admin-os-shell.light .os-embedded > .min-h-screen :is(h1, h2, h3, h4):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-indigo"]):not([class*="text-violet"]):not([class*="text-purple"]):not([class*="text-amber"]):not([class*="text-yellow"]):not([class*="text-emerald"]):not([class*="text-green"]):not([class*="text-teal"]):not([class*="text-cyan"]):not([class*="text-rose"]):not([class*="text-red"]):not([class*="text-orange"]) {
+  color: #244a79 !important;
+}
+
+:root[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] select {
+  color: #172033;
+  background-color: #fff;
+  border-color: rgba(71, 85, 105, .23);
+}
+
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder {
+  color: #718096;
+  opacity: 1;
+}
+
+:root[data-theme="light"] .truvi-global-nav-mobile {
+  color: #1e293b;
+  border-color: rgba(100, 116, 139, .2);
+  background: rgba(255, 255, 255, .97) !important;
+}
+
+/* One compact theme control is shared by public navigation and all workspace
+   headers. Its label and accessible name always describe the current setting. */
+.truvi-theme-toggle {
+  display: inline-flex;
+  min-height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  background: var(--card);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.truvi-theme-toggle:hover {
+  border-color: var(--trust);
+  transform: translateY(-1px);
+}
+
+.truvi-theme-toggle:focus-visible {
+  outline: 2px solid var(--trust);
+  outline-offset: 2px;
+}
+
+:root[data-theme="light"] .truvi-theme-toggle {
+  color: #24334a;
+  border-color: rgba(71, 85, 105, .2);
+  background: #fff;
+}
+
+/* The employee workspace has its own shell and surfaces, so theme its panels,
+   sidebar, topbar, forms and text tokens explicitly as well. */
+:root[data-theme="light"] .truvi-erm {
+  --erm-panel: #fff;
+  --erm-panel-raised: #f8fafc;
+  --erm-border: rgba(71, 85, 105, .18);
+  --erm-muted: #617086;
+  color: #1e293b;
+}
+
+:root[data-theme="light"] .truvi-erm-employee {
+  background: #f4f7fb !important;
+  color: #1e293b;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar,
+:root[data-theme="light"] .truvi-erm .truvi-employee-topbar {
+  color: #263449;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .16) !important;
+  box-shadow: 0 4px 18px rgba(28, 44, 68, .05);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-main,
+:root[data-theme="light"] .truvi-erm .truvi-erm-workspace-content {
+  color: #263449;
+  background: #f4f7fb !important;
+}
+
+:root[data-theme="light"] .truvi-erm :is(h1, h2, h3, h4, strong, b, label, p, span, small, time, td, th) {
+  color: inherit;
+}
+
+:root[data-theme="light"] .truvi-erm .text-muted-foreground,
+:root[data-theme="light"] .truvi-erm :is(.truvi-employee-eyebrow, .truvi-employee-nav-group__label, .truvi-employee-breadcrumb > span) {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm section,
+:root[data-theme="light"] .truvi-erm article,
+:root[data-theme="light"] .truvi-erm .truvi-employee-search-results,
+:root[data-theme="light"] .truvi-erm .truvi-profile-settings-card {
+  color: #243247 !important;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .17) !important;
+  box-shadow: 0 8px 24px rgba(28, 44, 68, .045);
+}
+
+:root[data-theme="light"] .truvi-erm input:not([type="checkbox"]):not([type="radio"]),
+:root[data-theme="light"] .truvi-erm select,
+:root[data-theme="light"] .truvi-erm textarea {
+  color: #1f2d42 !important;
+  background-color: #fff !important;
+  border-color: rgba(71, 85, 105, .24) !important;
+}
+
+:root[data-theme="light"] .truvi-erm input::placeholder,
+:root[data-theme="light"] .truvi-erm textarea::placeholder {
+  color: #8491a3;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-nav-button {
+  color: #475569;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-nav-button.is-active {
+  color: #3447a8;
+  background: rgba(94, 112, 220, .11);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-brand__words strong {
+  color: #172033;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-brand__words small {
+  color: #65748b;
+}
+
+/* Reusable page and dashboard loading skeletons. */
+.truvi-page-skeleton {
+  min-height: 100dvh;
+  padding: clamp(18px, 4vw, 44px);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.truvi-page-skeleton__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.truvi-page-skeleton__body {
+  max-width: 1440px;
+  margin: clamp(44px, 7vh, 84px) auto 0;
+}
+
+.truvi-dashboard-skeleton {
+  --skeleton-surface: var(--card);
+  min-height: 100dvh;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.truvi-dashboard-skeleton--admin,
+.truvi-dashboard-skeleton--founder,
+.truvi-dashboard-skeleton--employee {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+}
+
+.truvi-dashboard-skeleton__sidebar {
+  min-width: 0;
+  padding: 26px 20px;
+  border-right: 1px solid var(--border);
+  background: var(--skeleton-surface);
+}
+
+.truvi-dashboard-skeleton__main {
+  min-width: 0;
+}
+
+.truvi-dashboard-skeleton__toolbar {
+  display: flex;
+  height: 68px;
+  align-items: center;
+  gap: 14px;
+  padding: 0 clamp(16px, 3vw, 36px);
+  border-bottom: 1px solid var(--border);
+  background: var(--skeleton-surface);
+}
+
+.truvi-dashboard-skeleton__content {
+  min-width: 0;
+  padding: clamp(18px, 3vw, 36px);
+}
+
+.truvi-dashboard-skeleton--content {
+  min-height: 420px;
+}
+
+.truvi-skeleton-metric,
+.truvi-skeleton-panel {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+:root[data-theme="light"] .tv-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(31, 49, 73, .055) 25%,
+    rgba(31, 49, 73, .105) 50%,
+    rgba(31, 49, 73, .055) 75%
+  );
+  background-size: 800px 100%;
+}
+
+@media (max-width: 820px) {
+  .truvi-dashboard-skeleton--admin,
+  .truvi-dashboard-skeleton--founder,
+  .truvi-dashboard-skeleton--employee {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .truvi-dashboard-skeleton__sidebar {
+    padding: 20px 12px;
+  }
+
+  .truvi-dashboard-skeleton__sidebar > div:first-child {
+    justify-content: center;
+  }
+
+  .truvi-dashboard-skeleton__sidebar > div:first-child > div {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .truvi-dashboard-skeleton--admin,
+  .truvi-dashboard-skeleton--founder,
+  .truvi-dashboard-skeleton--employee {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .truvi-dashboard-skeleton__sidebar {
+    display: none;
+  }
+
+  .truvi-page-skeleton__body {
+    margin-top: 32px;
+  }
+}
+
+
+/* Employee Workspace: replace its custom dark gradients/hex colors with
+   readable light surfaces while keeping brand accents and status colors. */
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile,
+:root[data-theme="light"] .truvi-erm .truvi-employee-search,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-alert,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-notice,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-list-card {
+  color: #243247 !important;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .18) !important;
+  box-shadow: 0 5px 18px rgba(28, 44, 68, .045);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home .truvi-dashboard-panel,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo-list,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-notifications {
+  color: #243247 !important;
+  background: #fff !important;
+  border-color: rgba(71, 85, 105, .18) !important;
+  box-shadow: 0 8px 24px rgba(28, 44, 68, .045);
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-page-heading h1,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__value,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll__summary strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile__identity strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table__main strong,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__copy > strong {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-page-heading p:not(.truvi-employee-eyebrow),
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__note,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-payroll__summary p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile__identity small,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__copy > small,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table tbody td {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-kpi__top p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section > div:first-child h2,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-home section > div:first-child p,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-profile-meta,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-panel-footer {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table thead th {
+  color: #526176 !important;
+  border-color: rgba(71, 85, 105, .16) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table tbody td,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-panel-footer {
+  border-color: rgba(71, 85, 105, .13) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-todo__check,
+:root[data-theme="light"] .truvi-erm .truvi-dashboard-table__task-icon {
+  color: #4759bc !important;
+  background: rgba(93, 112, 220, .09) !important;
+  border-color: rgba(93, 112, 220, .2) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search input {
+  color: #1e293b !important;
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search > svg,
+:root[data-theme="light"] .truvi-erm .truvi-employee-topbar-user > svg {
+  color: #64748b !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search-results button {
+  color: #243247 !important;
+  border-color: rgba(71, 85, 105, .12) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-search-results button:hover {
+  background: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile {
+  border-top-color: rgba(71, 85, 105, .15) !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile > span:nth-child(2) strong {
+  color: #172033 !important;
+}
+
+:root[data-theme="light"] .truvi-erm .truvi-employee-sidebar-profile > span:nth-child(2) small {
+  color: #64748b !important;
+}
+
+
+/* Light surfaces for operational pages that use Tailwind's literal dark
+   background classes rather than the shared glass/card utility. Text remains
+   white on their own accent buttons because those are not dark-surface hosts. */
+:root[data-theme="light"] [class*="bg-[#06090f]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#070b15]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#080e18]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#0a0d14]"] :is([class~="text-white"], [class*="text-white/"]),
+:root[data-theme="light"] [class*="bg-[#0b1220]"] :is([class~="text-white"], [class*="text-white/"]) {
+  color: #263449 !important;
+}
+
+:root[data-theme="light"] .founder-os.light .page-title,
+:root[data-theme="light"] .founder-os.light .panel-title,
+:root[data-theme="light"] .founder-os.light .kpi-value,
+:root[data-theme="light"] .founder-os.light .hero-value,
+:root[data-theme="light"] .founder-os.light .profile-name {
+  color: var(--ink-900);
+}
+
+:root[data-theme="light"] .founder-os.light .page-sub,
+:root[data-theme="light"] .founder-os.light .panel-sub,
+:root[data-theme="light"] .founder-os.light .kpi-foot,
+:root[data-theme="light"] .founder-os.light .hero-foot {
+  color: var(--ink-500);
+}
+
+:root[data-theme="light"] .founder-os.light .search-wrap input {
+  color: var(--ink-900);
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-panel,
+:root[data-theme="light"] .founder-os.light .settings-modal {
+  color: var(--ink-900);
+  background: var(--surface) !important;
+  border-color: var(--border-strong);
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-body .msg.bot {
+  color: var(--ink-900);
+  background: #eef2f8;
+}
+
+:root[data-theme="light"] .founder-os.light .copilot-input input {
+  color: var(--ink-900);
+  background: var(--surface);
+}
+
+.truvi-page-skeleton__body--nav {
+  margin-top: clamp(92px, 11vh, 132px);
+}
+
+
+/* -------------------------------------------------------------------------
+   Light-mode homepage typography.
+   The homepage hero was authored for a dark cityscape (white/slate text and
+   strong dark text shadows). Override only its light-theme presentation so
+   glyphs stay crisp and readable over the unchanged city background.
+   ------------------------------------------------------------------------- */
+:root[data-theme="light"] .landing-page .homepage-hero-title {
+  color: #14233b !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy-text {
+  color: #34445b !important;
+  opacity: 1 !important;
+  font-weight: 500;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme="light"] .landing-page .homepage-intelligence-highlight {
+  background-image: linear-gradient(
+    105deg,
+    #2456a6 0%,
+    #176fae 42%,
+    #2466d3 72%,
+    #4d58bd 100%
+  );
+  -webkit-text-fill-color: transparent;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-section .text-sky-200 {
+  color: #2458a6 !important;
+}
+
+:root[data-theme="light"] .landing-page :is(
+  [class~="text-slate-200"],
+  [class~="text-slate-200/90"],
+  [class~="text-slate-300"],
+  [class~="text-slate-300/85"],
+  [class~="text-slate-400/85"]
+) {
+  color: #526176 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+/* Keep the white-only image wordmark out of the light navbar; BrandLogo
+   switches to an icon + dark live text wordmark in that mode. */
+:root[data-theme="light"] .truvi-global-nav-surface > div:first-child {
+  color: #172033;
+}
+
+
+/* Light-mode homepage readability refinement.
+   Keep the existing plain Light/Dark surfaces and improve small copy, chips,
+   demo-card details and secondary controls without changing the layout. */
+:root[data-theme="light"] {
+  --muted-foreground: oklch(0.39 0.025 255);
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy-text {
+  color: #26364d !important;
+  opacity: 1 !important;
+  font-size: clamp(1rem, 1.1vw, 1.08rem);
+  font-weight: 550;
+  line-height: 1.72;
+  text-shadow: none !important;
+}
+
+:root[data-theme="light"] .landing-page :is(
+  [class~="text-slate-200"],
+  [class~="text-slate-200/90"],
+  [class~="text-slate-300"],
+  [class~="text-slate-300/85"],
+  [class~="text-slate-400"],
+  [class~="text-slate-400/85"],
+  [class~="text-slate-500"]
+) {
+  color: #3e4d63 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div.rounded-2xl.glass {
+  color: #243247;
+  background: rgba(255, 255, 255, .97) !important;
+  border: 1px solid #d8e1ec;
+  box-shadow: 0 16px 38px rgba(31, 52, 78, .10);
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child {
+  color: #25344a;
+  border-color: #cbd5e1 !important;
+  background: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child p {
+  color: #26364d !important;
+  font-weight: 600;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div:first-child > span:last-child {
+  background: #64748b !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > p {
+  color: #43536a !important;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > div > span {
+  opacity: 1 !important;
+  font-weight: 650;
+}
+
+/* Trust / growth / legal / liquidity pills: preserve their semantic hues but
+   replace pale-on-pale text with high-contrast foreground colors. */
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-sky-300"] {
+  color: #075985 !important;
+  border-color: #a9d8ef !important;
+  background-color: #edf8ff !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-emerald-300"] {
+  color: #166534 !important;
+  border-color: #a9d8b6 !important;
+  background-color: #effaf2 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-amber-300"] {
+  color: #92400e !important;
+  border-color: #f1d39a !important;
+  background-color: #fff8e8 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card [class*="text-foreground/80"] {
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+  background-color: #f1f5f9 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card > div > div.mt-3 > div > span > span:first-child {
+  opacity: 1 !important;
+  color: inherit !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust) {
+  color: #243247 !important;
+  border-color: #cbd5e1 !important;
+  background: rgba(255, 255, 255, .76) !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust) svg {
+  color: #1d4ed8 !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-hero-copy button:not(.glow-trust):hover {
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+}
+
+/* The tiny engine label and body copy remain readable at normal zoom and on
+   high-density displays; keep antialiasing without adding a blur or shadow. */
+:root[data-theme="light"] .landing-page .homepage-hero-intelligence-card,
+:root[data-theme="light"] .landing-page .homepage-hero-copy {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* The exact full horizontal Truvi wordmark asset is shared by both themes. */
+.truvi-nav-brand-wordmark {
+  display: flex;
+  min-width: 0;
+  max-width: 220px;
+  flex: 0 1 220px;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.truvi-nav-brand-wordmark img {
+  display: block;
+  width: clamp(128px, 16vw, 204px);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+/* The uploaded wordmark has white lettering and a gold shield. Keep the
+   artwork pixel-identical in Light Mode by giving it a dark brand backing. */
+:root[data-theme="light"] .truvi-nav-brand-wordmark {
+  padding: 5px 8px;
+  background: #071321;
+}
+
+/* Shared Truvi shield mark: original brand artwork adapts to the active theme. */
+.truvi-mark {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.truvi-mark__asset {
+  grid-area: 1 / 1;
+  display: block;
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  object-fit: contain;
+}
+
+.truvi-mark__light {
+  display: none;
+}
+
+.truvi-mark__dark {
+  display: block;
+}
+
+:root[data-theme="light"] .truvi-mark__light {
+  display: block;
+}
+
+:root[data-theme="light"] .truvi-mark__dark {
+  display: none;
+}
+

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
@@ -8,6 +8,8 @@ import { Ic, Kpi, Panel } from "@/pages/dashboard/DashboardOS";
 import { NotificationBell } from "@/components/NotificationBell";
 import UserMenu from "@/components/UserMenu";
 import ProfileSettingsModal from "@/components/ProfileSettingsModal";
+import { useTheme, ThemeToggle } from "@/components/theme/ThemeProvider";
+import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import type { Project } from "@/types";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import "@/styles/founder-os.css";
@@ -48,6 +50,22 @@ interface KpiTrends {
   projects: number;
   platformFeeRevenue: number;
   leadRevenue: number;
+}
+
+interface DashboardUserAddition {
+  _id: string;
+  name: string;
+  role?: string;
+  createdAt?: string | null;
+}
+
+type DashboardProjectAddition = Project & { createdAt?: string | null };
+
+interface GrowthDay {
+  key: string;
+  label: string;
+  users: number;
+  projects: number;
 }
 
 /** Growth badge for a KPI card ("↑ 27% this month"), or flat when no growth. */
@@ -94,6 +112,76 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+function createdAtMs(value?: string | null): number | null {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function indiaDayKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function formatIndiaDateTime(value?: string | null): string {
+  const timestamp = createdAtMs(value);
+  if (timestamp === null) return "Date not recorded";
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function buildGrowthDays(
+  users: DashboardUserAddition[],
+  projects: DashboardProjectAddition[],
+  now = new Date(),
+): GrowthDay[] {
+  const todayParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(now);
+  const dateParts = Object.fromEntries(todayParts.map((part) => [part.type, part.value]));
+  const todayUtc = Date.UTC(Number(dateParts.year), Number(dateParts.month) - 1, Number(dateParts.day));
+
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(todayUtc + (index - 6) * 86_400_000 + 12 * 60 * 60 * 1000);
+    return {
+      key: indiaDayKey(date),
+      label: new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" }).format(date),
+      users: 0,
+      projects: 0,
+    };
+  });
+  const dayByKey = new Map(days.map((day) => [day.key, day]));
+
+  for (const user of users) {
+    const timestamp = createdAtMs(user.createdAt);
+    if (timestamp === null) continue;
+    const day = dayByKey.get(indiaDayKey(new Date(timestamp)));
+    if (day) day.users += 1;
+  }
+  for (const project of projects) {
+    const timestamp = createdAtMs(project.createdAt);
+    if (timestamp === null) continue;
+    const day = dayByKey.get(indiaDayKey(new Date(timestamp)));
+    if (day) day.projects += 1;
+  }
+  return days;
+}
+
 /** Sidebar links map to the admin panel's real workspaces (existing features). */
 const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Users", icon: "users", path: "/admin/users" },
@@ -137,7 +225,7 @@ export function AdminOsLayout() {
   const [allUsers, setAllUsers] = useState<Array<{ _id: string; name: string; email?: string; phone?: string; role?: string }>>([]);
   const [searchLoaded, setSearchLoaded] = useState(false);
   const [q, setQ] = useState("");
-  const [light, setLight] = useState(false);
+  const { theme } = useTheme();
   const [navOpen, setNavOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Bumped by the refresh button to reload whichever module is open.
@@ -184,15 +272,17 @@ export function AdminOsLayout() {
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
 
   return (
-    // Light mode only restyles the home view; modules keep their dark design.
-    <div className={`founder-os ${light && isHome ? "light" : ""}`}>
+    <div className={`founder-os admin-os-shell ${theme === "light" ? "light" : ""}`}>
       <div className={`os-overlay ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
 
       {/* Sidebar */}
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark">T</div>
-          <div><div className="brand-text">Truvi</div><div className="brand-sub">Admin OS</div></div>
+          <div className="brand-mark"><img src="/brand/icon.png" alt="" /></div>
+          <div className="brand-copy">
+            <div className="brand-text">Truvi</div>
+            <div className="brand-sub">Admin OS</div>
+          </div>
         </div>
         <nav className="nav-scroll">
           <div>
@@ -238,9 +328,7 @@ export function AdminOsLayout() {
             )}
           </div>
           <div className="top-actions">
-            {isHome && (
-              <button className="theme-toggle" onClick={() => setLight((v) => !v)} aria-label="Toggle theme"><span className="knob"><Ic n="sun" /></span></button>
-            )}
+            <ThemeToggle showLabel={false} />
             <button className="icon-btn" onClick={() => setRefreshKey((k) => k + 1)} title="Refresh"><Ic n="refresh" /></button>
             <button className="icon-btn" title="Profile settings" onClick={() => setSettingsOpen(true)}><Ic n="cog" /></button>
             <NotificationBell />
@@ -253,7 +341,7 @@ export function AdminOsLayout() {
 
         <div className="content">
           {/* Only this area changes when a module is picked — the shell stays. */}
-          <Suspense fallback={<p className="os-loading">Loading…</p>}>
+          <Suspense fallback={<DashboardSkeleton variant="content" />}>
             <div key={`${pathname}:${refreshKey}`} className={isHome ? undefined : "os-embedded"}>
               <Outlet />
             </div>
@@ -270,7 +358,12 @@ export function AdminOsLayout() {
 export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
+  const [platformUsers, setPlatformUsers] = useState<DashboardUserAddition[]>([]);
+  const [platformProjects, setPlatformProjects] = useState<DashboardProjectAddition[]>([]);
+  const [platformUsersStatus, setPlatformUsersStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [platformProjectsStatus, setPlatformProjectsStatus] = useState<"loading" | "loaded" | "error">("loading");
   const [investor, setInvestor] = useState<InvestorMetrics | null>(null);
   const [overview, setOverview] = useState<OpsOverview | null>(null);
   const [activity, setActivity] = useState<ActivityLog[]>([]);
@@ -281,21 +374,51 @@ export default function AdminOsDashboardPage() {
   // instantly (no blocking spinner) and one slow/failed endpoint never blanks
   // the rest or throws a scary "failed to load" for the whole page.
   function load() {
-    api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
-      .then((res) => setPendingProjects(res.data.projects)).catch(() => {});
-    api.get("/admin/users")
-      .then((res) => setStats((s) => ({ ...s, totalUsers: res.data.users.length }))).catch(() => {});
-    api.get("/admin/projects")
-      .then((res) => setStats((s) => ({ ...s, totalProjects: res.data.projects.length }))).catch(() => {});
-    api.get("/revenue")
-      .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {});
-    api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {});
-    api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {});
-    api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {});
-    api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {});
-    api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {});
+    setPlatformUsersStatus("loading");
+    setPlatformProjectsStatus("loading");
+    const requests: Promise<unknown>[] = [
+      api.get("/admin/projects", { params: { approvalStatus: "PENDING" } })
+        .then((res) => setPendingProjects(res.data.projects)).catch(() => {}),
+      api.get("/admin/users", { params: { all: "true" } })
+        .then((res) => {
+          const users = (res.data.users ?? []) as DashboardUserAddition[];
+          setPlatformUsers(users);
+          setStats((s) => ({ ...s, totalUsers: users.length }));
+          setPlatformUsersStatus("loaded");
+        }).catch(() => setPlatformUsersStatus("error")),
+      api.get("/admin/projects")
+        .then((res) => {
+          const projects = (res.data.projects ?? []) as DashboardProjectAddition[];
+          setPlatformProjects(projects);
+          setStats((s) => ({ ...s, totalProjects: projects.length }));
+          setPlatformProjectsStatus("loaded");
+        }).catch(() => setPlatformProjectsStatus("error")),
+      api.get("/revenue")
+        .then((res) => setStats((s) => ({ ...s, platformFees: res.data.platformFeeRevenue, leadRevenue: res.data.leadServiceRevenue }))).catch(() => {}),
+      api.get("/admin/investor-metrics").then((res) => setInvestor(res.data.metrics)).catch(() => {}),
+      api.get("/admin/founder-overview").then((res) => setOverview(res.data)).catch(() => {}),
+      api.get("/admin/audit-logs", { params: { limit: 8 } }).then((res) => setActivity(res.data.logs)).catch(() => {}),
+      api.get("/admin/kpi-trends").then((res) => setTrends(res.data.trends)).catch(() => {}),
+      api.get("/leads/admin/stats").then((res) => setLeadStats(res.data.totals)).catch(() => {}),
+    ];
+    void Promise.all(requests).finally(() => setInitialLoading(false));
   }
   useEffect(() => { load(); }, []);
+
+  const growthDays = useMemo(() => buildGrowthDays(platformUsers, platformProjects), [platformUsers, platformProjects]);
+  const latestUsers = useMemo(
+    () => [...platformUsers].filter((user) => createdAtMs(user.createdAt) !== null)
+      .sort((a, b) => (createdAtMs(b.createdAt) ?? 0) - (createdAtMs(a.createdAt) ?? 0)).slice(0, 3),
+    [platformUsers],
+  );
+  const latestProjects = useMemo(
+    () => [...platformProjects].filter((project) => createdAtMs(project.createdAt) !== null)
+      .sort((a, b) => (createdAtMs(b.createdAt) ?? 0) - (createdAtMs(a.createdAt) ?? 0)).slice(0, 3),
+    [platformProjects],
+  );
+  const usersAddedIn7Days = growthDays.reduce((total, day) => total + day.users, 0);
+  const projectsAddedIn7Days = growthDays.reduce((total, day) => total + day.projects, 0);
+  const maxGrowthCount = Math.max(1, ...growthDays.map((day) => Math.max(day.users, day.projects)));
 
   async function approveProject(projectId: string, approvalStatus: "APPROVED" | "REJECTED") {
     try {
@@ -307,10 +430,12 @@ export default function AdminOsDashboardPage() {
     }
   }
 
+  if (initialLoading) return <DashboardSkeleton variant="content" />;
+
   return (
-    <section className="page">
+    <section className="page admin-command-center">
       <div className="page-header">
-        <div><div className="page-title">Admin Command Center</div><div className="page-sub">Platform-wide oversight: listings, verification &amp; revenue · Live data</div></div>
+        <div><div className="page-title">Admin Command Center</div></div>
         <div className="header-actions">
           <button className="btn" onClick={() => navigate("/admin/listings")}><Ic n="building" /> Manage listings</button>
           <button className="btn btn-primary" onClick={() => navigate("/developer/projects/new")}><Ic n="bolt" /> Add new project</button>
@@ -319,7 +444,7 @@ export default function AdminOsDashboardPage() {
 
       {/* Platform stats */}
       <div className="kpi-grid">
-        <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel plans" onClick={() => navigate("/admin/users")} />
+        <Kpi icon="users" tone="blue" label="Total Users" value={String(stats.totalUsers)} trend={trendBadge(trends?.users)} foot="Manage · remove · cancel users" onClick={() => navigate("/admin/users")} />
         <Kpi icon="building" tone="amber" label="Total Projects" value={String(stats.totalProjects)} trend={trendBadge(trends?.projects)} foot="Open listings" onClick={() => navigate("/admin/listings")} />
         <Kpi icon="wallet" tone="green" label="Platform Fee Revenue" value={formatINR(stats.platformFees)} trend={trendBadge(trends?.platformFeeRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
         <Kpi icon="chart" tone="blue" label="Lead Marketplace Revenue" value={formatINR(stats.leadRevenue)} trend={trendBadge(trends?.leadRevenue)} foot="Open revenue" onClick={() => navigate("/admin/revenue")} />
@@ -327,7 +452,7 @@ export default function AdminOsDashboardPage() {
 
       {/* Lead management — inventory + pipeline leads (opens the Leads module) */}
       {leadStats && (
-        <div className="kpi-grid">
+        <div className="kpi-grid admin-five-column-grid">
           <Kpi icon="target" tone="blue" label="Total Leads" value={String(leadStats.total)} foot="Open lead management" onClick={() => navigate("/admin/leads")} />
           <Kpi icon="spark" tone="amber" label="New Leads" value={String(leadStats.new)} foot="Waiting to be contacted" onClick={() => navigate("/admin/leads?status=NEW")} />
           <Kpi icon="building" tone="blue" label="Visits Scheduled" value={String(leadStats.visitsScheduled)} foot="Upcoming site visits" onClick={() => navigate("/admin/leads?status=SITE_VISIT_SCHEDULED")} />
@@ -336,9 +461,113 @@ export default function AdminOsDashboardPage() {
         </div>
       )}
 
+      {/* Live account/project creation activity — derived from actual createdAt timestamps. */}
+      <Panel title="Platform growth & recent additions" sub="New accounts and projects recorded by Truvi · dates shown in IST" icon="chart" iconTone="blue">
+        <div className="admin-growth-summary">
+          <div className="admin-growth-highlight">
+            <div className="admin-growth-highlight__label">Users added · last 7 days</div>
+            <div className="admin-growth-highlight__value">{platformUsersStatus === "loaded" ? usersAddedIn7Days : "—"}</div>
+            <div className="admin-growth-highlight__detail">
+              {platformUsersStatus === "loading"
+                ? "Loading account activity…"
+                : platformUsersStatus === "error"
+                  ? "Account activity could not be loaded."
+                  : latestUsers[0]
+                    ? `Latest: ${latestUsers[0].name} · ${latestUsers[0].role ?? "User"} · ${formatIndiaDateTime(latestUsers[0].createdAt)}`
+                    : "No user creation timestamp is available yet."}
+            </div>
+            <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/users")}>View users <span aria-hidden="true">→</span></button>
+          </div>
+          <div className="admin-growth-highlight">
+            <div className="admin-growth-highlight__label">Projects added · last 7 days</div>
+            <div className="admin-growth-highlight__value">{platformProjectsStatus === "loaded" ? projectsAddedIn7Days : "—"}</div>
+            <div className="admin-growth-highlight__detail">
+              {platformProjectsStatus === "loading"
+                ? "Loading project activity…"
+                : platformProjectsStatus === "error"
+                  ? "Project activity could not be loaded."
+                  : latestProjects[0]
+                    ? `Latest: ${latestProjects[0].name} · ${latestProjects[0].city || latestProjects[0].location || "Location not set"} · ${formatIndiaDateTime(latestProjects[0].createdAt)}`
+                    : "No project creation timestamp is available yet."}
+            </div>
+            <button type="button" className="admin-growth-link" onClick={() => navigate("/admin/listings")}>View listings <span aria-hidden="true">→</span></button>
+          </div>
+        </div>
+
+        <div className="admin-growth-chart-card">
+          <div className="admin-growth-chart-head">
+            <div>
+              <div className="admin-growth-chart-title">Daily additions</div>
+              <div className="admin-growth-chart-subtitle">New users and projects · last 7 days</div>
+            </div>
+            <div className="admin-growth-legend">
+              <span><i className="is-users" /> Users</span>
+              <span><i className="is-projects" /> Projects</span>
+            </div>
+          </div>
+          {platformUsersStatus === "loaded" && platformProjectsStatus === "loaded" ? (
+            <div className="admin-growth-chart" role="img" aria-label="Daily new users and project additions for the last seven days">
+              {growthDays.map((day) => (
+                <div className="admin-growth-day" key={day.key}>
+                  <div className="admin-growth-day-total">{day.users + day.projects}</div>
+                  <div className="admin-growth-bars">
+                    <div className="admin-growth-bar-track" title={`${day.users} new users`}>
+                      <span className="is-users" style={{ height: day.users ? `${Math.max(8, (day.users / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
+                    <div className="admin-growth-bar-track" title={`${day.projects} new projects`}>
+                      <span className="is-projects" style={{ height: day.projects ? `${Math.max(8, (day.projects / maxGrowthCount) * 100)}%` : "2px" }} />
+                    </div>
+                  </div>
+                  <div className="admin-growth-day-label">{day.label}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="admin-growth-empty">
+              {platformUsersStatus === "error" || platformProjectsStatus === "error"
+                ? "The daily chart is unavailable because activity data could not be retrieved."
+                : "Loading daily activity…"}
+            </p>
+          )}
+        </div>
+
+        <div className="admin-growth-recent-grid">
+          <section>
+            <div className="admin-growth-list-title">Latest user accounts</div>
+            {latestUsers.length === 0
+              ? <p className="admin-growth-empty">{platformUsersStatus === "error" ? "User activity unavailable." : platformUsersStatus === "loading" ? "Loading users…" : "No user creation dates available."}</p>
+              : latestUsers.map((user) => (
+                <div className="admin-growth-list-row" key={user._id}>
+                  <div className="admin-growth-list-avatar">{initials(user.name || "User")}</div>
+                  <div className="admin-growth-list-copy">
+                    <strong>{user.name || "Unnamed account"}</strong>
+                    <span>{user.role ?? "User"}</span>
+                  </div>
+                  <time>{formatIndiaDateTime(user.createdAt)}</time>
+                </div>
+              ))}
+          </section>
+          <section>
+            <div className="admin-growth-list-title">Latest projects added</div>
+            {latestProjects.length === 0
+              ? <p className="admin-growth-empty">{platformProjectsStatus === "error" ? "Project activity unavailable." : platformProjectsStatus === "loading" ? "Loading projects…" : "No project creation dates available."}</p>
+              : latestProjects.map((project) => (
+                <div className="admin-growth-list-row" key={project._id}>
+                  <div className="admin-growth-list-avatar is-project">{initials(project.name || "Project")}</div>
+                  <div className="admin-growth-list-copy">
+                    <strong>{project.name || "Unnamed project"}</strong>
+                    <span>{[project.city, project.location].filter(Boolean).join(" · ") || "Location not set"}</span>
+                  </div>
+                  <time>{formatIndiaDateTime(project.createdAt)}</time>
+                </div>
+              ))}
+          </section>
+        </div>
+      </Panel>
+
       {/* Operations today — live counts (from founder-overview) */}
       {overview && (
-        <div className="kpi-grid">
+        <div className="kpi-grid admin-five-column-grid">
           <Kpi icon="wallet" tone="green" label="Revenue Today" value={formatINR(overview.companyHealth.revenueToday)} foot="All sources · since 12am" onClick={() => navigate("/admin/revenue")} />
           <Kpi icon="spark" tone="blue" label="Leads Today" value={String(overview.sales.leadsToday)} foot="New leads captured" />
           <Kpi icon="target" tone="amber" label="Bookings Today" value={String(overview.executive.todaysBookings)} foot="Moved to booking" />
@@ -349,8 +578,8 @@ export default function AdminOsDashboardPage() {
 
       {/* Investor / SaaS metrics — admin's existing live numbers */}
       {investor && (
-        <Panel title="Platform metrics" sub="Live SaaS + marketplace numbers">
-          <div className="kpi-grid" style={{ marginBottom: 0 }}>
+        <Panel title="Platform metrics">
+          <div className="kpi-grid admin-platform-metrics" style={{ marginBottom: 0 }}>
             <div><div className="kpi-label">Total Buyers</div><div className="kpi-value">{investor.totalBuyers}</div></div>
             <div><div className="kpi-label">Total Developers</div><div className="kpi-value">{investor.totalDevelopers}</div></div>
             <div><div className="kpi-label">Total CPs</div><div className="kpi-value">{investor.totalCPs}</div></div>
@@ -364,7 +593,6 @@ export default function AdminOsDashboardPage() {
             <div><div className="kpi-label">Churn</div><div className="kpi-value">{investor.churnPercent}%</div></div>
             <div><div className="kpi-label">Conversion</div><div className="kpi-value">{investor.conversionPercent}%</div></div>
           </div>
-          <p style={{ marginTop: 12, fontSize: 11.5, color: "var(--ink-500)" }}>GMV (booking value routed through Truvi): {paise(investor.gmvPaise)}</p>
         </Panel>
       )}
 

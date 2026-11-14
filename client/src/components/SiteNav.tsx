@@ -9,6 +9,7 @@ import UserMenu from "@/components/UserMenu";
 import { useAuthStore } from "@/store/authStore";
 import { InNavbarContext, useNavChrome } from "@/lib/navChrome";
 import PageBackLink from "@/components/PageBackLink";
+import { ThemeToggle } from "@/components/theme/ThemeProvider";
 
 /* Brand: the header logo reads TRUVI VENTURES; TRUVI is used elsewhere. */
 
@@ -21,26 +22,13 @@ const WA_URL =
  * navbar never shows a broken image.
  */
 function BrandLogo() {
-  const [wordmarkFailed, setWordmarkFailed] = useState(false);
-
-  if (wordmarkFailed) {
-    return (
-      <>
-        <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-lg">
-          <img src="/brand/icon.png" alt="" className="h-full w-full object-contain" />
-        </span>
-        <span className="truncate">TRUVI VENTURES</span>
-      </>
-    );
-  }
+  // Use the supplied full horizontal shield + wordmark artwork in both modes.
+  // Its lettering is white, so Light Mode places the unchanged asset on a
+  // small navy backing rather than recoloring or replacing the logo.
   return (
-    <img
-      src="/brand/wordmark.png"
-      alt="Truvi Ventures"
-      onError={() => setWordmarkFailed(true)}
-      // Shrinks on narrow phones so it never runs into the account buttons.
-      className="h-5 w-auto min-w-0 max-w-full object-contain object-left min-[400px]:h-6 sm:h-7 sm:max-w-[175px]"
-    />
+    <span className="truvi-nav-brand-wordmark">
+      <img src="/brand/wordmark.svg" alt="Truvi Ventures" />
+    </span>
   );
 }
 
@@ -211,7 +199,7 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
       style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
     >
       <div
-        className="mx-auto flex max-w-[1048px] items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5"
+        className="truvi-global-nav-surface mx-auto flex max-w-[1048px] items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5"
         /* Keep the default surface opaque enough for readability; the homepage
            can opt into a little more transparency to reveal its cityscape. */
         style={{ backgroundColor: transparent ? "rgba(10,13,20,0.76)" : "rgba(10,13,20,0.9)" }}
@@ -254,6 +242,8 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
             <span className="hidden sm:inline">WhatsApp</span>
           </motion.a>
 
+          <ThemeToggle showLabel={false} />
+
           {/* Account: name + dashboard + logout when signed in; Sign in / Join otherwise */}
           <UserMenu />
 
@@ -286,7 +276,7 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="mx-auto mt-2 flex max-w-[1048px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
+              className="truvi-global-nav-mobile mx-auto mt-2 flex max-w-[1048px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
             >
               {/* Drop the dashboard entry here — the auth section below renders
                   a richer "My {role} Dashboard" link, so we avoid duplicating it. */}

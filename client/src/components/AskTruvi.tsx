@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
-import { Sparkles, SlidersHorizontal, X, Minus, ChevronUp } from "lucide-react";
+import { SlidersHorizontal, X, Minus, ChevronUp } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { AskTruviChat, AskTruviSignInGate, profileIsSet, useAskTruviChat } from "@/components/assistant/AskTruviChat";
 import CopilotTools from "@/components/assistant/CopilotTools";
@@ -97,7 +97,6 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
           data-fab="ask"
           className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-blue-900/40 transition-all duration-200 hover:bg-blue-500 hover:shadow-blue-800/50"
         >
-          <Sparkles size={14} />
           Ask Truvi
         </button>
       )}
@@ -145,9 +144,9 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot™" : "Ask Truvi™"}</p>
-                <p className="truncate text-[10px] text-muted-foreground">
-                  {tab === "copilot" ? "Sales scripts · WhatsApp · Objections" : "Property Intelligence · Source-backed"}
-                </p>
+{tab === "copilot" && (
+                  <p className="truncate text-[10px] text-muted-foreground">Sales scripts · WhatsApp · Objections</p>
+                )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
