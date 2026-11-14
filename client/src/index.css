@@ -205,10 +205,28 @@ textarea::placeholder {
   border-color: rgba(51, 65, 85, .14) !important;
 }
 
-:root[data-theme="light"] .glass :is([class~="text-white"], [class*="text-white/"]),
-:root[data-theme="light"] .card :is([class~="text-white"], [class*="text-white/"]),
-:root[data-theme="light"] .min-h-screen :is([class~="text-white"], [class*="text-white/"]) {
+/* In Light Mode, reset pages/cards that explicitly carry the legacy
+   dark-theme `text-white` root class. This fixes inherited white headings
+   without changing the component layout or its semantic accent colours. */
+:root[data-theme="light"] .min-h-screen.text-white,
+:root[data-theme="light"] .glass.text-white,
+:root[data-theme="light"] .card.text-white {
   color: #263449 !important;
+}
+
+/* Convert legacy white copy on neutral page/card surfaces to readable slate.
+   Do not touch button labels, role=button controls, or elements with their own
+   coloured background (status badges and semantic action chips). */
+:root[data-theme="light"] .glass :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
+:root[data-theme="light"] .card :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]),
+:root[data-theme="light"] .min-h-screen :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *):not([class*="bg-"]) {
+  color: #263449 !important;
+}
+
+/* Admin module headings use Truvi navy-blue in Light Mode. Explicit semantic
+   heading colors (amber, sky, emerald, violet, etc.) remain untouched. */
+:root[data-theme="light"] .admin-os-shell.light .os-embedded > .min-h-screen :is(h1, h2, h3, h4):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-indigo"]):not([class*="text-violet"]):not([class*="text-purple"]):not([class*="text-amber"]):not([class*="text-yellow"]):not([class*="text-emerald"]):not([class*="text-green"]):not([class*="text-teal"]):not([class*="text-cyan"]):not([class*="text-rose"]):not([class*="text-red"]):not([class*="text-orange"]) {
+  color: #244a79 !important;
 }
 
 :root[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
