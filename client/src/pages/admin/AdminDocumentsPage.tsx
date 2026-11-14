@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, FileText, ExternalLink, Loader2, Search, CheckCircle2 } from "lucide-react";
+import { FileText, ExternalLink, Loader2, Search, CheckCircle2 } from "lucide-react";
 
 type DocStatus = "APPROVED" | "PENDING" | "REJECTED";
 type DocSource = "BUYER" | "LEGAL" | "ASSET" | "SHARED";
@@ -86,10 +85,7 @@ export default function AdminDocumentsPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <Link to="/admin/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white">
-        <ArrowLeft size={15} /> Back to dashboard
-      </Link>
-      <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold">
+      <h1 className="flex items-center gap-2 text-2xl font-semibold">
         <FileText size={22} className="text-[var(--trust)]" /> Documents
       </h1>
 

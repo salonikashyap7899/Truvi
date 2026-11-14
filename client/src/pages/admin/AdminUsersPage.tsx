@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 import { roleLabel } from "@/lib/rolePaths";
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Search, ShieldAlert, Crown, X, CheckCircle2, Loader2, BadgeCheck, Clock } from "lucide-react";
+import { Search, ShieldAlert, Crown, X, CheckCircle2, Loader2, BadgeCheck, Clock } from "lucide-react";
 import type { User, Role } from "@/types";
 
 const ROLE_FILTERS: (Role | "ALL")[] = ["ALL", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "ADMIN"];
@@ -225,11 +225,7 @@ export default function AdminUsersPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <Link to="/admin/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-white">
-        <ArrowLeft size={14} /> Back to dashboard
-      </Link>
-
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">User Management</h1>
           

@@ -912,6 +912,14 @@ export default function LandingPage() {
     const pageContent = document.querySelector<HTMLElement>(".landing-page");
     if (!backdropImage || !pageContent) return;
 
+    const supportsScrollTimeline =
+      CSS.supports("animation-timeline", "scroll(root block)") &&
+      CSS.supports("animation-range", "0% 100%");
+    if (supportsScrollTimeline) {
+      backdropImage.classList.add("landing-page-backdrop__image--native-scroll");
+      return () => backdropImage.classList.remove("landing-page-backdrop__image--native-scroll");
+    }
+
     let frame = 0;
     let lastFrameTime = 0;
     let scrollRange = 1;
@@ -920,11 +928,11 @@ export default function LandingPage() {
     let targetOffset = 0;
 
     const animateBackgroundPan = (timestamp: number) => {
-      const elapsed = lastFrameTime ? timestamp - lastFrameTime : 16;
+      const elapsed = Math.min(32, lastFrameTime ? timestamp - lastFrameTime : 16);
       lastFrameTime = timestamp;
 
-      // Ease toward the scroll position over a short, frame-rate-independent window.
-      const smoothing = 1 - Math.exp(-elapsed / 90);
+      // Cap delayed frames so a main-thread pause cannot turn into a visible jump.
+      const smoothing = 1 - Math.exp(-elapsed / 65);
       currentOffset += (targetOffset - currentOffset) * smoothing;
 
       if (Math.abs(targetOffset - currentOffset) < 0.5) {
@@ -941,7 +949,8 @@ export default function LandingPage() {
 
     const updateBackgroundPan = () => {
       const scrollProgress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
-      targetOffset = -panDistance * scrollProgress;
+      const compactPanFactor = window.matchMedia("(max-width: 1023px)").matches ? 0.22 : 1;
+      targetOffset = -panDistance * compactPanFactor * scrollProgress;
       if (!frame) frame = window.requestAnimationFrame(animateBackgroundPan);
     };
 

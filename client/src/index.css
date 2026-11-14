@@ -1043,3 +1043,51 @@ textarea::placeholder {
   line-height: 1.45;
 }
 
+/* Keep the Compliance Centre aligned with the Admin OS light palette while
+   retaining its existing dark-mode colors and semantic status accents. */
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page {
+  color: #263449 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page :is(h1, h2, h3, h4) {
+  color: #1e3552 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page :is([class~="text-white"], [class*="text-white/"]):not(button):not(button *):not([role="button"]):not([role="button"] *) {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page button[class*="text-white"]:not([class*="bg-"]) {
+  color: #526176 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page button:disabled {
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+  background-color: #f1f5f9 !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-panel {
+  color: #263449 !important;
+  border-color: #dbe3ed !important;
+  background: rgba(255, 255, 255, .94) !important;
+  box-shadow: 0 8px 24px rgba(31, 52, 78, .07);
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page [class*="text-sky-200"] {
+  color: #075985 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page [class*="text-sky-300"] {
+  color: #0369a1 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page [class*="text-amber-200"] {
+  color: #92400e !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-compliance-page [class*="text-rose-300"] {
+  color: #be123c !important;
+}
+

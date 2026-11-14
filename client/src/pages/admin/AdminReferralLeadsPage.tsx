@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/primitives";
-import { ArrowLeft, Handshake, Loader2, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
+import { Handshake, Loader2, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 
 type Status = "PENDING" | "VERIFIED" | "ACTIVE" | "REJECTED";
 
@@ -76,10 +75,7 @@ export default function AdminReferralLeadsPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <Link to="/admin/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white">
-        <ArrowLeft size={15} /> Back to dashboard
-      </Link>
-      <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold">
+      <h1 className="flex items-center gap-2 text-2xl font-semibold">
         <Handshake size={22} className="text-emerald-400" /> Referral Developer Leads
       </h1>
 

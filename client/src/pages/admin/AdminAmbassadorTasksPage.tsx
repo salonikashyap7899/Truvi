@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card, Badge, Input, Label } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { MapPin, Clock, IndianRupee, FileText, Plus, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { MapPin, Clock, IndianRupee, FileText, Plus, CheckCircle2 } from "lucide-react";
 import type { AmbassadorTask } from "@/types";
 
 function statusBadge(status: AmbassadorTask["status"]) {
@@ -90,11 +89,7 @@ export default function AdminAmbassadorTasksPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <Link to="/admin/dashboard" className="inline-flex items-center gap-1 text-sm text-blue-400 hover:underline">
-        <ArrowLeft size={14} /> Back to admin dashboard
-      </Link>
-
-      <div className="mt-4 flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-semibold">Ambassador Tasks</h1>
         <p className="text-sm text-muted-foreground">
           Create site-verification tasks and release ₹500 payouts once ambassadors complete them.

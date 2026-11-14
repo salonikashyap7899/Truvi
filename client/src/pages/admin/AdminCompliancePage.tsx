@@ -21,7 +21,7 @@ type AccountDeletion = {
 type QueueData = { grievances: Grievance[]; privacyRequests: PrivacyRequest[]; accountDeletions: AccountDeletion[] };
 type Draft = { status: string; publicResponse: string; internalNote: string };
 
-const panel = "rounded-2xl border border-white/10 bg-[#0d1420]/85";
+const panel = "admin-compliance-panel rounded-2xl border border-white/10 bg-[#0d1420]/85";
 const field = "w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none focus:border-sky-400/50";
 const grievanceStatuses = ["SUBMITTED", "ACKNOWLEDGED", "IN_PROGRESS", "WAITING_FOR_USER", "RESOLVED", "CLOSED"];
 const privacyStatuses = ["SUBMITTED", "UNDER_REVIEW", "WAITING_FOR_USER", "APPROVED", "REJECTED", "COMPLETED"];
@@ -82,7 +82,7 @@ export default function AdminCompliancePage() {
   const empty = tab === "GRIEVANCES" ? data.grievances.length === 0 : tab === "PRIVACY" ? data.privacyRequests.length === 0 : data.accountDeletions.length === 0;
 
   return (
-    <div className="space-y-5 text-white">
+    <div className="admin-compliance-page space-y-5 text-white">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300"><ShieldCheck size={14} /> Governance & support</div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ShieldCheck, ExternalLink, Loader2, ArrowLeft, Trash2 } from "lucide-react";
+import { ShieldCheck, ExternalLink, Loader2, Trash2 } from "lucide-react";
 
 type KycStatus = "PENDING" | "APPROVED" | "REJECTED" | "NOT_SUBMITTED";
 interface KycSubmission {
@@ -83,10 +83,7 @@ export default function AdminKycPage() {
 
   return (
     <main className="min-h-screen p-6 text-white md:p-10">
-      <Link to="/admin/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-white">
-        <ArrowLeft size={15} /> Back to dashboard
-      </Link>
-      <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold">
+      <h1 className="flex items-center gap-2 text-2xl font-semibold">
         <ShieldCheck size={22} className="text-[var(--trust)]" /> Identity verification
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
