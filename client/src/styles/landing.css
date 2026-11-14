@@ -155,15 +155,19 @@
 
 .landing-page-backdrop__image {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 0;
   z-index: 1;
   overflow: hidden;
   pointer-events: none;
+  width: max(100vw, 250.84vh);
+  height: max(60.108vw, 140vh);
   background-image: url("/images/truvi-luxury-dark-bg.jpg");
-  background-position: var(--homepage-background-pan, 0%) center;
+  background-position: center;
   background-repeat: no-repeat;
-  /* Oversize the single photo so it has room to pan horizontally. */
-  background-size: auto 130%;
+  background-size: 100% 100%;
+  transform: translate3d(var(--homepage-background-offset, 0px), -50%, 0);
+  will-change: transform;
 }
 
 .landing-page-backdrop__veil {

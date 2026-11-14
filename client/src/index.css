@@ -197,10 +197,6 @@ textarea::placeholder {
 
 :root[data-theme="light"] .landing-page-backdrop__image {
   display: block !important;
-  background-image: url("/images/truvi-luxury-dark-bg.jpg") !important;
-  background-position: var(--homepage-background-pan, 0%) center !important;
-  background-repeat: no-repeat !important;
-  background-size: auto 130% !important;
   filter: none;
 }
 
@@ -1019,5 +1015,31 @@ textarea::placeholder {
 
 :root[data-theme="light"] .landing-page > div:last-child > footer a:hover {
   color: #ffffff !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-feature-card {
+  color: #1e293b !important;
+  background-color: rgba(255, 255, 255, .97) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 28px rgba(31, 52, 78, .12);
+}
+
+:root[data-theme="light"] .landing-page .homepage-feature-card > span:first-child {
+  color: #1d4ed8 !important;
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+:root[data-theme="light"] .landing-page .homepage-feature-card > span:last-child > span:first-child {
+  color: #172b4d !important;
+  -webkit-text-fill-color: #172b4d !important;
+  font-weight: 700;
+}
+
+:root[data-theme="light"] .landing-page .homepage-feature-card > span:last-child > span:last-child {
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569 !important;
+  font-size: .875rem;
+  line-height: 1.45;
 }
 

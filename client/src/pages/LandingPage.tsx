@@ -909,33 +909,61 @@ export default function LandingPage() {
 
   useEffect(() => {
     const backdropImage = document.querySelector<HTMLElement>(".landing-page-backdrop__image");
-    const pageContent = document.querySelector<HTMLElement>(".landing-page main");
+    const pageContent = document.querySelector<HTMLElement>(".landing-page");
     if (!backdropImage || !pageContent) return;
 
     let frame = 0;
-    const updateBackgroundPan = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
+    let lastFrameTime = 0;
+    let scrollRange = 1;
+    let panDistance = 0;
+    let currentOffset = 0;
+    let targetOffset = 0;
+
+    const animateBackgroundPan = (timestamp: number) => {
+      const elapsed = lastFrameTime ? timestamp - lastFrameTime : 16;
+      lastFrameTime = timestamp;
+
+      // Ease toward the scroll position over a short, frame-rate-independent window.
+      const smoothing = 1 - Math.exp(-elapsed / 90);
+      currentOffset += (targetOffset - currentOffset) * smoothing;
+
+      if (Math.abs(targetOffset - currentOffset) < 0.5) {
+        currentOffset = targetOffset;
+        backdropImage.style.setProperty("--homepage-background-offset", `${currentOffset}px`);
         frame = 0;
-        const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-        const scrollProgress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
-        const panProgress = Math.pow(scrollProgress, 0.35);
-        backdropImage.style.setProperty("--homepage-background-pan", `${panProgress * 100}%`);
-      });
+        lastFrameTime = 0;
+        return;
+      }
+
+      backdropImage.style.setProperty("--homepage-background-offset", `${currentOffset}px`);
+      frame = window.requestAnimationFrame(animateBackgroundPan);
     };
 
-    const contentObserver = new ResizeObserver(updateBackgroundPan);
+    const updateBackgroundPan = () => {
+      const scrollProgress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
+      targetOffset = -panDistance * scrollProgress;
+      if (!frame) frame = window.requestAnimationFrame(animateBackgroundPan);
+    };
+
+    const measureBackgroundPan = () => {
+      scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      const viewportWidth = backdropImage.parentElement?.clientWidth ?? window.innerWidth;
+      panDistance = Math.max(0, backdropImage.offsetWidth - viewportWidth);
+      updateBackgroundPan();
+    };
+
+    const contentObserver = new ResizeObserver(measureBackgroundPan);
     contentObserver.observe(pageContent);
     window.addEventListener("scroll", updateBackgroundPan, { passive: true });
-    window.addEventListener("resize", updateBackgroundPan);
-    updateBackgroundPan();
+    window.addEventListener("resize", measureBackgroundPan);
+    measureBackgroundPan();
 
     return () => {
       contentObserver.disconnect();
       window.removeEventListener("scroll", updateBackgroundPan);
-      window.removeEventListener("resize", updateBackgroundPan);
+      window.removeEventListener("resize", measureBackgroundPan);
       if (frame) window.cancelAnimationFrame(frame);
-      backdropImage.style.removeProperty("--homepage-background-pan");
+      backdropImage.style.removeProperty("--homepage-background-offset");
     };
   }, []);
 
