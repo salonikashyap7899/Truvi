@@ -918,8 +918,9 @@ export default function LandingPage() {
       frame = window.requestAnimationFrame(() => {
         frame = 0;
         const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-        const progress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
-        backdropImage.style.setProperty("--homepage-background-pan", `${progress * 100}%`);
+        const scrollProgress = Math.min(1, Math.max(0, window.scrollY / scrollRange));
+        const panProgress = Math.pow(scrollProgress, 0.35);
+        backdropImage.style.setProperty("--homepage-background-pan", `${panProgress * 100}%`);
       });
     };
 
