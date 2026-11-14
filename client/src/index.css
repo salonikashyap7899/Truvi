@@ -1091,3 +1091,51 @@ textarea::placeholder {
   color: #be123c !important;
 }
 
+/* Admin modules still contain legacy white utility classes. In light mode,
+   make neutral tab and control labels dark while keeping filled action buttons
+   white on their saturated brand backgrounds. */
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"]:not([class*="bg-"]) {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"][class*="bg-white/"],
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"][class*="bg-background"] {
+  color: #475569 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"]:not([class*="bg-"]):disabled,
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"][class*="bg-white/"]:disabled,
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is(button, [role="button"])[class*="text-white"][class*="bg-background"]:disabled {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded input[type="file"]::file-selector-button {
+  color: #334155 !important;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #e2e8f0 !important;
+}
+
+/* Pastel status and metric colors need a darker ink on the Admin OS's light
+   cards and tabs. Their existing tinted backgrounds and semantic hues remain. */
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is([class*="text-sky-200"], [class*="text-sky-300"], [class*="text-blue-200"], [class*="text-blue-300"], [class*="text-cyan-200"], [class*="text-cyan-300"]) {
+  color: #075985 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is([class*="text-indigo-200"], [class*="text-indigo-300"], [class*="text-violet-200"], [class*="text-violet-300"], [class*="text-purple-200"], [class*="text-purple-300"], [class*="text-fuchsia-200"], [class*="text-fuchsia-300"]) {
+  color: #6d28d9 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is([class*="text-emerald-200"], [class*="text-emerald-300"], [class*="text-green-200"], [class*="text-green-300"], [class*="text-teal-200"], [class*="text-teal-300"]) {
+  color: #047857 !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is([class*="text-amber-200"], [class*="text-amber-300"], [class*="text-yellow-200"], [class*="text-yellow-300"], [class*="text-orange-200"], [class*="text-orange-300"]) {
+  color: #92400e !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .os-embedded :is([class*="text-rose-200"], [class*="text-rose-300"], [class*="text-red-200"], [class*="text-red-300"]) {
+  color: #be123c !important;
+}
+
