@@ -16,7 +16,7 @@ export function TruviMark({ size = 28, className = "" }: TruviMarkProps) {
 
   return (
     <span
-      className={\`truvi-mark \${className}\`.trim()}
+      className={["truvi-mark", className].filter(Boolean).join(" ")}
       style={dimensions}
       role="img"
       aria-label="Truvi Ventures"
