@@ -1102,7 +1102,10 @@ export default function LandingPage() {
                 <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">Truvi Property Passport™</p>
                 <p className="mt-1 font-display text-base font-semibold text-white">{showcase.passportTitle}</p>
               </div>
-              <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-[var(--trust)] to-[var(--tech)] font-display text-sm font-bold">T</span>
+              <span className="truvi-passport-brand-mark grid size-10 shrink-0 place-items-center" role="img" aria-label="Truvi Ventures">
+                <img src="/brand/icon.png" alt="" className="truvi-passport-brand-mark__light size-9 object-contain" />
+                <img src="/brand/icon-white.png" alt="" className="truvi-passport-brand-mark__dark size-9 object-contain" />
+              </span>
             </div>
             <div className="divide-y divide-white/5">
               {showcase.passportFields.map((f) => (
