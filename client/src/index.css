@@ -1040,6 +1040,57 @@ textarea::placeholder {
   line-height: 1.45;
 }
 
+/* Keep the shared sign-in and registration card readable when its dark-mode
+   surfaces are converted to the light palette above. */
+:root[data-theme="light"] .auth-card-surface {
+  color: #263449;
+  background-color: rgba(255, 255, 255, .97) !important;
+}
+
+:root[data-theme="light"] .auth-card-surface .auth-title-text {
+  color: #1f3552 !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #1f3552 !important;
+}
+
+:root[data-theme="light"] .auth-card-surface .auth-field-icon {
+  color: #1d4ed8 !important;
+  background-color: #dbeafe !important;
+}
+
+:root[data-theme="light"] .auth-card-surface .auth-country-button {
+  color: #263449 !important;
+  background-color: #fff !important;
+}
+
+:root[data-theme="light"] .auth-card-surface .auth-consent-copy {
+  color: #334155 !important;
+  -webkit-text-fill-color: #334155 !important;
+}
+
+:root[data-theme="light"] .auth-voice-guide-button {
+  color: #fff !important;
+  background-color: #2563eb !important;
+  border-color: #1d4ed8;
+}
+
+:root[data-theme="light"] .auth-card-surface .auth-accent-link {
+  color: #0369a1 !important;
+  -webkit-text-fill-color: #0369a1 !important;
+}
+
+/* The dashboard's compact latest-account and latest-project initials sit on
+   pastel circles; use matching saturated ink so the initials remain legible. */
+:root[data-theme="light"] .admin-os-shell.light .admin-growth-list-avatar {
+  color: #1d4ed8 !important;
+  background-color: #dbeafe !important;
+}
+
+:root[data-theme="light"] .admin-os-shell.light .admin-growth-list-avatar.is-project {
+  color: #6d28d9 !important;
+  background-color: #ede9fe !important;
+}
+
 /* Keep the Compliance Centre aligned with the Admin OS light palette while
    retaining its existing dark-mode colors and semantic status accents. */
 :root[data-theme="light"] .admin-os-shell.light .admin-compliance-page {

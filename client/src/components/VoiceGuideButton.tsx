@@ -31,7 +31,7 @@ export function VoiceGuideButton({
         onClick={toggle}
         aria-label={label}
         title={label}
-        className="grid size-11 place-items-center rounded-full bg-blue-500/20 text-blue-100 ring-1 ring-blue-400/40 shadow-[0_6px_18px_-6px_rgba(59,130,246,0.8)] transition hover:bg-blue-500/30 active:scale-95"
+        className="auth-voice-guide-button grid size-11 place-items-center rounded-full bg-blue-500/20 text-blue-100 ring-1 ring-blue-400/40 shadow-[0_6px_18px_-6px_rgba(59,130,246,0.8)] transition hover:bg-blue-500/30 active:scale-95"
       >
         {playing ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
       </button>

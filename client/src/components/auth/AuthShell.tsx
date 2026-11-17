@@ -69,7 +69,7 @@ export function AuthCard({
         className="relative rounded-[28px] p-px"
         style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.30), rgba(59,130,246,0.38) 45%, rgba(255,255,255,0.04) 85%)" }}
       >
-        <div className="relative rounded-[27px] bg-[#0a0d14]/85 backdrop-blur-2xl">
+        <div className="auth-card-surface relative rounded-[27px] bg-[#0a0d14]/85 backdrop-blur-2xl">
           {/* Top sheen */}
           <div aria-hidden className="absolute inset-x-8 top-0 z-10 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
           {/* Pinned top-left slot */}

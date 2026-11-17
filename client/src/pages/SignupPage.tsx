@@ -39,7 +39,7 @@ function CountrySelect({ value, onChange, inputCls }: { value: string; onChange:
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`${inputCls} flex w-full items-center justify-between gap-1`}
+        className={`auth-country-button ${inputCls} flex w-full items-center justify-between gap-1`}
         aria-label="Select country code"
       >
         <span className="truncate">{selected.flag} {selected.dial}</span>
@@ -104,7 +104,7 @@ function Field({
   return (
     <div className={className}>
       <div className="flex items-center gap-2.5 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-1.5 transition-all focus-within:border-[var(--trust)]/50 focus-within:bg-white/[0.06] focus-within:ring-2 focus-within:ring-[var(--trust)]/15">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--trust)]/12 text-sky-300">{icon}</span>
+        <span className="auth-field-icon grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--trust)]/12 text-sky-300">{icon}</span>
         <div className="min-w-0 flex-1">
           <label className="block text-[10.5px] font-medium leading-tight text-muted-foreground">{label}</label>
           {children}
@@ -273,7 +273,7 @@ export default function SignupPage() {
                 button pinned in the card's top-left corner (it overlapped on phones). */}
             <div className="px-11 sm:px-12">
             <h1 className="text-center font-display text-xl font-semibold leading-tight tracking-tight">
-              <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
+              <span className="auth-title-text bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Create your account</span>
             </h1>
             <p className="mx-auto mt-0.5 max-w-[22rem] text-center text-[11px] text-muted-foreground">
               We&apos;ll send 6-digit codes to your email and phone to verify your account.
@@ -357,17 +357,17 @@ export default function SignupPage() {
                   <Input {...register("referralCode")} placeholder="e.g. RAK4X9Q2" className={`${FIELD_INPUT} uppercase placeholder:normal-case`} />
                 </Field>
                 <div className="sm:col-span-2 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                  <label className="auth-consent-copy flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
                     <input type="checkbox" {...register("acceptTerms")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
-                    <span>I agree to the <Link to="/terms" target="_blank" className="text-sky-300 underline underline-offset-2">Terms of Service</Link>. <span className="text-red-300">*</span></span>
+                    <span>I agree to the <Link to="/terms" target="_blank" className="auth-accent-link text-sky-300 underline underline-offset-2">Terms of Service</Link>. <span className="text-red-300">*</span></span>
                   </label>
                   {errors.acceptTerms && <p className="pl-6 text-[11px] text-red-300">{errors.acceptTerms.message}</p>}
-                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
+                  <label className="auth-consent-copy flex items-start gap-2.5 text-xs leading-relaxed text-white/80">
                     <input type="checkbox" {...register("acknowledgePrivacyNotice")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
-                    <span>I have read the <Link to="/privacy-policy" target="_blank" className="text-sky-300 underline underline-offset-2">Privacy Policy</Link> and acknowledge how my information is handled. <span className="text-red-300">*</span></span>
+                    <span>I have read the <Link to="/privacy-policy" target="_blank" className="auth-accent-link text-sky-300 underline underline-offset-2">Privacy Policy</Link> and acknowledge how my information is handled. <span className="text-red-300">*</span></span>
                   </label>
                   {errors.acknowledgePrivacyNotice && <p className="pl-6 text-[11px] text-red-300">{errors.acknowledgePrivacyNotice.message}</p>}
-                  <label className="flex items-start gap-2.5 text-xs leading-relaxed text-white/60">
+                  <label className="auth-consent-copy flex items-start gap-2.5 text-xs leading-relaxed text-white/60">
                     <input type="checkbox" {...register("marketingOptIn")} className="mt-0.5 size-4 shrink-0 accent-sky-400" />
                     <span>I'd like to receive optional promotional updates from Truvi. I can withdraw this permission later in Privacy Centre.</span>
                   </label>
@@ -387,7 +387,7 @@ export default function SignupPage() {
                 </button>
                 <p className="text-center text-[13px] text-muted-foreground sm:col-span-2">
                   Already have an account?{" "}
-                  <Link to="/login" state={location.state} className="font-medium text-sky-300 underline-offset-4 hover:underline">
+                  <Link to="/login" state={location.state} className="auth-accent-link font-medium text-sky-300 underline-offset-4 hover:underline">
                     Sign in
                   </Link>
                 </p>

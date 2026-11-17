@@ -113,7 +113,7 @@ export default function LoginPage() {
             ) : (
             <>
             <h1 className="text-center font-display text-[26px] font-semibold leading-tight tracking-tight">
-              <span className="bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Welcome back</span>
+              <span className="auth-title-text bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">Welcome back</span>
             </h1>
             <p className="mt-1 text-center text-sm text-muted-foreground">
               {isAmbassador ? "Sign in to your Ambassador workspace." : "Sign in to your Truvi workspace."}
@@ -142,7 +142,7 @@ export default function LoginPage() {
                   <Label className="mb-0">Password</Label>
                   <Link
                     to="/forgot-password"
-                    className="text-xs font-medium text-sky-300 underline-offset-4 hover:underline"
+                    className="auth-accent-link text-xs font-medium text-sky-300 underline-offset-4 hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -169,7 +169,7 @@ export default function LoginPage() {
               </button>
               <p className="text-center text-sm text-muted-foreground">
                 New to Truvi?{" "}
-                <Link to="/signup" state={location.state} className="font-medium text-sky-300 underline-offset-4 hover:underline">
+                <Link to="/signup" state={location.state} className="auth-accent-link font-medium text-sky-300 underline-offset-4 hover:underline">
                   Create an account
                 </Link>
               </p>
