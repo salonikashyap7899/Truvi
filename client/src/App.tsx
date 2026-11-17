@@ -60,6 +60,7 @@ const AdminUserProfilePage = lazy(() => import("@/pages/admin/AdminUserProfilePa
 const AdminListingsPage = lazy(() => import("@/pages/admin/AdminListingsPage"));
 const AdminScoresPage = lazy(() => import("@/pages/admin/AdminScoresPage"));
 const AdminLeadsPage = lazy(() => import("@/pages/admin/AdminLeadsPage"));
+const AdminBuyerCrmPage = lazy(() => import("@/pages/admin/AdminBuyerCrmPage"));
 const AdminOffersPage = lazy(() => import("@/pages/admin/AdminOffersPage"));
 const AdminMeetingsPage = lazy(() => import("@/pages/admin/AdminMeetingsPage"));
 const MeetPage = lazy(() => import("@/pages/MeetPage"));
@@ -425,6 +426,7 @@ export default function App() {
           <Route path="listings" element={<ProtectedRoute roles={["ADMIN"]}><AdminListingsPage /></ProtectedRoute>} />
           <Route path="scores" element={<ProtectedRoute roles={["ADMIN"]}><AdminScoresPage /></ProtectedRoute>} />
           <Route path="leads" element={<ProtectedRoute roles={["ADMIN"]}><AdminLeadsPage /></ProtectedRoute>} />
+          <Route path="buyer-crm" element={<ProtectedRoute roles={["ADMIN"]}><AdminBuyerCrmPage /></ProtectedRoute>} />
           <Route path="offers" element={<ProtectedRoute roles={["ADMIN"]}><AdminOffersPage /></ProtectedRoute>} />
           <Route path="meetings" element={<ProtectedRoute roles={["ADMIN"]}><AdminMeetingsPage /></ProtectedRoute>} />
           <Route path="listings/:id" element={<ProtectedRoute roles={["ADMIN"]}><AdminProjectManagePage /></ProtectedRoute>} />

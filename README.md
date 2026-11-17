@@ -165,6 +165,12 @@ either accept the ephemeral storage or migrate `uploadService.ts` to S3.
 - Audit the production database for legacy demo accounts (including `admin@truvi.app`, `buyer1@truvi.app`, `dev1@truvi.app`, `cp1@truvi.app`, and `ambassador1@truvi.app`). Disable/delete any unintended accounts and reset any reused passwords. The local seed script is destructive and must never be run against production.
 - Before merging security changes, run `npm run typecheck` and `npm test` from `server/`, then exercise founder-vs-admin permissions, cross-project document uploads, CORS from an untrusted origin, payment failure/replay cases, and legacy file URLs in a staging deployment.
 
+## Private buyer CRM and Meta lead ads
+
+The admin workspace at `/admin/buyer-crm` centralizes manually entered telecalling/WhatsApp enquiries, Meta Lead Ads submissions, and registered buyer interests. It is admin-only; the buyer directory and contact history are not public. Setup for the Meta Page webhook and its required production secrets is documented in [docs/BUYER-CRM-LEAD-ADS.md](docs/BUYER-CRM-LEAD-ADS.md). New Meta ad leads arrive automatically only after the Page webhook and API credentials have been configured.
+
+The CRM adds two tables during normal API schema reconciliation. Before enabling this in production, follow the backup and staging restore requirements in [MAINTENANCE.md](MAINTENANCE.md#7-database-changes-and-backups).
+
 ## Project structure
 
 ```

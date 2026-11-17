@@ -12,7 +12,7 @@ const exactRoutes = new Set([
   "/restore-account", "/login", "/signup", "/forgot-password", "/employee/activate",
   "/verify-email", "/unauthorized", "/inventory", "/map", "/marketing",
   "/admin", "/admin/dashboard", "/admin/users", "/admin/employees", "/admin/listings",
-  "/admin/scores", "/admin/leads", "/admin/offers", "/admin/meetings", "/admin/enquiries",
+  "/admin/scores", "/admin/leads", "/admin/buyer-crm", "/admin/offers", "/admin/meetings", "/admin/enquiries",
   "/admin/calls", "/admin/vouchers", "/admin/revenue", "/admin/settings", "/admin/compliance",
   "/admin/ambassador-tasks", "/admin/ambassador-operating-system", "/admin/payments",
   "/admin/marketing", "/admin/notifications", "/admin/requirements", "/admin/verification",

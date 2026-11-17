@@ -741,6 +741,14 @@ textarea::placeholder {
   --muted-foreground: oklch(0.39 0.025 255);
 }
 
+/* The private Buyer CRM uses light backgrounds and dark-theme semantic accent
+   classes. Rebalance those small labels in Light Mode so lead and consent
+   states remain readable without changing their meaning. */
+:root[data-theme="light"] .buyer-crm [class~="text-sky-300"] { color: #075985 !important; }
+:root[data-theme="light"] .buyer-crm [class~="text-emerald-300"] { color: #166534 !important; }
+:root[data-theme="light"] .buyer-crm [class~="text-amber-300"] { color: #92400e !important; }
+:root[data-theme="light"] .buyer-crm [class~="text-rose-300"] { color: #9f1239 !important; }
+
 :root[data-theme="light"] .landing-page .homepage-hero-copy-text {
   color: #edf5ff !important;
   opacity: 1 !important;

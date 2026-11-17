@@ -190,6 +190,7 @@ const WORKSPACES: { label: string; icon: string; path: string }[] = [
   { label: "Habitat", icon: "building", path: "/admin/habitat" },
   { label: "Truvi Scores", icon: "chart", path: "/admin/scores" },
   { label: "Leads", icon: "target", path: "/admin/leads" },
+  { label: "Buyer CRM", icon: "users", path: "/admin/buyer-crm" },
   { label: "Offers", icon: "wallet", path: "/admin/offers" },
   { label: "Meetings", icon: "users", path: "/admin/meetings" },
   { label: "Enquiries", icon: "spark", path: "/admin/enquiries" },

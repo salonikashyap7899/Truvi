@@ -102,6 +102,7 @@ import habitatFinanceRoutes, { habitatRazorpayWebhook } from "./routes/habitatFi
 import { securityHeaders, setUploadHeaders } from "./middleware/security";
 import { requestIdMiddleware } from "./middleware/requestId";
 import clientTelemetryRoutes from "./routes/clientTelemetry";
+import buyerCrmRoutes, { metaLeadWebhookHandler } from "./routes/buyerCrm";
 
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import { getAllowedOrigins } from "./config/origins";
@@ -163,6 +164,10 @@ export function createApp() {
   app.post("/api/payments/webhook", express.raw({ type: "*/*" }), razorpayWebhookHandler);
   app.post("/api/habitat/webhook", express.raw({ type: "*/*" }), habitatRazorpayWebhook);
   app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "256kb" }), resendWebhookHandler);
+  // Meta verifies the endpoint with GET and sends signed lead events as raw
+  // JSON. Keep the raw body intact for X-Hub-Signature-256 verification.
+  app.get("/api/webhooks/meta-leads", metaLeadWebhookHandler);
+  app.post("/api/webhooks/meta-leads", express.raw({ type: "application/json", limit: "256kb" }), metaLeadWebhookHandler);
 
   // Private buyer documents are opened through short-lived signed links (a
   // plain link can't carry a Bearer token). Registered before every /api
@@ -187,6 +192,7 @@ export function createApp() {
     }
     return next();
   });
+  app.use("/api/buyer-crm", buyerCrmRoutes);
   const requestLogFormat = process.env.NODE_ENV === "production"
     ? ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":safe-referrer" ":user-agent"'
     : ':method :safe-url :status :response-time ms';

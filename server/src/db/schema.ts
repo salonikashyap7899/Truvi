@@ -866,6 +866,63 @@ export const leads = pgTable(
   ]
 );
 
+/** Admin-only intake for paid-ad leads and manually captured buyer enquiries. */
+export const buyerCrmLeads = pgTable(
+  "buyer_crm_leads",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    buyerUserId: uuid("buyer_user_id").references(() => users._id, { onDelete: "set null" }),
+    fullName: text("full_name").notNull(),
+    phone: text("phone").notNull(),
+    email: text("email"),
+    source: text("source").notNull(),
+    status: text("status").notNull().default("NEW"),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "set null" }),
+    propertyType: text("property_type"),
+    preferredLocation: text("preferred_location"),
+    budgetRange: text("budget_range"),
+    purchasePurpose: text("purchase_purpose"),
+    purchaseTimeline: text("purchase_timeline"),
+    requirement: text("requirement"),
+    contactConsent: boolean("contact_consent").notNull().default(false),
+    consentBasis: text("consent_basis"),
+    nextFollowUpAt: timestamp("next_follow_up_at", { withTimezone: true, mode: "date" }),
+    assignedToId: uuid("assigned_to_id").references(() => users._id, { onDelete: "set null" }),
+    providerLeadId: text("provider_lead_id").unique(),
+    providerPageId: text("provider_page_id"),
+    providerFormId: text("provider_form_id"),
+    providerAdId: text("provider_ad_id"),
+    providerAdName: text("provider_ad_name"),
+    createdById: uuid("created_by_id").references(() => users._id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("buyer_crm_leads_status_created_idx").on(t.status, t.createdAt),
+    index("buyer_crm_leads_project_idx").on(t.projectId, t.createdAt),
+    index("buyer_crm_leads_source_created_idx").on(t.source, t.createdAt),
+    index("buyer_crm_leads_follow_up_idx").on(t.nextFollowUpAt),
+    index("buyer_crm_leads_phone_idx").on(t.phone),
+    index("buyer_crm_leads_buyer_user_idx").on(t.buyerUserId),
+  ],
+);
+export type IBuyerCrmLead = typeof buyerCrmLeads.$inferSelect;
+
+/** Append-only call, WhatsApp and note history for each private buyer enquiry. */
+export const buyerCrmActivities = pgTable(
+  "buyer_crm_activities",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    leadId: uuid("lead_id").notNull().references(() => buyerCrmLeads._id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users._id, { onDelete: "set null" }),
+    type: text("type").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [index("buyer_crm_activities_lead_created_idx").on(t.leadId, t.createdAt)],
+);
+export type IBuyerCrmActivity = typeof buyerCrmActivities.$inferSelect;
+
 export const commissions = pgTable(
   "commissions",
   {

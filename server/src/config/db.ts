@@ -1963,6 +1963,52 @@ async function ensureSchema(db: Db): Promise<void> {
      )`,
     `CREATE INDEX IF NOT EXISTS "marketing_os_email_outbox_due_idx" ON "marketing_os_email_outbox" ("status", "next_attempt_at")`,
     `CREATE INDEX IF NOT EXISTS "marketing_os_email_outbox_recipient_idx" ON "marketing_os_email_outbox" ("recipient_user_id", "created_at")`,
+    // Private buyer lead intake from Meta Lead Ads and the admin call desk.
+    // These tables are additive and idempotent so existing buyer/account rows
+    // remain untouched during normal application startup.
+    `CREATE TABLE IF NOT EXISTS "buyer_crm_leads" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "buyer_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "full_name" text NOT NULL,
+       "phone" text NOT NULL,
+       "email" text,
+       "source" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'NEW',
+       "project_id" uuid REFERENCES "projects"("id") ON DELETE SET NULL,
+       "property_type" text,
+       "preferred_location" text,
+       "budget_range" text,
+       "purchase_purpose" text,
+       "purchase_timeline" text,
+       "requirement" text,
+       "contact_consent" boolean NOT NULL DEFAULT false,
+       "consent_basis" text,
+       "next_follow_up_at" timestamptz,
+       "assigned_to_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "provider_lead_id" text UNIQUE,
+       "provider_page_id" text,
+       "provider_form_id" text,
+       "provider_ad_id" text,
+       "provider_ad_name" text,
+       "created_by_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_status_created_idx" ON "buyer_crm_leads" ("status", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_project_idx" ON "buyer_crm_leads" ("project_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_source_created_idx" ON "buyer_crm_leads" ("source", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_follow_up_idx" ON "buyer_crm_leads" ("next_follow_up_at")`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_phone_idx" ON "buyer_crm_leads" ("phone")`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_leads_buyer_user_idx" ON "buyer_crm_leads" ("buyer_user_id")`,
+    `CREATE TABLE IF NOT EXISTS "buyer_crm_activities" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "lead_id" uuid NOT NULL REFERENCES "buyer_crm_leads"("id") ON DELETE CASCADE,
+       "actor_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "type" text NOT NULL,
+       "content" text NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "buyer_crm_activities_lead_created_idx" ON "buyer_crm_activities" ("lead_id", "created_at")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
