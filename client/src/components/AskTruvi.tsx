@@ -135,22 +135,22 @@ export default function AskTruvi({ propertyContext }: AskTruviProps = {}) {
       >
         <div aria-hidden className="pointer-events-none absolute -inset-2 sm:-inset-6 -z-10 opacity-40 blur-3xl" style={{ background: "var(--gradient-aurora)" }} />
         <div
-          className="flex h-full flex-col rounded-2xl glass p-5 shadow-2xl shadow-black/60 backdrop-blur-2xl"
+          className="ask-truvi-panel flex h-full flex-col rounded-2xl glass p-5 shadow-2xl shadow-black/60 backdrop-blur-2xl"
           style={{ backgroundColor: "rgba(10,13,20,0.94)" }}
         >
           {/* Header — window chrome identical to the home card */}
           <div className="flex shrink-0 items-center justify-between border-b border-white/10 pb-4">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
+              <span className="ask-truvi-mark grid size-7 shrink-0 place-items-center rounded-full bg-[var(--trust)]/20 text-sm text-white">✦</span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot™" : "Ask Truvi™"}</p>
+                <p className="ask-truvi-title truncate text-sm font-semibold text-white">{tab === "copilot" ? "Truvi Copilot™" : "Ask Truvi™"}</p>
 {tab === "copilot" && (
                   <p className="truncate text-[10px] text-muted-foreground">Sales scripts · WhatsApp · Objections</p>
                 )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
-              <span className="mr-1 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
+              <span className="ask-truvi-status mr-1 rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">Live</span>
               {tab === "ask" && accessToken && (
                 <button
                   onClick={() => setShowAdvisor((s) => !s)}

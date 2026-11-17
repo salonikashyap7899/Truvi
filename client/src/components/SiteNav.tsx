@@ -23,22 +23,14 @@ const WA_URL =
  */
 function BrandLogo() {
   const { theme } = useTheme();
-
-  // The supplied horizontal wordmark is white-only. In Light Mode, pair the
-  // full-colour shield with live navy lettering so it stays clear on the glass
-  // navbar without a dark badge behind it.
-  if (theme === "light") {
-    return (
-      <span className="truvi-nav-brand-light">
-        <img src="/brand/icon.png" alt="" aria-hidden="true" />
-        <span>TRUVI VENTURES</span>
-      </span>
-    );
-  }
-
   return (
-    <span className="truvi-nav-brand-wordmark">
-      <img src="/brand/wordmark.svg" alt="Truvi Ventures" />
+    <span className="truvi-nav-brand">
+      <img
+        src={theme === "light" ? "/brand/icon.png" : "/brand/icon-white.png"}
+        alt=""
+        aria-hidden="true"
+      />
+      <span>TRUVI VENTURES</span>
     </span>
   );
 }

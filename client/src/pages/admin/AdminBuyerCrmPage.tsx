@@ -192,7 +192,6 @@ export default function AdminBuyerCrmPage() {
         <div>
           <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.2em] text-sky-300"><Headset size={14} /> Buyer operations</p>
           <h1 className="font-display text-2xl font-semibold sm:text-3xl">Buyer CRM</h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">One private queue for ad leads, phone enquiries, WhatsApp conversations, project interest and broader property needs.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => { void Promise.all([loadSetup(), tab === "pipeline" ? loadLeads() : loadBuyers()]); }} className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm hover:bg-white/5"><RefreshCw size={14} /> Refresh</button>

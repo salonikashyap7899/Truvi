@@ -463,7 +463,7 @@ export function AskTruviChat({
       {/* Messages — same bubbles as the home-page "Ask Truvi" card. min-h-0
           lets this flex child scroll inside the card instead of growing and
           pushing the input off-screen. */}
-      <div className="-mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pt-5 pb-4">
+      <div className="ask-truvi-scroll -mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 pt-5 pb-4">
         <div className="space-y-4">
           {messages.map((msg) => (
             <div key={msg.id}>
@@ -487,7 +487,7 @@ export function AskTruviChat({
                       key={i}
                       onClick={() => submit(f)}
                       disabled={loading}
-                      className="inline-flex items-center gap-1 rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-[11px] text-blue-200 transition hover:bg-blue-500/20 disabled:opacity-50"
+                      className="ask-truvi-follow-up inline-flex items-center gap-1 rounded-full border border-blue-400/25 bg-blue-500/10 px-2.5 py-1 text-[11px] text-blue-200 transition hover:bg-blue-500/20 disabled:opacity-50"
                     >
                       {f}
                       <ChevronRight size={11} />
@@ -505,7 +505,7 @@ export function AskTruviChat({
                 <button
                   key={a.label}
                   onClick={() => quickAction(a.q, a.autosend)}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-left text-[11px] text-foreground/90 transition hover:border-white/20 hover:bg-white/10"
+                  className="ask-truvi-quick-action flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-left text-[11px] text-foreground/90 transition hover:border-white/20 hover:bg-white/10"
                 >
                   <a.Icon size={13} className="shrink-0 text-[var(--trust)]" />
                   {a.label}
@@ -535,7 +535,7 @@ export function AskTruviChat({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKey}
               placeholder="Ask about projects, builders, locations…"
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-muted-foreground outline-none"
+              className="ask-truvi-field flex-1 bg-transparent text-sm text-white placeholder:text-muted-foreground outline-none"
               disabled={loading}
             />
             <button

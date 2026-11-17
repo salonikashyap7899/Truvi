@@ -95,7 +95,7 @@ export default function CopilotTools() {
           <button
             key={tab.id}
             onClick={() => { setMode(tab.id); setOutput(""); }}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "border-b-2 border-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground/90"}`}
+            className={`ask-truvi-copilot-tab flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors ${mode === tab.id ? "is-active border-b-2 border-[var(--trust)] text-white" : "text-muted-foreground hover:text-foreground/90"}`}
           >
             <tab.Icon size={13} /> {tab.label}
           </button>
@@ -103,20 +103,20 @@ export default function CopilotTools() {
       </div>
 
       {/* Content */}
-      <div className="-mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 py-4 space-y-3">
+      <div className="ask-truvi-scroll -mx-1 flex-1 min-h-0 overflow-y-auto overscroll-contain px-1 py-4 space-y-3">
         {mode === "whatsapp" && (
           <>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Client Name</label>
-              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
+              <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="e.g. Rahul Sharma" className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Project Interested In</label>
-              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
+              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Residences" className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Lead Stage</label>
-              <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
+              <select value={leadStage} onChange={(e) => setLeadStage(e.target.value)} className="ask-truvi-field w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
                 {["GENERATED","CONTACTED","SITE_VISIT","NEGOTIATION","BOOKING"].map((s) => (
                   <option key={s} value={s} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{s.replace("_", " ")}</option>
                 ))}
@@ -129,15 +129,15 @@ export default function CopilotTools() {
           <>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Project Name</label>
-              <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
+              <input value={pitchProject} onChange={(e) => setPitchProject(e.target.value)} placeholder="e.g. Skyline Residences" className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Location</label>
-              <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
+              <input value={pitchLocation} onChange={(e) => setPitchLocation(e.target.value)} placeholder="e.g. Whitefield, Bangalore" className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Starting Price</label>
-              <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
+              <input value={pitchPrice} onChange={(e) => setPitchPrice(e.target.value)} placeholder="e.g. ₹85 Lakhs" className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors" />
             </div>
           </>
         )}
@@ -145,7 +145,7 @@ export default function CopilotTools() {
         {mode === "objection" && (
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Select the buyer's objection</label>
-            <select value={objection} onChange={(e) => setObjection(e.target.value)} className="w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
+            <select value={objection} onChange={(e) => setObjection(e.target.value)} className="ask-truvi-field w-full rounded-lg border border-white/15 bg-[#0d1219] px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)]">
               {COMMON_OBJECTIONS.map((o) => <option key={o} value={o} style={{ backgroundColor: "#0d1219", color: "#fff" }}>{o}</option>)}
             </select>
             <div className="mt-2">
@@ -154,7 +154,7 @@ export default function CopilotTools() {
                 value={COMMON_OBJECTIONS.includes(objection) ? "" : objection}
                 onChange={(e) => setObjection(e.target.value || COMMON_OBJECTIONS[0])}
                 placeholder="Type a custom objection…"
-                className="w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors"
+                className="ask-truvi-field w-full rounded-lg border border-white/15 glass px-3 py-2 text-sm text-white outline-none focus:border-[var(--trust)] transition-colors"
               />
             </div>
           </div>
