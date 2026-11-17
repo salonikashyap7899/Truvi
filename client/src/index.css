@@ -1079,6 +1079,25 @@ textarea::placeholder {
   -webkit-text-fill-color: #0369a1 !important;
 }
 
+:root[data-theme="light"] .welcome-gate-card {
+  color: #263449;
+  background-color: rgba(255, 255, 255, .98) !important;
+}
+
+:root[data-theme="light"] .welcome-gate-logo-tile {
+  background-color: #17365d !important;
+}
+
+:root[data-theme="light"] .welcome-gate-title {
+  color: #20354d !important;
+}
+
+:root[data-theme="light"] .welcome-gate-title-accent {
+  background-image: linear-gradient(105deg, #0369a1, #1d4ed8) !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
 /* The dashboard's compact latest-account and latest-project initials sit on
    pastel circles; use matching saturated ink so the initials remain legible. */
 :root[data-theme="light"] .admin-os-shell.light .admin-growth-list-avatar {

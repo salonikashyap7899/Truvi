@@ -71,9 +71,13 @@ export default function WelcomeGate() {
   // Lock the page scroll while the gate is open — one scrollbar, ours
   useEffect(() => {
     if (visible) {
+      const previousBodyOverflow = document.body.style.overflow;
+      const previousRootOverflow = document.documentElement.style.overflow;
       document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = "";
+        document.body.style.overflow = previousBodyOverflow;
+        document.documentElement.style.overflow = previousRootOverflow;
       };
     }
   }, [visible]);
@@ -96,7 +100,7 @@ export default function WelcomeGate() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] overflow-y-auto overflow-x-hidden bg-[#050608]/92 backdrop-blur-xl"
+        className="welcome-gate-overlay fixed inset-0 z-[200] overflow-y-auto overflow-x-hidden bg-[#050608]/92 backdrop-blur-xl"
       >
         {/* Ambient glow — clipped so it never causes horizontal overflow */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
@@ -123,14 +127,14 @@ export default function WelcomeGate() {
               className="rounded-[24px] p-px"
               style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.25), rgba(59,130,246,0.35) 40%, rgba(255,255,255,0.06) 80%)" }}
             >
-              <div className="rounded-[23px] bg-[#0a0d14]/95 px-6 py-6 md:px-8">
+              <div className="welcome-gate-card rounded-[23px] bg-[#0a0d14]/95 px-6 py-6 md:px-8">
                 {/* Brand */}
                 <div className="flex flex-col items-center text-center">
-                  <span className="grid size-10 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_32px_rgba(59,130,246,0.45)]">
+                  <span className="welcome-gate-logo-tile grid size-10 place-items-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_32px_rgba(59,130,246,0.45)]">
                     <img src="/favicon-32.png" alt="Truvi" className="h-full w-full object-contain" />
                   </span>
-                  <h1 className="mt-3 font-display text-xl font-medium leading-snug text-white md:text-[1.35rem]">
-                    Know the property <span className="text-gradient-trust">before you buy it.</span>
+                  <h1 className="welcome-gate-title mt-3 font-display text-xl font-medium leading-snug text-white md:text-[1.35rem]">
+                    Know the property <span className="welcome-gate-title-accent text-gradient-trust">before you buy it.</span>
                   </h1>
                   <p className="mt-1 text-[13px] text-muted-foreground">
                     Tell us who you are — we'll tailor Truvi to you.

@@ -182,14 +182,14 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
 
   const close = () => setOpen(false);
 
-  // Avoid briefly displaying the signed-out navigation while a refresh
-  // cookie is still being verified after reload or tab restoration.
-  // If session restoration failed transiently, keep the public navigation visible rather than blanking the entire header.
-  // On the homepage, show the public marketing navigation for every account.
-  // The signed-in user's role dashboard remains available in the account menu.
-  const visibleLinks = isInitialized || sessionRestoreFailed
-    ? pathname === "/" ? NAV_LINKS : navLinksForRole(user)
-    : [];
+  // The homepage is public, so keep its marketing links visible while the
+  // saved session is being restored. Other routes wait for the role before
+  // rendering role-specific navigation.
+  const visibleLinks = pathname === "/"
+    ? NAV_LINKS
+    : isInitialized || sessionRestoreFailed
+      ? navLinksForRole(user)
+      : [];
 
   return (
     <InNavbarContext.Provider value={true}>
