@@ -140,7 +140,6 @@
   background-color: #071321;
 }
 
-frontend
 .landing-page-backdrop {
   position: fixed;
   inset: 0;
@@ -194,21 +193,19 @@ frontend
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 10, 21, 0.72) 0%, rgba(3, 10, 21, 0.42) 48%, rgba(3, 10, 21, 0.16) 100%),
-    linear-gradient(180deg, rgba(3, 9, 19, 0.45) 0%, rgba(3, 9, 19, 0.22) 50%, rgba(3, 9, 19, 0.85) 100%);
+    linear-gradient(90deg, rgba(3, 10, 21, 0.62) 0%, rgba(3, 10, 21, 0.28) 46%, rgba(3, 10, 21, 0.08) 100%),
+    linear-gradient(180deg, rgba(3, 9, 19, 0.35) 0%, rgba(3, 9, 19, 0.12) 50%, rgba(3, 9, 19, 0.72) 100%);
 }
 
 @media (max-width: 767px) {
   .landing-page-backdrop__veil {
     background:
-      linear-gradient(90deg, rgba(3, 10, 21, 0.78), rgba(3, 10, 21, 0.58)),
-      linear-gradient(180deg, rgba(3, 9, 19, 0.5) 0%, rgba(3, 9, 19, 0.25) 50%, rgba(3, 9, 19, 0.88) 100%);
+      linear-gradient(90deg, rgba(3, 10, 21, 0.72), rgba(3, 10, 21, 0.45)),
+      linear-gradient(180deg, rgba(3, 9, 19, 0.42) 0%, rgba(3, 9, 19, 0.18) 50%, rgba(3, 9, 19, 0.82) 100%);
   }
 }
 
 
-
- main
 
 /* Deep navy glass styling, limited to the public homepage. */
 .landing-page .glass {
@@ -520,8 +517,8 @@ frontend
   border: 1px solid rgba(142, 194, 231, 0.16);
   background-color: #030a15;
   background-image:
-    linear-gradient(180deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.62) 35%, rgba(3, 10, 21, 0.62) 65%, rgba(3, 10, 21, 0.95) 100%),
-    linear-gradient(90deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.45) 50%, rgba(3, 10, 21, 0.9) 100%),
+    linear-gradient(180deg, rgba(3, 10, 21, 0.88) 0%, rgba(3, 10, 21, 0.48) 35%, rgba(3, 10, 21, 0.48) 65%, rgba(3, 10, 21, 0.90) 100%),
+    linear-gradient(90deg, rgba(3, 10, 21, 0.86) 0%, rgba(3, 10, 21, 0.32) 50%, rgba(3, 10, 21, 0.86) 100%),
     url("/images/truvi-projects-dark-bg.jpg");
   background-size: cover;
   background-position: center;
@@ -540,8 +537,8 @@ frontend
   border: 1px solid rgba(142, 194, 231, 0.16);
   background-color: #030a15;
   background-image:
-    linear-gradient(180deg, rgba(3, 10, 21, 0.92) 0%, rgba(3, 10, 21, 0.65) 35%, rgba(3, 10, 21, 0.65) 65%, rgba(3, 10, 21, 0.95) 100%),
-    linear-gradient(90deg, rgba(3, 10, 21, 0.94) 0%, rgba(3, 10, 21, 0.4) 50%, rgba(3, 10, 21, 0.92) 100%),
+    linear-gradient(180deg, rgba(3, 10, 21, 0.85) 0%, rgba(3, 10, 21, 0.45) 35%, rgba(3, 10, 21, 0.45) 65%, rgba(3, 10, 21, 0.88) 100%),
+    linear-gradient(90deg, rgba(3, 10, 21, 0.88) 0%, rgba(3, 10, 21, 0.28) 50%, rgba(3, 10, 21, 0.88) 100%),
     url("/images/truvi-intelligence-dark-bg.jpg");
   background-size: cover;
   background-position: center;
