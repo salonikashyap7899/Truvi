@@ -103,10 +103,31 @@ export default function AdminListingsPage() {
   async function toggleVerified(project: Project) {
     setLoading(project._id + "-verified");
     const nowVerified = !project.isVerified;
-    await api.patch("/admin/projects", { projectId: project._id, isVerified: nowVerified });
-    toast.success(nowVerified ? "Project marked as Verified ✓" : "Verified badge removed");
-    setLoading(null);
-    load();
+    const draft = vdDraft[project._id];
+    try {
+      const response = await api.patch("/admin/projects", {
+        projectId: project._id,
+        isVerified: nowVerified,
+        ...(nowVerified && draft
+          ? { verificationDetails: { ...draft, lastVerifiedAt: new Date().toISOString() } }
+          : {}),
+      });
+      const updated = response.data.project as Project | undefined;
+      if (updated) {
+        setProjects((current) => current.map((item) => item._id === updated._id ? { ...item, ...updated } : item));
+      } else {
+        await load();
+      }
+      toast.success(nowVerified ? "Project marked as Verified ✓" : "Verified badge removed");
+    } catch (err: any) {
+      const message = err?.response?.data?.error;
+      if (nowVerified && err?.response?.status === 400 && (err?.response?.data?.verificationIssues?.length || /verification incomplete/i.test(message || ""))) {
+        setExpandedId(project._id);
+      }
+      toast.error(message || "Could not update this project's verification status.");
+    } finally {
+      setLoading(null);
+    }
   }
 
   async function togglePrime(project: Project) {
@@ -138,19 +159,29 @@ export default function AdminListingsPage() {
   }
 
   async function saveVerification(project: Project) {
-    const vd = vdDraft[project._id] ?? DEFAULT_VD;
+    const vd = getDraft(project);
     setLoading(project._id + "-vd");
-    await api.patch("/admin/projects", {
-      projectId: project._id,
-      verificationDetails: {
-        ...vd,
-        lastVerifiedAt: new Date().toISOString(),
-      },
-    });
-    toast.success("Verification details saved");
-    setLoading(null);
-    setExpandedId(null);
-    load();
+    try {
+      const response = await api.patch("/admin/projects", {
+        projectId: project._id,
+        verificationDetails: {
+          ...vd,
+          lastVerifiedAt: new Date().toISOString(),
+        },
+      });
+      const updated = response.data.project as Project | undefined;
+      if (updated) {
+        setProjects((current) => current.map((item) => item._id === updated._id ? { ...item, ...updated } : item));
+      } else {
+        await load();
+      }
+      toast.success("Verification details saved");
+      setExpandedId(null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not save verification details.");
+    } finally {
+      setLoading(null);
+    }
   }
 
   async function saveThreeD(project: Project) {
@@ -376,7 +407,7 @@ export default function AdminListingsPage() {
                     onClick={() => toggleVerified(p)}
                     className={p.isVerified ? "border-green-700 text-green-400 hover:bg-green-900/20" : "bg-green-700 hover:bg-green-600 text-white"}
                   >
-                    {p.isVerified ? "Remove Verified" : "Mark Verified ✓"}
+                    {loading === p._id + "-verified" ? "Saving…" : p.isVerified ? "Remove Verified" : "Mark Verified ✓"}
                   </Button>
 
                   {/* Edit core project details (name, location, RERA, plots…) */}

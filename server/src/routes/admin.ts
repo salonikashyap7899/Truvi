@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { zodMessage } from "../lib/validationError";
 import { sanitizeUserForClient } from "../lib/sanitizeUser";
-import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
+import { getApprovalVerificationIssues, isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { z } from "zod";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
@@ -1518,13 +1518,14 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
       ...(existing.verificationDetails ?? {}),
       ...(data.verificationDetails ?? {}),
     } as VerificationDetails;
-    const approvalChecked = isApprovalEvidenceVerified({
+    const verificationIssues = getApprovalVerificationIssues({
       ...existing,
       verificationDetails: verification,
     });
-    if (!approvalChecked) {
+    if (verificationIssues.length > 0) {
       return res.status(400).json({
-        error: "This listing cannot be marked Truvi Verified until its RERA registration is checked, or its applicable planning approval and RERA applicability/exemption evidence are both reviewed. Record the source and review date.",
+        error: `Verification incomplete: ${verificationIssues.join(" ")}`,
+        verificationIssues,
       });
     }
   }

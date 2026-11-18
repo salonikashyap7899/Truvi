@@ -35,6 +35,7 @@ export default function BrochureManager({ projectId, projectName }: { projectId:
   const [meta, setMeta] = useState<BrochureMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [preview, setPreview] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -55,16 +56,23 @@ export default function BrochureManager({ projectId, projectName }: { projectId:
     if (file.type !== "application/pdf") { toast.error("Only PDF files are allowed."); return; }
     if (file.size > MAX_MB * 1024 * 1024) { toast.error(`File too large — max ${MAX_MB} MB.`); return; }
     setBusy(true);
+    setUploadProgress(0);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      await api.post(`/admin/projects/${projectId}/brochure`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const response = await api.post(`/admin/projects/${projectId}/brochure`, fd, {
+        timeout: 120_000,
+        onUploadProgress: (event) => {
+          if (event.total) setUploadProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+        },
+      });
+      setMeta({ exists: true, ...response.data.brochure, analytics: meta?.analytics });
       toast.success(meta?.exists ? "Brochure replaced." : "Brochure uploaded.");
-      await load();
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Upload failed.");
     } finally {
       setBusy(false);
+      setUploadProgress(null);
       if (fileRef.current) fileRef.current.value = "";
     }
   }
@@ -94,6 +102,28 @@ export default function BrochureManager({ projectId, projectName }: { projectId:
         )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">Upload a PDF brochure — buyers and channel partners can view and download it on the listing. PDF only, up to {MAX_MB} MB.</p>
+
+      {busy && (
+        <div className="mt-3 space-y-1.5" role="status" aria-live="polite">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Uploading brochure…</span>
+            <span>{uploadProgress === null ? "Preparing" : `${uploadProgress}%`}</span>
+          </div>
+          <div
+            className="h-1.5 overflow-hidden rounded-full bg-white/10"
+            role="progressbar"
+            aria-label="Brochure upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={uploadProgress ?? 0}
+          >
+            <div
+              className={`h-full rounded-full bg-sky-400 transition-[width] duration-200 ${uploadProgress === null ? "w-1/3 animate-pulse" : ""}`}
+              style={uploadProgress === null ? undefined : { width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" /> Loading…</div>
@@ -132,7 +162,7 @@ export default function BrochureManager({ projectId, projectName }: { projectId:
         // Empty state
         <label className={`mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/20 p-6 text-center transition hover:border-sky-500/50 ${busy ? "pointer-events-none opacity-60" : ""}`}>
           {busy ? <Loader2 size={22} className="animate-spin text-sky-300" /> : <Upload size={22} className="text-white/50" />}
-          <p className="text-sm font-medium">{busy ? "Uploading…" : "Upload brochure PDF"}</p>
+          <p className="text-sm font-medium">Upload brochure PDF</p>
           <p className="text-[11px] text-muted-foreground">Click to choose a PDF (max {MAX_MB} MB)</p>
           <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
         </label>

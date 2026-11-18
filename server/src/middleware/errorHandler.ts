@@ -24,7 +24,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 
   if (err instanceof multer.MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      return res.status(413).json({ error: "Each uploaded file must be 6 MB or smaller.", requestId });
+      const isBrochureUpload = req.method === "POST" && req.originalUrl.split("?")[0].endsWith("/brochure");
+      return res.status(413).json({
+        error: isBrochureUpload ? "Brochure PDF must be 25 MB or smaller." : "The selected file exceeds this upload endpoint's size limit.",
+        requestId,
+      });
     }
     if (err.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(400).json({ error: "Unexpected upload field. Please select the required files and try again.", requestId });
