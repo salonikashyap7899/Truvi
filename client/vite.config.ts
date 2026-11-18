@@ -55,8 +55,8 @@ export default defineConfig({
     },
   },
   server: {
-    host: "0.0.0.0",
-    port: 5000,
+    host: true,
+    port: 5001,
     // Keep Vite's default Host allow-list: `allowedHosts: true` disables
     // DNS-rebinding protection when the development server is network-accessible.
     // For trusted remote previews, use Vite's documented

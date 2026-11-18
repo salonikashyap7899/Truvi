@@ -926,15 +926,12 @@ export default function LandingPage() {
 
   return (
     <div id="top" className="landing-page relative min-h-screen overflow-x-hidden">
- frontend
       <div className="landing-page-backdrop" aria-hidden="true">
         <div className="landing-page-backdrop__side-fill" />
         <div className="landing-page-backdrop__image" />
         <div className="landing-page-backdrop__veil" />
       </div>
-      <CursorGlow />
 
- main
       <SiteNav transparent />
 
       <main id="main-content" className="relative z-10">
