@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Check, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
@@ -105,15 +105,144 @@ function SelectField({ label, value, onChange, options, required = false }: { la
   return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
 }
 
-const STANDARD_EMPLOYEE_PERMISSIONS = [
-  "task.read.own", "task.create.own", "task.update.own", "task.complete.own",
-  "lead.create", "lead.read.own", "lead.read.assigned", "lead.update.own", "lead.update.assigned",
-  "lead.call.own", "lead.call.assigned", "telecalling.use", "followup.create.own", "followup.create.assigned",
-  "sitevisit.create", "sitevisit.read.own", "sitevisit.update.own", "attendance.read.own",
-  "attendance.checkin", "attendance.checkout", "leave.request.own", "leave.read.own",
-  "profile.read.own", "salary.read.own",
-  "buyer_crm.read.assigned", "buyer_crm.read.site", "buyer_crm.activity.create", "buyer_crm.status.update",
-] as const;
+const PERMISSION_GROUPS = [
+  {
+    group: "Buyer CRM & Calling (Meta Leads)",
+    description: "Buyer leads synced from Meta Ads, telecalling, and funnel stages",
+    permissions: [
+      { key: "buyer_crm.read.assigned", label: "View Assigned CRM Leads", desc: "View buyer leads assigned by admin" },
+      { key: "buyer_crm.status.update", label: "Update CRM Lead Stage", desc: "Change status (New, Contacted, Visit, etc.)" },
+      { key: "buyer_crm.activity.create", label: "Add Calling / WhatsApp Notes", desc: "Log conversations and follow-up activities" },
+      { key: "buyer_crm.read.site", label: "View All Project Site Leads", desc: "Access all leads linked to assigned project sites" },
+      { key: "telecalling.use", label: "In-App Telecalling Dialer", desc: "Place calls directly from dashboard" },
+      { key: "followup.create.assigned", label: "Schedule Lead Follow-ups", desc: "Set reminders for client calls" },
+    ],
+  },
+  {
+    group: "Platform Leads",
+    description: "Website inquiry leads and self-generated leads",
+    permissions: [
+      { key: "lead.read.assigned", label: "View Assigned Platform Leads", desc: "Access website leads assigned to this employee" },
+      { key: "lead.update.assigned", label: "Update Assigned Platform Leads", desc: "Edit assigned leads details" },
+      { key: "lead.call.assigned", label: "Call Assigned Leads", desc: "Place calls to platform leads" },
+      { key: "lead.create", label: "Create Leads Manually", desc: "Add new leads into system" },
+      { key: "lead.read.own", label: "View Self-Created Leads", desc: "Access leads submitted by this employee" },
+      { key: "lead.update.own", label: "Update Self-Created Leads", desc: "Edit self-submitted leads" },
+    ],
+  },
+  {
+    group: "Tasks Management",
+    description: "Internal company tasks and personal to-dos",
+    permissions: [
+      { key: "task.read.own", label: "View My Tasks", desc: "Access personal and assigned tasks" },
+      { key: "task.complete.own", label: "Complete Tasks", desc: "Mark assigned tasks as done" },
+      { key: "task.create.own", label: "Create Tasks", desc: "Create personal tasks" },
+      { key: "task.update.own", label: "Update Tasks", desc: "Edit task descriptions/details" },
+    ],
+  },
+  {
+    group: "Site Visits",
+    description: "Booking and conducting property site visits",
+    permissions: [
+      { key: "sitevisit.create", label: "Schedule Site Visit", desc: "Book new buyer visit on a project" },
+      { key: "sitevisit.read.own", label: "View My Site Visits", desc: "See upcoming scheduled site visits" },
+      { key: "sitevisit.update.own", label: "Update Site Visit Status", desc: "Mark visits completed, confirmed or cancelled" },
+    ],
+  },
+  {
+    group: "Marketing OS",
+    description: "Marketing operating system, campaigns, and creatives",
+    permissions: [
+      { key: "marketing.os.read", label: "View Marketing Campaigns", desc: "Read-only access to Marketing OS" },
+      { key: "marketing.os.manage", label: "Full Marketing Manager", desc: "Manage campaigns, creatives, and forms" },
+    ],
+  },
+  {
+    group: "Attendance & Personal Profile",
+    description: "Daily punch-in, leaves, profile, and salary view",
+    permissions: [
+      { key: "attendance.checkin", label: "Daily Check-in / Check-out", desc: "Punch in and out for attendance" },
+      { key: "attendance.read.own", label: "View Attendance Records", desc: "Check personal attendance history" },
+      { key: "leave.request.own", label: "Request Leave", desc: "Submit leave applications" },
+      { key: "leave.read.own", label: "View Leave Status", desc: "Check leave approvals" },
+      { key: "salary.read.own", label: "View Salary", desc: "Access monthly salary records" },
+      { key: "profile.read.own", label: "View Profile", desc: "Access personal employee profile" },
+    ],
+  },
+];
+
+const ALL_PERMISSION_KEYS = Array.from(new Set(PERMISSION_GROUPS.flatMap((g) => g.permissions.map((p) => p.key))));
+
+const PERMISSION_PRESETS: { label: string; description: string; tone: string; permissions: string[] }[] = [
+  {
+    label: "🎯 Buyer CRM Calling Agent",
+    description: "Meta Leads CRM + Calling + Follow-ups + Attendance",
+    tone: "border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20",
+    permissions: [
+      "buyer_crm.read.assigned",
+      "buyer_crm.status.update",
+      "buyer_crm.activity.create",
+      "telecalling.use",
+      "followup.create.assigned",
+      "task.read.own",
+      "task.complete.own",
+      "attendance.checkin",
+      "attendance.read.own",
+      "leave.request.own",
+      "salary.read.own",
+      "profile.read.own",
+    ],
+  },
+  {
+    label: "🏆 Full Sales Executive",
+    description: "All CRM + Platform Leads + Tasks + Site Visits",
+    tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20",
+    permissions: [
+      "buyer_crm.read.assigned",
+      "buyer_crm.read.site",
+      "buyer_crm.status.update",
+      "buyer_crm.activity.create",
+      "lead.read.assigned",
+      "lead.update.assigned",
+      "lead.call.assigned",
+      "lead.create",
+      "lead.read.own",
+      "lead.update.own",
+      "telecalling.use",
+      "followup.create.assigned",
+      "sitevisit.create",
+      "sitevisit.read.own",
+      "sitevisit.update.own",
+      "task.read.own",
+      "task.create.own",
+      "task.update.own",
+      "task.complete.own",
+      "attendance.checkin",
+      "attendance.read.own",
+      "leave.request.own",
+      "salary.read.own",
+      "profile.read.own",
+    ],
+  },
+  {
+    label: "📢 Marketing Manager",
+    description: "Marketing OS + Campaigns + CRM View",
+    tone: "border-purple-500/40 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20",
+    permissions: [
+      "marketing.os.manage",
+      "marketing.os.read",
+      "buyer_crm.read.assigned",
+      "buyer_crm.read.site",
+      "task.read.own",
+      "task.complete.own",
+      "attendance.checkin",
+      "attendance.read.own",
+      "leave.request.own",
+      "salary.read.own",
+      "profile.read.own",
+    ],
+  },
+];
 
 const emptyEmployee = {
   name: "", employeeCode: "", officialEmail: "", phone: "", department: "Sales", designation: "Sales Executive",
@@ -157,6 +286,78 @@ export default function AdminEmployeeManagementPage() {
   const [reassignEmployeeIds, setReassignEmployeeIds] = useState<string[]>([]);
   const [salaryForm, setSalaryForm] = useState({ employeeId: "", monthKey: new Date().toISOString().slice(0, 7), grossSalary: "", allowances: "0", deductions: "0", notes: "" });
   const [correction, setCorrection] = useState({ id: "", status: "PRESENT", correctionReason: "" });
+
+  // Dedicated Permissions Modal State
+  const [permissionEmployee, setPermissionEmployee] = useState<Employee | null>(null);
+  const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
+
+  // Dedicated Direct Task Modal State
+  const [directTaskEmployee, setDirectTaskEmployee] = useState<Employee | null>(null);
+  const [directTaskForm, setDirectTaskForm] = useState({
+    title: "",
+    priority: "MEDIUM",
+    deadlineAt: "",
+    category: "GENERAL",
+    description: "",
+  });
+  const [savingDirectTask, setSavingDirectTask] = useState(false);
+
+  function openPermissionsModal(e: Employee) {
+    setPermissionEmployee(e);
+    setSelectedPerms(e.permissions || []);
+  }
+
+  async function saveEmployeePermissions() {
+    if (!permissionEmployee) return;
+    setSavingPerms(true);
+    try {
+      await api.patch(`/employees/${permissionEmployee.id}`, { permissions: selectedPerms });
+      toast.success(`Permissions updated for ${permissionEmployee.name}.`);
+      setPermissionEmployee(null);
+      await reload();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not save permissions.");
+    } finally {
+      setSavingPerms(false);
+    }
+  }
+
+  function openDirectTaskModal(e: Employee) {
+    setDirectTaskEmployee(e);
+    setDirectTaskForm({
+      title: "",
+      priority: "MEDIUM",
+      deadlineAt: "",
+      category: "GENERAL",
+      description: "",
+    });
+  }
+
+  async function saveDirectTask(e: FormEvent) {
+    e.preventDefault();
+    if (!directTaskEmployee) return;
+    if (!directTaskForm.title.trim()) {
+      toast.error("Please enter a task title.");
+      return;
+    }
+    setSavingDirectTask(true);
+    try {
+      await api.post("/employees/tasks", {
+        ...directTaskForm,
+        employeeIds: [directTaskEmployee.id],
+        employeeId: directTaskEmployee.id,
+        deadlineAt: directTaskForm.deadlineAt ? new Date(directTaskForm.deadlineAt).toISOString() : null,
+      });
+      toast.success(`Task assigned to ${directTaskEmployee.name}.`);
+      setDirectTaskEmployee(null);
+      await reload();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not assign task.");
+    } finally {
+      setSavingDirectTask(false);
+    }
+  }
 
   async function reload() {
     setLoading(true);
@@ -642,13 +843,61 @@ export default function AdminEmployeeManagementPage() {
           <Field label="Monthly gross salary (₹)" type="number" value={employeeForm.monthlySalary} onChange={(v) => setEmployeeForm((s) => ({ ...s, monthlySalary: v }))}/>
           <Field label="Salary due day (1–28)" type="number" value={employeeForm.salaryDueDay} onChange={(v) => setEmployeeForm((s) => ({ ...s, salaryDueDay: v }))}/>
           <label className="block space-y-1.5 text-sm sm:col-span-2 xl:col-span-3"><span className="text-muted-foreground">Admin notes</span><textarea className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5" rows={2} value={employeeForm.notes} onChange={(e) => setEmployeeForm((s) => ({ ...s, notes: e.target.value }))}/></label>
-          <div className="sm:col-span-2 xl:col-span-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">Leave blank when editing to keep the employee’s current permissions. New employees receive the standard defaults when this field is blank.</p>
-              <button type="button" onClick={() => setEmployeeForm((s) => ({ ...s, permissions: STANDARD_EMPLOYEE_PERMISSIONS.join(", ") }))} className="rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">Apply standard employee access</button>
+          <div className="sm:col-span-2 xl:col-span-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-foreground">Assigned Permissions</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {PERMISSION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setEmployeeForm((s) => ({ ...s, permissions: preset.permissions.join(", ") }))}
+                    className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-medium hover:bg-white/10 transition"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEmployeeForm((s) => ({ ...s, permissions: ALL_PERMISSION_KEYS.join(", ") }))}
+                  className="rounded-lg border border-primary/30 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 transition"
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmployeeForm((s) => ({ ...s, permissions: "" }))}
+                  className="rounded-lg border border-red-500/30 px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10 transition"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
-            <Field label="Assigned permissions (separate keys with commas, spaces, or new lines)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/>
-            <p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add <code>marketing.os.manage</code>. For campaign read-only access, add <code>marketing.os.read</code>. For Buyer CRM leads access, add <code>buyer_crm.read.assigned</code> (assigned leads), <code>buyer_crm.read.site</code> (all site leads), <code>buyer_crm.status.update</code>, and <code>buyer_crm.activity.create</code>.</p>
+            {/* Quick interactive chips */}
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+              {ALL_PERMISSION_KEYS.map((key) => {
+                const currentList = employeeForm.permissions ? employeeForm.permissions.split(/[\s,]+/).map((p) => p.trim()).filter(Boolean) : [];
+                const active = currentList.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      const next = active ? currentList.filter((k) => k !== key) : [...currentList, key];
+                      setEmployeeForm((s) => ({ ...s, permissions: next.join(", ") }));
+                    }}
+                    className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
+                      active
+                        ? "border-sky-500/50 bg-sky-500/20 text-sky-200"
+                        : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20 hover:text-foreground"
+                    }`}
+                  >
+                    {active ? "✓ " : "+ "}{key}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">Click buttons above to quickly toggle permissions. New employees receive standard defaults when left blank.</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><button disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Create employee & send invitation"}</button><button type="button" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button></div>
         </form>
@@ -656,7 +905,7 @@ export default function AdminEmployeeManagementPage() {
 
       {tab === "employees" && <Panel title="Employee directory" sub="Search by name, email, employee ID, department or phone" action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}>
         <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]"><input aria-label="Search employees" className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" placeholder="Search employees…" value={query} onChange={(e) => setQuery(e.target.value)}/><select className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><div className="flex min-w-0 items-start gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{e.avatarUrl ? <img src={e.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{e.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div><div className="min-w-0"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></div></div></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void openEmployeeProfile(e)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary">Full profile</button><button type="button" onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button>{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><div className="flex min-w-0 items-start gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{e.avatarUrl ? <img src={e.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{e.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div><div className="min-w-0"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></div></div></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void openEmployeeProfile(e)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary">Full profile</button><button type="button" onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button><button type="button" onClick={() => openPermissionsModal(e)} className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition"><ShieldCheck size={12} />Permissions</button>{e.status !== "INACTIVE" && (<button type="button" onClick={() => openDirectTaskModal(e)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"><ListChecks size={12} />Assign Task</button>)}{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
       </Panel>}
 
       {tab === "tasks" && <div className="space-y-4">
@@ -898,6 +1147,256 @@ export default function AdminEmployeeManagementPage() {
           </footer>
         </section>
       </div>, document.body)}
+
+      {permissionEmployee && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setPermissionEmployee(null); }}>
+          <section className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-white/10 bg-card shadow-2xl overflow-hidden" role="dialog" aria-modal="true" aria-label={`Permissions for ${permissionEmployee.name}`}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-white/10 p-4 sm:p-5">
+              <div>
+                <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                  <ShieldCheck className="text-sky-400" size={18} />
+                  Manage Permissions · {permissionEmployee.name}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {permissionEmployee.department} · {permissionEmployee.designation || "Employee"} · {permissionEmployee.officialEmail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPermissionEmployee(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
+              {/* Quick 1-Click Role Presets */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    1-Click Role Presets
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPerms([...ALL_PERMISSION_KEYS])}
+                      className="text-[11px] font-medium text-sky-400 hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-muted-foreground">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPerms([])}
+                      className="text-[11px] font-medium text-red-400 hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {PERMISSION_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setSelectedPerms([...preset.permissions])}
+                      className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${preset.tone}`}
+                    >
+                      <span className="text-xs font-bold">{preset.label}</span>
+                      <span className="mt-1 text-[10px] opacity-80">{preset.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active Count Banner */}
+              <div className="flex items-center justify-between rounded-xl border border-sky-500/20 bg-sky-500/5 px-3.5 py-2">
+                <span className="text-xs font-medium text-sky-200">
+                  <strong>{selectedPerms.length}</strong> of {ALL_PERMISSION_KEYS.length} permissions active
+                </span>
+                <span className="text-[11px] text-muted-foreground">Click buttons below to toggle permissions</span>
+              </div>
+
+              {/* Grouped Permissions */}
+              <div className="space-y-4">
+                {PERMISSION_GROUPS.map((group) => {
+                  const allGroupKeys = group.permissions.map((p) => p.key);
+                  const isAllGroupSelected = allGroupKeys.every((k) => selectedPerms.includes(k));
+                  const toggleGroup = () => {
+                    if (isAllGroupSelected) {
+                      setSelectedPerms((prev) => prev.filter((k) => !allGroupKeys.includes(k)));
+                    } else {
+                      setSelectedPerms((prev) => Array.from(new Set([...prev, ...allGroupKeys])));
+                    }
+                  };
+
+                  return (
+                    <div key={group.group} className="rounded-xl border border-white/10 bg-white/[0.015] p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">{group.group}</h3>
+                          <p className="text-[11px] text-muted-foreground">{group.description}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={toggleGroup}
+                          className="text-[11px] font-medium text-primary hover:underline"
+                        >
+                          {isAllGroupSelected ? "Deselect Group" : "Select Group"}
+                        </button>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {group.permissions.map((item) => {
+                          const isSelected = selectedPerms.includes(item.key);
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPerms((prev) =>
+                                  prev.includes(item.key) ? prev.filter((k) => k !== item.key) : [...prev, item.key]
+                                );
+                              }}
+                              className={`flex items-start gap-2.5 rounded-xl border p-2.5 text-left transition ${
+                                isSelected
+                                  ? "border-sky-500/50 bg-sky-500/10 text-foreground shadow-sm"
+                                  : "border-white/10 bg-background/50 text-muted-foreground hover:border-white/20 hover:text-foreground"
+                              }`}
+                            >
+                              <div
+                                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                                  isSelected
+                                    ? "border-sky-500 bg-sky-500 text-white"
+                                    : "border-white/20 bg-white/5"
+                                }`}
+                              >
+                                {isSelected && <Check size={11} className="stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold">{item.label}</p>
+                                <p className="text-[10px] text-muted-foreground line-clamp-1">{item.desc}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between border-t border-white/10 bg-muted/20 p-4">
+              <span className="text-xs text-muted-foreground">
+                {selectedPerms.length} permissions will be assigned.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPermissionEmployee(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingPerms}
+                  onClick={() => void saveEmployeePermissions()}
+                  className="rounded-xl bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground shadow hover:opacity-90 disabled:opacity-50 transition"
+                >
+                  {savingPerms ? "Saving…" : "Save Permissions"}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+
+      {directTaskEmployee && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setDirectTaskEmployee(null); }}>
+          <section className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-white/10 bg-card shadow-2xl overflow-hidden" role="dialog" aria-modal="true" aria-label={`Assign Task to ${directTaskEmployee.name}`}>
+            <div className="flex items-center justify-between border-b border-white/10 p-4">
+              <div>
+                <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+                  <ListChecks className="text-emerald-400" size={18} />
+                  Assign Task · {directTaskEmployee.name}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {directTaskEmployee.department} · {directTaskEmployee.designation || "Employee"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDirectTaskEmployee(null)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={saveDirectTask} className="p-4 space-y-3 overflow-y-auto">
+              <Field
+                label="Task title"
+                required
+                value={directTaskForm.title}
+                onChange={(v) => setDirectTaskForm((s) => ({ ...s, title: v }))}
+                placeholder="e.g. Call back 5 new Meta leads from Truvi Haven"
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SelectField
+                  label="Priority"
+                  value={directTaskForm.priority}
+                  onChange={(v) => setDirectTaskForm((s) => ({ ...s, priority: v }))}
+                  options={["LOW", "MEDIUM", "HIGH", "URGENT"].map((v) => ({ value: v, label: v }))}
+                />
+                <Field
+                  label="Deadline"
+                  type="datetime-local"
+                  value={directTaskForm.deadlineAt}
+                  onChange={(v) => setDirectTaskForm((s) => ({ ...s, deadlineAt: v }))}
+                />
+              </div>
+              <Field
+                label="Category"
+                value={directTaskForm.category}
+                onChange={(v) => setDirectTaskForm((s) => ({ ...s, category: v }))}
+                placeholder="e.g. CRM / Follow-up"
+              />
+              <label className="block space-y-1.5 text-sm">
+                <span className="text-muted-foreground">Description</span>
+                <textarea
+                  className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+                  rows={3}
+                  value={directTaskForm.description}
+                  onChange={(e) => setDirectTaskForm((s) => ({ ...s, description: e.target.value }))}
+                  placeholder="Details or instructions for the employee..."
+                />
+              </label>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setDirectTaskEmployee(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-medium hover:bg-white/5 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={savingDirectTask || !directTaskForm.title.trim()}
+                  className="rounded-xl bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground shadow hover:opacity-90 disabled:opacity-50 transition"
+                >
+                  {savingDirectTask ? "Assigning…" : "Assign Task"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>,
+        document.body
+      )}
 
     </div>
   );
