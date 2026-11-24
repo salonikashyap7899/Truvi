@@ -262,6 +262,13 @@ router.get("/admin/summary", requireRole("ADMIN", "EMPLOYEE"), async (req: Authe
     bySource,
     distinctCampaigns: campaignRows.map((r) => r.name).filter(Boolean),
     distinctAds: adRows.map((r) => r.name).filter(Boolean),
+    metaAdsConfig: {
+      configured: Boolean(process.env.META_LEADS_VERIFY_TOKEN?.trim() && process.env.META_LEADS_APP_SECRET?.trim() && process.env.META_LEADS_ACCESS_TOKEN?.trim()),
+      hasVerifyToken: Boolean(process.env.META_LEADS_VERIFY_TOKEN?.trim()),
+      hasAppSecret: Boolean(process.env.META_LEADS_APP_SECRET?.trim()),
+      hasAccessToken: Boolean(process.env.META_LEADS_ACCESS_TOKEN?.trim()),
+      graphVersion: process.env.META_GRAPH_API_VERSION?.trim() || "v27.0",
+    },
     metaAdsConfigured: Boolean(process.env.META_LEADS_VERIFY_TOKEN?.trim() && process.env.META_LEADS_APP_SECRET?.trim() && process.env.META_LEADS_ACCESS_TOKEN?.trim()),
     userPermissions: {
       isAdmin: access.isAdmin,

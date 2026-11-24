@@ -2,14 +2,17 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Activity,
+  AlertCircle,
   BarChart3,
   Building2,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
   FileSpreadsheet,
   Flame,
   Headset,
+  HelpCircle,
   Layers,
   Loader2,
   Megaphone,
@@ -161,6 +164,13 @@ type Summary = {
   distinctCampaigns?: string[];
   distinctAds?: string[];
   metaAdsConfigured: boolean;
+  metaAdsConfig?: {
+    configured: boolean;
+    hasVerifyToken: boolean;
+    hasAppSecret: boolean;
+    hasAccessToken: boolean;
+    graphVersion: string;
+  };
   userPermissions?: {
     isAdmin: boolean;
     canReadAssigned: boolean;
@@ -260,6 +270,7 @@ export default function AdminBuyerCrmPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvProjectId, setCsvProjectId] = useState("");
   const [importingCsv, setImportingCsv] = useState(false);
+  const [showMetaConfigHelp, setShowMetaConfigHelp] = useState(false);
 
   const loadSetup = useCallback(async () => {
     try {
@@ -596,23 +607,55 @@ export default function AdminBuyerCrmPage() {
           <div>
             <div className="flex items-center gap-2">
               <p className="font-semibold">Meta Lead Ads Integration</p>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${summary?.metaAdsConfigured ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20" : "bg-amber-400/10 text-amber-300 border border-amber-400/20"}`}>
-                {summary?.metaAdsConfigured ? "Live Webhook Active" : "Config Required"}
-              </span>
+              <button
+                type="button"
+                onClick={() => setShowMetaConfigHelp(true)}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition hover:opacity-85 ${
+                  summary?.metaAdsConfigured
+                    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                    : "bg-amber-400/10 text-amber-300 border border-amber-400/20"
+                }`}
+              >
+                {summary?.metaAdsConfigured ? (
+                  <>
+                    <CheckCircle2 size={11} /> Live Webhook Active
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={11} /> Config Required (Click to view)
+                  </>
+                )}
+              </button>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Webhook: <code>/api/webhooks/meta-leads</code>. Form leads stream directly with attribution and WhatsApp routing.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
           {SOURCES.map((item) =>
             sourceCounts.get(item.value) ? (
-              <span key={item.value} className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-1">
+              <span key={item.value} className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-1 text-muted-foreground">
                 {item.label}: <strong className="text-foreground">{sourceCounts.get(item.value)}</strong>
               </span>
             ) : null
           )}
+          {!summary?.metaAdsConfigured && (
+            <button
+              type="button"
+              onClick={() => setShowMetaConfigHelp(true)}
+              className="inline-flex items-center gap-1 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 hover:bg-amber-500/20"
+            >
+              <HelpCircle size={13} /> Fix Meta Sync & Setup Guide
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowCsvImport(true)}
+            className="inline-flex items-center gap-1 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300 hover:bg-purple-500/20"
+          >
+            <Upload size={13} /> Upload Leads via CSV (Instant)
+          </button>
         </div>
       </section>
 
@@ -1420,6 +1463,149 @@ export default function AdminBuyerCrmPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Meta Configuration & Sync Help Modal */}
+      {showMetaConfigHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-background p-6 shadow-2xl">
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                  <ShieldCheck size={20} className={summary?.metaAdsConfigured ? "text-emerald-400" : "text-amber-400"} />
+                  Meta Lead Ads Sync Status & Setup Guide
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Understand why "Config Required" appears, how Facebook API sync works, and how to import your leads immediately.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMetaConfigHelp(false)}
+                className="rounded-full border border-white/10 p-1.5 hover:bg-white/10 text-muted-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-5">
+              {/* Live Status Cards */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Environment Variables Status (Server / Render)
+                </p>
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-background p-2.5">
+                    <div>
+                      <code className="font-semibold text-foreground">META_LEADS_ACCESS_TOKEN</code>
+                      <p className="text-[11px] text-muted-foreground">Required to fetch past leads and verify live lead details from Facebook Graph API.</p>
+                    </div>
+                    {summary?.metaAdsConfig?.hasAccessToken ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        <CheckCircle2 size={12} /> Configured
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300">
+                        <AlertCircle size={12} /> Missing
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-background p-2.5">
+                    <div>
+                      <code className="font-semibold text-foreground">META_LEADS_VERIFY_TOKEN</code>
+                      <p className="text-[11px] text-muted-foreground">Required for Meta webhook challenge verification on <code>/api/webhooks/meta-leads</code>.</p>
+                    </div>
+                    {summary?.metaAdsConfig?.hasVerifyToken ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        <CheckCircle2 size={12} /> Configured
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300">
+                        <AlertCircle size={12} /> Missing
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-white/5 bg-background p-2.5">
+                    <div>
+                      <code className="font-semibold text-foreground">META_LEADS_APP_SECRET</code>
+                      <p className="text-[11px] text-muted-foreground">Required to verify SHA256 signatures of incoming lead notifications.</p>
+                    </div>
+                    {summary?.metaAdsConfig?.hasAppSecret ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+                        <CheckCircle2 size={12} /> Configured
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300">
+                        <AlertCircle size={12} /> Missing
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Instant Solution Banner */}
+              <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-purple-500/20 p-2 text-purple-300 mt-0.5">
+                    <FileSpreadsheet size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-purple-200">Abhi leads import karni hain? Use Instant CSV Import!</h3>
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                      Agar aapke paas Meta API credentials abhi nahi hain, to aapko wait karne ki zaroorat nahi hai:
+                    </p>
+                    <ol className="mt-2 list-decimal list-inside text-xs text-muted-foreground space-y-1">
+                      <li><strong>Meta Ads Manager / Business Suite</strong> par jaayein &gt; All Tools &gt; Instant Forms.</li>
+                      <li>Apne active ad form ke saamne <strong>Download Leads (CSV)</strong> par click karein.</li>
+                      <li>Dashboard me <strong>"Import Meta CSV"</strong> button par click karke wo file upload kar dein.</li>
+                    </ol>
+                    <button
+                      onClick={() => {
+                        setShowMetaConfigHelp(false);
+                        setShowCsvImport(true);
+                      }}
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-purple-500"
+                    >
+                      <Upload size={13} /> Open CSV Import Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instructions for Live Automatic Sync */}
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-3">
+                <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
+                  <Settings size={15} className="text-sky-400" />
+                  Live Sync & Webhook Setup Steps (Permanent Integration)
+                </h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Permanent live sync ke liye ye 3 variables aapko apne <strong>Render Dashboard</strong> (Environment tab) me ya server ki <code>.env</code> file me add karne hote hain:
+                </p>
+                <div className="rounded-lg border border-white/10 bg-black/40 p-3 space-y-2 font-mono text-[11px]">
+                  <p><span className="text-sky-400">META_LEADS_ACCESS_TOKEN</span>=<span className="text-muted-foreground">EAA... (Facebook Page Access Token)</span></p>
+                  <p><span className="text-sky-400">META_LEADS_VERIFY_TOKEN</span>=<span className="text-muted-foreground">any_custom_secret_passphrase</span></p>
+                  <p><span className="text-sky-400">META_LEADS_APP_SECRET</span>=<span className="text-muted-foreground">meta_app_secret_from_app_dashboard</span></p>
+                </div>
+                <div className="space-y-1.5 text-muted-foreground">
+                  <p>1. <strong>developers.facebook.com</strong> par jaakar apna Meta App kholein.</p>
+                  <p>2. <strong>Webhooks</strong> me Callback URL daalein: <code>https://&lt;your-domain&gt;/api/webhooks/meta-leads</code> aur Verify Token me wahi password daalein jo aapne <code>META_LEADS_VERIFY_TOKEN</code> me set kiya hai.</p>
+                  <p>3. <strong>leadgen</strong> field subscribe karein aur Graph API Explorer se Page Access Token generate karein.</p>
+                  <p>4. Save karte hi status automatically <strong>"Live Webhook Active"</strong> ho jayega aur Meta API sync chalne lagega!</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setShowMetaConfigHelp(false)}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold hover:bg-white/5"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
