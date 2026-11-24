@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={"darkMode":"class","theme":{"extend":{"colors":{"secondary":"#ddb7ff","error":"#ffb4ab","surface-dim":"#0f131d","surface-variant":"#303540","secondary-fixed-dim":"#ddb7ff","surface-container-high":"#262a35","on-secondary":"#490080","on-background":"#dfe2f1","outline":"#938ea1","on-tertiary-fixed":"#002113","tertiary":"#4fdea3","on-tertiary-fixed-variant":"#005236","on-surface":"#dfe2f1","on-secondary-fixed":"#2c0051","on-surface-variant":"#c9c4d8","tertiary-fixed":"#6ffbbe","surface-tint":"#cabeff","outline-variant":"#484555","primary":"#cabeff","inverse-on-surface":"#2c303c","tertiary-fixed-dim":"#4fdea3","primary-fixed":"#e6deff","tertiary-container":"#00a572","surface-container-lowest":"#0a0e18","on-error":"#690005","on-primary":"#31009a","inverse-primary":"#603ce2","secondary-container":"#6f00be","primary-container":"#947dff","secondary-fixed":"#f0dbff","surface":"#0f131d","surface-container-highest":"#303540","error-container":"#93000a","on-error-container":"#ffdad6","on-secondary-container":"#d6a9ff","on-primary-fixed":"#1c0062","on-tertiary-container":"#00311f","surface-container-low":"#171b26","primary-fixed-dim":"#cabeff","background":"#0f131d","on-primary-container":"#2a0088","on-tertiary":"#003824","on-secondary-fixed-variant":"#6900b3","inverse-surface":"#dfe2f1","surface-bright":"#353945","on-primary-fixed-variant":"#4816cb","surface-container":"#1b1f2a"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-sm":"0.5rem","gutter-sm":"1rem","gutter":"1.5rem","gutter-lg":"2rem","space-md":"1rem","space-xs":"0.25rem","margin-mobile":"1rem","margin":"2rem","space-lg":"1.5rem","space-xl":"2rem"},"fontFamily":{"label-lg":["Inter"],"headline-sm":["Plus Jakarta Sans"],"headline-lg-mobile":["Plus Jakarta Sans"],"body-lg":["Inter"],"label-sm":["Inter"],"display-lg":["Plus Jakarta Sans"],"label-md":["Inter"],"body-sm":["Inter"],"headline-md":["Plus Jakarta Sans"],"body-md":["Inter"],"headline-lg":["Plus Jakarta Sans"],"display-md":["Plus Jakarta Sans"]},"fontSize":{"label-lg":["14px",{"lineHeight":"20px","letterSpacing":"0.01em","fontWeight":"600"}],"headline-sm":["18px",{"lineHeight":"24px","letterSpacing":"-0.005em","fontWeight":"600"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","letterSpacing":"0em","fontWeight":"400"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.05em","fontWeight":"600"}],"display-lg":["48px",{"lineHeight":"56px","letterSpacing":"-0.025em","fontWeight":"700"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"500"}],"body-sm":["12px",{"lineHeight":"16px","letterSpacing":"0.01em","fontWeight":"400"}],"headline-md":["22px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","letterSpacing":"0em","fontWeight":"400"}],"headline-lg":["28px",{"lineHeight":"36px","letterSpacing":"-0.015em","fontWeight":"600"}],"display-md":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}}</script></head><body class="bg-surface font-body-md text-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-screen w-[260px] bg-surface-container-lowest/90 backdrop-blur-xl border-r border-outline-variant/20 z-50 flex flex-col justify-between select-none"><div class="flex flex-col min-h-0 flex-1"><div class="h-[68px] px-space-lg flex items-center justify-between border-b border-outline-variant/15 flex-shrink-0"><div class="flex items-center gap-space-sm"><div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shadow-[0_0_16px_rgba(124,92,255,0.35)]"><span class="material-symbols-outlined text-on-primary-container text-[20px]">token</span></div><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm tracking-tight text-on-surface font-bold">TRUVI</span><span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span></span></div></div></div><span class="px-2 py-0.5 rounded-full bg-surface-container-high text-primary font-label-sm text-label-sm border border-outline-variant/30">OS v4.5</span></div><div class="flex-1 overflow-y-auto px-space-md py-space-md space-y-space-lg"><div class="space-y-space-xs"><span class="px-space-sm font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Command</span><nav class="space-y-1" data-active-classes="bg-primary-container text-on-primary-container shadow-[0_0_16px_rgba(124,92,255,0.25)] font-semibold"><a aria-current="page" class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg transition-all bg-primary-container text-on-primary-container shadow-[0_0_16px_rgba(124,92,255,0.25)] font-semibold" data-path="dashboard" href="#"><span class="material-symbols-outlined text-[18px]">space_dashboard</span><span class="font-label-md text-label-md flex-1">Dashboard</span><span class="material-symbols-outlined text-[14px] text-outline">chevron_right</span></a></nav></div><div class="space-y-space-xs"><span class="px-space-sm font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">Workspaces</span><nav class="space-y-0.5" data-active-classes="bg-primary-container text-on-primary-container font-semibold"><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="users" href="#"><span class="material-symbols-outlined text-[18px]">group</span><span class="font-label-md text-label-md flex-1">Users</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="employee-management" href="#"><span class="material-symbols-outlined text-[18px]">badge</span><span class="font-label-md text-label-md flex-1">Employee Management</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="listings" href="#"><span class="material-symbols-outlined text-[18px]">real_estate_agent</span><span class="font-label-md text-label-md flex-1">Listings</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="habitat" href="#"><span class="material-symbols-outlined text-[18px]">apartment</span><span class="font-label-md text-label-md flex-1">Habitat</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="truvi-scores" href="#"><span class="material-symbols-outlined text-[18px]">analytics</span><span class="font-label-md text-label-md flex-1">Truvi Scores</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="leads" href="#"><span class="material-symbols-outlined text-[18px]">filter_alt</span><span class="font-label-md text-label-md flex-1">Leads</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="buyer-crm" href="#"><span class="material-symbols-outlined text-[18px]">contacts</span><span class="font-label-md text-label-md flex-1">Buyer CRM</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="offers" href="#"><span class="material-symbols-outlined text-[18px]">request_quote</span><span class="font-label-md text-label-md flex-1">Offers</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="meetings" href="#"><span class="material-symbols-outlined text-[18px]">calendar_today</span><span class="font-label-md text-label-md flex-1">Meetings</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="enquiries" href="#"><span class="material-symbols-outlined text-[18px]">chat_bubble_outline</span><span class="font-label-md text-label-md flex-1">Enquiries</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="call-management" href="#"><span class="material-symbols-outlined text-[18px]">phone_in_talk</span><span class="font-label-md text-label-md flex-1">Call Management</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="verification" href="#"><span class="material-symbols-outlined text-[18px]">verified</span><span class="font-label-md text-label-md flex-1">Verification</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="cp-kyc" href="#"><span class="material-symbols-outlined text-[18px]">fact_check</span><span class="font-label-md text-label-md flex-1">CP KYC</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="documents" href="#"><span class="material-symbols-outlined text-[18px]">folder_open</span><span class="font-label-md text-label-md flex-1">Documents</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="revenue" href="#"><span class="material-symbols-outlined text-[18px]">trending_up</span><span class="font-label-md text-label-md flex-1">Revenue</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="finance" href="#"><span class="material-symbols-outlined text-[18px]">account_balance</span><span class="font-label-md text-label-md flex-1">Finance</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="payments" href="#"><span class="material-symbols-outlined text-[18px]">credit_card</span><span class="font-label-md text-label-md flex-1">Payments</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="marketing-os" href="#"><span class="material-symbols-outlined text-[18px]">campaign</span><span class="font-label-md text-label-md flex-1">Marketing OS</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="notifications" href="#"><span class="material-symbols-outlined text-[18px]">notifications</span><span class="font-label-md text-label-md flex-1">Notifications</span></a><a class="flex items-center gap-space-sm px-space-sm py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="settings" href="#"><span class="material-symbols-outlined text-[18px]">settings</span><span class="font-label-md text-label-md flex-1">Settings</span></a></nav></div></div></div><div class="p-space-md border-t border-outline-variant/15 bg-surface-container-lowest/95"><div class="flex items-center justify-between p-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container transition-colors"><div class="flex items-center gap-space-sm min-w-0"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 shadow-[0_0_8px_rgba(202,190,255,0.4)]"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="flex flex-col truncate"><span class="font-label-md text-label-md text-on-surface font-semibold truncate">Victor Vance</span><span class="font-body-sm text-body-sm text-outline truncate">Executive Admin</span></div></div><button class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded-lg transition-colors" title="Sign out" type="button"><span class="material-symbols-outlined text-[18px]">logout</span></button></div></div></aside><div class="pl-[260px]"><header class="fixed top-0 left-[260px] right-0 h-[68px] bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant/15 z-40 px-gutter flex items-center justify-between gap-gutter"><div class="flex-1 max-w-md"><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3 text-outline text-[18px]">search</span><input class="w-full pl-9 pr-14 py-2 bg-surface-container-low/80 border border-outline-variant/25 rounded-lg font-body-sm text-body-sm text-on-surface placeholder-outline focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/40 transition-all" placeholder="Search projects, users, escrows, leads..." type="text"/><span class="absolute right-2 px-1.5 py-0.5 rounded bg-surface-container-high border border-outline-variant/40 font-label-sm text-label-sm text-on-surface-variant">⌘K</span></div></div><div class="flex items-center gap-space-md flex-shrink-0"><div class="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-low border border-outline-variant/20"><span class="w-2 h-2 rounded-full bg-tertiary shadow-[0_0_8px_rgba(79,222,163,0.6)]"></span><span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Live Operations • IST 14:32</span></div><button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border border-outline-variant/25 transition-all" title="Refresh Live Telemetry" type="button"><span class="material-symbols-outlined text-[16px]">sync</span><span class="hidden md:inline font-label-sm text-label-sm">Refresh</span></button><button class="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors" title="Toggle Theme" type="button"><span class="material-symbols-outlined text-[20px]">dark_mode</span></button><button class="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors" title="System Settings" type="button"><span class="material-symbols-outlined text-[20px]">tune</span></button><button class="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors" title="Notifications" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-secondary text-on-secondary font-label-sm text-[9px] font-bold ring-2 ring-surface-container-lowest">3</span></button><div class="h-5 w-px bg-outline-variant/30"></div><div class="flex items-center gap-2"><div class="relative"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-tertiary ring-2 ring-surface-container-lowest"></span></div></div></div></header><main class="relative pt-[68px] w-full min-h-screen bg-surface"><div class="flex flex-col w-full pb-16 space-y-gutter-lg px-gutter max-w-[1840px] mx-auto text-on-surface">
+<!-- ========================================== -->
+<!-- 1. HEADER BANNER SECTION                   -->
+<!-- ========================================== -->
+<section class="relative pt-6 flex flex-col xl:flex-row xl:items-end justify-between gap-gutter border-b border-outline-variant/15 pb-6">
+<div class="space-y-2">
+<!-- Eyebrow Tag -->
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/60 backdrop-blur-md border border-outline-variant/20 shadow-sm">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+</span>
+<span class="font-label-sm text-label-sm tracking-widest uppercase text-tertiary font-semibold">
+          OPERATIONAL TELEMETRY • INSTITUTIONAL GRID ACTIVE
+        </span>
+</div>
+<!-- Title & Subtitle -->
+<div class="space-y-1">
+<h1 class="font-display-md text-display-md text-on-surface tracking-tight font-bold">
+          Admin Command Center
+        </h1>
+<p class="font-body-md text-body-md text-outline">
+          Real-time platform telemetry, compliance auditing, and high-velocity luxury inventory controls.
+        </p>
+</div>
+</div>
+<!-- Quick Actions -->
+<div class="flex flex-wrap items-center gap-3">
+<!-- Timeframe Filter -->
+<div class="relative inline-block text-left">
+<button class="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-surface-container-low/70 hover:bg-surface-container border border-outline-variant/30 text-on-surface font-label-md text-label-md backdrop-blur-md transition-all" id="timeframe-btn" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">calendar_today</span>
+<span>Last 30 Days</span>
+<span class="material-symbols-outlined text-[16px] text-outline">expand_more</span>
+</button>
+</div>
+<!-- Secondary: Manage Listings -->
+<button class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container-low/60 hover:bg-surface-container hover:text-on-surface border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md backdrop-blur-md transition-all shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">apartment</span>
+<span>Manage Listings</span>
+</button>
+<!-- Primary Action: + Add New Project -->
+<button class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-container hover:bg-secondary-container text-on-primary-container font-label-md text-label-md transition-all shadow-[0_0_24px_rgba(148,125,255,0.4)] hover:shadow-[0_0_32px_rgba(221,183,255,0.6)]" type="button">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>+ Add New Project</span>
+</button>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 2. ROW 1: PLATFORM KPI CARDS (4-COL GRID)  -->
+<!-- ========================================== -->
+<section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-gutter">
+<!-- Card 1: Total Platform Users -->
+<div class="group relative p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 hover:border-primary/40 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
+<div class="absolute -right-6 -bottom-6 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Platform Users</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-tertiary-container/30 border border-tertiary/30 text-tertiary font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+            ↑ 18.4% MoM
+          </span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="font-display-md text-display-md text-on-surface font-bold tracking-tight">18,420</span>
+</div>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant font-medium">
+          12.8k Buyers <span class="text-outline/40">•</span> 4.2k CPs <span class="text-outline/40">•</span> 1.4k Devs
+        </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+<a class="inline-flex items-center gap-1 font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors" href="#">
+<span>Manage users</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+<span class="material-symbols-outlined text-outline/30 text-[20px]">group</span>
+</div>
+</div>
+<!-- Card 2: Curated Luxury Projects -->
+<div class="group relative p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 hover:border-secondary/40 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
+<div class="absolute -right-6 -bottom-6 w-32 h-32 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Active Assets</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-container/40 border border-secondary/30 text-secondary-fixed font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">domain_add</span>
+            +8 this month
+          </span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="font-display-md text-display-md text-on-surface font-bold tracking-tight">142</span>
+<span class="font-label-md text-label-md text-outline">Ultra-Prime</span>
+</div>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant font-medium">
+          Total Inventory GMV: <span class="text-on-surface font-semibold">₹4,850 Cr</span>
+</p>
+</div>
+<!-- Micro sparkline bar indicators -->
+<div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+<div class="flex items-end gap-1.5 h-4">
+<div class="w-1.5 h-2 rounded bg-secondary/30"></div>
+<div class="w-1.5 h-3 rounded bg-secondary/50"></div>
+<div class="w-1.5 h-2.5 rounded bg-secondary/40"></div>
+<div class="w-1.5 h-3.5 rounded bg-secondary/70"></div>
+<div class="w-1.5 h-4 rounded bg-secondary"></div>
+<div class="w-1.5 h-2.5 rounded bg-secondary/60"></div>
+<div class="w-1.5 h-4 rounded bg-primary"></div>
+</div>
+<span class="font-label-sm text-label-sm text-outline">98.2% Title Verified</span>
+</div>
+</div>
+<!-- Card 3: Platform Fee Revenue -->
+<div class="group relative p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 hover:border-tertiary/40 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
+<div class="absolute -right-6 -bottom-6 w-32 h-32 bg-tertiary/5 rounded-full blur-2xl group-hover:bg-tertiary/10 transition-colors pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Platform Escrow Fee</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-tertiary-container/30 border border-tertiary/30 text-tertiary font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+            ↑ 24.6% YoY
+          </span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="font-display-md text-display-md text-on-surface font-bold tracking-tight">₹12.84 Cr</span>
+</div>
+<div class="mt-2 flex items-center gap-2">
+<div class="flex-1 bg-surface-container h-1.5 rounded-full overflow-hidden">
+<div class="bg-tertiary h-full rounded-full" style="width: 100%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary font-semibold">112% Target</span>
+</div>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-outline">Q2 Target: ₹11.45 Cr</span>
+<span class="material-symbols-outlined text-outline/30 text-[20px]">account_balance_wallet</span>
+</div>
+</div>
+<!-- Card 4: Lead Marketplace Revenue -->
+<div class="group relative p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 hover:border-primary/40 transition-all duration-300 shadow-xl overflow-hidden flex flex-col justify-between">
+<div class="absolute -right-6 -bottom-6 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none"></div>
+<div>
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Marketplace Revenue</span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container-high border border-outline-variant/30 text-primary-fixed font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">bolt</span>
+            ↑ 31.2% MoM
+          </span>
+</div>
+<div class="mt-4 flex items-baseline gap-2">
+<span class="font-display-md text-display-md text-on-surface font-bold tracking-tight">₹1.92 Cr</span>
+</div>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant font-medium">
+          1,480 Syndicated HNW Leads
+        </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/10 flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-outline">Avg Cost / Syndication: ₹12,970</span>
+<span class="material-symbols-outlined text-outline/30 text-[20px]">hub</span>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 3. ROW 2: LEAD FUNNEL & PIPELINE FLOW      -->
+<!-- ========================================== -->
+<section class="space-y-3">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px] text-primary">filter_alt</span>
+<h2 class="font-headline-sm text-headline-sm font-semibold tracking-tight">Institutional Lead Velocity & Funnel</h2>
+</div>
+<span class="font-label-sm text-label-sm text-outline">Live Funnel Throughput • Real-Time SLA Monitored</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
+<!-- Stage 1 -->
+<div class="relative p-5 rounded-xl bg-surface-container-lowest/60 backdrop-blur-md border border-outline-variant/20 hover:border-outline-variant/50 transition-all flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">01. Inbound Leads</span>
+<span class="font-label-sm text-label-sm text-tertiary font-semibold">+12% YoY</span>
+</div>
+<div class="my-3">
+<div class="font-headline-lg text-headline-lg font-bold text-on-surface">4,820</div>
+<span class="font-body-sm text-body-sm text-outline">Dropoff: 25.7%</span>
+</div>
+<div class="w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-primary/80 h-full w-full"></div>
+</div>
+<div class="hidden xl:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-outline-variant/60">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</div>
+<!-- Stage 2 -->
+<div class="relative p-5 rounded-xl bg-surface-container-lowest/60 backdrop-blur-md border border-outline-variant/20 hover:border-outline-variant/50 transition-all flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">02. Qualified & Vetted</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container/30 text-secondary-fixed border border-secondary/30 font-label-sm text-label-sm">24h SLA</span>
+</div>
+<div class="my-3">
+<div class="font-headline-lg text-headline-lg font-bold text-on-surface">1,240</div>
+<span class="font-body-sm text-body-sm text-tertiary">SLA Met 98.2%</span>
+</div>
+<div class="w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-[72%]"></div>
+</div>
+<div class="hidden xl:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-outline-variant/60">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</div>
+<!-- Stage 3 -->
+<div class="relative p-5 rounded-xl bg-surface-container-lowest/60 backdrop-blur-md border border-outline-variant/20 hover:border-outline-variant/50 transition-all flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">03. Site Visits</span>
+<span class="px-2 py-0.5 rounded-full bg-primary-container/20 text-primary border border-primary/30 font-label-sm text-label-sm">Scheduled</span>
+</div>
+<div class="my-3">
+<div class="font-headline-lg text-headline-lg font-bold text-on-surface">684</div>
+<span class="font-body-sm text-body-sm text-outline">Conv. Rate 55.1%</span>
+</div>
+<div class="w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-primary-container h-full w-[55%]"></div>
+</div>
+<div class="hidden xl:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-outline-variant/60">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</div>
+<!-- Stage 4 -->
+<div class="relative p-5 rounded-xl bg-surface-container-lowest/60 backdrop-blur-md border border-outline-variant/20 hover:border-outline-variant/50 transition-all flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">04. Visits Done</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-primary-fixed border border-outline-variant/30 font-label-sm text-label-sm">Physical</span>
+</div>
+<div class="my-3">
+<div class="font-headline-lg text-headline-lg font-bold text-on-surface">412</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant font-medium">Show Rate 60.2%</span>
+</div>
+<div class="w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-tertiary-container h-full w-[42%]"></div>
+</div>
+<div class="hidden xl:block absolute -right-2.5 top-1/2 -translate-y-1/2 z-10 text-outline-variant/60">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</div>
+</div>
+<!-- Stage 5: Converted Bookings -->
+<div class="relative p-5 rounded-xl bg-gradient-to-br from-surface-container-lowest/90 to-surface-container-low/70 backdrop-blur-md border border-tertiary/30 shadow-[0_0_20px_rgba(79,222,163,0.1)] flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-tertiary font-bold">05. Bookings</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary/20 text-tertiary border border-tertiary/40 font-label-sm text-label-sm font-semibold">₹892 Cr GMV</span>
+</div>
+<div class="my-3">
+<div class="font-headline-lg text-headline-lg font-bold text-tertiary">186 Units</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant font-medium">Avg Ticket: ₹4.8 Cr</span>
+</div>
+<div class="w-full bg-surface-container h-1 rounded-full overflow-hidden">
+<div class="bg-tertiary h-full w-full"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 4. ROW 3: OPERATIONS TODAY (TICKER BAR)    -->
+<!-- ========================================== -->
+<section class="p-3.5 rounded-2xl bg-surface-container-low/80 backdrop-blur-xl border border-outline-variant/25 shadow-lg">
+<div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-outline-variant/15">
+<!-- Metric 1 -->
+<div class="flex items-center gap-3 px-3 py-1">
+<div class="w-9 h-9 rounded-xl bg-tertiary-container/30 border border-tertiary/30 flex items-center justify-center text-tertiary flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase text-outline">Revenue Today</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">₹42.50 L</div>
+<span class="font-body-sm text-body-sm text-tertiary">Live settled</span>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="flex items-center gap-3 px-3 py-1">
+<div class="w-9 h-9 rounded-xl bg-primary-container/30 border border-primary/30 flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">mark_email_unread</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase text-outline">Inbound Leads</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">84 New</div>
+<span class="font-body-sm text-body-sm text-outline">12 pending assignment</span>
+</div>
+</div>
+<!-- Metric 3 -->
+<div class="flex items-center gap-3 px-3 py-1">
+<div class="w-9 h-9 rounded-xl bg-secondary-container/30 border border-secondary/30 flex items-center justify-center text-secondary-fixed flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">lock_clock</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm uppercase text-outline">Bookings Locked</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">6 Units</div>
+<span class="font-body-sm text-body-sm text-secondary-fixed font-semibold">₹31.2 Cr GMV</span>
+</div>
+</div>
+<!-- Metric 4 -->
+<div class="flex items-center gap-3 px-3 py-1">
+<div class="w-9 h-9 rounded-xl bg-surface-container-high border border-outline-variant/40 flex items-center justify-center text-secondary flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">badge</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm uppercase text-outline">Pending CP KYC</span>
+<span class="relative flex h-1.5 w-1.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-secondary"></span>
+</span>
+</div>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">14 Reviews</div>
+<span class="font-body-sm text-body-sm text-secondary">Awaiting Verification</span>
+</div>
+</div>
+<!-- Metric 5 -->
+<div class="flex items-center gap-3 px-3 py-1">
+<div class="w-9 h-9 rounded-xl bg-error-container/20 border border-error/30 flex items-center justify-center text-error flex-shrink-0">
+<span class="material-symbols-outlined text-[20px]">fact_check</span>
+</div>
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-label-sm text-label-sm uppercase text-outline">Project Verification</span>
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+</div>
+<div class="font-headline-sm text-headline-sm font-bold text-error">3 Submissions</div>
+<span class="font-body-sm text-body-sm text-outline">Legal audit stage</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 5. ROW 4: PLATFORM GROWTH & 7-DAY MATRIX   -->
+<!-- ========================================== -->
+<section class="p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 shadow-xl">
+<div class="flex flex-col lg:flex-row gap-gutter">
+<!-- Left Panel: 1/3 Summary Metrics & Quick Cards -->
+<div class="w-full lg:w-1/3 flex flex-col justify-between space-y-5 border-b lg:border-b-0 lg:border-r border-outline-variant/15 lg:pr-gutter pb-6 lg:pb-0">
+<div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">monitoring</span>
+<h3 class="font-headline-sm text-headline-sm font-semibold tracking-tight">Growth Telemetry</h3>
+</div>
+<p class="font-body-sm text-body-sm text-outline mt-0.5">Real-time delta over current weekly cycle.</p>
+</div>
+<!-- 7-Day Metrics Grid -->
+<div class="grid grid-cols-2 gap-3">
+<div class="p-3.5 rounded-xl bg-surface-container-low/70 border border-outline-variant/20">
+<span class="font-label-sm text-label-sm text-outline uppercase">Users Added</span>
+<div class="mt-1 font-headline-md text-headline-md font-bold text-on-surface">+342</div>
+<span class="inline-flex items-center gap-1 font-label-sm text-label-sm text-tertiary">
+<span class="material-symbols-outlined text-[12px]">arrow_upward</span> ↑ 14%
+            </span>
+</div>
+<div class="p-3.5 rounded-xl bg-surface-container-low/70 border border-outline-variant/20">
+<span class="font-label-sm text-label-sm text-outline uppercase">Projects Listed</span>
+<div class="mt-1 font-headline-md text-headline-md font-bold text-on-surface">+6</div>
+<span class="inline-flex items-center gap-1 font-label-sm text-label-sm text-tertiary">
+<span class="material-symbols-outlined text-[12px]">arrow_upward</span> ↑ 20%
+            </span>
+</div>
+</div>
+<!-- Latest User Onboarded -->
+<div class="p-3.5 rounded-xl bg-surface-container-low/40 border border-outline-variant/20 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-headline-sm text-headline-sm font-bold">
+              VM
+            </div>
+<div>
+<div class="font-label-md text-label-md font-semibold text-on-surface">Vikram Malhotra</div>
+<span class="font-body-sm text-body-sm text-outline">Elite CP • Whitefield, BLR</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded-md bg-surface-container-high text-primary font-label-sm text-label-sm border border-outline-variant/30">Just now</span>
+</div>
+<!-- Latest Project Listed -->
+<div class="p-3.5 rounded-xl bg-surface-container-low/40 border border-outline-variant/20 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary border border-outline-variant/20">
+<span class="material-symbols-outlined text-[20px]">villa</span>
+</div>
+<div>
+<div class="font-label-md text-label-md font-semibold text-on-surface">The Sovereign Sky</div>
+<span class="font-body-sm text-body-sm text-outline">Prestige Group • ₹14 Cr</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded-md bg-tertiary-container/30 text-tertiary font-label-sm text-label-sm border border-tertiary/20">Live</span>
+</div>
+</div>
+<!-- Right Panel: 2/3 Interactive 7-Day Activity Chart -->
+<div class="w-full lg:w-2/3 flex flex-col justify-between space-y-4">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+<div>
+<h4 class="font-headline-sm text-headline-sm font-semibold tracking-tight">Platform Ingestion & Listing Velocity</h4>
+<span class="font-body-sm text-body-sm text-outline">Comparative ratio of new users vs asset intake (Mon 12 - Sun 18)</span>
+</div>
+<!-- Filter Tabs -->
+<div class="inline-flex p-1 rounded-xl bg-surface-container-low border border-outline-variant/30">
+<button class="chart-tab px-3 py-1 rounded-lg font-label-sm text-label-sm text-on-primary-container bg-primary-container font-semibold transition-all">All Entities</button>
+<button class="chart-tab px-3 py-1 rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all">Buyers</button>
+<button class="chart-tab px-3 py-1 rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all">Brokers</button>
+<button class="chart-tab px-3 py-1 rounded-lg font-label-sm text-label-sm text-outline hover:text-on-surface transition-all">Developers</button>
+</div>
+</div>
+<!-- SVG High-Fidelity Custom Bar Chart -->
+<div class="relative w-full h-[220px] pt-4 flex flex-col justify-end">
+<svg class="w-full h-full" fill="none" viewbox="0 0 700 180" xmlns="http://www.w3.org/2000/svg">
+<!-- Grid Lines -->
+<line class="text-outline-variant/10" stroke="currentColor" stroke-dasharray="4 4" x1="0" x2="700" y1="30" y2="30"></line>
+<line class="text-outline-variant/10" stroke="currentColor" stroke-dasharray="4 4" x1="0" x2="700" y1="80" y2="80"></line>
+<line class="text-outline-variant/10" stroke="currentColor" stroke-dasharray="4 4" x1="0" x2="700" y1="130" y2="130"></line>
+<line class="text-outline-variant/20" stroke="currentColor" x1="0" x2="700" y1="170" y2="170"></line>
+<!-- Bars Mon 12 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="100" rx="4" width="22" x="35" y="70"></rect>
+<rect fill="#4FDEA3" height="45" rx="4" width="22" x="62" y="125"></rect>
+</g>
+<!-- Bars Tue 13 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="115" rx="4" width="22" x="135" y="55"></rect>
+<rect fill="#4FDEA3" height="60" rx="4" width="22" x="162" y="110"></rect>
+</g>
+<!-- Bars Wed 14 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="125" rx="4" width="22" x="235" y="45"></rect>
+<rect fill="#4FDEA3" height="80" rx="4" width="22" x="262" y="90"></rect>
+</g>
+<!-- Bars Thu 15 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="110" rx="4" width="22" x="335" y="60"></rect>
+<rect fill="#4FDEA3" height="65" rx="4" width="22" x="362" y="105"></rect>
+</g>
+<!-- Bars Fri 16 (Peak Day Highlight) -->
+<g class="cursor-pointer group">
+<!-- Glow backdrop for peak day -->
+<rect fill="#7C5CFF" fill-opacity="0.12" height="165" rx="8" width="80" x="425" y="10"></rect>
+<rect fill="#CABEFF" height="150" rx="4" width="22" x="435" y="20"></rect>
+<rect fill="#4FDEA3" height="125" rx="4" width="22" x="462" y="45"></rect>
+<!-- Peak Badge -->
+<rect fill="#CABEFF" height="16" rx="4" width="48" x="440" y="2"></rect>
+<text fill="#31009A" font-family="Inter" font-size="9" font-weight="700" text-anchor="middle" x="464" y="13">PEAK 84</text>
+</g>
+<!-- Bars Sat 17 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="90" rx="4" width="22" x="535" y="80"></rect>
+<rect fill="#4FDEA3" height="40" rx="4" width="22" x="562" y="130"></rect>
+</g>
+<!-- Bars Sun 18 -->
+<g class="transition-opacity hover:opacity-80 cursor-pointer">
+<rect fill="#947DFF" height="75" rx="4" width="22" x="635" y="95"></rect>
+<rect fill="#4FDEA3" height="25" rx="4" width="22" x="662" y="145"></rect>
+</g>
+</svg>
+<!-- Day Labels -->
+<div class="flex justify-between px-6 pt-2 font-label-sm text-label-sm text-outline uppercase">
+<span>Mon 12</span>
+<span>Tue 13</span>
+<span>Wed 14</span>
+<span>Thu 15</span>
+<span class="text-primary font-bold">Fri 16</span>
+<span>Sat 17</span>
+<span>Sun 18</span>
+</div>
+</div>
+<!-- Legend -->
+<div class="flex items-center justify-between pt-3 border-t border-outline-variant/10">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-sm bg-primary-container"></span>
+<span class="font-label-sm text-label-sm text-outline">New Users (Avg: 54/day)</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-sm bg-tertiary"></span>
+<span class="font-label-sm text-label-sm text-outline">Asset Ingestion (Avg: 18/day)</span>
+</div>
+</div>
+<span class="font-body-sm text-body-sm text-outline">Normalized weekly variance: +8.4%</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 6. ROW 5: INVESTOR & SAAS TELEMETRY STRIP  -->
+<!-- ========================================== -->
+<section class="p-4 rounded-xl bg-surface-container-lowest/80 backdrop-blur-md border border-outline-variant/20 shadow-sm">
+<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4 text-center divide-x-0 xl:divide-x divide-outline-variant/15">
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">ARR Runrate</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">₹48.6 Cr</div>
+<span class="font-label-sm text-label-sm text-tertiary font-semibold">↑ 38% YoY</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">Current MRR</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">₹4.05 Cr</div>
+<span class="font-label-sm text-label-sm text-outline">Recurring Fee</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">LTV / CAC</span>
+<div class="font-headline-sm text-headline-sm font-bold text-primary">14.2x</div>
+<span class="font-label-sm text-label-sm text-outline">Institutional</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">Gross Churn</span>
+<div class="font-headline-sm text-headline-sm font-bold text-tertiary">0.8%</div>
+<span class="font-label-sm text-label-sm text-outline">Trailing 12M</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">Buyer-to-Hold</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">18.2%</div>
+<span class="font-label-sm text-label-sm text-outline">Commitment</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">Avg Deal Size</span>
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface">₹6.85 Cr</div>
+<span class="font-label-sm text-label-sm text-outline">Ultra Luxury</span>
+</div>
+<div class="px-2">
+<span class="font-label-sm text-label-sm uppercase text-outline">Escrow Velocity</span>
+<div class="font-headline-sm text-headline-sm font-bold text-secondary-fixed">26.4 mins</div>
+<span class="font-label-sm text-label-sm text-outline">Token to Lock</span>
+</div>
+<div class="px-2 flex flex-col items-center justify-center">
+<div class="flex items-center gap-1 text-tertiary">
+<span class="material-symbols-outlined text-[16px]">verified_user</span>
+<span class="font-label-sm text-label-sm font-semibold uppercase">SOC-2 Type II</span>
+</div>
+<span class="font-body-sm text-body-sm text-outline mt-0.5">Encrypted Vault</span>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 7. ROW 6: DUAL ACTION & INTELLIGENCE       -->
+<!-- ========================================== -->
+<section class="grid grid-cols-1 xl:grid-cols-2 gap-gutter">
+<!-- Left Column: Pending Project Approvals (Queue) -->
+<div class="p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 shadow-xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[22px]">pending_actions</span>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-semibold tracking-tight">Pending Project Approvals</h3>
+<p class="font-body-sm text-body-sm text-outline">Requires statutory RERA and title lineage validation</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-secondary-container/40 text-secondary-fixed border border-secondary/30 font-label-sm text-label-sm font-semibold">
+            3 Review Needed
+          </span>
+</div>
+<!-- Approvals List -->
+<div class="divide-y divide-outline-variant/10 mt-4">
+<!-- Project 1 -->
+<div class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-container-low/40 p-2 rounded-xl transition-colors">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="font-label-lg text-label-lg font-bold text-on-surface">The Sovereign Sky Mansions</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-container/20 text-tertiary border border-tertiary/30 font-label-sm text-label-sm">RERA Vetted</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">Prestige Group • Whitefield, Bengaluru</p>
+<div class="flex items-center gap-2 font-label-sm text-label-sm text-on-surface-variant">
+<span>₹7.5 - ₹14.0 Cr</span>
+<span class="text-outline/40">•</span>
+<span>48 Units</span>
+<span class="text-outline/40">•</span>
+<span class="text-tertiary">Title Verified</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border border-outline-variant/30 transition-all" title="Inspect Project Details" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-2 rounded-lg bg-error-container/20 hover:bg-error-container/40 text-error border border-error/30 transition-all" title="Reject Submission" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+<button class="px-3 py-2 rounded-lg bg-tertiary-container hover:bg-tertiary text-on-tertiary font-label-md text-label-md font-semibold transition-all shadow-md" type="button">
+                Approve
+              </button>
+</div>
+</div>
+<!-- Project 2 -->
+<div class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-container-low/40 p-2 rounded-xl transition-colors">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="font-label-lg text-label-lg font-bold text-on-surface">Elysian Canopy Biophilic Villas</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-container-high text-primary-fixed border border-outline-variant/30 font-label-sm text-label-sm">Encumbrance Nil</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">Embassy Group • ORR, Bengaluru</p>
+<div class="flex items-center gap-2 font-label-sm text-label-sm text-on-surface-variant">
+<span>₹4.2 - ₹8.5 Cr</span>
+<span class="text-outline/40">•</span>
+<span>32 Units</span>
+<span class="text-outline/40">•</span>
+<span class="text-outline">RERA: PRM/KA/RERA/1251</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border border-outline-variant/30 transition-all" title="Inspect Project Details" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-2 rounded-lg bg-error-container/20 hover:bg-error-container/40 text-error border border-error/30 transition-all" title="Reject Submission" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+<button class="px-3 py-2 rounded-lg bg-tertiary-container hover:bg-tertiary text-on-tertiary font-label-md text-label-md font-semibold transition-all shadow-md" type="button">
+                Approve
+              </button>
+</div>
+</div>
+<!-- Project 3 -->
+<div class="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-container-low/40 p-2 rounded-xl transition-colors">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="font-label-lg text-label-lg font-bold text-on-surface">Aurum Solarium Penthouses</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container/20 text-secondary-fixed border border-secondary/30 font-label-sm text-label-sm">Architecture Checked</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">Total Environment • Indiranagar</p>
+<div class="flex items-center gap-2 font-label-sm text-label-sm text-on-surface-variant">
+<span>₹11.2 Cr Flat</span>
+<span class="text-outline/40">•</span>
+<span>14 Exclusive Units</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border border-outline-variant/30 transition-all" title="Inspect Project Details" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-2 rounded-lg bg-error-container/20 hover:bg-error-container/40 text-error border border-error/30 transition-all" title="Reject Submission" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+<button class="px-3 py-2 rounded-lg bg-tertiary-container hover:bg-tertiary text-on-tertiary font-label-md text-label-md font-semibold transition-all shadow-md" type="button">
+                Approve
+              </button>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/15 flex items-center justify-between">
+<a class="inline-flex items-center gap-1 font-label-md text-label-md text-primary hover:text-primary-fixed transition-colors" href="#">
+<span>View All Submissions</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+<span class="font-label-sm text-label-sm text-outline">Auto-escalation in 48h</span>
+</div>
+</div>
+<!-- Right Column: Live Institutional Audit Trail (WebSocket Feed) -->
+<div class="p-6 rounded-2xl bg-surface-container-lowest/60 backdrop-blur-xl border border-outline-variant/20 shadow-xl flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary text-[22px]">dataset</span>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-semibold tracking-tight">Live Institutional Audit Trail</h3>
+<p class="font-body-sm text-body-sm text-outline">Real-time ledger events and transaction logs</p>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/30">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+</span>
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">Real-Time WebSocket</span>
+</div>
+</div>
+<!-- Audit Feed Events -->
+<div class="space-y-4 mt-4">
+<!-- Event 1 -->
+<div class="flex items-start gap-3 text-body-sm">
+<div class="w-7 h-7 rounded-full bg-primary-container/20 border border-primary/30 flex items-center justify-center text-primary flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Atomic Hold Initiated</span>
+<span class="font-label-sm text-label-sm text-outline">2m ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">
+                Unit 1804 (Sovereign Towers) held for <span class="text-tertiary font-medium">₹25,000 token</span> by Vikram M. (Certified CP).
+              </p>
+</div>
+</div>
+<!-- Event 2 -->
+<div class="flex items-start gap-3 text-body-sm">
+<div class="w-7 h-7 rounded-full bg-tertiary-container/20 border border-tertiary/30 flex items-center justify-center text-tertiary flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">price_check</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Escrow Payout Cleared</span>
+<span class="font-label-sm text-label-sm text-outline">14m ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">
+<span class="text-on-surface font-medium">₹13.6L commission</span> released to Arjun Singhania via Razorpay Custody Escrow.
+              </p>
+</div>
+</div>
+<!-- Event 3 -->
+<div class="flex items-start gap-3 text-body-sm">
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-outline-variant/30 flex items-center justify-center text-primary-fixed flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">policy</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-on-surface">RERA Compliance Pass</span>
+<span class="font-label-sm text-label-sm text-outline">38m ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">
+                30-year deed lineage certified for <span class="text-primary font-mono text-[11px]">#TRU-1829</span>. Nil encumbrance registered.
+              </p>
+</div>
+</div>
+<!-- Event 4 -->
+<div class="flex items-start gap-3 text-body-sm">
+<div class="w-7 h-7 rounded-full bg-secondary-container/20 border border-secondary/30 flex items-center justify-center text-secondary-fixed flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">directions_car</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-on-surface">VIP Viewing Booked</span>
+<span class="font-label-sm text-label-sm text-outline">1h ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">
+                Maybach Chauffeur dispatched for Veda Grand Penthouse executive viewing appointment.
+              </p>
+</div>
+</div>
+<!-- Event 5 -->
+<div class="flex items-start gap-3 text-body-sm">
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-outline-variant/30 flex items-center justify-center text-outline flex-shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">domain</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-on-surface">New Developer Onboarded</span>
+<span class="font-label-sm text-label-sm text-outline">2h ago</span>
+</div>
+<p class="font-body-sm text-body-sm text-outline">
+                Sobha Luxury Reserve submitted 4 Tier-1 assets for institutional legal verification.
+              </p>
+</div>
+</div>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/15 flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline">
+          Ledger synced at block <span class="text-on-surface font-mono">#829,194</span>
+</span>
+<div class="flex items-center gap-1.5 text-outline">
+<span class="material-symbols-outlined text-[16px] text-tertiary">lock</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold">Immutable Audit Vault</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<script>
+  // Quick interactive chart filter toggling
+  document.querySelectorAll('.chart-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.chart-tab').forEach(t => {
+        t.classList.remove('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+        t.classList.add('text-outline');
+      });
+      this.classList.add('bg-primary-container', 'text-on-primary-container', 'font-semibold');
+      this.classList.remove('text-outline');
+    });
+  });
+</script></main></div></body></html>
