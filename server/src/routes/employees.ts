@@ -1349,7 +1349,7 @@ router.post("/leads", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, n
   } catch (err) { next(err); }
 });
 
-router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+router.patch("/leads/:id", requireRole("EMPLOYEE", "ADMIN"), async (req: AuthedRequest, res, next) => {
   try {
     const parsed = z.object({
       stage: z.enum(["CONTACTED", "INTERESTED", "SITE_VISIT", "NEGOTIATION", "LOST"]).optional(),
@@ -1357,11 +1357,20 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
       nextFollowUpAt: z.string().optional().nullable(),
       followUpNotes: z.string().max(3000).optional(),
       siteVisitStatus: z.enum(["NOT_DISCUSSED", "INTERESTED", "PROPOSED", "CONFIRMED", "COMPLETED", "RESCHEDULED", "CANCELLED"]).optional(),
+      assignedToId: z.string().uuid().optional().nullable(),
     }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid lead update." });
-    const emp = await needEmployee(req, res); if (!emp) return;
+
     const [lead] = await getDb().select().from(leads).where(eq(leads._id, String(req.params.id))).limit(1);
-    if (!lead || !canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.update.own", "lead.update.assigned")) return res.status(404).json({ error: "Lead not found." });
+    if (!lead) return res.status(404).json({ error: "Lead not found." });
+
+    if (req.user!.role !== "ADMIN") {
+      const emp = await needEmployee(req, res); if (!emp) return;
+      if (!canAccessEmployeeLead(emp.permissions, lead, req.user!.userId, "lead.update.own", "lead.update.assigned")) {
+        return res.status(403).json({ error: "Permission denied." });
+      }
+    }
+
     const d = parsed.data;
     const patch: Partial<typeof leads.$inferInsert> = { updatedAt: new Date() };
     if (d.stage) patch.stage = d.stage;
@@ -1369,17 +1378,11 @@ router.patch("/leads/:id", requireRole("EMPLOYEE"), async (req: AuthedRequest, r
     if (d.nextFollowUpAt !== undefined) patch.nextFollowUpAt = parseDate(d.nextFollowUpAt);
     if (d.followUpNotes !== undefined) patch.followUpNotes = d.followUpNotes;
     if (d.siteVisitStatus) patch.siteVisitStatus = d.siteVisitStatus;
+    if (d.assignedToId !== undefined) patch.assignedToId = d.assignedToId;
+
     const [updated] = await getDb().update(leads).set(patch).where(eq(leads._id, lead._id)).returning();
-    await getDb().insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "NOTE", content: d.followUpNotes || "Employee updated lead details", metadata: { changedFields: Object.keys(d) } });
+    await getDb().insert(leadActivities).values({ leadId: lead._id, cpId: null, actorUserId: req.user!.userId, type: "NOTE", content: d.followUpNotes || "Lead updated", metadata: { changedFields: Object.keys(d) } });
     await logAudit({ userId: req.user!.userId, action: "employee.lead.update", resourceType: "lead", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
-    await notifyActiveAdmins({
-      type: "employee_lead_updated",
-      title: "Employee updated a buyer lead",
-      message: emp.name + " updated buyer lead " + lead.clientName + (d.stage ? " to " + d.stage.replaceAll("_", " ").toLowerCase() : "."),
-      actorUserId: req.user!.userId,
-      href: "/admin/employees?tab=leads",
-      dedupeKey: "employee-lead-update:" + String(lead._id) + ":" + Math.floor(Date.now() / 60000),
-    });
     return res.json({ lead: updated });
   } catch (err) { next(err); }
 });

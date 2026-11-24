@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, Clock3, FileSearch, Filter, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Clock3, FileSearch, Filter, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 type RequirementStatus = "ACTIVE" | "CLOSED" | "UNDER_REVIEW" | "REJECTED" | "SPAM";
 interface Requirement {
@@ -176,18 +176,31 @@ export default function AdminRequirementsPage() {
   ] : [];
 
   return (
-    <main className="min-h-screen px-4 py-7 pb-28 text-white sm:px-6 md:px-10">
-      <div className="mx-auto max-w-7xl space-y-7">
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      <div className="space-y-6">
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Truvi operations</p>
-            <h1 className="mt-2 flex items-center gap-2 text-2xl font-semibold sm:text-3xl"><ShieldCheck size={26} /> Requirement moderation</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Review requirement quality, identify possible duplicates, inspect activity history, and monitor real matching and email queue status. Private client data appears only in this admin-protected view.</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+                <FileSearch size={24} className="text-teal-400" />
+                Requirement Moderation
+              </h1>
+              <SectionInfoTooltip
+                title="Buyer Property Requirements"
+                content="Inbound buyer purchase briefs and property requests. Review budget matching algorithms, duplicate groups, private client contacts, and direct notification status."
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Review requirement quality, identify possible duplicates, inspect activity history, and monitor inventory matching.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw size={14} /> Refresh</Button>
-            <Button variant="outline" size="sm" onClick={() => void retryFailedEmails()} disabled={retryingEmails}><RefreshCw size={14} /> {retryingEmails ? "Queueing..." : "Retry failed emails"}</Button>
-            <Link to="/admin" className="inline-flex items-center gap-1 text-sm text-teal-300 hover:text-teal-200"><ArrowLeft size={15} /> Admin dashboard</Link>
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="rounded-xl text-xs">
+              <RefreshCw size={13} className="mr-1.5" /> Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void retryFailedEmails()} disabled={retryingEmails} className="rounded-xl text-xs">
+              <RefreshCw size={13} className="mr-1.5" /> {retryingEmails ? "Queueing..." : "Retry Failed Emails"}
+            </Button>
           </div>
         </header>
 

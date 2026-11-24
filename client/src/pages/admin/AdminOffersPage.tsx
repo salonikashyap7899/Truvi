@@ -1,10 +1,11 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Gift, Loader2, Pencil, Plus, Power, Sparkles, Trash2, X } from "lucide-react";
+import { Gift, Loader2, Pencil, Plus, Power, Trash2, X, Percent } from "lucide-react";
 import { api } from "@/lib/api";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { formatDate, istToday, ROLE_LABEL } from "@/components/leads/inventoryLeadShared";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 /**
  * Admin → Offers. Create, edit, switch on/off and delete incentive offers
@@ -150,20 +151,29 @@ export default function AdminOffersPage() {
   }
 
   return (
-    <main className="min-h-screen p-4 text-white sm:p-6 md:p-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold"><Gift size={22} className="text-amber-300" /> Offers</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Incentives shown as a “Special Offer” badge on inventory to the people you choose. Rewards are always calculated by the server.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+              <Gift size={24} className="text-amber-400" />
+              Offers &amp; Sales Incentives
+            </h1>
+            <SectionInfoTooltip
+              title="Sales Incentives &amp; Promotional Offers"
+              content="Configure project sales incentives, per-sqft commission bonuses, and discount badges displayed across property inventory cards."
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Incentives shown as an offer badge on inventory to designated buyer, partner, or ambassador roles.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setEditing({ ...BLANK, ...PARADISE_PRESET })} className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3.5 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20">
-            <Sparkles size={14} /> Paradise Town preset
+          <button onClick={() => setEditing({ ...BLANK, ...PARADISE_PRESET })} className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 transition">
+            <Percent size={13} /> Sales bonus preset
           </button>
-          <button onClick={() => setEditing({ ...BLANK })} className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-2 text-sm font-semibold hover:bg-sky-500">
-            <Plus size={15} /> New offer
+          <button onClick={() => setEditing({ ...BLANK })} className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition">
+            <Plus size={14} /> New Offer
           </button>
         </div>
       </div>

@@ -871,4 +871,58 @@ router.patch("/admin/privacy-requests/:id", requireRole("ADMIN"), adminLimiter, 
   return res.json({ request: updated });
 });
 
+router.patch("/admin/account-deletions/:id", requireRole("ADMIN"), adminLimiter, async (req: AuthedRequest, res) => {
+  const id = String(req.params.id);
+  const statusSchema = z.object({
+    status: z.enum(["DEACTIVATED", "ERASURE_REVIEW", "RESTORED", "CANCELLED"]),
+  });
+  const parsed = statusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
+
+  const db = getDb();
+  const [current] = await db.select().from(accountDeletionRequests).where(eq(accountDeletionRequests._id, id));
+  if (!current) return res.status(404).json({ error: "Account deletion request not found" });
+
+  const now = new Date();
+  const [updated] = await db.update(accountDeletionRequests).set({
+    status: parsed.data.status as any,
+    updatedAt: now,
+  }).where(eq(accountDeletionRequests._id, id)).returning();
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "compliance.account_deletion.review",
+    resourceType: "account_deletion_request",
+    resourceId: id,
+    metadata: { from: current.status, to: parsed.data.status },
+  });
+
+  return res.json({ request: updated });
+});
+
+router.get("/admin/export", requireRole("ADMIN"), adminLimiter, async (_req: AuthedRequest, res) => {
+  const db = getDb();
+  const [grievances, privacy, deletions] = await Promise.all([
+    db.select().from(grievanceTickets).limit(500),
+    db.select().from(privacyRequests).limit(500),
+    db.select().from(accountDeletionRequests).limit(500),
+  ]);
+
+  const report = {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalGrievances: grievances.length,
+      totalPrivacyRequests: privacy.length,
+      totalAccountDeletions: deletions.length,
+    },
+    grievances,
+    privacyRequests: privacy,
+    accountDeletions: deletions,
+  };
+
+  res.setHeader("Content-Disposition", `attachment; filename=compliance_report_${Date.now()}.json`);
+  res.setHeader("Content-Type", "application/json");
+  return res.json(report);
+});
+
 export default router;

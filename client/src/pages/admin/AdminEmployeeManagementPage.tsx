@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Check, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X } from "lucide-react";
+import { Banknote, BarChart3, CalendarCheck, CalendarClock, CalendarDays, Check, Clock3, History, LayoutDashboard, ListChecks, Mail, Phone, RefreshCw, ShieldCheck, UserRound, Users, X, Filter } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 type Tab = "overview" | "employees" | "tasks" | "leads" | "visits" | "attendance" | "leave" | "salary" | "reports" | "activity";
 type Employee = {
@@ -68,14 +69,20 @@ const tabIcons = {
 const money = (n?: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n ?? 0);
 const date = (raw?: string | null) => raw ? new Date(raw).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const dt = (raw?: string | null) => raw ? new Date(raw).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
-const pill = (status: string) => status === "ACTIVE" || status === "PAID" || status === "APPROVED" || status === "COMPLETED" || status === "PRESENT" ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20" : status === "INACTIVE" || status === "CANCELLED" || status === "ABSENT" || status === "ON_HOLD" ? "bg-red-500/10 text-red-300 border-red-500/20" : "bg-amber-500/10 text-amber-200 border-amber-500/20";
-
 function Status({ value }: { value: string }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${pill(value)}`}>{value.replaceAll("_", " ")}</span>;
+  const isPos = ["ACTIVE", "PAID", "APPROVED", "COMPLETED", "PRESENT"].includes(value);
+  const isNeg = ["INACTIVE", "CANCELLED", "ABSENT", "ON_HOLD", "REJECTED"].includes(value);
+  const dotColor = isPos ? "bg-emerald-500" : isNeg ? "bg-rose-500" : "bg-amber-500";
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+      <span>{value.replaceAll("_", " ")}</span>
+    </span>
+  );
 }
 function Kpi({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="truvi-admin-employee-kpi relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-sm">
+    <div className="truvi-admin-employee-kpi relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-semibold leading-5 text-foreground">{label}</p>
       </div>
@@ -84,12 +91,15 @@ function Kpi({ label, value, sub }: { label: string; value: string | number; sub
     </div>
   );
 }
-function Panel({ title, sub, children, action }: { title: string; sub?: string; children: ReactNode; action?: ReactNode }) {
+function Panel({ title, sub, tooltip, children, action }: { title: ReactNode; sub?: string; tooltip?: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)] sm:p-5">
+    <section className="relative overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] p-4 shadow-sm sm:p-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-semibold tracking-tight">{title}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold tracking-tight">{title}</h2>
+            {tooltip && <SectionInfoTooltip title={typeof title === "string" ? title : "Section Information"} content={tooltip} />}
+          </div>
           {sub && <p className="mt-1 text-xs leading-5 text-muted-foreground">{sub}</p>}
         </div>
         {action}
@@ -273,6 +283,8 @@ export default function AdminEmployeeManagementPage() {
   const [perfFrom, setPerfFrom] = useState("");
   const [perfTo, setPerfTo] = useState("");
   const [perfDepartment, setPerfDepartment] = useState("ALL");
+  const [deptFilter, setDeptFilter] = useState("ALL");
+  const [leadAssigneeFilter, setLeadAssigneeFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
   const [loadIssues, setLoadIssues] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -286,6 +298,41 @@ export default function AdminEmployeeManagementPage() {
   const [reassignEmployeeIds, setReassignEmployeeIds] = useState<string[]>([]);
   const [salaryForm, setSalaryForm] = useState({ employeeId: "", monthKey: new Date().toISOString().slice(0, 7), grossSalary: "", allowances: "0", deductions: "0", notes: "" });
   const [correction, setCorrection] = useState({ id: "", status: "PRESENT", correctionReason: "" });
+
+  const departments = useMemo(
+    () => ["ALL", ...Array.from(new Set(employees.map((e) => e.department).filter(Boolean))).sort()],
+    [employees],
+  );
+
+  async function reassignLead(leadId: string, assignedToId: string | null) {
+    try {
+      await api.patch(`/employees/leads/${leadId}`, { assignedToId });
+      toast.success("Lead reassigned successfully");
+      setLeads((prev) => prev.map((l) => (l._id === leadId ? { ...l, assignedToId } : l)));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to reassign lead");
+    }
+  }
+
+  async function updateLeadStage(leadId: string, stage: string) {
+    try {
+      await api.patch(`/employees/leads/${leadId}`, { stage });
+      toast.success("Lead stage updated");
+      setLeads((prev) => prev.map((l) => (l._id === leadId ? { ...l, stage } : l)));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update lead stage");
+    }
+  }
+
+  async function updateLeadTemperature(leadId: string, leadTemperature: string) {
+    try {
+      await api.patch(`/employees/leads/${leadId}`, { leadTemperature });
+      toast.success("Lead temperature updated");
+      setLeads((prev) => prev.map((l) => (l._id === leadId ? { ...l, leadTemperature } : l)));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to update lead temperature");
+    }
+  }
 
   // Dedicated Permissions Modal State
   const [permissionEmployee, setPermissionEmployee] = useState<Employee | null>(null);
@@ -437,8 +484,56 @@ export default function AdminEmployeeManagementPage() {
   const shownEmployees = useMemo(() => employees.filter((e) => {
     const q = query.toLowerCase().trim();
     const match = !q || [e.name, e.officialEmail, e.employeeCode, e.department, e.designation, e.phone].some((v) => String(v ?? "").toLowerCase().includes(q));
-    return match && (statusFilter === "ALL" || e.status === statusFilter);
-  }), [employees, query, statusFilter]);
+    const matchDept = deptFilter === "ALL" || e.department === deptFilter;
+    return match && matchDept && (statusFilter === "ALL" || e.status === statusFilter);
+  }), [employees, query, statusFilter, deptFilter]);
+
+  const filteredTasks = useMemo(() => {
+    if (deptFilter === "ALL") return tasks;
+    const deptEmpIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.id));
+    return tasks.filter(t => deptEmpIds.has(t.employeeId) || t.assignees?.some(a => deptEmpIds.has(a.employeeId)));
+  }, [tasks, deptFilter, employees]);
+
+  const filteredLeads = useMemo(() => {
+    let list = leads;
+    if (deptFilter !== "ALL") {
+      const deptAccountUserIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.accountUserId).filter(Boolean));
+      list = list.filter(l => (l.assignedToId && deptAccountUserIds.has(l.assignedToId)) || (l.submittedById && deptAccountUserIds.has(l.submittedById)));
+    }
+    if (leadAssigneeFilter !== "ALL") {
+      list = list.filter(l => l.assignedToId === leadAssigneeFilter || l.submittedById === leadAssigneeFilter);
+    }
+    return list;
+  }, [leads, deptFilter, leadAssigneeFilter, employees]);
+
+  const filteredVisits = useMemo(() => {
+    if (deptFilter === "ALL") return visits;
+    const deptAccountUserIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.accountUserId).filter(Boolean));
+    return visits.filter(v => v.responsibleUserId && deptAccountUserIds.has(v.responsibleUserId));
+  }, [visits, deptFilter, employees]);
+
+  const filteredAttendance = useMemo(() => {
+    if (deptFilter === "ALL") return attendance;
+    const deptEmpIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.id));
+    return attendance.filter(a => deptEmpIds.has(a.employeeId));
+  }, [attendance, deptFilter, employees]);
+
+  const filteredLeave = useMemo(() => {
+    if (deptFilter === "ALL") return leaveRequests;
+    const deptEmpIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.id));
+    return leaveRequests.filter(l => deptEmpIds.has(l.employeeId) || l.department === deptFilter);
+  }, [leaveRequests, deptFilter, employees]);
+
+  const filteredSalaries = useMemo(() => {
+    if (deptFilter === "ALL") return salaries;
+    const deptEmpIds = new Set(employees.filter(e => e.department === deptFilter).map(e => e.id));
+    return salaries.filter(s => deptEmpIds.has(s.employeeId));
+  }, [salaries, deptFilter, employees]);
+
+  const filteredPerformance = useMemo(() => {
+    if (deptFilter === "ALL") return performance;
+    return performance.filter(p => p.department === deptFilter);
+  }, [performance, deptFilter]);
 
   const attendanceMarked = summary
     ? summary.attendanceSummary.present + summary.attendanceSummary.absent + summary.attendanceSummary.halfDay + summary.attendanceSummary.onLeave
@@ -659,13 +754,51 @@ export default function AdminEmployeeManagementPage() {
   return (
     <div className="truvi-erm truvi-erm-admin mx-auto max-w-[1600px] space-y-6 p-4 text-foreground sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Truvi Operations</p><h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Employee Management</h1></div>
-        <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/> Refresh data</button><Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Activity &amp; audit logs</Link><button onClick={() => { setEditing(null); setEmployeeForm({ ...emptyEmployee }); setShowForm((v) => !v); }} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{showForm ? "Close form" : "+ Add employee"}</button></div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl">Employee Management</h1>
+            <SectionInfoTooltip
+              title="Employee Operations Suite"
+              content="Department-wise workforce directory, company tasks, assigned buyer leads, site visit schedules, attendance tracking, leave approvals, payroll, and performance scorecards."
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50"><RefreshCw size={16} className={loading ? "animate-spin" : ""}/> Refresh data</button>
+          <Link to="/admin/audit-logs" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm">Activity &amp; audit logs</Link>
+          <button onClick={() => { setEditing(null); setEmployeeForm({ ...emptyEmployee }); setShowForm((v) => !v); }} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">{showForm ? "Close form" : "+ Add employee"}</button>
+        </div>
       </header>
 
       <nav aria-label="Employee management sections" className="truvi-erm-tabs flex gap-2 overflow-x-auto border-b border-white/10 pb-2">
         {tabs.map((t) => { const Icon = tabIcons[t.id]; return <button key={t.id} type="button" aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"}`}><Icon size={16} aria-hidden="true"/><span>{t.label}</span></button>; })}
       </nav>
+
+      {/* Global Department Filter Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <Filter size={14} className="text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Department:
+          </span>
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="rounded-lg border border-white/10 bg-background px-2.5 py-1 text-xs font-medium outline-none focus:border-primary"
+          >
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d === "ALL" ? "All Departments" : d}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+          <span>Active filter: <strong className="text-foreground">{deptFilter === "ALL" ? "All Staff" : deptFilter}</strong></span>
+          <span>·</span>
+          <span>{shownEmployees.length} staff members</span>
+        </div>
+      </div>
 
       {loading && <div role="status" className="rounded-xl border border-white/10 p-4 text-sm text-muted-foreground">Loading live company records…</div>}
       {!loading && loadIssues.length > 0 && <div role="status" className="truvi-erm-load-warning flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 text-sm"><div><p className="font-semibold">Some sections need attention</p><p className="mt-1">The rest of Employee Management remains available. Failed requests: {loadIssues.join(", ")}.</p></div><button type="button" onClick={() => void reload()} className="inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm"><RefreshCw size={15}/> Retry data</button></div>}
@@ -903,15 +1036,38 @@ export default function AdminEmployeeManagementPage() {
         </form>
       </Panel>}
 
-      {tab === "employees" && <Panel title="Employee directory" sub="Search by name, email, employee ID, department or phone" action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}>
+      {tab === "employees" && <Panel
+        title={
+          <div className="flex items-center gap-2">
+            <span>Employee directory</span>
+            <SectionInfoTooltip
+              title="Employee Directory"
+              content="Comprehensive personnel records, recruitment sources, account provisioning, permission management, and profile history."
+            />
+          </div>
+        }
+        sub="Search by name, email, employee ID, department or phone"
+        action={<span className="text-xs text-muted-foreground">{shownEmployees.length} records</span>}
+      >
         <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_200px]"><input aria-label="Search employees" className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" placeholder="Search employees…" value={query} onChange={(e) => setQuery(e.target.value)}/><select className="rounded-xl border border-white/10 bg-background px-3 py-2.5 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ON_LEAVE">On leave</option><option value="INACTIVE">Inactive</option></select></div>
         <div className="overflow-x-auto"><table className="w-full min-w-[880px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Department</th><th className="p-3">Recruitment source</th><th className="p-3">Status / account</th><th className="p-3">Monthly salary</th><th className="p-3">Actions</th></tr></thead><tbody>{shownEmployees.map((e) => <tr key={e.id} className="border-t border-white/10 align-top"><td className="p-3"><div className="flex min-w-0 items-start gap-3"><div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-semibold text-primary">{e.avatarUrl ? <img src={e.avatarUrl} alt="" className="h-full w-full object-cover"/> : <span>{e.name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</span>}</div><div className="min-w-0"><p className="font-semibold">{e.name}</p><p className="mt-1 text-xs text-muted-foreground">{e.employeeCode || "No ID"} · {e.designation || "No designation"}</p><p className="mt-1 text-xs text-muted-foreground">{e.officialEmail}</p><p className="text-xs text-muted-foreground">{e.phone}</p></div></div></td><td className="p-3">{e.department}<p className="mt-1 text-xs text-muted-foreground">{e.employmentType.replaceAll("_"," ")}</p></td><td className="p-3">{e.recruitmentSource || "Other"}<p className="mt-1 text-xs text-muted-foreground">{e.recruitmentCampaign}</p></td><td className="space-y-1 p-3"><Status value={e.status}/><p><Status value={e.accountStatus || "UNKNOWN"}/></p></td><td className="p-3">{money(e.monthlySalary)}</td><td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => void openEmployeeProfile(e)} className="rounded-lg border border-primary/25 px-2.5 py-1.5 text-xs text-primary">Full profile</button><button type="button" onClick={() => startEdit(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Edit</button><button type="button" onClick={() => openPermissionsModal(e)} className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition"><ShieldCheck size={12} />Permissions</button>{e.status !== "INACTIVE" && (<button type="button" onClick={() => openDirectTaskModal(e)} className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"><ListChecks size={12} />Assign Task</button>)}{e.status !== "INACTIVE" && (!e.accountUserId ? <button onClick={() => void createAccount(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Create login</button> : e.accountStatus === "INVITED_OR_DISABLED" ? <button onClick={() => void resendInvite(e)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">Resend invite</button> : null)}<button disabled={busy} onClick={async () => { if (!window.confirm(`${e.status === "INACTIVE" ? "Reactivate" : "Deactivate"} ${e.name}?`)) return; try { await api.patch(`/employees/${e.id}`, { status: e.status === "INACTIVE" ? "ACTIVE" : "INACTIVE" }); toast.success("Employee status updated."); await reload(); } catch (err: any) { toast.error(err?.response?.data?.error || "Could not update status."); } }} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">{e.status === "INACTIVE" ? "Reactivate" : "Deactivate"}</button></div></td></tr>)}</tbody></table>{!shownEmployees.length && <p className="p-8 text-center text-sm text-muted-foreground">No employee profiles match these filters.</p>}</div>
       </Panel>}
 
       {tab === "tasks" && <div className="space-y-4">
-        <Panel title="Assign a task" sub="Assigned tasks are distinct from employees' personal tasks.">
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Assign a task</span>
+              <SectionInfoTooltip
+                title="Task Assignment"
+                content="Create and dispatch trackable tasks to one or more employees with deadlines, priorities, and internal attachments."
+              />
+            </div>
+          }
+          sub="Assigned tasks are distinct from employees' personal tasks."
+        >
           <form onSubmit={assignTask} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="space-y-2 rounded-xl border border-white/10 p-3 sm:col-span-2 xl:col-span-3">
+            <div className="space-y-2 rounded-xl border border-white/10 p-3 sm:col-span-2 xl:grid-cols-3">
               <p className="text-sm font-medium">Assign to employees <span className="text-muted-foreground">({taskForm.employeeIds.length} selected)</span></p>
               <div className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
                 {employees.filter((employee) => employee.status !== "INACTIVE" && !!employee.accountUserId).map((employee) => (
@@ -936,8 +1092,20 @@ export default function AdminEmployeeManagementPage() {
             <button disabled={busy || taskForm.employeeIds.length === 0} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Assigning…" : "Assign task"}</button>
           </form>
         </Panel>
-        <Panel title="Company task board" sub="Filterable task lifecycle and deadlines">
-          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{tasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><button onClick={()=>void openTaskActivity(t._id)} className="ml-2 rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><div className="flex flex-col items-start gap-2"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select>{t.taskType==="ASSIGNED"&&!["COMPLETED","CANCELLED"].includes(t.status)&&<button onClick={()=>startReassignTask(t)} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Edit assignees</button>}</div></td></tr>)}</tbody></table>{tasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks created yet.</p>}</div>
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Company task board</span>
+              <SectionInfoTooltip
+                title="Company Tasks"
+                content="Monitor status, reassign assignees, download attachments, and review audit trail for all company-assigned tasks."
+              />
+            </div>
+          }
+          sub="Filterable task lifecycle and deadlines"
+          action={<span className="text-xs text-muted-foreground">{filteredTasks.length} tasks</span>}
+        >
+          <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Task</th><th className="p-3">Employee</th><th className="p-3">Priority</th><th className="p-3">Deadline</th><th className="p-3">Status</th><th className="p-3">Update</th></tr></thead><tbody>{filteredTasks.map((t)=><tr key={t._id} className="border-t border-white/10"><td className="p-3"><b>{t.title}</b><button onClick={()=>void openTaskActivity(t._id)} className="ml-2 rounded-lg border border-white/10 px-2 py-1 text-xs">{taskActivityId===t._id?"Hide activity":"History & comments"}</button><p className="mt-1 text-xs text-muted-foreground">{t.taskType} · {t.description}</p><div className="mt-2 flex flex-wrap gap-2">{(t.attachments || []).map((attachment)=><span key={attachment._id} className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1"><button onClick={()=>void downloadTaskAttachment(t._id,attachment)} className="text-xs underline">{attachment.originalFileName}</button><button aria-label={"Delete " + attachment.originalFileName} onClick={()=>void deleteTaskAttachment(t._id,attachment)} className="px-1 text-xs text-red-300">×</button></span>)}<label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs">+ Attach file<input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="sr-only" onChange={(event)=>{const file=event.target.files?.[0];if(file)void uploadTaskAttachment(t._id,file);event.target.value="";}}/></label></div></td><td className="p-3">{t.assignees?.length ? t.assignees.map((a)=>a.name + " (" + a.status.replaceAll("_"," ") + ")").join(", ") : employees.find((e)=>e.id===t.employeeId)?.name || "Employee record"}</td><td className="p-3">{t.priority}</td><td className="p-3">{dt(t.deadlineAt)}</td><td className="p-3"><Status value={t.status}/></td><td className="p-3"><div className="flex flex-col items-start gap-2"><select value={t.status} onChange={(e)=>void updateTask(t,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["ASSIGNED","ACCEPTED","IN_PROGRESS","ON_HOLD","COMPLETED","CANCELLED"].map((v)=><option key={v}>{v}</option>)}</select>{t.taskType==="ASSIGNED"&&!["COMPLETED","CANCELLED"].includes(t.status)&&<button onClick={()=>startReassignTask(t)} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Edit assignees</button>}</div></td></tr>)}</tbody></table>{filteredTasks.length===0&&<p className="p-6 text-sm text-muted-foreground">No tasks found for the selected department filter.</p>}</div>
         </Panel>
         {taskActivityId && <Panel title={"Task history & comments · " + (tasks.find((task) => task._id === taskActivityId)?.title || "Task")} sub="Each action is recorded by Truvi. Comments and history are visible only to the Admin and authorized task assignees.">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -953,43 +1121,238 @@ export default function AdminEmployeeManagementPage() {
         </Panel>}
       </div>}
 
-      {tab === "leads" && <Panel title="Central buyer lead management" sub="These are rows from Truvi's existing leads table, not a separate employee lead database. Employee identity is the submitting user.">
-        <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Buyer</th><th className="p-3">Contact</th><th className="p-3">Source / temperature</th><th className="p-3">Stage</th><th className="p-3">Next follow-up</th><th className="p-3">Submitted</th></tr></thead><tbody>{leads.map((l)=><tr key={l._id} className="border-t border-white/10"><td className="p-3"><b>{l.clientName}</b><p className="mt-1 text-xs text-muted-foreground">TRV-L-{String(l.leadNo||"").padStart(6,"0")}</p></td><td className="p-3">{l.clientPhone}<p className="mt-1 text-xs text-muted-foreground">{l.clientEmail}</p></td><td className="p-3">{l.source}<p className="mt-1 text-xs text-muted-foreground">{l.leadTemperature||"Unclassified"}</p></td><td className="p-3"><Status value={l.stage}/></td><td className="p-3">{dt(l.nextFollowUpAt)}</td><td className="p-3">{date(l.createdAt)}</td></tr>)}</tbody></table>{leads.length===0&&<p className="p-6 text-sm text-muted-foreground">No leads found.</p>}</div>
-        <p className="mt-3 text-xs text-muted-foreground">For the complete existing CRM workflow, open <Link className="underline" to="/admin/leads">Central Leads</Link>.</p>
+      {tab === "leads" && <Panel
+        title={
+          <div className="flex items-center gap-2">
+            <span>Lead Management &amp; Employee Assignment</span>
+            <SectionInfoTooltip
+              title="Employee Lead Assignment"
+              content="View and reassign inbound buyer leads to employees, update deal stages, inspect lead temperature, and initiate direct calls."
+            />
+          </div>
+        }
+        sub="Central CRM lead pipeline mapped to department personnel with real-time assignment controls."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={leadAssigneeFilter}
+              onChange={(e) => setLeadAssigneeFilter(e.target.value)}
+              className="rounded-lg border border-white/10 bg-background px-2.5 py-1 text-xs font-medium"
+            >
+              <option value="ALL">All Assignees</option>
+              {employees.filter(e => e.accountUserId).map((e) => (
+                <option key={e.id} value={e.accountUserId!}>
+                  {e.name} ({e.department})
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">{filteredLeads.length} leads</span>
+          </div>
+        }
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[950px] text-left text-sm">
+            <thead className="text-xs text-muted-foreground">
+              <tr>
+                <th className="p-3">Buyer &amp; Contact</th>
+                <th className="p-3">Assigned Employee</th>
+                <th className="p-3">Stage</th>
+                <th className="p-3">Temperature</th>
+                <th className="p-3">Next Action / Follow-up</th>
+                <th className="p-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.map((l) => {
+                const assignedEmp = employees.find(e => e.accountUserId === l.assignedToId);
+                const isHot = l.leadTemperature === "HOT";
+                const isWarm = l.leadTemperature === "WARM";
+                return (
+                  <tr key={l._id} className="border-t border-white/10 align-middle">
+                    <td className="p-3">
+                      <div className="font-semibold text-foreground">{l.clientName}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        TRV-L-{String(l.leadNo || "").padStart(6, "0")} · {l.source || "Direct"}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
+                        <span className="font-mono text-muted-foreground">{l.clientPhone}</span>
+                        {l.clientPhone && (
+                          <a
+                            href={`tel:${l.clientPhone}`}
+                            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+                            title="Call buyer"
+                          >
+                            <Phone size={10} /> Call
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <select
+                        value={l.assignedToId || ""}
+                        onChange={(e) => void reassignLead(l._id, e.target.value)}
+                        className="w-full max-w-[200px] rounded-lg border border-white/10 bg-background px-2.5 py-1.5 text-xs font-medium focus:border-primary"
+                      >
+                        <option value="">-- Unassigned --</option>
+                        {employees.filter(e => e.accountUserId && e.status !== "INACTIVE").map((emp) => (
+                          <option key={emp.id} value={emp.accountUserId!}>
+                            {emp.name} ({emp.department})
+                          </option>
+                        ))}
+                      </select>
+                      {assignedEmp && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {assignedEmp.department} · {assignedEmp.designation || "Staff"}
+                        </p>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <select
+                        value={l.stage}
+                        onChange={(e) => void updateLeadStage(l._id, e.target.value)}
+                        className="rounded-lg border border-white/10 bg-background px-2.5 py-1.5 text-xs font-medium focus:border-primary"
+                      >
+                        {["NEW", "CONTACTED", "INTERESTED", "SITE_VISIT_SCHEDULED", "SITE_VISIT_DONE", "NEGOTIATION", "TOKEN_PAID", "WON", "LOST", "DROPPED"].map((s) => (
+                          <option key={s} value={s}>{s.replaceAll("_", " ")}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block size-2 rounded-full ${
+                            isHot ? "bg-red-500" : isWarm ? "bg-amber-400" : "bg-sky-400"
+                          }`}
+                        />
+                        <select
+                          value={l.leadTemperature || "WARM"}
+                          onChange={(e) => void updateLeadTemperature(l._id, e.target.value)}
+                          className="rounded-lg border border-white/10 bg-background px-2 py-1 text-xs font-medium"
+                        >
+                          <option value="HOT">Hot</option>
+                          <option value="WARM">Warm</option>
+                          <option value="COLD">Cold</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-xs font-medium">
+                        {l.nextFollowUpAt ? dt(l.nextFollowUpAt) : <span className="text-muted-foreground">No follow-up set</span>}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        Added: {date(l.createdAt)}
+                      </div>
+                    </td>
+                    <td className="p-3 text-right">
+                      <Link
+                        to="/admin/leads"
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-xs hover:border-primary/40 hover:text-primary transition"
+                      >
+                        Open CRM
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filteredLeads.length === 0 && (
+            <p className="p-6 text-center text-sm text-muted-foreground">
+              No buyer leads match the selected department and assignee filters.
+            </p>
+          )}
+        </div>
       </Panel>}
 
-      {tab === "visits" && <Panel title="Site visits" sub="Proposed employee visits are stored in Truvi's existing site_visits table.">
-        <div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Buyer</th><th className="p-3">Project</th><th className="p-3">Schedule</th><th className="p-3">Status</th><th className="p-3">Update status</th></tr></thead><tbody>{visits.map((v)=><tr key={v._id} className="border-t border-white/10"><td className="p-3">{v.clientName||"Buyer"}<p className="text-xs text-muted-foreground">{v.clientPhone}</p></td><td className="p-3">{v.projectName||v.projectId}</td><td className="p-3">{dt(v.scheduledAt)}</td><td className="p-3"><Status value={v.status}/></td><td className="p-3"><select value={v.status} onChange={(e)=>void updateVisit(v,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["SCHEDULED","CONFIRMED","COMPLETED","CANCELLED","NO_SHOW"].map((s)=><option key={s}>{s}</option>)}</select></td></tr>)}</tbody></table>{visits.length===0&&<p className="p-6 text-sm text-muted-foreground">No site visits found.</p>}</div>
+      {tab === "visits" && <Panel
+        title={
+          <div className="flex items-center gap-2">
+            <span>Site visits schedule</span>
+            <SectionInfoTooltip
+              title="Site Visits"
+              content="Track buyer site visits scheduled by department staff, update completion statuses, and inspect scheduled locations."
+            />
+          </div>
+        }
+        sub="Proposed employee visits stored in the central site_visits table."
+        action={<span className="text-xs text-muted-foreground">{filteredVisits.length} visits</span>}
+      >
+        <div className="overflow-x-auto"><table className="w-full min-w-[750px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Buyer</th><th className="p-3">Project</th><th className="p-3">Schedule</th><th className="p-3">Status</th><th className="p-3">Update status</th></tr></thead><tbody>{filteredVisits.map((v)=><tr key={v._id} className="border-t border-white/10"><td className="p-3">{v.clientName||"Buyer"}<p className="text-xs text-muted-foreground">{v.clientPhone}</p></td><td className="p-3">{v.projectName||v.projectId}</td><td className="p-3">{dt(v.scheduledAt)}</td><td className="p-3"><Status value={v.status}/></td><td className="p-3"><select value={v.status} onChange={(e)=>void updateVisit(v,e.target.value)} className="rounded-lg border border-white/10 bg-background p-2 text-xs">{["SCHEDULED","CONFIRMED","COMPLETED","CANCELLED","NO_SHOW"].map((s)=><option key={s}>{s}</option>)}</select></td></tr>)}</tbody></table>{filteredVisits.length===0&&<p className="p-6 text-sm text-muted-foreground">No site visits found for this department filter.</p>}</div>
       </Panel>}
 
       {tab === "attendance" && <div className="space-y-4">
-        <Panel title="Correct an attendance record" sub="A correction reason is mandatory and is stored with an audit event.">
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Correct an attendance record</span>
+              <SectionInfoTooltip
+                title="Attendance Audit"
+                content="Manually adjust employee check-in/out records with mandatory reason logging for compliance and payroll."
+              />
+            </div>
+          }
+          sub="A correction reason is mandatory and is stored with an audit event."
+        >
           <form onSubmit={correctAttendance} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SelectField label="Attendance record" required value={correction.id} onChange={(v)=>setCorrection((s)=>({...s,id:v}))} options={[{value:"",label:"Choose a record"},...attendance.map((a)=>({value:a._id,label:`${employees.find((e)=>e.id===a.employeeId)?.name||"Employee"} · ${a.attendanceDate}`}))]}/>
+            <SelectField label="Attendance record" required value={correction.id} onChange={(v)=>setCorrection((s)=>({...s,id:v}))} options={[{value:"",label:"Choose a record"},...filteredAttendance.map((a)=>({value:a._id,label:`${employees.find((e)=>e.id===a.employeeId)?.name||"Employee"} · ${a.attendanceDate}`}))]}/>
             <SelectField label="Correct status" value={correction.status} onChange={(v)=>setCorrection((s)=>({...s,status:v}))} options={["PRESENT","ABSENT","HALF_DAY","ON_LEAVE","HOLIDAY"].map((s)=>({value:s,label:s.replaceAll("_"," ")}))}/>
             <Field label="Reason for correction" required value={correction.correctionReason} onChange={(v)=>setCorrection((s)=>({...s,correctionReason:v}))}/>
             <button className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Save correction</button>
           </form>
         </Panel>
-        <Panel title="Attendance history" sub="All displayed times use server-recorded timestamps.">
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Date</th><th className="p-3">Status</th><th className="p-3">Check in</th><th className="p-3">Check out</th><th className="p-3">Hours</th></tr></thead><tbody>{attendance.map((a)=><tr key={a._id} className="border-t border-white/10"><td className="p-3">{employees.find((e)=>e.id===a.employeeId)?.name||"Employee"}</td><td className="p-3">{a.attendanceDate}</td><td className="p-3"><Status value={a.status}/></td><td className="p-3">{dt(a.checkInAt)}</td><td className="p-3">{dt(a.checkOutAt)}</td><td className="p-3">{a.workingMinutes == null ? "—" : `${Math.floor(a.workingMinutes/60)}h ${a.workingMinutes%60}m`}</td></tr>)}</tbody></table>{attendance.length===0&&<p className="p-6 text-sm text-muted-foreground">No attendance has been recorded yet. This does not mean employees are absent.</p>}</div>
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Attendance history</span>
+              <SectionInfoTooltip
+                title="Attendance History"
+                content="Daily attendance logs, check-in/out timestamps, and total recorded hours per employee."
+              />
+            </div>
+          }
+          sub="All displayed times use server-recorded timestamps."
+          action={<span className="text-xs text-muted-foreground">{filteredAttendance.length} records</span>}
+        >
+          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Date</th><th className="p-3">Status</th><th className="p-3">Check in</th><th className="p-3">Check out</th><th className="p-3">Hours</th></tr></thead><tbody>{filteredAttendance.map((a)=><tr key={a._id} className="border-t border-white/10"><td className="p-3">{employees.find((e)=>e.id===a.employeeId)?.name||"Employee"}</td><td className="p-3">{a.attendanceDate}</td><td className="p-3"><Status value={a.status}/></td><td className="p-3">{dt(a.checkInAt)}</td><td className="p-3">{dt(a.checkOutAt)}</td><td className="p-3">{a.workingMinutes == null ? "—" : `${Math.floor(a.workingMinutes/60)}h ${a.workingMinutes%60}m`}</td></tr>)}</tbody></table>{filteredAttendance.length===0&&<p className="p-6 text-sm text-muted-foreground">No attendance records found for this department filter.</p>}</div>
         </Panel>
       </div>}
 
       {tab === "reports" && <div className="space-y-4">
-        <Panel title="Employee performance reports" sub="Metrics are calculated from central CRM records, task history, site visits, and explicit attendance records. These counts are not a complete measure of individual performance.">
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Employee performance reports</span>
+              <SectionInfoTooltip
+                title="Performance Scorecards"
+                content="Department-level breakdown of tasks completed, buyer leads handled, calls logged, and site visits performed."
+              />
+            </div>
+          }
+          sub="Metrics are calculated from central CRM records, task history, site visits, and explicit attendance records."
+        >
           <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Field label="From date" type="date" value={perfFrom} onChange={setPerfFrom}/>
             <Field label="To date" type="date" value={perfTo} onChange={setPerfTo}/>
             <SelectField label="Department" value={perfDepartment} onChange={setPerfDepartment} options={[{value:"ALL",label:"All departments"},...Array.from(new Set(employees.map((e)=>e.department))).sort().map((d)=>({value:d,label:d}))]}/>
             <button disabled={busy} onClick={()=>void loadPerformance()} className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Loading…":"Apply filters"}</button>
           </div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Tasks completed</th><th className="p-3">Open / overdue</th><th className="p-3">Leads submitted</th><th className="p-3">Leads assigned</th><th className="p-3">Calls logged</th><th className="p-3">Visits scheduled / completed</th><th className="p-3">Present days</th></tr></thead><tbody>{performance.map((m)=><tr key={m.employeeId} className="border-t border-white/10"><td className="p-3"><b>{m.name}</b><p className="mt-1 text-xs text-muted-foreground">{m.employeeCode||"No ID"} · {m.department}</p><p className="text-xs text-muted-foreground">{m.designation}</p></td><td className="p-3">{m.tasksCompleted}</td><td className="p-3">{m.tasksOpen} / {m.tasksOverdue}</td><td className="p-3">{m.leadsSubmitted}</td><td className="p-3">{m.leadsAssigned}</td><td className="p-3">{m.callsLogged}</td><td className="p-3">{m.siteVisitsScheduled} / {m.siteVisitsCompleted}</td><td className="p-3">{m.attendancePresentDays}</td></tr>)}</tbody></table>{performance.length===0&&<p className="p-6 text-sm text-muted-foreground">No metrics are available for these filters.</p>}</div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Tasks completed</th><th className="p-3">Open / overdue</th><th className="p-3">Leads submitted</th><th className="p-3">Leads assigned</th><th className="p-3">Calls logged</th><th className="p-3">Visits scheduled / completed</th><th className="p-3">Present days</th></tr></thead><tbody>{filteredPerformance.map((m)=><tr key={m.employeeId} className="border-t border-white/10"><td className="p-3"><b>{m.name}</b><p className="mt-1 text-xs text-muted-foreground">{m.employeeCode||"No ID"} · {m.department}</p><p className="text-xs text-muted-foreground">{m.designation}</p></td><td className="p-3">{m.tasksCompleted}</td><td className="p-3">{m.tasksOpen} / {m.tasksOverdue}</td><td className="p-3">{m.leadsSubmitted}</td><td className="p-3">{m.leadsAssigned}</td><td className="p-3">{m.callsLogged}</td><td className="p-3">{m.siteVisitsScheduled} / {m.siteVisitsCompleted}</td><td className="p-3">{m.attendancePresentDays}</td></tr>)}</tbody></table>{filteredPerformance.length===0&&<p className="p-6 text-sm text-muted-foreground">No metrics are available for these filters.</p>}</div>
         </Panel>
         <p className="text-xs leading-5 text-muted-foreground">“Calls logged” means call outcomes entered by employees, not detected phone calls or call recordings. Missing attendance is not counted as absence. Conversion rate is omitted unless a reliable closed-won data field is verified.</p>
       </div>}
 
-      {tab === "activity" && <Panel title="Employee activity and audit history" sub="Append-only audit entries for employee, task, lead, attendance, site-visit, permission, and salary actions. Passwords and tokens are not shown.">
+      {tab === "activity" && <Panel
+        title={
+          <div className="flex items-center gap-2">
+            <span>Employee activity and audit history</span>
+            <SectionInfoTooltip
+              title="Employee Audit Trail"
+              content="Chronological log of employee status transitions, permissions changes, payroll generation, and task assignees."
+            />
+          </div>
+        }
+        sub="Append-only audit entries for employee, task, lead, attendance, site-visit, permission, and salary actions."
+      >
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-[240px] flex-1"><SelectField label="Filter by employee" value={auditEmployeeId} onChange={setAuditEmployeeId} options={[{value:"ALL",label:"All employee activity"},...employees.map((e)=>({value:e.id,label:e.name+" · "+(e.employeeCode||e.department)}))]}/></div>
           <button disabled={busy} onClick={()=>void loadAuditLogs()} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm disabled:opacity-50">{busy?"Loading…":"Apply filter"}</button>
@@ -998,11 +1361,23 @@ export default function AdminEmployeeManagementPage() {
         <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Timestamp</th><th className="p-3">Action</th><th className="p-3">Actor</th><th className="p-3">Resource</th><th className="p-3">Details</th></tr></thead><tbody>{auditLogs.map((a)=><tr key={a._id} className="border-t border-white/10 align-top"><td className="whitespace-nowrap p-3">{dt(a.createdAt)}</td><td className="p-3"><span className="font-medium">{a.action}</span></td><td className="p-3">{a.actorName||"System"}<p className="mt-1 text-xs text-muted-foreground">{a.actorEmail}</p></td><td className="p-3">{a.resourceType||"—"}<p className="mt-1 max-w-[180px] break-all text-xs text-muted-foreground">{a.resourceId}</p></td><td className="max-w-[300px] p-3"><pre className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{JSON.stringify(a.metadata||{},null,2)}</pre></td></tr>)}</tbody></table>{auditLogs.length===0&&<p className="p-6 text-sm text-muted-foreground">No employee-management audit events match this filter.</p>}</div>
       </Panel>}
 
-      {tab === "leave" && <Panel title="Employee leave requests" sub="Approve or reject pending requests. Approval records ON_LEAVE days in attendance; conflicting check-ins must be resolved first.">
+      {tab === "leave" && <Panel
+        title={
+          <div className="flex items-center gap-2">
+            <span>Employee leave requests</span>
+            <SectionInfoTooltip
+              title="Leave Approvals"
+              content="Review and approve/reject employee time-off requests with optional reviewer notes. Approved leaves automatically block conflicting check-ins."
+            />
+          </div>
+        }
+        sub="Approve or reject pending requests. Approval records ON_LEAVE days in attendance."
+        action={<span className="text-xs text-muted-foreground">{filteredLeave.length} requests</span>}
+      >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Type / dates</th><th className="p-3">Days</th><th className="p-3">Reason</th><th className="p-3">Status / review</th><th className="p-3">Actions</th></tr></thead>
-            <tbody>{leaveRequests.map((request)=><tr key={request._id} className="border-t border-white/10 align-top">
+            <tbody>{filteredLeave.map((request)=><tr key={request._id} className="border-t border-white/10 align-top">
               <td className="p-3"><b>{request.employeeName || employees.find((e)=>e.id===request.employeeId)?.name || "Employee"}</b><p className="mt-1 text-xs text-muted-foreground">{request.employeeCode || request.department}</p></td>
               <td className="p-3">{request.leaveType.replaceAll("_"," ")}<p className="mt-1 text-xs text-muted-foreground">{request.startDate} → {request.endDate}</p></td>
               <td className="p-3">{request.totalDays}</td><td className="max-w-[280px] whitespace-pre-wrap p-3">{request.reason}</td>
@@ -1010,12 +1385,23 @@ export default function AdminEmployeeManagementPage() {
               <td className="p-3">{request.status === "PENDING" ? <div className="flex flex-wrap gap-2"><button onClick={()=>void reviewLeave(request,"APPROVED")} className="rounded-lg border border-emerald-500/30 px-2.5 py-1.5 text-xs text-emerald-300">Approve</button><button onClick={()=>void reviewLeave(request,"REJECTED")} className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-300">Reject</button></div> : "—"}</td>
             </tr>)}</tbody>
           </table>
-          {leaveRequests.length===0 && <p className="p-6 text-center text-sm text-muted-foreground">No employee leave requests have been submitted.</p>}
+          {filteredLeave.length===0 && <p className="p-6 text-center text-sm text-muted-foreground">No employee leave requests found for this department filter.</p>}
         </div>
       </Panel>}
 
       {tab === "salary" && <div className="space-y-4">
-        <Panel title="Create monthly payroll record" sub="Creates a Draft record only. This does not transfer money or automatically mark a salary as paid.">
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Create monthly payroll record</span>
+              <SectionInfoTooltip
+                title="Payroll Drafting"
+                content="Create a monthly draft payroll record with base salary, allowances, and deductions before managerial approval."
+              />
+            </div>
+          }
+          sub="Creates a Draft record only. This does not transfer money or automatically mark a salary as paid."
+        >
           <form onSubmit={createSalary} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <SelectField label="Employee" required value={salaryForm.employeeId} onChange={(v)=>setSalaryForm((s)=>({...s,employeeId:v}))} options={[{value:"",label:"Choose employee"},...employees.map((e)=>({value:e.id,label:`${e.name} · ${e.employeeCode||"No ID"}`}))]}/>
             <Field label="Payroll month" type="month" required value={salaryForm.monthKey} onChange={(v)=>setSalaryForm((s)=>({...s,monthKey:v}))}/>
@@ -1026,8 +1412,20 @@ export default function AdminEmployeeManagementPage() {
             <button disabled={busy} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : "Create draft record"}</button>
           </form>
         </Panel>
-        <Panel title="Salary records" sub="Approvals and status transitions are validated server-side.">
-          <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Month</th><th className="p-3">Gross</th><th className="p-3">Allowances</th><th className="p-3">Deductions</th><th className="p-3">Net payable</th><th className="p-3">Status</th><th className="p-3">Next action</th></tr></thead><tbody>{salaries.map((s)=><tr key={s._id} className="border-t border-white/10"><td className="p-3"><b>{s.employeeName||employees.find((e)=>e.id===s.employeeId)?.name||"Employee"}</b><p className="text-xs text-muted-foreground">{s.employeeCode}</p></td><td className="p-3">{s.monthKey}</td><td className="p-3">{money(s.grossSalary)}</td><td className="p-3">{money(s.allowances)}</td><td className="p-3">{money(s.deductions)}</td><td className="p-3 font-semibold">{money(s.netPayable)}</td><td className="p-3"><Status value={s.status}/></td><td className="p-3"><div className="flex flex-wrap gap-1">{s.status==="DRAFT"&&<button onClick={()=>void advanceSalary(s,"PENDING_APPROVAL")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Submit approval</button>}{s.status==="PENDING_APPROVAL"&&<button onClick={()=>void advanceSalary(s,"APPROVED")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Approve</button>}{s.status==="APPROVED"&&<button onClick={()=>void advanceSalary(s,"PAID")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Record paid</button>}{!["PAID","ON_HOLD"].includes(s.status)&&<button onClick={()=>void advanceSalary(s,"ON_HOLD")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Hold</button>}{s.status==="ON_HOLD"&&<button onClick={()=>void advanceSalary(s,"DRAFT")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Return to draft</button>}</div></td></tr>)}</tbody></table>{salaries.length===0&&<p className="p-6 text-sm text-muted-foreground">No salary records. Create a draft above.</p>}</div>
+        <Panel
+          title={
+            <div className="flex items-center gap-2">
+              <span>Salary records</span>
+              <SectionInfoTooltip
+                title="Payroll Status"
+                content="Review monthly gross, allowances, deductions, net payable amount, approval states, and record payout references."
+              />
+            </div>
+          }
+          sub="Approvals and status transitions are validated server-side."
+          action={<span className="text-xs text-muted-foreground">{filteredSalaries.length} records</span>}
+        >
+          <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="p-3">Employee</th><th className="p-3">Month</th><th className="p-3">Gross</th><th className="p-3">Allowances</th><th className="p-3">Deductions</th><th className="p-3">Net payable</th><th className="p-3">Status</th><th className="p-3">Next action</th></tr></thead><tbody>{filteredSalaries.map((s)=><tr key={s._id} className="border-t border-white/10"><td className="p-3"><b>{s.employeeName||employees.find((e)=>e.id===s.employeeId)?.name||"Employee"}</b><p className="text-xs text-muted-foreground">{s.employeeCode}</p></td><td className="p-3">{s.monthKey}</td><td className="p-3">{money(s.grossSalary)}</td><td className="p-3">{money(s.allowances)}</td><td className="p-3">{money(s.deductions)}</td><td className="p-3 font-semibold">{money(s.netPayable)}</td><td className="p-3"><Status value={s.status}/></td><td className="p-3"><div className="flex flex-wrap gap-1">{s.status==="DRAFT"&&<button onClick={()=>void advanceSalary(s,"PENDING_APPROVAL")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Submit approval</button>}{s.status==="PENDING_APPROVAL"&&<button onClick={()=>void advanceSalary(s,"APPROVED")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Approve</button>}{s.status==="APPROVED"&&<button onClick={()=>void advanceSalary(s,"PAID")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Record paid</button>}{!["PAID","ON_HOLD"].includes(s.status)&&<button onClick={()=>void advanceSalary(s,"ON_HOLD")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Hold</button>}{s.status==="ON_HOLD"&&<button onClick={()=>void advanceSalary(s,"DRAFT")} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs">Return to draft</button>}</div></td></tr>)}</tbody></table>{filteredSalaries.length===0&&<p className="p-6 text-sm text-muted-foreground">No salary records found for this department filter.</p>}</div>
         </Panel>
         <p className="text-xs leading-5 text-muted-foreground">Marking a record paid requires a payment date and reference. Truvi does not execute a bank transfer or UPI payout.</p>
       </div>}

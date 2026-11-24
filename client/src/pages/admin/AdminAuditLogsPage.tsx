@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useSocketEvent } from "@/lib/socket";
-import { StatCard } from "@/components/ui/stat";
-import { ArrowLeft, ScrollText, Search, Download, RefreshCw, ShieldCheck, Users, Wallet } from "lucide-react";
-import UserMenu from "@/components/UserMenu";
+import { ScrollText, Search, Download, RefreshCw, X, ChevronRight } from "lucide-react";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 interface AuditLog {
   _id: string;
@@ -18,19 +16,20 @@ interface AuditLog {
   actor?: { _id: string; name: string; email: string; role: string } | null;
 }
 
-/** Everything before the first dot groups actions into areas (project.update → project). */
 const areaOf = (action: string) => action.split(".")[0];
 
-const AREA_TONE: Record<string, string> = {
-  project: "bg-sky-500/15 text-sky-300",
-  user: "bg-violet-500/15 text-violet-300",
-  kyc: "bg-amber-500/15 text-amber-300",
-  finance: "bg-emerald-500/15 text-emerald-300",
-  commission: "bg-emerald-500/15 text-emerald-300",
-  lead: "bg-fuchsia-500/15 text-fuchsia-300",
-  settings: "bg-rose-500/15 text-rose-300",
-  academy: "bg-blue-500/15 text-blue-300",
-  ai: "bg-purple-500/15 text-purple-300",
+const AREA_DOT_COLOR: Record<string, string> = {
+  project: "bg-sky-400",
+  user: "bg-violet-400",
+  kyc: "bg-amber-400",
+  finance: "bg-emerald-400",
+  commission: "bg-emerald-400",
+  lead: "bg-fuchsia-400",
+  settings: "bg-rose-400",
+  employee: "bg-indigo-400",
+  compliance: "bg-teal-400",
+  academy: "bg-blue-400",
+  ai: "bg-purple-400",
 };
 
 export default function AdminAuditLogsPage() {
@@ -38,7 +37,8 @@ export default function AdminAuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [area, setArea] = useState("ALL");
-  const [live, setLive] = useState(0); // count of entries that arrived via socket
+  const [live, setLive] = useState(0);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   async function load() {
     setLoading(true);
@@ -54,7 +54,6 @@ export default function AdminAuditLogsPage() {
   }
   useEffect(() => { load(); }, []);
 
-  // Real-time: every logAudit on the server pushes audit:new to admins.
   useSocketEvent<AuditLog>("audit:new", (row) => {
     setLogs((prev) => (prev.some((l) => l._id === row._id) ? prev : [row, ...prev].slice(0, 800)));
     setLive((n) => n + 1);
@@ -74,15 +73,15 @@ export default function AdminAuditLogsPage() {
 
   const today = useMemo(
     () => logs.filter((l) => new Date(l.createdAt).toDateString() === new Date().toDateString()).length,
-    [logs],
+    [logs]
   );
 
   function exportCsv() {
-    const header = ["Time", "Actor", "Role", "Action", "Resource", "Resource ID", "Details"];
+    const header = ["Timestamp", "Actor Name", "Actor Role", "Action", "Resource Type", "Resource ID", "Metadata"];
     const lines = filtered.map((l) => [
       new Date(l.createdAt).toLocaleString("en-IN"),
-      l.actor?.name ?? "system",
-      l.actor?.role ?? "",
+      l.actor?.name ?? "System",
+      l.actor?.role ?? "SYSTEM",
       l.action,
       l.resourceType ?? "",
       l.resourceId ?? "",
@@ -97,123 +96,302 @@ export default function AdminAuditLogsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function describe(l: AuditLog): string {
-    const m = l.metadata ?? {};
-    const bits: string[] = [];
-    for (const key of ["name", "title", "client", "milestone", "from", "to", "reason", "category"]) {
-      if (m[key] !== undefined && m[key] !== null) bits.push(`${key}: ${String(m[key])}`);
-    }
-    return bits.join(" · ");
-  }
-
   return (
-    <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link to="/admin/dashboard" className="text-muted-foreground transition-colors hover:text-white">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold">
-              <ScrollText size={22} className="text-amber-300" /> Audit Logs
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+              <ScrollText size={24} className="text-amber-400" />
+              Activity &amp; Audit Logs
             </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Every sensitive action, recorded and streamed live.
-              {live > 0 && <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">+{live} live</span>}
-            </p>
+            <SectionInfoTooltip
+              title="Immutable System Audit Stream"
+              content="Real-time chronological ledger of sensitive platform operations: listing approvals, role modifications, KYC reviews, payroll disbursements, and permission adjustments."
+            />
           </div>
+          <p className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
+            <span>Every sensitive action recorded across the entire platform.</span>
+            {live > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                +{live} live events
+              </span>
+            )}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={exportCsv} className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-white/80 transition hover:bg-white/10">
-            <Download size={13} /> Export CSV
-          </button>
-          <button onClick={load} className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10" title="Refresh">
-            <RefreshCw size={14} />
-          </button>
-          <UserMenu />
-        </div>
-      </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Entries Loaded" value={logs.length} icon={<ScrollText size={16} />} tone="violet" delay={0} />
-        <StatCard label="Actions Today" value={today} icon={<ShieldCheck size={16} />} tone="emerald" delay={60} />
-        <StatCard label="Distinct Areas" value={Math.max(areas.length - 1, 0)} icon={<Wallet size={16} />} tone="sky" delay={120} />
-      </div>
-
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        {areas.map((a) => (
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            key={a}
-            onClick={() => setArea(a)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-medium capitalize transition ${area === a ? "bg-violet-500 text-white" : "border border-white/10 text-white/60 hover:bg-white/10"}`}
+            type="button"
+            onClick={exportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
           >
-            {a === "ALL" ? "All areas" : a}
+            <Download size={13} /> Export Audit CSV
           </button>
-        ))}
-        <div className="relative ml-auto">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-white/5 transition disabled:opacity-50"
+            title="Refresh logs"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-white/10 bg-card p-4 space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">Audit Events Retained</p>
+          <p className="text-2xl font-bold tracking-tight text-foreground tabular-nums">{logs.length}</p>
+          <p className="text-[11px] text-muted-foreground">Streaming socket connected</p>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-card p-4 space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">Logged Today</p>
+          <p className="text-2xl font-bold tracking-tight text-emerald-400 tabular-nums">{today}</p>
+          <p className="text-[11px] text-muted-foreground">Live operations recorded</p>
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-card p-4 space-y-1">
+          <p className="text-xs text-muted-foreground font-medium">Active Subsystems</p>
+          <p className="text-2xl font-bold tracking-tight text-sky-400 tabular-nums">{Math.max(areas.length - 1, 0)}</p>
+          <p className="text-[11px] text-muted-foreground">Monitored action domains</p>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+        {/* Module Subsystem Pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {areas.map((a) => {
+            const isSelected = area === a;
+            const dot = AREA_DOT_COLOR[a] || "bg-sky-400";
+            return (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setArea(a)}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                }`}
+              >
+                {a !== "ALL" && <span className={`size-1.5 rounded-full ${dot}`} />}
+                <span>{a === "ALL" ? "All Subsystems" : a.charAt(0).toUpperCase() + a.slice(1)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="relative w-full sm:w-80">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search action, user, resource…"
-            className="w-64 rounded-full border border-white/10 bg-white/5 py-1.5 pl-9 pr-3 text-xs text-white outline-none focus:border-violet-400/50"
+            placeholder="Search action, actor, resource ID…"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2 pl-9 pr-3 text-xs placeholder:text-muted-foreground outline-none focus:border-sky-500 transition"
           />
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[820px] text-left text-xs">
-          <thead className="bg-white/5 text-white/50">
-            <tr>
-              <th className="p-3 font-medium">Time</th>
-              <th className="p-3 font-medium">Actor</th>
-              <th className="p-3 font-medium">Action</th>
-              <th className="p-3 font-medium">Resource</th>
-              <th className="p-3 font-medium">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Loading…</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">
-                {logs.length === 0 ? "No audit entries yet — actions will appear here as the team works." : "No entries match this filter."}
-              </td></tr>
-            ) : (
-              filtered.map((l) => (
-                <tr key={l._id} className="border-t border-white/5 transition hover:bg-white/[0.03]">
-                  <td className="whitespace-nowrap p-3 text-white/60">{new Date(l.createdAt).toLocaleString("en-IN")}</td>
-                  <td className="p-3">
-                    {l.actor ? (
-                      <div className="flex items-center gap-2">
-                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-300">
-                          {l.actor.name.charAt(0).toUpperCase()}
-                        </span>
-                        <div>
-                          <p className="font-medium text-white/85">{l.actor.name}</p>
-                          <p className="text-[10px] text-white/40">{l.actor.role}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-white/40"><Users size={12} /> system</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] ${AREA_TONE[areaOf(l.action)] ?? "bg-white/10 text-white/60"}`}>
-                      {l.action}
-                    </span>
-                  </td>
-                  <td className="p-3 text-white/60">
-                    {l.resourceType ?? "—"}
-                    {l.resourceId && <span className="block max-w-[140px] truncate font-mono text-[9px] text-white/30">{l.resourceId}</span>}
-                  </td>
-                  <td className="max-w-[300px] p-3 text-white/60">{describe(l) || "—"}</td>
+      {/* Main Table */}
+      {loading ? (
+        <div className="flex items-center justify-center p-16 text-muted-foreground gap-3">
+          <RefreshCw size={18} className="animate-spin text-amber-400" />
+          <span>Synchronizing live audit stream…</span>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-card p-12 text-center text-sm text-muted-foreground">
+          No audit records found matching your filters.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-white/10 bg-card overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[950px] text-left text-sm">
+              <thead className="border-b border-white/10 bg-white/[0.02] text-xs text-muted-foreground">
+                <tr>
+                  <th className="p-3.5">Timestamp</th>
+                  <th className="p-3.5">Action &amp; Domain</th>
+                  <th className="p-3.5">Actor</th>
+                  <th className="p-3.5">Target Resource</th>
+                  <th className="p-3.5">Summary / Metadata</th>
+                  <th className="p-3.5 text-right">Details</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.map((l) => {
+                  const areaKey = areaOf(l.action);
+                  const dot = AREA_DOT_COLOR[areaKey] || "bg-sky-400";
+                  return (
+                    <tr
+                      key={l._id}
+                      onClick={() => setSelectedLog(l)}
+                      className="cursor-pointer transition hover:bg-white/[0.02]"
+                    >
+                      <td className="p-3.5 whitespace-nowrap text-xs font-mono text-muted-foreground">
+                        {new Date(l.createdAt).toLocaleString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`size-1.5 rounded-full ${dot} shrink-0`} />
+                          <span className="font-semibold text-xs text-foreground font-mono">
+                            {l.action}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="text-xs">
+                          <span className="font-medium text-foreground">{l.actor?.name || "System"}</span>
+                          <span className="block text-[11px] text-muted-foreground font-mono">
+                            {l.actor?.email || l.actor?.role || "SYSTEM_WORKER"}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="text-xs font-mono">
+                          <span className="text-muted-foreground uppercase text-[10px] block">
+                            {l.resourceType || "N/A"}
+                          </span>
+                          <span className="text-foreground truncate max-w-[140px] block">
+                            {l.resourceId || "—"}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <p className="text-xs text-muted-foreground truncate max-w-xs font-mono">
+                          {Object.keys(l.metadata || {}).length > 0
+                            ? JSON.stringify(l.metadata)
+                            : "No metadata logged"}
+                        </p>
+                      </td>
+
+                      <td className="p-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedLog(l);
+                          }}
+                          className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-white/20 transition inline-flex items-center gap-1"
+                        >
+                          Inspect <ChevronRight size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-over Inspection Drawer */}
+      {selectedLog && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedLog(null);
+          }}
+        >
+          <div className="w-full max-w-lg bg-card border-l border-white/10 p-6 shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="space-y-5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <div>
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                    Audit Event Payload
+                  </span>
+                  <h2 className="text-base font-bold font-mono mt-0.5">{selectedLog.action}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLog(null)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Timestamp</span>
+                    <strong className="text-foreground font-mono">
+                      {new Date(selectedLog.createdAt).toLocaleString("en-IN")}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Event ID</span>
+                    <strong className="text-foreground font-mono text-[11px] truncate block">
+                      {selectedLog._id}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Actor</span>
+                    <strong className="text-foreground">
+                      {selectedLog.actor?.name || "System"} ({selectedLog.actor?.role || "AUTO"})
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Actor Email</span>
+                    <strong className="text-foreground truncate block">
+                      {selectedLog.actor?.email || "internal@truvi.ai"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Target Resource</span>
+                    <strong className="text-foreground uppercase font-mono">
+                      {selectedLog.resourceType || "N/A"}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-[11px] block">Resource ID</span>
+                    <strong className="text-foreground font-mono truncate block">
+                      {selectedLog.resourceId || "None"}
+                    </strong>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-muted-foreground uppercase text-[10px] tracking-wider mb-2">
+                    Metadata &amp; State Diff (JSON)
+                  </p>
+                  <pre className="p-3.5 rounded-xl border border-white/10 bg-black/40 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap break-all max-h-96 overflow-y-auto">
+                    {JSON.stringify(selectedLog.metadata || {}, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setSelectedLog(null)}
+                className="w-full rounded-xl bg-white/5 py-2.5 text-xs font-semibold hover:bg-white/10 transition"
+              >
+                Close Drawer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

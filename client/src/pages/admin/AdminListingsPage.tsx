@@ -7,6 +7,7 @@ import { nameOf } from "@/lib/utils";
 import { toast } from "sonner";
 import { Star, ChevronDown, ChevronUp, ShieldCheck, Box, LayoutGrid, Clock, MapPin, CheckCircle2, XCircle, Trash2, Pencil } from "lucide-react";
 import AdminLegalReview from "@/components/AdminLegalReview";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 import { shareProject } from "@/components/ShareProjectButton";
 import { Share2 } from "lucide-react";
 import ProjectAvailabilityControl from "@/components/ProjectAvailabilityControl";
@@ -256,12 +257,26 @@ export default function AdminListingsPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 text-white md:p-10">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Listings Management</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+              <LayoutGrid size={24} className="text-sky-400" />
+              Listings &amp; Project Management
+            </h1>
+            <SectionInfoTooltip
+              title="Property Inventory Governance"
+              content="Audit developer project submissions, verify RERA compliance, title deeds, construction approvals, toggle featured status, and configure unit inventory availability."
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Review project approvals, manage prime featured listings, verify legal clearances, and set availability.
+          </p>
         </div>
-        <Button onClick={() => navigate("/developer/projects/new")}>+ Add new project</Button>
+        <Button onClick={() => navigate("/developer/projects/new")} className="rounded-xl text-xs font-semibold">
+          + Add New Project
+        </Button>
       </div>
 
       {/* Pending developer submissions — approve to publish into public inventory */}

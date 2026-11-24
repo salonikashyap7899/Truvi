@@ -58,7 +58,9 @@ import {
   Activity,
   Menu,
   Inbox,
+  ScrollText,
 } from "lucide-react";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 import "@/styles/founder-os.css";
 
 /**
@@ -879,26 +881,18 @@ export default function AdminOsDashboardPage() {
           isLight ? "border-slate-200" : "border-white/10"
         }`}
       >
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className={`text-2xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
             Admin Dashboard
           </h1>
+          <SectionInfoTooltip
+            title="Admin Command Center"
+            content="Executive platform telemetry, active lead funnels, operational throughput, and system audit logs."
+          />
         </div>
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => navigate("/admin/listings")}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-semibold transition-all ${
-              isLight
-                ? "bg-white hover:bg-slate-50 hover:text-slate-900 border-slate-200 text-slate-700 shadow-xs"
-                : "bg-white/[0.04] hover:bg-white/[0.08] hover:text-white border-white/10 text-slate-300"
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Manage Listings</span>
-          </button>
-
           <button
             onClick={() => navigate("/developer/projects/new")}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-md transition-all"
@@ -974,12 +968,12 @@ export default function AdminOsDashboardPage() {
               isLight ? "border-slate-100 text-amber-600 group-hover:text-amber-700" : "border-white/5 text-amber-400 group-hover:text-amber-300"
             }`}
           >
-            <span>View listings</span>
+            <span>View & Manage Listings</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
 
-        {/* Platform Fee Revenue */}
+        {/* Unified Financial Summary (Platform Fees + Lead Revenue Merged) */}
         <div
           onClick={() => navigate("/admin/revenue")}
           className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
@@ -991,58 +985,64 @@ export default function AdminOsDashboardPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-                Platform Fees
+                Total Revenue & Fees
               </span>
-              {trends?.platformFeeRevenue !== undefined && (
+              {(trends?.platformFeeRevenue !== undefined || trends?.leadRevenue !== undefined) && (
                 <span className="text-emerald-500 text-xs font-semibold">
-                  {trendBadge(trends.platformFeeRevenue)?.text}
+                  {trendBadge(trends?.platformFeeRevenue ?? trends?.leadRevenue ?? 0)?.text}
                 </span>
               )}
             </div>
             <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
-              {formatINR(stats.platformFees)}
+              {formatINR((stats.platformFees || 0) + (stats.leadRevenue || 0))}
             </div>
-            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Transaction fees</p>
+            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+              Fees: {formatINR(stats.platformFees || 0)} · Leads: {formatINR(stats.leadRevenue || 0)}
+            </p>
           </div>
           <div
             className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
               isLight ? "border-slate-100 text-emerald-600 group-hover:text-emerald-700" : "border-white/5 text-emerald-400 group-hover:text-emerald-300"
             }`}
           >
-            <span>View revenue</span>
+            <span>View Financials</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
 
-        {/* Lead Marketplace Revenue */}
+        {/* Live System Logs (New Card in freed slot) */}
         <div
-          onClick={() => navigate("/admin/revenue")}
+          onClick={() => navigate("/admin/audit-logs")}
           className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
             isLight
-              ? "bg-white border-slate-200 hover:border-cyan-300 shadow-sm hover:shadow-md"
-              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-cyan-500/40 shadow-xl"
+              ? "bg-white border-slate-200 hover:border-sky-300 shadow-sm hover:shadow-md"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-sky-500/40 shadow-xl"
           }`}
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-                Lead Revenue
+              <span className={`text-[11px] uppercase tracking-wider font-semibold flex items-center gap-1.5 ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                <ScrollText className="w-3 h-3 text-sky-500" />
+                Live System Logs
               </span>
-              {trends?.leadRevenue !== undefined && (
-                <span className="text-cyan-500 text-xs font-semibold">{trendBadge(trends.leadRevenue)?.text}</span>
-              )}
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-sky-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                Live
+              </span>
             </div>
             <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
-              {formatINR(stats.leadRevenue)}
+              {activity.length > 0 ? `${activity.length} Events` : "Active"}
             </div>
-            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Marketplace revenue</p>
+            <p className={`mt-1 text-xs truncate max-w-[220px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+              {activity[0] ? activity[0].action.replace(/_/g, " ") : "Real-time audit log stream"}
+            </p>
           </div>
           <div
             className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
-              isLight ? "border-slate-100 text-cyan-600 group-hover:text-cyan-700" : "border-white/5 text-cyan-400 group-hover:text-cyan-300"
+              isLight ? "border-slate-100 text-sky-600 group-hover:text-sky-700" : "border-white/5 text-sky-400 group-hover:text-sky-300"
             }`}
           >
-            <span>View leads</span>
+            <span>View Activity Logs</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
@@ -1058,6 +1058,10 @@ export default function AdminOsDashboardPage() {
             <h2 className={`text-sm font-semibold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
               Lead Pipeline
             </h2>
+            <SectionInfoTooltip
+              title="Lead Pipeline Funnel"
+              content="Real-time multi-stage buyer funnel from raw capture to booking token. Click any stage to open and filter leads."
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -1193,6 +1197,16 @@ export default function AdminOsDashboardPage() {
               : "bg-[#0F172A]/80 backdrop-blur-xl border-white/10 shadow-lg"
           }`}
         >
+          <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${isLight ? "border-slate-100" : "border-white/5"}`}>
+            <Activity className="w-3.5 h-3.5 text-violet-500" />
+            <span className={`text-xs font-bold tracking-tight uppercase tracking-wider ${isLight ? "text-slate-700" : "text-slate-300"}`}>
+              Operations Today
+            </span>
+            <SectionInfoTooltip
+              title="Daily Operations"
+              content="Real-time operational velocity tracking today's booking revenues, new lead intakes, physical site visits, and active CP broker activations."
+            />
+          </div>
           <div
             className={`grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 divide-y sm:divide-y-0 sm:divide-x ${
               isLight ? "divide-slate-200" : "divide-white/10"
@@ -1308,6 +1322,10 @@ export default function AdminOsDashboardPage() {
                 <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
                   Platform Growth
                 </h3>
+                <SectionInfoTooltip
+                  title="Platform Growth"
+                  content="Weekly telemetry tracking new user registrations, approved developer inventory additions, and 7-day velocity."
+                />
               </div>
             </div>
 
@@ -1483,6 +1501,16 @@ export default function AdminOsDashboardPage() {
             isLight ? "bg-white border-slate-200" : "bg-[#0F172A]/80 backdrop-blur-md border-white/10"
           }`}
         >
+          <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${isLight ? "border-slate-100" : "border-white/5"}`}>
+            <Landmark className="w-3.5 h-3.5 text-emerald-500" />
+            <span className={`text-xs font-bold tracking-tight uppercase tracking-wider ${isLight ? "text-slate-700" : "text-slate-300"}`}>
+              Investor Intelligence
+            </span>
+            <SectionInfoTooltip
+              title="Investor Telemetry"
+              content="Key financial benchmarks: ARR, MRR, GMV, Customer Lifetime Value (LTV), Customer Acquisition Cost (CAC), and paying subscriber counts."
+            />
+          </div>
           <div
             className={`grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 text-center divide-y-0 xl:divide-x ${
               isLight ? "divide-slate-200" : "divide-white/10"
@@ -1571,6 +1599,10 @@ export default function AdminOsDashboardPage() {
                 <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
                   Pending Project Approvals
                 </h3>
+                <SectionInfoTooltip
+                  title="Project Moderation Queue"
+                  content="Real-time queue of projects submitted by developers requiring admin verification, legal checks, and publishing approval."
+                />
               </div>
               <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">{pendingProjects.length} pending</span>
             </div>
@@ -1671,6 +1703,10 @@ export default function AdminOsDashboardPage() {
                 <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
                   Recent Platform Activity
                 </h3>
+                <SectionInfoTooltip
+                  title="Audit Stream"
+                  content="Real-time chronological audit trail of user logins, role upgrades, project updates, and KYC verification milestones."
+                />
               </div>
             </div>
 

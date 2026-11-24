@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { CalendarClock, ExternalLink, Loader2, Video } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDate, formatTime, istToday, ROLE_LABEL, timeSlots } from "@/components/leads/inventoryLeadShared";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 /**
  * Admin → Meetings. Google Meet requests from users ("Need help understanding
@@ -67,11 +68,24 @@ export default function AdminMeetingsPage() {
   }
 
   return (
-    <main className="min-h-screen p-4 text-white sm:p-6 md:p-10">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold"><Video size={22} className="text-sky-400" /> Meetings</h1>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Google Meet requests from users and the fixed onboarding session. Create the Meet, paste its link and confirm — the user is notified instantly.
-      </p>
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+              <Video size={24} className="text-sky-400" />
+              Meetings &amp; Video Consultations
+            </h1>
+            <SectionInfoTooltip
+              title="User Onboarding &amp; Support Meetings"
+              content="Schedule and confirm video consultation requests, Google Meet links, and regular developer/CP onboarding sessions."
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Google Meet requests from users and the fixed onboarding session. Create the Meet, paste its link and confirm.
+          </p>
+        </div>
+      </div>
 
       {/* Fixed onboarding session */}
       <section className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">

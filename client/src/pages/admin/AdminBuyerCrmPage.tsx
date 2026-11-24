@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Activity,
@@ -18,6 +19,8 @@ import {
   Megaphone,
   MessageCircle,
   Phone,
+  Play,
+  Pause,
   Plus,
   RefreshCw,
   Search,
@@ -30,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 type Source = "META_AD" | "GOOGLE_AD" | "TELECALLER" | "WHATSAPP" | "WEBSITE" | "CUSTOMER_REFERRAL" | "OTHER";
 type Status =
@@ -220,14 +224,33 @@ function generateWhatsAppGreeting(buyerName: string, projectName?: string | null
   return `Hello ${buyerName || "there"}, thank you for your enquiry regarding ${site} with Truvi. I am reaching out to provide complete site plans, pricing details, and answer any questions. When is a convenient time for a brief call?`;
 }
 
+interface CallRow {
+  id: string;
+  projectId: string;
+  projectName: string | null;
+  developerName: string | null;
+  cpName: string | null;
+  status: string;
+  virtualNumber: string | null;
+  durationSec: number | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  hasRecording: boolean;
+  createdAt: string | null;
+}
+
+const CALL_STATUSES = ["", "CONNECTED", "COMPLETED", "IN_PROGRESS", "RINGING", "INITIATED", "MISSED", "NO_ANSWER", "BUSY", "FAILED", "CANCELED"];
+
 const blankForm = () => ({
   fullName: "", phone: "", email: "", source: "META_AD" as Source, projectId: "", propertyType: "", preferredLocation: "",
   budgetRange: "", purchasePurpose: "", purchaseTimeline: "", requirement: "", nextFollowUpAt: "", assignedToId: "",
   contactConsent: true, consentBasis: "Direct online lead form consent",
 });
 
-export default function AdminBuyerCrmPage() {
-  const [tab, setTab] = useState<"pipeline" | "buyers">("pipeline");
+export default function AdminBuyerCrmPage({ defaultTab }: { defaultTab?: "pipeline" | "buyers" | "calls" } = {}) {
+  const [searchParams] = useSearchParams();
+  const initialTab = defaultTab || (searchParams.get("tab") as any) || "pipeline";
+  const [tab, setTab] = useState<"pipeline" | "buyers" | "calls">(initialTab);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -236,7 +259,7 @@ export default function AdminBuyerCrmPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
   const [source, setSource] = useState("");
   const [projectId, setProjectId] = useState("");
   const [campaign, setCampaign] = useState("");
@@ -249,6 +272,68 @@ export default function AdminBuyerCrmPage() {
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [activityText, setActivityText] = useState("");
   const [activityType, setActivityType] = useState<"CALL" | "WHATSAPP" | "NOTE">("CALL");
+
+  // Calls state
+  const [callRows, setCallRows] = useState<CallRow[]>([]);
+  const [callLoading, setCallLoading] = useState(false);
+  const [callStatus, setCallStatus] = useState("");
+  const [callFrom, setCallFrom] = useState("");
+  const [callTo, setCallTo] = useState("");
+  const [callSearch, setCallSearch] = useState("");
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [loadingRec, setLoadingRec] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const loadCalls = useCallback(async () => {
+    setCallLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (callStatus) params.status = callStatus;
+      if (callFrom) params.from = callFrom;
+      if (callTo) params.to = callTo;
+      const res = await api.get("/admin/calls", { params });
+      setCallRows(res.data.calls ?? []);
+    } catch {
+      // quiet fallback
+    } finally {
+      setCallLoading(false);
+    }
+  }, [callStatus, callFrom, callTo]);
+
+  useEffect(() => {
+    if (tab === "calls") void loadCalls();
+  }, [tab, loadCalls]);
+
+  async function playRecording(id: string) {
+    if (playingId === id && audioRef.current) {
+      audioRef.current.pause();
+      setPlayingId(null);
+      return;
+    }
+    setLoadingRec(id);
+    try {
+      const res = await api.get(`/admin/calls/${id}/recording`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      if (audioRef.current) { audioRef.current.pause(); }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setPlayingId(null); URL.revokeObjectURL(url); };
+      await audio.play();
+      setPlayingId(id);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Couldn't stream the recording");
+    } finally {
+      setLoadingRec(null);
+    }
+  }
+
+  const filteredCalls = useMemo(() => {
+    const q = callSearch.trim().toLowerCase();
+    if (!q) return callRows;
+    return callRows.filter((r) =>
+      [r.projectName, r.developerName, r.cpName].some((n) => (n ?? "").toLowerCase().includes(q))
+    );
+  }, [callRows, callSearch]);
 
   // Registered Buyers State
   const [buyerQuery, setBuyerQuery] = useState("");
@@ -625,7 +710,13 @@ export default function AdminBuyerCrmPage() {
           <p className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.2em] text-sky-400">
             <Headset size={14} /> Real Estate Lead Engine
           </p>
-          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Meta Ads & Buyer CRM</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl font-semibold sm:text-3xl">Lead Management & Buyer CRM</h1>
+            <SectionInfoTooltip
+              title="Unified Lead Management"
+              content="Complete enterprise workspace integrating buyer CRM pipeline, Meta Ads attribution, click-to-call telephony logs, and registered buyer directories."
+            />
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             Direct integration with Facebook & Instagram Instant Forms. Leads segregated by project/site.
           </p>
@@ -913,6 +1004,14 @@ export default function AdminBuyerCrmPage() {
             Registered App Buyers ({summary?.registeredBuyers ?? 0})
           </button>
         )}
+        <button
+          onClick={() => setTab("calls")}
+          className={`border-b-2 px-3 py-2 text-sm font-semibold transition ${
+            tab === "calls" ? "border-sky-400 text-sky-300" : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Call Logs & Recordings ({callRows.length})
+        </button>
       </nav>
 
       {tab === "pipeline" ? (
@@ -1280,7 +1379,7 @@ export default function AdminBuyerCrmPage() {
             </>
           )}
         </>
-      ) : (
+      ) : tab === "buyers" ? (
         /* Registered Buyers Tab */
         <>
           <div className="relative max-w-xl">
@@ -1358,6 +1457,159 @@ export default function AdminBuyerCrmPage() {
             </>
           )}
         </>
+      ) : (
+        /* Native Calls & Telephony Tab */
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className={`${panelClass} p-4`}>
+              <p className="text-2xl font-bold">{callRows.length}</p>
+              <p className="text-xs text-muted-foreground mt-1">Total Placed Calls</p>
+            </div>
+            <div className={`${panelClass} p-4`}>
+              <p className="text-2xl font-bold text-emerald-400">
+                {callRows.filter((r) => ["CONNECTED", "COMPLETED", "IN_PROGRESS"].includes(r.status)).length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Connected</p>
+            </div>
+            <div className={`${panelClass} p-4`}>
+              <p className="text-2xl font-bold text-amber-400">
+                {callRows.filter((r) => ["MISSED", "NO_ANSWER", "BUSY"].includes(r.status)).length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Missed / Busy</p>
+            </div>
+            <div className={`${panelClass} p-4`}>
+              <p className="text-2xl font-bold text-rose-400">
+                {callRows.filter((r) => ["FAILED", "CANCELED"].includes(r.status)).length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Failed</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={callSearch}
+                onChange={(e) => setCallSearch(e.target.value)}
+                placeholder="Search project / caller / recipient…"
+                className={`${fieldClass} pl-9 w-64`}
+              />
+            </div>
+            <select
+              value={callStatus}
+              onChange={(e) => setCallStatus(e.target.value)}
+              className={fieldClass}
+            >
+              {CALL_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s || "All Call Statuses"}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={callFrom}
+              onChange={(e) => setCallFrom(e.target.value)}
+              className={fieldClass}
+            />
+            <input
+              type="date"
+              value={callTo}
+              onChange={(e) => setCallTo(e.target.value)}
+              className={fieldClass}
+            />
+            <button
+              onClick={() => void loadCalls()}
+              disabled={callLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-white/10 text-xs font-semibold hover:bg-white/5"
+            >
+              <RefreshCw size={13} className={callLoading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+          </div>
+
+          <div className={`${panelClass} overflow-x-auto`}>
+            <table className="w-full min-w-[850px] text-left text-sm">
+              <thead className="border-b border-white/10 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="p-3">Project</th>
+                  <th className="p-3">Caller</th>
+                  <th className="p-3">Recipient</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Duration</th>
+                  <th className="p-3">Timestamp</th>
+                  <th className="p-3">Recording</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {callLoading ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-xs text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-primary" />
+                      Loading call logs…
+                    </td>
+                  </tr>
+                ) : filteredCalls.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-xs text-muted-foreground">
+                      No call records found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCalls.map((c) => (
+                    <tr key={c.id} className="hover:bg-muted/30 transition">
+                      <td className="p-3 font-medium">
+                        {c.projectName || <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="p-3">{c.cpName || "Staff"}</td>
+                      <td className="p-3">{c.developerName || "Lead / Developer"}</td>
+                      <td className="p-3">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              ["CONNECTED", "COMPLETED"].includes(c.status)
+                                ? "bg-emerald-500"
+                                : ["FAILED", "CANCELED"].includes(c.status)
+                                ? "bg-rose-500"
+                                : "bg-amber-500"
+                            }`}
+                          />
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono text-xs">
+                        {c.durationSec ? `${Math.floor(c.durationSec / 60)}:${String(c.durationSec % 60).padStart(2, "0")}` : "—"}
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        {c.startedAt ? new Date(c.startedAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : "—"}
+                      </td>
+                      <td className="p-3">
+                        {c.hasRecording ? (
+                          <button
+                            onClick={() => void playRecording(c.id)}
+                            disabled={loadingRec === c.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/10 text-xs font-medium hover:bg-white/10"
+                          >
+                            {loadingRec === c.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : playingId === c.id ? (
+                              <Pause size={12} />
+                            ) : (
+                              <Play size={12} />
+                            )}
+                            {playingId === c.id ? "Pause" : "Play"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Meta Form Mappings Modal Dialog */}
@@ -2013,15 +2265,92 @@ function ActivityPanel({
 }) {
   const [followUp, setFollowUp] = useState(dateTimeInputValue(row.nextFollowUpAt));
   const [assignee, setAssignee] = useState(row.assignedTo?._id ?? "");
+  const [callingState, setCallingState] = useState<"IDLE" | "CALLING" | "CONNECTED">("IDLE");
+  const [callDisposition, setCallDisposition] = useState("INTERESTED");
 
   useEffect(() => {
     setFollowUp(dateTimeInputValue(row.nextFollowUpAt));
     setAssignee(row.assignedTo?._id ?? "");
   }, [row._id, row.nextFollowUpAt, row.assignedTo?._id]);
 
+  function handleCallNow() {
+    setCallingState("CALLING");
+    window.open(`tel:${row.phone}`, "_self");
+    setTimeout(() => {
+      setCallingState("CONNECTED");
+    }, 1500);
+  }
+
+  function handleSaveCallOutcome() {
+    const logContent = `Call placed to ${row.phone}. Disposition: ${callDisposition.replace(/_/g, " ")}. ${note.trim() ? "Note: " + note.trim() : ""}`;
+    setNote(logContent);
+    setType("CALL");
+    setTimeout(() => {
+      onLog();
+      setCallingState("IDLE");
+      toast.success("Call outcome and disposition logged.");
+    }, 100);
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(300px,1fr)]">
       <div>
+        {/* Click to Call Telephony Bar */}
+        <div className="mb-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Phone size={14} />
+              </div>
+              <div>
+                <p className="text-xs font-semibold">{row.phone}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {callingState === "IDLE" ? "Click to place call" : callingState === "CALLING" ? "Initiating call…" : "Call connected · Select outcome"}
+                </p>
+              </div>
+            </div>
+            {callingState === "IDLE" ? (
+              <button
+                type="button"
+                onClick={handleCallNow}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+              >
+                <Phone size={12} /> Call Now
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={callDisposition}
+                  onChange={(e) => setCallDisposition(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-background px-2 py-1 text-xs"
+                >
+                  <option value="INTERESTED">Interested</option>
+                  <option value="SITE_VISIT_SCHEDULED">Visit Scheduled</option>
+                  <option value="FOLLOW_UP_REQUIRED">Follow-up Required</option>
+                  <option value="NOT_REACHABLE">Not Reachable</option>
+                  <option value="BUSY">Busy</option>
+                  <option value="INVALID_NUMBER">Invalid Number</option>
+                  <option value="LOST">Lost</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleSaveCallOutcome}
+                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+                >
+                  Save Log
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCallingState("IDLE")}
+                  className="rounded-lg border border-white/10 px-2 py-1 text-xs hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity & Call History</h3>
         {activities.length ? (
           <ol className="max-h-52 space-y-2 overflow-y-auto pr-1">

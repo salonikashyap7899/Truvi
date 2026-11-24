@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  SlidersHorizontal, Percent, Landmark, Bell, CreditCard, Sparkles, ShieldCheck, Users, Check, BellRing, Send,
+  SlidersHorizontal, Percent, Landmark, Bell, CreditCard, Bot, ShieldCheck, Users, Check, BellRing, Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, Label, Input } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import SectionInfoTooltip from "@/components/admin/SectionInfoTooltip";
 
 type TabKey = "general" | "fees" | "gst" | "notifications" | "payments" | "ai" | "security";
 
@@ -15,7 +16,7 @@ const TABS: { key: TabKey; label: string; icon: ReactNode }[] = [
   { key: "gst", label: "GST & Tax", icon: <Landmark size={15} /> },
   { key: "notifications", label: "Notifications", icon: <Bell size={15} /> },
   { key: "payments", label: "Payments", icon: <CreditCard size={15} /> },
-  { key: "ai", label: "AI Copilot", icon: <Sparkles size={15} /> },
+  { key: "ai", label: "AI Copilot", icon: <Bot size={15} /> },
   { key: "security", label: "Security", icon: <ShieldCheck size={15} /> },
 ];
 
@@ -98,10 +99,24 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <main className="min-h-screen p-6 text-white md:p-10">
-      <p className="text-xs uppercase tracking-widest text-violet-300/70">Truvi · Admin</p>
-      <h1 className="mt-1 text-2xl font-semibold md:text-3xl">Platform Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Configure fees, tax, notifications, payments, AI and security.</p>
+    <main className="min-h-screen p-4 sm:p-6 lg:p-8 text-foreground max-w-[1600px] mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold sm:text-3xl flex items-center gap-2.5">
+              <SlidersHorizontal size={24} className="text-violet-400" />
+              Platform Settings
+            </h1>
+            <SectionInfoTooltip
+              title="Global Platform Configuration"
+              content="Manage platform fees, default commission splits, GST tax compliance, Razorpay payment keys, notification channels, and AI copilot settings."
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Configure transaction fees, tax liabilities, notification webhooks, and security boundaries.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         {/* Tab rail */}
@@ -239,7 +254,7 @@ export default function AdminSettingsPage() {
               {tab === "ai" && (
                 <Card className="border-white/10 glass text-white">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><Sparkles size={18} className="text-violet-300" /><h3 className="font-display text-lg font-semibold">AI Copilot</h3></div>
+                    <div className="flex items-center gap-2"><Bot size={18} className="text-violet-300" /><h3 className="font-display text-lg font-semibold">AI Copilot</h3></div>
                     <StatusBadge ok={s.integrations.ai} />
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
