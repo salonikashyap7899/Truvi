@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
+import Papa from "papaparse";
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
@@ -20,6 +22,7 @@ import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 const SOURCES = ["META_AD", "GOOGLE_AD", "TELECALLER", "WHATSAPP", "WEBSITE", "CUSTOMER_REFERRAL", "OTHER"] as const;
 const STATUSES = [
   "NEW",
@@ -699,6 +702,236 @@ router.delete("/admin/meta-mappings/:id", requireRole("ADMIN"), async (req: Auth
     metadata: { formId: deleted.formId, projectId: deleted.projectId },
   });
   res.json({ success: true });
+});
+
+router.post("/admin/meta-mappings/:id/sync", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Mapping not found." });
+  const db = getDb();
+  const [mapping] = await db.select().from(metaAdFormMappings).where(eq(metaAdFormMappings._id, req.params.id)).limit(1);
+  if (!mapping) return res.status(404).json({ error: "Mapping not found." });
+
+  const token = process.env.META_LEADS_ACCESS_TOKEN?.trim();
+  if (!token) {
+    return res.status(400).json({
+      error: "META_LEADS_ACCESS_TOKEN is not configured in .env. Please configure it or use the 'Import Meta CSV' option.",
+    });
+  }
+
+  const graphVersion = (process.env.META_GRAPH_API_VERSION?.trim() || "v27.0").replace(/^v?/, "v");
+  let nextUrl: string | null = `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(mapping.formId)}/leads?fields=id,created_time,field_data,ad_id,ad_name,form_id,campaign_id,campaign_name,adset_id,adset_name&limit=100&access_token=${encodeURIComponent(token)}`;
+
+  let totalFetched = 0;
+  let inserted = 0;
+  let duplicates = 0;
+  let skipped = 0;
+  let pagesCount = 0;
+
+  try {
+    while (nextUrl && pagesCount < 10) {
+      pagesCount += 1;
+      const resp = await fetch(nextUrl, { signal: AbortSignal.timeout(20_000) });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        throw new Error(`Meta Graph API error (${resp.status}): ${errText}`);
+      }
+      const pageData = await resp.json() as { data?: MetaLead[]; paging?: { next?: string } };
+      const list = Array.isArray(pageData.data) ? pageData.data : [];
+      if (!list.length) break;
+
+      for (const item of list) {
+        totalFetched += 1;
+        const providerLeadId = safeText(item.id, 160);
+        const fields = fieldsToMap(item.field_data);
+        const phone = normalizePhone(firstField(fields, "phone_number", "mobile_number", "phone", "contact_number"));
+        if (!/^[6-9]\d{9}$/.test(phone)) {
+          skipped += 1;
+          continue;
+        }
+
+        const email = firstField(fields, "email", "email_address").toLowerCase();
+        const fullName = firstField(fields, "full_name", "name") || [firstField(fields, "first_name"), firstField(fields, "last_name")].filter(Boolean).join(" ") || "Meta Ad lead";
+        const purpose = firstField(fields, "purchase_purpose", "purpose").toLowerCase();
+        const normalizedPurpose = purpose.includes("invest") ? "INVESTMENT" : purpose.includes("self") || purpose.includes("live") ? "SELF_USE" : purpose ? "UNDECIDED" : null;
+        const consentField = ["contact_consent", "consent_to_contact", "marketing_consent", "agree_to_contact", "consent"]
+          .map((f) => fields.get(f)).find(Boolean);
+        const consentGranted = Boolean(consentField && /^(?:yes\b|true\b|1$|i\s+agree\b|agree(?:d)?\b|opt[\s-]?in\b)/i.test(consentField.trim()));
+        const followup = firstField(fields, "requirement", "property_requirement", "what_are_you_looking_for", "additional_requirements");
+
+        const [existing] = await db.select({ _id: buyerCrmLeads._id, duplicateCount: buyerCrmLeads.duplicateCount, projectId: buyerCrmLeads.projectId })
+          .from(buyerCrmLeads)
+          .where(or(
+            eq(buyerCrmLeads.phone, phone),
+            ...(providerLeadId ? [eq(buyerCrmLeads.providerLeadId, providerLeadId)] : [])
+          )!)
+          .limit(1);
+
+        if (existing) {
+          duplicates += 1;
+          if (!existing.projectId && mapping.projectId) {
+            await db.update(buyerCrmLeads).set({ projectId: mapping.projectId, updatedAt: new Date() }).where(eq(buyerCrmLeads._id, existing._id));
+          }
+          continue;
+        }
+
+        const rawCreatedAt = item.created_time ? new Date(String(item.created_time)) : new Date();
+        const leadCreatedAt = isNaN(rawCreatedAt.getTime()) ? new Date() : rawCreatedAt;
+
+        await db.insert(buyerCrmLeads).values({
+          fullName: fullName.slice(0, 100),
+          phone,
+          email: email || null,
+          source: "META_AD",
+          status: "NEW",
+          projectId: mapping.projectId,
+          propertyType: firstField(fields, "property_type", "type_of_property") || null,
+          preferredLocation: firstField(fields, "preferred_location", "location", "city") || null,
+          budgetRange: firstField(fields, "budget", "budget_range") || null,
+          purchasePurpose: normalizedPurpose,
+          purchaseTimeline: firstField(fields, "timeline", "purchase_timeline") || null,
+          requirement: followup || null,
+          contactConsent: consentGranted,
+          consentBasis: consentGranted ? `Meta form consent: ${consentField}` : "Synced from Meta Lead Form history",
+          providerLeadId: providerLeadId || null,
+          providerFormId: mapping.formId,
+          providerAdId: safeText(item.ad_id, 160) || mapping.adId || null,
+          providerAdName: safeText(item.ad_name, 250) || mapping.adName || null,
+          providerCampaignId: safeText(item.campaign_id, 160) || mapping.campaignId || null,
+          providerCampaignName: safeText(item.campaign_name, 250) || mapping.campaignName || null,
+          providerAdsetId: safeText(item.adset_id, 160) || null,
+          providerAdsetName: safeText(item.adset_name, 250) || null,
+          isDuplicate: false,
+          duplicateCount: 1,
+          createdAt: leadCreatedAt,
+          createdById: req.user!.userId,
+        }).onConflictDoNothing();
+
+        inserted += 1;
+      }
+
+      nextUrl = pageData.paging?.next || null;
+    }
+
+    await logAudit({
+      userId: req.user!.userId,
+      action: "META_FORM_LEADS_SYNCED",
+      resourceType: "meta_ad_form_mapping",
+      resourceId: mapping._id,
+      metadata: { formId: mapping.formId, projectId: mapping.projectId, totalFetched, inserted, duplicates, skipped },
+    });
+
+    res.json({ success: true, totalFetched, inserted, duplicates, skipped });
+  } catch (err: any) {
+    console.warn("Meta lead form sync failed:", err?.message || err);
+    res.status(502).json({ error: err?.message || "Failed to fetch leads from Meta Graph API." });
+  }
+});
+
+router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file"), async (req: AuthedRequest, res: Response) => {
+  if (!req.file) return res.status(400).json({ error: "Choose a CSV file to upload." });
+  const targetProjectId = req.body.projectId && isValidId(req.body.projectId) ? req.body.projectId : null;
+  const db = getDb();
+
+  const csvText = req.file.buffer.toString("utf8");
+  const parsed = Papa.parse<Record<string, string>>(csvText, { header: true, skipEmptyLines: true });
+  if (!parsed.data || !parsed.data.length) {
+    return res.status(400).json({ error: "The CSV file contains no data rows." });
+  }
+
+  let inserted = 0;
+  let duplicates = 0;
+  let skipped = 0;
+
+  const mappings = await db.select().from(metaAdFormMappings).where(eq(metaAdFormMappings.isActive, true));
+
+  for (const row of parsed.data) {
+    const keys = Object.keys(row);
+    const phoneKey = keys.find((k) => /phone|mobile|contact/i.test(k));
+    const rawPhone = phoneKey ? row[phoneKey] : "";
+    const phone = normalizePhone(String(rawPhone || ""));
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      skipped += 1;
+      continue;
+    }
+
+    const nameKey = keys.find((k) => /full_?name|buyer_?name/i.test(k));
+    const firstNameKey = keys.find((k) => /first_?name/i.test(k));
+    const lastNameKey = keys.find((k) => /last_?name/i.test(k));
+    const fullName = String(nameKey ? row[nameKey] : [row[firstNameKey || ""], row[lastNameKey || ""]].filter(Boolean).join(" ") || "Imported Lead").trim().slice(0, 100);
+
+    const emailKey = keys.find((k) => /email/i.test(k));
+    const email = emailKey ? String(row[emailKey] || "").trim().toLowerCase() : null;
+
+    const adKey = keys.find((k) => /ad_?name/i.test(k));
+    const campaignKey = keys.find((k) => /campaign_?name/i.test(k));
+    const formIdKey = keys.find((k) => /form_?id/i.test(k));
+    const formId = formIdKey ? String(row[formIdKey] || "").trim() : null;
+
+    let resolvedProjectId = targetProjectId;
+    if (!resolvedProjectId && formId) {
+      const match = mappings.find((m) => m.formId === formId);
+      if (match) resolvedProjectId = match.projectId;
+    }
+
+    const leadIdKey = keys.find((k) => /^id$|lead_?id/i.test(k));
+    const providerLeadId = leadIdKey ? String(row[leadIdKey] || "").trim() : null;
+
+    const budgetKey = keys.find((k) => /budget/i.test(k));
+    const budgetRange = budgetKey ? String(row[budgetKey] || "").trim() : null;
+
+    const requirementKey = keys.find((k) => /requirement|note|looking_for/i.test(k));
+    const requirement = requirementKey ? String(row[requirementKey] || "").trim() : null;
+
+    const createdTimeKey = keys.find((k) => /created_?time|date/i.test(k));
+    const rawTime = createdTimeKey ? row[createdTimeKey] : null;
+    const rawCreatedAt = rawTime ? new Date(String(rawTime)) : new Date();
+    const createdAt = isNaN(rawCreatedAt.getTime()) ? new Date() : rawCreatedAt;
+
+    const [existing] = await db.select({ _id: buyerCrmLeads._id, duplicateCount: buyerCrmLeads.duplicateCount, projectId: buyerCrmLeads.projectId })
+      .from(buyerCrmLeads)
+      .where(eq(buyerCrmLeads.phone, phone))
+      .limit(1);
+
+    if (existing) {
+      duplicates += 1;
+      if (!existing.projectId && resolvedProjectId) {
+        await db.update(buyerCrmLeads).set({ projectId: resolvedProjectId, updatedAt: new Date() }).where(eq(buyerCrmLeads._id, existing._id));
+      }
+      continue;
+    }
+
+    await db.insert(buyerCrmLeads).values({
+      fullName,
+      phone,
+      email: email || null,
+      source: "META_AD",
+      status: "NEW",
+      projectId: resolvedProjectId,
+      budgetRange: budgetRange || null,
+      requirement: requirement || null,
+      contactConsent: true,
+      consentBasis: "Imported from Meta Lead Ads CSV export",
+      providerLeadId: providerLeadId || null,
+      providerFormId: formId || null,
+      providerAdName: adKey ? String(row[adKey] || "").slice(0, 250) : null,
+      providerCampaignName: campaignKey ? String(row[campaignKey] || "").slice(0, 250) : null,
+      isDuplicate: false,
+      duplicateCount: 1,
+      createdAt,
+      createdById: req.user!.userId,
+    }).onConflictDoNothing();
+
+    inserted += 1;
+  }
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "BUYER_CRM_LEADS_CSV_IMPORTED",
+    resourceType: "buyer_crm_lead",
+    resourceId: targetProjectId || "all",
+    metadata: { totalRows: parsed.data.length, inserted, duplicates, skipped },
+  });
+
+  res.json({ success: true, totalRows: parsed.data.length, inserted, duplicates, skipped });
 });
 
 export default router;

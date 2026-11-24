@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  FileSpreadsheet,
   Flame,
   Headset,
   Layers,
@@ -21,6 +22,7 @@ import {
   ShieldCheck,
   Tag,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -251,6 +253,13 @@ export default function AdminBuyerCrmPage() {
   const [loadingMappings, setLoadingMappings] = useState(false);
   const [mappingForm, setMappingForm] = useState({ formId: "", formName: "", campaignName: "", adName: "", projectId: "" });
   const [savingMapping, setSavingMapping] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  // Meta Leads CSV Import State
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvProjectId, setCsvProjectId] = useState("");
+  const [importingCsv, setImportingCsv] = useState(false);
 
   const loadSetup = useCallback(async () => {
     try {
@@ -469,6 +478,51 @@ export default function AdminBuyerCrmPage() {
     }
   }
 
+  async function syncPastLeads(mappingId: string, label: string) {
+    setSyncingId(mappingId);
+    try {
+      const res = await api.post(`/buyer-crm/admin/meta-mappings/${mappingId}/sync`);
+      const { inserted, duplicates, totalFetched } = res.data;
+      toast.success(
+        `Successfully synced ${inserted} past leads from Meta for "${label}"! (${duplicates} duplicates skipped, ${totalFetched} total scanned)`
+      );
+      await Promise.all([loadLeads(), loadSetup()]);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to sync past leads from Meta.");
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function handleCsvImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!csvFile) {
+      toast.error("Please select a Meta Ads CSV file to upload.");
+      return;
+    }
+    setImportingCsv(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      if (csvProjectId) formData.append("projectId", csvProjectId);
+
+      const res = await api.post("/buyer-crm/admin/import-leads-csv", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const { inserted, duplicates, totalRows } = res.data;
+      toast.success(
+        `CSV import complete! Added ${inserted} leads (${duplicates} duplicates identified out of ${totalRows} rows).`
+      );
+      setCsvFile(null);
+      setShowCsvImport(false);
+      await Promise.all([loadLeads(), loadSetup()]);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to import Meta CSV leads.");
+    } finally {
+      setImportingCsv(false);
+    }
+  }
+
   const sourceCounts = useMemo(() => new Map((summary?.bySource ?? []).map((row) => [row.source, row.total])), [summary]);
   const crm = summary?.leads;
   const isAdmin = summary?.userPermissions?.isAdmin ?? true;
@@ -488,15 +542,23 @@ export default function AdminBuyerCrmPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {isAdmin && (
-            <button
-              onClick={() => {
-                setShowMappings(true);
-                void loadMappings();
-              }}
-              className="inline-flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/20"
-            >
-              <Settings size={14} /> Site / Form Mappings
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setShowMappings(true);
+                  void loadMappings();
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/20"
+              >
+                <Settings size={14} /> Site / Form Mappings
+              </button>
+              <button
+                onClick={() => setShowCsvImport(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 px-3.5 py-2 text-sm font-medium text-purple-300 hover:bg-purple-500/20"
+              >
+                <Upload size={14} /> Import Meta CSV
+              </button>
+            </>
           )}
           <button
             onClick={() => { void Promise.all([loadSetup(), tab === "pipeline" ? loadLeads() : loadBuyers()]); }}
@@ -1213,13 +1275,28 @@ export default function AdminBuyerCrmPage() {
                             </button>
                           </td>
                           <td className="p-2.5">
-                            <button
-                              onClick={() => void deleteMapping(m._id)}
-                              className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-400"
-                              title="Delete mapping"
-                            >
-                              <Trash2 size={13} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => void syncPastLeads(m._id, m.formName || m.formId)}
+                                disabled={syncingId === m._id}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 disabled:opacity-50"
+                                title="Fetch past leads from Meta Graph API for this form"
+                              >
+                                {syncingId === m._id ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <RefreshCw size={12} />
+                                )}
+                                Sync Past Leads
+                              </button>
+                              <button
+                                onClick={() => void deleteMapping(m._id)}
+                                className="rounded-lg p-1.5 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-400"
+                                title="Delete mapping"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1237,6 +1314,110 @@ export default function AdminBuyerCrmPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meta Leads CSV Import Modal Dialog */}
+      {showCsvImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-background p-6 shadow-2xl">
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <FileSpreadsheet size={18} className="text-purple-400" />
+                  Import Historical Meta Leads (CSV)
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Upload exported CSV leads from Meta Ads Manager / Business Suite. We automatically parse columns, deduplicate phone numbers, and map them to the selected project site.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCsvImport(false);
+                  setCsvFile(null);
+                }}
+                className="rounded-full border border-white/10 p-1.5 hover:bg-white/10"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => void handleCsvImport(e)} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  Meta Leads CSV File *
+                </label>
+                <div className="relative rounded-xl border border-dashed border-white/20 bg-white/[0.02] p-4 text-center hover:bg-white/[0.04]">
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    required
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    className="absolute inset-0 size-full cursor-pointer opacity-0"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5 text-xs">
+                    <Upload size={22} className="text-purple-400" />
+                    {csvFile ? (
+                      <span className="font-medium text-foreground">{csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)</span>
+                    ) : (
+                      <>
+                        <span className="font-medium text-foreground">Click or drag & drop Meta CSV file here</span>
+                        <span className="text-[10px] text-muted-foreground">Exported from Meta Business Suite / Instant Forms</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  Attribute to Project / Site (optional)
+                </label>
+                <select
+                  value={csvProjectId}
+                  onChange={(e) => setCsvProjectId(e.target.value)}
+                  className={fieldClass}
+                >
+                  <option value="">Auto-detect from Form ID / Campaign mapping (or General Lead)</option>
+                  {projects.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} ({p.city})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  If left unselected, we will use your existing Form ID mappings to attribute leads to the correct site.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[11px] text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Smart Ingestion Rules:</p>
+                <p>• Duplicate leads (same phone number) will not create messy duplicates; their record is updated.</p>
+                <p>• Buyer names, email addresses, campaign names, and creation timestamps will be preserved.</p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCsvImport(false);
+                    setCsvFile(null);
+                  }}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={importingCsv || !csvFile}
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white hover:bg-purple-500 disabled:opacity-50"
+                >
+                  {importingCsv ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  {importingCsv ? "Importing Leads…" : "Import Leads"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
