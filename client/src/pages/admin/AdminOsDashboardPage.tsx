@@ -62,8 +62,9 @@ import {
 import "@/styles/founder-os.css";
 
 /**
- * Admin OS — Clean, crisp, minimal Desktop Admin Command Center.
- * Removed all decorative pill badges, sparkles, AI buzzwords, and extra fluff lines.
+ * Admin OS — High-performance, minimal, accessible Desktop Admin Command Center.
+ * Seamless, full-fidelity support for both Light Mode and Dark Mode across all
+ * components, typography, metrics, and brand assets.
  */
 
 interface InvestorMetrics {
@@ -307,6 +308,7 @@ const WORKSPACES: WorkspaceLink[] = [
 
 /**
  * Persistent admin shell: Left Sidebar + Sticky Topbar around child modules.
+ * Fully responsive to Light and Dark mode.
  */
 export function AdminOsLayout() {
   const navigate = useNavigate();
@@ -394,8 +396,10 @@ export function AdminOsLayout() {
     return groups;
   }, []);
 
+  const isLight = theme === "light";
+
   return (
-    <div className={`founder-os admin-os-shell ${theme === "light" ? "light" : ""}`}>
+    <div className={`founder-os admin-os-shell ${isLight ? "light" : ""}`}>
       {/* Mobile Backdrop Overlay */}
       <div
         className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden ${
@@ -405,49 +409,95 @@ export function AdminOsLayout() {
       />
 
       {/* ======================================================== */}
-      {/* LEFT SIDEBAR NAVIGATION (264px Fixed Glass Container)    */}
+      {/* LEFT SIDEBAR NAVIGATION (264px Fixed Container)          */}
       {/* ======================================================== */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 w-[264px] bg-[#070B15]/95 backdrop-blur-2xl border-r border-white/10 z-50 flex flex-col justify-between transition-transform duration-300 ease-in-out md:translate-x-0 ${
-          navOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
-        }`}
+        className={`fixed top-0 bottom-0 left-0 w-[264px] z-50 flex flex-col justify-between transition-all duration-300 ease-in-out md:translate-x-0 ${
+          isLight
+            ? "bg-white border-r border-slate-200 text-slate-800 shadow-md"
+            : "bg-[#070B15]/95 backdrop-blur-2xl border-r border-white/10 text-slate-200"
+        } ${navOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}
       >
         {/* Brand Header */}
-        <div className="h-[68px] px-5 flex items-center justify-between border-b border-white/10 flex-shrink-0 bg-white/[0.02]">
+        <div
+          className={`h-[68px] px-5 flex items-center justify-between border-b flex-shrink-0 transition-colors ${
+            isLight ? "bg-slate-50/80 border-slate-200" : "bg-white/[0.02] border-white/10"
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-md flex-shrink-0">
-              <img src="/brand/icon.png" alt="Truvi" className="w-5 h-5 object-contain" />
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all ${
+                isLight
+                  ? "bg-white border border-slate-200 shadow-sm"
+                  : "bg-gradient-to-br from-violet-600 to-indigo-600 shadow-[0_0_16px_rgba(124,92,255,0.35)]"
+              }`}
+            >
+              <img
+                src={isLight ? "/brand/icon.png" : "/brand/icon-white.png"}
+                alt="Truvi"
+                className="w-5 h-5 object-contain"
+              />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold tracking-tight text-white text-[17px] font-sans">TRUVI</span>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Admin OS</span>
+              <span
+                className={`font-bold tracking-tight text-[17px] font-sans ${
+                  isLight ? "text-slate-900" : "text-white"
+                }`}
+              >
+                TRUVI
+              </span>
+              <span
+                className={`text-[10px] uppercase tracking-wider font-semibold ${
+                  isLight ? "text-slate-500" : "text-slate-400"
+                }`}
+              >
+                Admin OS
+              </span>
             </div>
           </div>
         </div>
 
         {/* Navigation Scrollable Body */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-white/10">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
           {/* Command Section */}
           <div className="space-y-1">
-            <div className="px-3 text-[10px] uppercase tracking-wider text-slate-400 font-bold">Command</div>
+            <div
+              className={`px-3 text-[10px] uppercase tracking-wider font-bold ${
+                isLight ? "text-slate-400" : "text-slate-500"
+              }`}
+            >
+              Command
+            </div>
             <button
               onClick={() => goto("/admin/dashboard")}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all ${
                 isHome
                   ? "bg-violet-600 text-white font-semibold shadow-md"
-                  : "text-slate-300 hover:text-white hover:bg-white/5"
+                  : isLight
+                    ? "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                    : "text-slate-300 hover:text-white hover:bg-white/5"
               }`}
             >
-              <LayoutDashboard className={`w-4 h-4 ${isHome ? "text-white" : "text-violet-400"}`} />
+              <LayoutDashboard
+                className={`w-4 h-4 ${isHome ? "text-white" : isLight ? "text-violet-600" : "text-violet-400"}`}
+              />
               <span className="flex-1 text-left">Dashboard</span>
-              <ChevronRight className={`w-3.5 h-3.5 ${isHome ? "text-white/80" : "text-slate-500"}`} />
+              <ChevronRight
+                className={`w-3.5 h-3.5 ${isHome ? "text-white/80" : isLight ? "text-slate-400" : "text-slate-500"}`}
+              />
             </button>
           </div>
 
           {/* Categorized Workspaces */}
           {Object.entries(groupedWorkspaces).map(([groupTitle, links]) => (
             <div key={groupTitle} className="space-y-1">
-              <div className="px-3 text-[10px] uppercase tracking-wider text-slate-400 font-bold">{groupTitle}</div>
+              <div
+                className={`px-3 text-[10px] uppercase tracking-wider font-bold ${
+                  isLight ? "text-slate-400" : "text-slate-500"
+                }`}
+              >
+                {groupTitle}
+              </div>
               <div className="space-y-0.5">
                 {links.map((w) => {
                   const Icon = w.icon;
@@ -458,11 +508,25 @@ export function AdminOsLayout() {
                       onClick={() => goto(w.path)}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[12.5px] font-medium transition-all ${
                         active
-                          ? "bg-white/10 text-violet-300 border border-violet-500/30 font-semibold shadow-sm"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                          ? isLight
+                            ? "bg-violet-50 text-violet-700 border border-violet-200 font-semibold shadow-xs"
+                            : "bg-white/10 text-violet-300 border border-violet-500/30 font-semibold shadow-sm"
+                          : isLight
+                            ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                            : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
                       }`}
                     >
-                      <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-violet-400" : "text-slate-400"}`} />
+                      <Icon
+                        className={`w-4 h-4 flex-shrink-0 ${
+                          active
+                            ? isLight
+                              ? "text-violet-600"
+                              : "text-violet-400"
+                            : isLight
+                              ? "text-slate-400"
+                              : "text-slate-500"
+                        }`}
+                      />
                       <span className="flex-1 text-left truncate">{w.label}</span>
                     </button>
                   );
@@ -473,20 +537,52 @@ export function AdminOsLayout() {
         </nav>
 
         {/* Sidebar Footer User Box */}
-        <div className="p-3 border-t border-white/10 bg-black/20 flex-shrink-0">
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+        <div
+          className={`p-3 border-t flex-shrink-0 transition-colors ${
+            isLight ? "border-slate-200 bg-slate-50/60" : "border-white/10 bg-black/20"
+          }`}
+        >
+          <div
+            className={`flex items-center justify-between p-2 rounded-xl border transition-colors ${
+              isLight
+                ? "bg-white border-slate-200 hover:bg-slate-50 shadow-xs"
+                : "bg-white/[0.03] border-white/5 hover:bg-white/[0.06]"
+            }`}
+          >
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-violet-600/30 text-violet-300 border border-violet-500/30 flex items-center justify-center font-bold text-xs flex-shrink-0">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                  isLight
+                    ? "bg-violet-100 text-violet-700 border border-violet-200"
+                    : "bg-violet-600/30 text-violet-300 border border-violet-500/30"
+                }`}
+              >
                 {initials(user?.name || "Admin")}
               </div>
               <div className="flex flex-col truncate">
-                <span className="text-xs font-semibold text-slate-200 truncate">{user?.name || "Admin"}</span>
-                <span className="text-[10px] text-slate-400 truncate">{user?.role || "Administrator"}</span>
+                <span
+                  className={`text-xs font-semibold truncate ${
+                    isLight ? "text-slate-900" : "text-slate-200"
+                  }`}
+                >
+                  {user?.name || "Admin"}
+                </span>
+                <span
+                  className={`text-[10px] truncate ${
+                    isLight ? "text-slate-500" : "text-slate-400"
+                  }`}
+                >
+                  {user?.role || "Administrator"}
+                </span>
               </div>
             </div>
             <button
               onClick={doLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isLight
+                  ? "text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                  : "text-slate-400 hover:text-rose-400 hover:bg-rose-500/10"
+              }`}
               title="Sign out"
             >
               <LogOut className="w-4 h-4" />
@@ -498,13 +594,25 @@ export function AdminOsLayout() {
       {/* ======================================================== */}
       {/* MAIN CONTAINER (Sticky Header + Embedded View / Content) */}
       {/* ======================================================== */}
-      <div className="os-main md:ml-[264px] min-h-screen flex flex-col bg-[#070B15]">
+      <div
+        className={`os-main md:ml-[264px] min-h-screen flex flex-col transition-colors ${
+          isLight ? "bg-[#F8FAFC] text-slate-900" : "bg-[#070B15] text-slate-100"
+        }`}
+      >
         {/* Sticky Topbar */}
-        <header className="sticky top-0 z-40 h-[68px] bg-[#070B15]/80 backdrop-blur-xl border-b border-white/10 px-5 sm:px-7 flex items-center justify-between gap-4">
+        <header
+          className={`sticky top-0 z-40 h-[68px] backdrop-blur-xl border-b px-5 sm:px-7 flex items-center justify-between gap-4 transition-colors ${
+            isLight
+              ? "bg-white/85 border-slate-200 shadow-xs"
+              : "bg-[#070B15]/80 border-white/10"
+          }`}
+        >
           {/* Mobile Menu Toggle */}
           <button
             onClick={() => setNavOpen(true)}
-            className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/5"
+            className={`md:hidden p-2 rounded-lg ${
+              isLight ? "text-slate-600 hover:bg-slate-100" : "text-slate-400 hover:bg-white/5"
+            }`}
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
@@ -512,7 +620,11 @@ export function AdminOsLayout() {
 
           {/* Quick Omnisearch Input */}
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search
+              className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                isLight ? "text-slate-400" : "text-slate-400"
+              }`}
+            />
             <input
               value={q}
               onFocus={ensureSearchData}
@@ -524,23 +636,41 @@ export function AdminOsLayout() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && results[0]) goto(results[0].href);
               }}
-              className="w-full pl-9 pr-14 py-2 bg-white/[0.04] border border-white/10 hover:border-white/20 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40 transition-all font-sans"
+              className={`w-full pl-9 pr-14 py-2 rounded-xl text-xs transition-all font-sans ${
+                isLight
+                  ? "bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-violet-600 focus:ring-1 focus:ring-violet-600/30"
+                  : "bg-white/[0.04] border border-white/10 text-white placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/40"
+              }`}
             />
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-slate-400">
+            <span
+              className={`absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                isLight
+                  ? "bg-white border border-slate-200 text-slate-500 shadow-xs"
+                  : "bg-white/5 border border-white/10 text-slate-400"
+              }`}
+            >
               ⌘K
             </span>
 
             {/* Live Autocomplete Results */}
             {results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-[#0F172A] border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
+              <div
+                className={`absolute top-full left-0 right-0 mt-2 border rounded-xl shadow-xl overflow-hidden z-50 max-h-80 overflow-y-auto ${
+                  isLight ? "bg-white border-slate-200 text-slate-900" : "bg-[#0F172A] border-white/15 text-white"
+                }`}
+              >
                 {results.map((r) => (
                   <button
                     key={r.key}
                     onMouseDown={() => goto(r.href)}
-                    className="w-full text-left px-4 py-2.5 border-b border-white/5 hover:bg-white/5 flex flex-col transition-colors"
+                    className={`w-full text-left px-4 py-2.5 border-b flex flex-col transition-colors ${
+                      isLight
+                        ? "border-slate-100 hover:bg-slate-50 text-slate-900"
+                        : "border-white/5 hover:bg-white/5 text-white"
+                    }`}
                   >
-                    <span className="text-xs font-semibold text-white">{r.title}</span>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-xs font-semibold">{r.title}</span>
+                    <span className={`text-[11px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                       {r.kind} {r.sub ? `· ${r.sub}` : ""}
                     </span>
                   </button>
@@ -554,7 +684,11 @@ export function AdminOsLayout() {
             {/* Refresh Live Telemetry */}
             <button
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+              className={`p-2 rounded-xl border transition-all ${
+                isLight
+                  ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent hover:border-slate-200"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border-transparent hover:border-white/10"
+              }`}
               title="Refresh"
             >
               <RefreshCw className="w-4 h-4" />
@@ -566,7 +700,11 @@ export function AdminOsLayout() {
             {/* Profile Settings Gear */}
             <button
               onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
+              className={`p-2 rounded-xl border transition-all ${
+                isLight
+                  ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-transparent hover:border-slate-200"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border-transparent hover:border-white/10"
+              }`}
               title="Settings"
             >
               <Settings className="w-4 h-4" />
@@ -575,7 +713,7 @@ export function AdminOsLayout() {
             {/* Notification Bell */}
             <NotificationBell />
 
-            <div className="w-px h-5 bg-white/10 hidden sm:block mx-1" />
+            <div className={`w-px h-5 hidden sm:block mx-1 ${isLight ? "bg-slate-200" : "bg-white/10"}`} />
 
             {/* User Profile Menu */}
             <InNavbarContext.Provider value={true}>
@@ -601,10 +739,14 @@ export function AdminOsLayout() {
 
 /**
  * Admin Command Center Home Page:
- * Minimal, crisp, professional layout without AI pill badges, sparkles, or text fluff.
+ * Minimal, crisp, professional layout.
+ * 100% responsive for Light and Dark modes.
  */
 export default function AdminOsDashboardPage() {
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+
   const [pendingProjects, setPendingProjects] = useState<Project[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [stats, setStats] = useState({ totalUsers: 0, totalProjects: 0, platformFees: 0, leadRevenue: 0 });
@@ -728,20 +870,30 @@ export default function AdminOsDashboardPage() {
   if (initialLoading) return <DashboardSkeleton variant="content" />;
 
   return (
-    <section className="space-y-6 max-w-[1840px] mx-auto text-slate-100 font-sans pb-16">
+    <section className={`space-y-6 max-w-[1840px] mx-auto pb-16 font-sans ${isLight ? "text-slate-800" : "text-slate-100"}`}>
       {/* ======================================================== */}
       {/* 1. HEADER SECTION                                        */}
       {/* ======================================================== */}
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+      <section
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5 transition-colors ${
+          isLight ? "border-slate-200" : "border-white/10"
+        }`}
+      >
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Admin Dashboard</h1>
+          <h1 className={`text-2xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+            Admin Dashboard
+          </h1>
         </div>
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => navigate("/admin/listings")}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] hover:text-white border border-white/10 text-xs font-semibold text-slate-300 transition-all"
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-semibold transition-all ${
+              isLight
+                ? "bg-white hover:bg-slate-50 hover:text-slate-900 border-slate-200 text-slate-700 shadow-xs"
+                : "bg-white/[0.04] hover:bg-white/[0.08] hover:text-white border-white/10 text-slate-300"
+            }`}
           >
             <Building2 className="w-3.5 h-3.5" />
             <span>Manage Listings</span>
@@ -764,19 +916,31 @@ export default function AdminOsDashboardPage() {
         {/* Total Users */}
         <div
           onClick={() => navigate("/admin/users")}
-          className="group p-5 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 hover:border-violet-500/40 transition-all shadow-xl flex flex-col justify-between cursor-pointer"
+          className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
+            isLight
+              ? "bg-white border-slate-200 hover:border-violet-300 shadow-sm hover:shadow-md"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-violet-500/40 shadow-xl"
+          }`}
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Total Users</span>
+              <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Total Users
+              </span>
               {trends?.users !== undefined && (
-                <span className="text-emerald-400 text-xs font-semibold">{trendBadge(trends.users)?.text}</span>
+                <span className="text-emerald-500 text-xs font-semibold">{trendBadge(trends.users)?.text}</span>
               )}
             </div>
-            <div className="mt-3 text-3xl font-bold tracking-tight text-white">{stats.totalUsers}</div>
-            <p className="mt-1 text-xs text-slate-400">Buyers, CPs & Developers</p>
+            <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+              {stats.totalUsers}
+            </div>
+            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Buyers, CPs & Developers</p>
           </div>
-          <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-violet-400 font-medium group-hover:text-violet-300">
+          <div
+            className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
+              isLight ? "border-slate-100 text-violet-600 group-hover:text-violet-700" : "border-white/5 text-violet-400 group-hover:text-violet-300"
+            }`}
+          >
             <span>Manage accounts</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -785,19 +949,31 @@ export default function AdminOsDashboardPage() {
         {/* Total Projects */}
         <div
           onClick={() => navigate("/admin/listings")}
-          className="group p-5 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 hover:border-amber-500/40 transition-all shadow-xl flex flex-col justify-between cursor-pointer"
+          className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
+            isLight
+              ? "bg-white border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-md"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-amber-500/40 shadow-xl"
+          }`}
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Total Projects</span>
+              <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Total Projects
+              </span>
               {trends?.projects !== undefined && (
-                <span className="text-amber-400 text-xs font-semibold">{trendBadge(trends.projects)?.text}</span>
+                <span className="text-amber-500 text-xs font-semibold">{trendBadge(trends.projects)?.text}</span>
               )}
             </div>
-            <div className="mt-3 text-3xl font-bold tracking-tight text-white">{stats.totalProjects}</div>
-            <p className="mt-1 text-xs text-slate-400">Approved listings</p>
+            <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+              {stats.totalProjects}
+            </div>
+            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Approved listings</p>
           </div>
-          <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-amber-400 font-medium group-hover:text-amber-300">
+          <div
+            className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
+              isLight ? "border-slate-100 text-amber-600 group-hover:text-amber-700" : "border-white/5 text-amber-400 group-hover:text-amber-300"
+            }`}
+          >
             <span>View listings</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -806,21 +982,33 @@ export default function AdminOsDashboardPage() {
         {/* Platform Fee Revenue */}
         <div
           onClick={() => navigate("/admin/revenue")}
-          className="group p-5 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 hover:border-emerald-500/40 transition-all shadow-xl flex flex-col justify-between cursor-pointer"
+          className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
+            isLight
+              ? "bg-white border-slate-200 hover:border-emerald-300 shadow-sm hover:shadow-md"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-emerald-500/40 shadow-xl"
+          }`}
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Platform Fees</span>
+              <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Platform Fees
+              </span>
               {trends?.platformFeeRevenue !== undefined && (
-                <span className="text-emerald-400 text-xs font-semibold">
+                <span className="text-emerald-500 text-xs font-semibold">
                   {trendBadge(trends.platformFeeRevenue)?.text}
                 </span>
               )}
             </div>
-            <div className="mt-3 text-3xl font-bold tracking-tight text-white">{formatINR(stats.platformFees)}</div>
-            <p className="mt-1 text-xs text-slate-400">Transaction fees</p>
+            <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+              {formatINR(stats.platformFees)}
+            </div>
+            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Transaction fees</p>
           </div>
-          <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-emerald-400 font-medium group-hover:text-emerald-300">
+          <div
+            className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
+              isLight ? "border-slate-100 text-emerald-600 group-hover:text-emerald-700" : "border-white/5 text-emerald-400 group-hover:text-emerald-300"
+            }`}
+          >
             <span>View revenue</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -829,19 +1017,31 @@ export default function AdminOsDashboardPage() {
         {/* Lead Marketplace Revenue */}
         <div
           onClick={() => navigate("/admin/revenue")}
-          className="group p-5 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 hover:border-cyan-500/40 transition-all shadow-xl flex flex-col justify-between cursor-pointer"
+          className={`group p-5 rounded-2xl border transition-all flex flex-col justify-between cursor-pointer ${
+            isLight
+              ? "bg-white border-slate-200 hover:border-cyan-300 shadow-sm hover:shadow-md"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 hover:border-cyan-500/40 shadow-xl"
+          }`}
         >
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Lead Revenue</span>
+              <span className={`text-[11px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Lead Revenue
+              </span>
               {trends?.leadRevenue !== undefined && (
-                <span className="text-cyan-400 text-xs font-semibold">{trendBadge(trends.leadRevenue)?.text}</span>
+                <span className="text-cyan-500 text-xs font-semibold">{trendBadge(trends.leadRevenue)?.text}</span>
               )}
             </div>
-            <div className="mt-3 text-3xl font-bold tracking-tight text-white">{formatINR(stats.leadRevenue)}</div>
-            <p className="mt-1 text-xs text-slate-400">Marketplace revenue</p>
+            <div className={`mt-3 text-3xl font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+              {formatINR(stats.leadRevenue)}
+            </div>
+            <p className={`mt-1 text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>Marketplace revenue</p>
           </div>
-          <div className="mt-5 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-cyan-400 font-medium group-hover:text-cyan-300">
+          <div
+            className={`mt-5 pt-3 border-t flex items-center justify-between text-xs font-medium transition-colors ${
+              isLight ? "border-slate-100 text-cyan-600 group-hover:text-cyan-700" : "border-white/5 text-cyan-400 group-hover:text-cyan-300"
+            }`}
+          >
             <span>View leads</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </div>
@@ -854,22 +1054,30 @@ export default function AdminOsDashboardPage() {
       {leadStats && (
         <section className="space-y-3">
           <div className="flex items-center gap-2 px-1">
-            <Target className="w-4 h-4 text-violet-400" />
-            <h2 className="text-sm font-semibold tracking-tight text-white">Lead Pipeline</h2>
+            <Target className="w-4 h-4 text-violet-500" />
+            <h2 className={`text-sm font-semibold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+              Lead Pipeline
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {/* Stage 1 */}
             <div
               onClick={() => navigate("/admin/leads")}
-              className="p-4 rounded-xl bg-[#0F172A]/70 backdrop-blur-md border border-white/10 hover:border-violet-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                isLight
+                  ? "bg-white border-slate-200 shadow-xs hover:border-slate-300"
+                  : "bg-[#0F172A]/70 backdrop-blur-md border-white/10 hover:border-violet-500/40"
+              }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Total Leads</span>
+              <span className={`text-[10px] uppercase tracking-wider font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Total Leads
+              </span>
               <div className="my-2">
-                <div className="text-2xl font-bold text-white">{leadStats.total}</div>
-                <span className="text-[11px] text-slate-400">All captured</span>
+                <div className={`text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>{leadStats.total}</div>
+                <span className={`text-[11px] ${isLight ? "text-slate-500" : "text-slate-400"}`}>All captured</span>
               </div>
-              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? "bg-slate-100" : "bg-white/5"}`}>
                 <div className="bg-violet-500 h-full w-full" />
               </div>
             </div>
@@ -877,14 +1085,20 @@ export default function AdminOsDashboardPage() {
             {/* Stage 2 */}
             <div
               onClick={() => navigate("/admin/leads?status=NEW")}
-              className="p-4 rounded-xl bg-[#0F172A]/70 backdrop-blur-md border border-white/10 hover:border-amber-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                isLight
+                  ? "bg-white border-slate-200 shadow-xs hover:border-slate-300"
+                  : "bg-[#0F172A]/70 backdrop-blur-md border-white/10 hover:border-amber-500/40"
+              }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">New Leads</span>
+              <span className={`text-[10px] uppercase tracking-wider font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                New Leads
+              </span>
               <div className="my-2">
-                <div className="text-2xl font-bold text-white">{leadStats.new}</div>
-                <span className="text-[11px] text-amber-400">Needs contact</span>
+                <div className={`text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>{leadStats.new}</div>
+                <span className="text-[11px] text-amber-500 font-medium">Needs contact</span>
               </div>
-              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? "bg-slate-100" : "bg-white/5"}`}>
                 <div
                   className="bg-amber-500 h-full"
                   style={{ width: `${leadStats.total ? Math.min(100, (leadStats.new / leadStats.total) * 100) : 0}%` }}
@@ -895,14 +1109,20 @@ export default function AdminOsDashboardPage() {
             {/* Stage 3 */}
             <div
               onClick={() => navigate("/admin/leads?status=SITE_VISIT_SCHEDULED")}
-              className="p-4 rounded-xl bg-[#0F172A]/70 backdrop-blur-md border border-white/10 hover:border-blue-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                isLight
+                  ? "bg-white border-slate-200 shadow-xs hover:border-slate-300"
+                  : "bg-[#0F172A]/70 backdrop-blur-md border-white/10 hover:border-blue-500/40"
+              }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Scheduled Visits</span>
+              <span className={`text-[10px] uppercase tracking-wider font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Scheduled Visits
+              </span>
               <div className="my-2">
-                <div className="text-2xl font-bold text-white">{leadStats.visitsScheduled}</div>
-                <span className="text-[11px] text-blue-400">Upcoming visits</span>
+                <div className={`text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>{leadStats.visitsScheduled}</div>
+                <span className="text-[11px] text-blue-500 font-medium">Upcoming visits</span>
               </div>
-              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? "bg-slate-100" : "bg-white/5"}`}>
                 <div
                   className="bg-blue-500 h-full"
                   style={{
@@ -915,14 +1135,20 @@ export default function AdminOsDashboardPage() {
             {/* Stage 4 */}
             <div
               onClick={() => navigate("/admin/leads?status=SITE_VISIT_COMPLETED")}
-              className="p-4 rounded-xl bg-[#0F172A]/70 backdrop-blur-md border border-white/10 hover:border-cyan-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                isLight
+                  ? "bg-white border-slate-200 shadow-xs hover:border-slate-300"
+                  : "bg-[#0F172A]/70 backdrop-blur-md border-white/10 hover:border-cyan-500/40"
+              }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Completed Visits</span>
+              <span className={`text-[10px] uppercase tracking-wider font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Completed Visits
+              </span>
               <div className="my-2">
-                <div className="text-2xl font-bold text-white">{leadStats.visitsCompleted}</div>
-                <span className="text-[11px] text-cyan-400">Visits done</span>
+                <div className={`text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>{leadStats.visitsCompleted}</div>
+                <span className="text-[11px] text-cyan-500 font-medium">Visits done</span>
               </div>
-              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? "bg-slate-100" : "bg-white/5"}`}>
                 <div
                   className="bg-cyan-500 h-full"
                   style={{
@@ -935,14 +1161,20 @@ export default function AdminOsDashboardPage() {
             {/* Stage 5 */}
             <div
               onClick={() => navigate("/admin/leads?status=CONVERTED")}
-              className="p-4 rounded-xl bg-[#0F172A]/70 backdrop-blur-md border border-white/10 hover:border-emerald-500/40 transition-all cursor-pointer flex flex-col justify-between"
+              className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                isLight
+                  ? "bg-emerald-50/60 border-emerald-200 shadow-xs hover:border-emerald-300"
+                  : "bg-[#0F172A]/70 backdrop-blur-md border-white/10 hover:border-emerald-500/40"
+              }`}
             >
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Converted</span>
+              <span className={`text-[10px] uppercase tracking-wider font-bold ${isLight ? "text-emerald-700" : "text-emerald-400"}`}>
+                Converted
+              </span>
               <div className="my-2">
-                <div className="text-2xl font-bold text-emerald-400">{leadStats.converted}</div>
-                <span className="text-[11px] text-emerald-400">Booked units</span>
+                <div className={`text-2xl font-bold ${isLight ? "text-emerald-700" : "text-emerald-400"}`}>{leadStats.converted}</div>
+                <span className={`text-[11px] font-medium ${isLight ? "text-emerald-600" : "text-emerald-400"}`}>Booked units</span>
               </div>
-              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+              <div className={`w-full h-1 rounded-full overflow-hidden ${isLight ? "bg-emerald-100" : "bg-white/5"}`}>
                 <div className="bg-emerald-500 h-full w-full" />
               </div>
             </div>
@@ -954,41 +1186,63 @@ export default function AdminOsDashboardPage() {
       {/* 4. ROW 3: OPERATIONS TODAY (5 METRICS)                   */}
       {/* ======================================================== */}
       {overview && (
-        <section className="p-4 rounded-2xl bg-[#0F172A]/80 backdrop-blur-xl border border-white/10 shadow-lg">
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
+        <section
+          className={`p-4 rounded-2xl border transition-colors ${
+            isLight
+              ? "bg-white border-slate-200 shadow-sm"
+              : "bg-[#0F172A]/80 backdrop-blur-xl border-white/10 shadow-lg"
+          }`}
+        >
+          <div
+            className={`grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 divide-y sm:divide-y-0 sm:divide-x ${
+              isLight ? "divide-slate-200" : "divide-white/10"
+            }`}
+          >
             {/* Metric 1 */}
             <div
               onClick={() => navigate("/admin/revenue")}
               className="flex items-center gap-3 px-3 py-1 cursor-pointer hover:opacity-80 transition-opacity"
             >
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 flex-shrink-0">
                 <Wallet className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold">Revenue Today</span>
-                <div className="text-sm font-bold text-white">{formatINR(overview.companyHealth.revenueToday)}</div>
+                <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Revenue Today
+                </span>
+                <div className={`text-sm font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
+                  {formatINR(overview.companyHealth.revenueToday)}
+                </div>
               </div>
             </div>
 
             {/* Metric 2 */}
             <div className="flex items-center gap-3 px-3 py-1">
-              <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-500 flex-shrink-0">
                 <Inbox className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold">Leads Today</span>
-                <div className="text-sm font-bold text-white">{overview.sales.leadsToday} New</div>
+                <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Leads Today
+                </span>
+                <div className={`text-sm font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
+                  {overview.sales.leadsToday} New
+                </div>
               </div>
             </div>
 
             {/* Metric 3 */}
             <div className="flex items-center gap-3 px-3 py-1">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 flex-shrink-0">
                 <Target className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold">Bookings Today</span>
-                <div className="text-sm font-bold text-white">{overview.executive.todaysBookings} Units</div>
+                <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Bookings Today
+                </span>
+                <div className={`text-sm font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
+                  {overview.executive.todaysBookings} Units
+                </div>
               </div>
             </div>
 
@@ -997,12 +1251,16 @@ export default function AdminOsDashboardPage() {
               onClick={() => navigate("/admin/kyc")}
               className="flex items-center gap-3 px-3 py-1 cursor-pointer hover:opacity-80 transition-opacity"
             >
-              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500 flex-shrink-0">
                 <Users className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold">Pending CP KYC</span>
-                <div className="text-sm font-bold text-white">{overview.verification.pendingKyc}</div>
+                <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Pending CP KYC
+                </span>
+                <div className={`text-sm font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
+                  {overview.verification.pendingKyc}
+                </div>
               </div>
             </div>
 
@@ -1011,12 +1269,14 @@ export default function AdminOsDashboardPage() {
               onClick={() => navigate("/admin/verification")}
               className="flex items-center gap-3 px-3 py-1 cursor-pointer hover:opacity-80 transition-opacity"
             >
-              <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 flex-shrink-0">
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-[10px] uppercase text-slate-400 font-bold">Pending Verification</span>
-                <div className="text-sm font-bold text-rose-400">
+                <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Pending Verification
+                </span>
+                <div className="text-sm font-bold text-rose-500">
                   {overview.verification.pendingProjects + overview.verification.pendingLegal}
                 </div>
               </div>
@@ -1028,14 +1288,26 @@ export default function AdminOsDashboardPage() {
       {/* ======================================================== */}
       {/* 5. ROW 4: PLATFORM GROWTH & 7-DAY MATRIX (DUAL LAYOUT)   */}
       {/* ======================================================== */}
-      <section className="p-5 sm:p-6 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 shadow-xl">
+      <section
+        className={`p-5 sm:p-6 rounded-2xl border transition-colors ${
+          isLight
+            ? "bg-white border-slate-200 shadow-sm"
+            : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 shadow-xl"
+        }`}
+      >
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left Panel: 1/3 Summary Metrics & Quick Dossiers */}
-          <div className="w-full lg:w-1/3 flex flex-col justify-between space-y-4 border-b lg:border-b-0 lg:border-r border-white/10 lg:pr-6 pb-6 lg:pb-0">
+          <div
+            className={`w-full lg:w-1/3 flex flex-col justify-between space-y-4 border-b lg:border-b-0 lg:border-r lg:pr-6 pb-6 lg:pb-0 ${
+              isLight ? "border-slate-200" : "border-white/10"
+            }`}
+          >
             <div>
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-violet-400" />
-                <h3 className="text-base font-bold tracking-tight text-white">Platform Growth</h3>
+                <Activity className="w-4 h-4 text-violet-500" />
+                <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+                  Platform Growth
+                </h3>
               </div>
             </div>
 
@@ -1043,42 +1315,64 @@ export default function AdminOsDashboardPage() {
             <div className="grid grid-cols-2 gap-3">
               <div
                 onClick={() => navigate("/admin/users")}
-                className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-violet-500/40 transition-all cursor-pointer"
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  isLight
+                    ? "bg-slate-50 border-slate-200 hover:border-violet-300"
+                    : "bg-white/[0.03] border-white/10 hover:border-violet-500/40"
+                }`}
               >
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Users Added</span>
-                <div className="mt-1 text-2xl font-bold text-white">
+                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Users Added
+                </span>
+                <div className={`mt-1 text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
                   {platformUsersStatus === "loaded" ? usersAddedIn7Days : "—"}
                 </div>
-                <span className="text-[10px] text-violet-400 font-medium inline-flex items-center gap-0.5 mt-1">
+                <span className="text-[10px] text-violet-600 dark:text-violet-400 font-medium inline-flex items-center gap-0.5 mt-1">
                   View users →
                 </span>
               </div>
 
               <div
                 onClick={() => navigate("/admin/listings")}
-                className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-amber-500/40 transition-all cursor-pointer"
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                  isLight
+                    ? "bg-slate-50 border-slate-200 hover:border-amber-300"
+                    : "bg-white/[0.03] border-white/10 hover:border-amber-500/40"
+                }`}
               >
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Projects Added</span>
-                <div className="mt-1 text-2xl font-bold text-white">
+                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  Projects Added
+                </span>
+                <div className={`mt-1 text-2xl font-bold ${isLight ? "text-slate-900" : "text-white"}`}>
                   {platformProjectsStatus === "loaded" ? projectsAddedIn7Days : "—"}
                 </div>
-                <span className="text-[10px] text-amber-400 font-medium inline-flex items-center gap-0.5 mt-1">
+                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-0.5 mt-1">
                   View listings →
                 </span>
               </div>
             </div>
 
             {/* Latest User Onboarded */}
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+            <div
+              className={`p-3 rounded-xl border flex items-center justify-between ${
+                isLight ? "bg-slate-50/70 border-slate-200/60" : "bg-white/[0.02] border-white/5"
+              }`}
+            >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-full bg-violet-600/30 text-violet-300 border border-violet-500/30 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                    isLight
+                      ? "bg-violet-100 text-violet-700 border border-violet-200"
+                      : "bg-violet-600/30 text-violet-300 border border-violet-500/30"
+                  }`}
+                >
                   {latestUsers[0] ? initials(latestUsers[0].name) : "U"}
                 </div>
                 <div className="flex flex-col truncate">
-                  <span className="text-xs font-semibold text-white truncate">
+                  <span className={`text-xs font-semibold truncate ${isLight ? "text-slate-900" : "text-white"}`}>
                     {latestUsers[0]?.name || "No new accounts"}
                   </span>
-                  <span className="text-[10px] text-slate-400 truncate">
+                  <span className={`text-[10px] truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                     {latestUsers[0]?.role || "User"} · {formatIndiaDateTime(latestUsers[0]?.createdAt)}
                   </span>
                 </div>
@@ -1086,16 +1380,26 @@ export default function AdminOsDashboardPage() {
             </div>
 
             {/* Latest Project Listed */}
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+            <div
+              className={`p-3 rounded-xl border flex items-center justify-between ${
+                isLight ? "bg-slate-50/70 border-slate-200/60" : "bg-white/[0.02] border-white/5"
+              }`}
+            >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                    isLight
+                      ? "bg-amber-100 text-amber-700 border border-amber-200"
+                      : "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                  }`}
+                >
                   <Building2 className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col truncate">
-                  <span className="text-xs font-semibold text-white truncate">
+                  <span className={`text-xs font-semibold truncate ${isLight ? "text-slate-900" : "text-white"}`}>
                     {latestProjects[0]?.name || "No recent projects"}
                   </span>
-                  <span className="text-[10px] text-slate-400 truncate">
+                  <span className={`text-[10px] truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                     {latestProjects[0]?.city || "Location not set"} · {formatIndiaDateTime(latestProjects[0]?.createdAt)}
                   </span>
                 </div>
@@ -1106,15 +1410,17 @@ export default function AdminOsDashboardPage() {
           {/* Right Panel: 2/3 Interactive 7-Day Activity Chart */}
           <div className="w-full lg:w-2/3 flex flex-col justify-between space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h4 className="text-sm font-bold text-white tracking-tight">Daily Additions (Last 7 Days)</h4>
+              <h4 className={`text-sm font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+                Daily Additions (Last 7 Days)
+              </h4>
               <div className="flex items-center gap-4 text-xs font-medium">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-violet-500" />
-                  <span className="text-slate-300">Users</span>
+                  <span className={isLight ? "text-slate-700" : "text-slate-300"}>Users</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-amber-400" />
-                  <span className="text-slate-300">Projects</span>
+                  <span className={isLight ? "text-slate-700" : "text-slate-300"}>Projects</span>
                 </div>
               </div>
             </div>
@@ -1124,10 +1430,18 @@ export default function AdminOsDashboardPage() {
               <div className="grid grid-cols-7 gap-2 sm:gap-3 items-end h-44">
                 {growthDays.map((day) => (
                   <div key={day.key} className="flex flex-col items-center gap-2 h-full justify-end group">
-                    <span className="text-[10px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span
+                      className={`text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity ${
+                        isLight ? "text-slate-600" : "text-slate-400"
+                      }`}
+                    >
                       {day.users + day.projects}
                     </span>
-                    <div className="w-full flex items-end justify-center gap-1 h-32 bg-white/[0.02] p-1 rounded-xl border border-white/5">
+                    <div
+                      className={`w-full flex items-end justify-center gap-1 h-32 p-1 rounded-xl border ${
+                        isLight ? "bg-slate-100 border-slate-200" : "bg-white/[0.02] border-white/5"
+                      }`}
+                    >
                       {/* User Bar */}
                       <div
                         className="w-1/2 bg-violet-500 rounded-lg transition-all duration-300 group-hover:bg-violet-400"
@@ -1145,7 +1459,11 @@ export default function AdminOsDashboardPage() {
                         title={`${day.projects} new projects on ${day.label}`}
                       />
                     </div>
-                    <span className="text-[10px] font-medium text-slate-400 group-hover:text-white transition-colors">
+                    <span
+                      className={`text-[10px] font-medium transition-colors ${
+                        isLight ? "text-slate-500 group-hover:text-slate-900" : "text-slate-400 group-hover:text-white"
+                      }`}
+                    >
                       {day.label}
                     </span>
                   </div>
@@ -1160,37 +1478,69 @@ export default function AdminOsDashboardPage() {
       {/* 6. ROW 5: INVESTOR & PLATFORM STATS STRIP                */}
       {/* ======================================================== */}
       {investor && (
-        <section className="p-4 rounded-xl bg-[#0F172A]/80 backdrop-blur-md border border-white/10 shadow-sm">
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 text-center divide-x-0 xl:divide-x divide-white/10">
+        <section
+          className={`p-4 rounded-xl border shadow-sm transition-colors ${
+            isLight ? "bg-white border-slate-200" : "bg-[#0F172A]/80 backdrop-blur-md border-white/10"
+          }`}
+        >
+          <div
+            className={`grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 text-center divide-y-0 xl:divide-x ${
+              isLight ? "divide-slate-200" : "divide-white/10"
+            }`}
+          >
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">ARR</span>
-              <div className="text-base font-bold text-emerald-400 mt-0.5">{paise(investor.arrPaise)}</div>
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                ARR
+              </span>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                {paise(investor.arrPaise)}
+              </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">MRR</span>
-              <div className="text-base font-bold text-white mt-0.5">{paise(investor.mrrPaise)}</div>
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                MRR
+              </span>
+              <div className={`text-base font-bold mt-0.5 ${isLight ? "text-slate-900" : "text-white"}`}>
+                {paise(investor.mrrPaise)}
+              </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">LTV / CAC</span>
-              <div className="text-base font-bold text-violet-400 mt-0.5">
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                LTV / CAC
+              </span>
+              <div className="text-base font-bold text-violet-600 dark:text-violet-400 mt-0.5">
                 {paise(investor.ltvPaise)} / {paise(investor.cacPaise)}
               </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">Churn</span>
-              <div className="text-base font-bold text-white mt-0.5">{investor.churnPercent}%</div>
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Churn
+              </span>
+              <div className={`text-base font-bold mt-0.5 ${isLight ? "text-slate-900" : "text-white"}`}>
+                {investor.churnPercent}%
+              </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">Conversion</span>
-              <div className="text-base font-bold text-white mt-0.5">{investor.conversionPercent}%</div>
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Conversion
+              </span>
+              <div className={`text-base font-bold mt-0.5 ${isLight ? "text-slate-900" : "text-white"}`}>
+                {investor.conversionPercent}%
+              </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">Paying Users</span>
-              <div className="text-base font-bold text-white mt-0.5">{investor.payingUsers}</div>
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Paying Users
+              </span>
+              <div className={`text-base font-bold mt-0.5 ${isLight ? "text-slate-900" : "text-white"}`}>
+                {investor.payingUsers}
+              </div>
             </div>
             <div className="px-2">
-              <span className="text-[10px] uppercase text-slate-400 font-bold">Network</span>
-              <div className="text-base font-bold text-white mt-0.5">
+              <span className={`text-[10px] uppercase font-bold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                Network
+              </span>
+              <div className={`text-base font-bold mt-0.5 ${isLight ? "text-slate-900" : "text-white"}`}>
                 {investor.totalBuyers}B · {investor.totalCPs}CP
               </div>
             </div>
@@ -1203,32 +1553,52 @@ export default function AdminOsDashboardPage() {
       {/* ======================================================== */}
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Left Column: Pending Project Approvals (Queue) */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 shadow-xl flex flex-col justify-between">
+        <div
+          className={`p-5 sm:p-6 rounded-2xl border transition-colors flex flex-col justify-between ${
+            isLight
+              ? "bg-white border-slate-200 shadow-sm"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 shadow-xl"
+          }`}
+        >
           <div>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div
+              className={`flex items-center justify-between border-b pb-4 ${
+                isLight ? "border-slate-200" : "border-white/10"
+              }`}
+            >
               <div className="flex items-center gap-2.5">
-                <Clock className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-bold text-white tracking-tight">Pending Project Approvals</h3>
+                <Clock className="w-5 h-5 text-amber-500" />
+                <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+                  Pending Project Approvals
+                </h3>
               </div>
-              <span className="text-xs text-amber-400 font-semibold">{pendingProjects.length} pending</span>
+              <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">{pendingProjects.length} pending</span>
             </div>
 
-            <div className="mt-4 divide-y divide-white/5">
+            <div className={`mt-4 divide-y ${isLight ? "divide-slate-100" : "divide-white/5"}`}>
               {pendingProjects.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2 opacity-80" />
+                <div className={`py-8 text-center text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                   All developer project approvals are up to date.
                 </div>
               ) : (
                 pendingProjects.map((p) => (
                   <div key={p._id} className="py-3.5 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl font-bold text-xs flex items-center justify-center flex-shrink-0 ${
+                          isLight
+                            ? "bg-violet-100 text-violet-700 border border-violet-200"
+                            : "bg-violet-600/20 border border-violet-500/30 text-violet-300"
+                        }`}
+                      >
                         {initials(p.name)}
                       </div>
                       <div className="flex flex-col min-w-0 truncate">
-                        <span className="text-xs font-bold text-white truncate">{p.name}</span>
-                        <span className="text-[11px] text-slate-400 truncate">
+                        <span className={`text-xs font-bold truncate ${isLight ? "text-slate-900" : "text-white"}`}>
+                          {p.name}
+                        </span>
+                        <span className={`text-[11px] truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                           {p.city} · by {nameOf(p.developerId)}
                         </span>
                       </div>
@@ -1237,21 +1607,29 @@ export default function AdminOsDashboardPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => navigate(`/admin/listings/${p._id}`)}
-                        className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-semibold text-slate-300 transition-all flex items-center gap-1"
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                          isLight
+                            ? "bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700"
+                            : "bg-white/5 hover:bg-white/10 border-white/10 text-slate-300"
+                        }`}
                       >
                         <Eye className="w-3 h-3" />
                         <span>Inspect</span>
                       </button>
                       <button
                         onClick={() => approveProject(p._id, "APPROVED")}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold shadow-sm transition-all flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold shadow-xs transition-all flex items-center gap-1"
                       >
                         <Check className="w-3 h-3" />
                         <span>Approve</span>
                       </button>
                       <button
                         onClick={() => approveProject(p._id, "REJECTED")}
-                        className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-[11px] font-semibold text-rose-400 transition-all flex items-center gap-1"
+                        className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                          isLight
+                            ? "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700"
+                            : "bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400"
+                        }`}
                       >
                         <X className="w-3 h-3" />
                         <span>Reject</span>
@@ -1263,10 +1641,10 @@ export default function AdminOsDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-white/5 text-right">
+          <div className={`mt-4 pt-3 border-t text-right ${isLight ? "border-slate-100" : "border-white/5"}`}>
             <button
               onClick={() => navigate("/admin/listings")}
-              className="text-xs text-violet-400 hover:text-violet-300 font-medium inline-flex items-center gap-1"
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-medium inline-flex items-center gap-1"
             >
               <span>View all projects</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -1275,30 +1653,54 @@ export default function AdminOsDashboardPage() {
         </div>
 
         {/* Right Column: Recent Activity */}
-        <div className="p-5 sm:p-6 rounded-2xl bg-[#0F172A]/70 backdrop-blur-xl border border-white/10 shadow-xl flex flex-col justify-between">
+        <div
+          className={`p-5 sm:p-6 rounded-2xl border transition-colors flex flex-col justify-between ${
+            isLight
+              ? "bg-white border-slate-200 shadow-sm"
+              : "bg-[#0F172A]/70 backdrop-blur-xl border-white/10 shadow-xl"
+          }`}
+        >
           <div>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+            <div
+              className={`flex items-center justify-between border-b pb-4 ${
+                isLight ? "border-slate-200" : "border-white/10"
+              }`}
+            >
               <div className="flex items-center gap-2.5">
-                <Activity className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-white tracking-tight">Recent Platform Activity</h3>
+                <Activity className="w-5 h-5 text-emerald-500" />
+                <h3 className={`text-base font-bold tracking-tight ${isLight ? "text-slate-900" : "text-white"}`}>
+                  Recent Platform Activity
+                </h3>
               </div>
             </div>
 
-            <div className="mt-4 divide-y divide-white/5">
+            <div className={`mt-4 divide-y ${isLight ? "divide-slate-100" : "divide-white/5"}`}>
               {activity.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">No recent activity recorded.</div>
+                <div className={`py-8 text-center text-xs ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                  No recent activity recorded.
+                </div>
               ) : (
                 activity.map((a, i) => (
                   <div key={i} className="py-3 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 text-slate-300 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div
+                      className={`w-8 h-8 rounded-full border text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                        isLight
+                          ? "bg-slate-100 border-slate-200 text-slate-700"
+                          : "bg-white/5 border-white/10 text-slate-300"
+                      }`}
+                    >
                       {a.actor?.name ? initials(a.actor.name) : "•"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs text-slate-200">
-                        <strong className="text-white font-semibold">{a.actor?.name ?? "System"}</strong>{" "}
-                        <span className="text-slate-300">{activityText(a)}</span>
+                      <div className="text-xs">
+                        <strong className={`font-semibold ${isLight ? "text-slate-900" : "text-white"}`}>
+                          {a.actor?.name ?? "System"}
+                        </strong>{" "}
+                        <span className={isLight ? "text-slate-600" : "text-slate-300"}>
+                          {activityText(a)}
+                        </span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
+                      <div className={`text-[10px] mt-0.5 ${isLight ? "text-slate-400" : "text-slate-500"}`}>
                         {a.actor?.role ? `${a.actor.role} · ` : ""}
                         {timeAgo(a.createdAt)}
                       </div>
@@ -1309,10 +1711,10 @@ export default function AdminOsDashboardPage() {
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-white/5 text-right">
+          <div className={`mt-4 pt-3 border-t text-right ${isLight ? "border-slate-100" : "border-white/5"}`}>
             <button
               onClick={() => navigate("/admin/audit-logs")}
-              className="text-xs text-violet-400 hover:text-violet-300 font-medium inline-flex items-center gap-1"
+              className="text-xs text-violet-600 dark:text-violet-400 hover:underline font-medium inline-flex items-center gap-1"
             >
               <span>Explore audit logs</span>
               <ArrowRight className="w-3.5 h-3.5" />
