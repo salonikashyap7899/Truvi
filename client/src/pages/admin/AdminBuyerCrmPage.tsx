@@ -26,6 +26,7 @@ import {
   Tag,
   Trash2,
   Upload,
+  UserCheck,
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -272,6 +273,12 @@ export default function AdminBuyerCrmPage() {
   const [importingCsv, setImportingCsv] = useState(false);
   const [showMetaConfigHelp, setShowMetaConfigHelp] = useState(false);
 
+  // Bulk Selection & Action State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkAssignee, setBulkAssignee] = useState("");
+  const [bulkStatusVal, setBulkStatusVal] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   const loadSetup = useCallback(async () => {
     try {
       const [summaryRes, projectsRes] = await Promise.all([
@@ -354,6 +361,78 @@ export default function AdminBuyerCrmPage() {
 
   useEffect(() => { setPage(1); }, [query, status, source, projectId, campaign, isDuplicate]);
   useEffect(() => { setBuyerPage(1); }, [buyerQuery]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, query, status, source, projectId, campaign, isDuplicate]);
+
+  const isAllSelected = rows.length > 0 && rows.every((r) => selectedIds.includes(r._id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(rows.map((r) => r._id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  async function handleBulkAssign() {
+    if (!selectedIds.length) {
+      toast.error("Please select at least one lead.");
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const res = await api.patch("/buyer-crm/admin/leads/bulk-assign", {
+        leadIds: selectedIds,
+        assignedToId: bulkAssignee || null,
+      });
+      toast.success(`${res.data.count || selectedIds.length} lead(s) assigned successfully.`);
+      setSelectedIds([]);
+      setBulkAssignee("");
+      await Promise.all([loadLeads(), loadSetup()]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Bulk assignment failed.");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  async function handleBulkStatus() {
+    if (!selectedIds.length) {
+      toast.error("Please select at least one lead.");
+      return;
+    }
+    if (!bulkStatusVal) {
+      toast.error("Please select a status stage.");
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      const res = await api.patch("/buyer-crm/admin/leads/bulk-status", {
+        leadIds: selectedIds,
+        status: bulkStatusVal,
+      });
+      toast.success(`${res.data.count || selectedIds.length} lead(s) updated successfully.`);
+      setSelectedIds([]);
+      setBulkStatusVal("");
+      await Promise.all([loadLeads(), loadSetup()]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Bulk status update failed.");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   const maxPage = Math.max(1, Math.ceil(total / 30));
   const buyerMaxPage = Math.max(1, Math.ceil(buyerTotal / 50));
@@ -882,12 +961,86 @@ export default function AdminBuyerCrmPage() {
             </div>
           ) : (
             <>
+              {/* Bulk Action Bar when leads are selected */}
+              {selectedIds.length > 0 && (
+                <aside aria-label="Bulk actions bar" className="sticky top-20 z-30 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-950/95 p-3 shadow-xl backdrop-blur-md">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-500 text-xs font-bold text-white shadow">
+                      {selectedIds.length}
+                    </span>
+                    <span className="text-xs font-semibold text-sky-100">
+                      {selectedIds.length} {selectedIds.length === 1 ? "lead" : "leads"} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="text-[11px] text-sky-300 underline underline-offset-2 hover:text-white transition"
+                    >
+                      Clear
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin && staff.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={bulkAssignee}
+                          onChange={(e) => setBulkAssignee(e.target.value)}
+                          className="rounded-xl border border-white/15 bg-background/90 px-3 py-1.5 text-xs text-foreground outline-none focus:border-sky-400"
+                        >
+                          <option value="">Select Employee to Assign…</option>
+                          {staff.map((person) => (
+                            <option key={person._id} value={person._id}>
+                              👤 {person.name} ({person.role})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={bulkLoading || !bulkAssignee}
+                          onClick={() => void handleBulkAssign()}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-sky-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-sky-400 disabled:opacity-50 transition"
+                        >
+                          <UserCheck size={13} />
+                          Assign Selected
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={bulkStatusVal}
+                        onChange={(e) => setBulkStatusVal(e.target.value)}
+                        className="rounded-xl border border-white/15 bg-background/90 px-3 py-1.5 text-xs text-foreground outline-none focus:border-sky-400"
+                      >
+                        <option value="">Update Pipeline Stage…</option>
+                        {STATUSES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={bulkLoading || !bulkStatusVal}
+                        onClick={() => void handleBulkStatus()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-white/15 disabled:opacity-50 transition"
+                      >
+                        Change Stage
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+              )}
+
               {/* Mobile View */}
               <section className="space-y-3 lg:hidden">
                 {rows.map((row) => (
                   <LeadCard
                     key={row._id}
                     row={row}
+                    selected={selectedIds.includes(row._id)}
+                    onToggleSelect={() => toggleSelectOne(row._id)}
                     expanded={expandedId === row._id}
                     onStatus={(val) => void updateLead(row._id, { status: val })}
                     onHistory={() => void toggleHistory(row._id)}
@@ -915,6 +1068,15 @@ export default function AdminBuyerCrmPage() {
                 <table className="w-full min-w-[1150px] text-left text-sm">
                   <thead className="border-b border-white/10 text-[11px] uppercase tracking-wide text-muted-foreground">
                     <tr>
+                      <th className="w-10 p-3 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all leads on current page"
+                          checked={isAllSelected}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 rounded border-white/20 bg-white/5 text-sky-500 accent-sky-500 focus:ring-sky-400 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Buyer & Contact</th>
                       <th className="p-3">Site / Project</th>
                       <th className="p-3">Meta Ad & Campaign</th>
@@ -927,7 +1089,18 @@ export default function AdminBuyerCrmPage() {
                   <tbody className="divide-y divide-white/5">
                     {rows.map((row) => (
                       <Fragment key={row._id}>
-                        <tr className="align-top hover:bg-muted/40 transition">
+                        <tr className={`align-top hover:bg-muted/40 transition ${selectedIds.includes(row._id) ? "bg-sky-500/[0.07]" : ""}`}>
+                          {/* Selection Checkbox */}
+                          <td className="w-10 p-3 text-center">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${row.fullName}`}
+                              checked={selectedIds.includes(row._id)}
+                              onChange={() => toggleSelectOne(row._id)}
+                              className="h-4 w-4 rounded border-white/20 bg-white/5 text-sky-500 accent-sky-500 focus:ring-sky-400 cursor-pointer"
+                            />
+                          </td>
+
                           {/* Buyer & Contact */}
                           <td className="p-3">
                             <div className="flex items-center gap-2">
@@ -969,9 +1142,15 @@ export default function AdminBuyerCrmPage() {
                                 General Requirement
                               </span>
                             )}
-                            {row.assignedTo && (
-                              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                            {row.assignedTo ? (
+                              <p className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-1">
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
                                 Owner: <strong className="text-foreground">{row.assignedTo.name}</strong>
+                              </p>
+                            ) : (
+                              <p className="mt-1.5 text-[11px] text-amber-400/90 flex items-center gap-1">
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                Owner: <span className="font-semibold italic">Unassigned</span>
                               </p>
                             )}
                           </td>
@@ -1075,7 +1254,7 @@ export default function AdminBuyerCrmPage() {
 
                         {expandedId === row._id && (
                           <tr key={`${row._id}-expanded`}>
-                            <td colSpan={7} className="bg-white/[.02] p-4">
+                            <td colSpan={8} className="bg-white/[.02] p-4">
                               <ActivityPanel
                                 row={row}
                                 isAdmin={isAdmin}
@@ -1673,39 +1852,61 @@ function Pager({ page, totalPages, total, onPage }: { page: number; totalPages: 
 
 function LeadCard({
   row,
+  selected,
+  onToggleSelect,
   expanded,
   onStatus,
   onHistory,
   children,
 }: {
   row: Lead;
+  selected?: boolean;
+  onToggleSelect?: () => void;
   expanded: boolean;
   onStatus: (status: Status) => void;
   onHistory: () => void;
   children?: React.ReactNode;
 }) {
   return (
-    <article className={`${panelClass} p-4 space-y-3`}>
+    <article className={`${panelClass} p-4 space-y-3 transition ${selected ? "border-sky-500/50 bg-sky-500/[0.04]" : ""}`}>
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-semibold">{row.fullName}</p>
-            {row.isDuplicate && (
-              <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
-                Repeat x{row.duplicateCount || 2}
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs">
-            <a href={`tel:${row.phone}`} className="inline-flex items-center gap-1 text-sky-400">
-              <Phone size={11} /> {row.phone}
-            </a>
-            {row.email && <span className="text-muted-foreground text-[11px]">{row.email}</span>}
+        <div className="flex items-start gap-3">
+          {onToggleSelect && (
+            <input
+              type="checkbox"
+              aria-label={`Select ${row.fullName}`}
+              checked={selected}
+              onChange={onToggleSelect}
+              className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5 text-sky-500 accent-sky-500 focus:ring-sky-400 cursor-pointer"
+            />
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold">{row.fullName}</p>
+              {row.isDuplicate && (
+                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
+                  Repeat x{row.duplicateCount || 2}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-xs">
+              <a href={`tel:${row.phone}`} className="inline-flex items-center gap-1 text-sky-400">
+                <Phone size={11} /> {row.phone}
+              </a>
+              {row.email && <span className="text-muted-foreground text-[11px]">{row.email}</span>}
+            </div>
           </div>
         </div>
-        <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
-          {sourceLabel(row.source)}
-        </span>
+        <div className="text-right">
+          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-muted-foreground">
+            {sourceLabel(row.source)}
+          </span>
+          {row.assignedTo ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">👤 {row.assignedTo.name}</p>
+          ) : (
+            <p className="mt-1 text-[11px] text-amber-400/90 italic">👤 Unassigned</p>
+          )}
+        </div>
       </div>
 
       {/* Project & Ad Badges */}

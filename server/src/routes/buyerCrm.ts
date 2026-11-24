@@ -125,6 +125,16 @@ const updateLeadSchema = z.object({
   path: ["consentBasis"],
 });
 
+const bulkAssignSchema = z.object({
+  leadIds: z.array(z.string().refine(isValidId, "Invalid lead ID")).min(1, "Select at least one lead."),
+  assignedToId: z.string().refine(isValidId, "Invalid staff ID").nullable().optional(),
+});
+
+const bulkStatusSchema = z.object({
+  leadIds: z.array(z.string().refine(isValidId, "Invalid lead ID")).min(1, "Select at least one lead."),
+  status: z.enum(STATUSES),
+});
+
 const createMappingSchema = z.object({
   formId: z.string().trim().min(1).max(160),
   formName: z.string().trim().max(250).optional().or(z.literal("")),
@@ -489,6 +499,126 @@ router.post("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res
   await db.insert(buyerCrmActivities).values({ leadId: lead._id, actorUserId: req.user!.userId, type: "CREATED", content: `Added manually from ${d.source.replace(/_/g, " ").toLowerCase()}.` });
   await logAudit({ userId: req.user!.userId, action: "BUYER_CRM_LEAD_CREATED", resourceType: "buyer_crm_lead", resourceId: lead._id, metadata: { source: d.source, projectId } });
   res.status(201).json({ lead });
+});
+
+router.patch("/admin/leads/bulk-assign", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+  const parsed = bulkAssignSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid bulk assignment request." });
+  }
+  const { leadIds, assignedToId } = parsed.data;
+  const db = getDb();
+
+  let staffName = "Unassigned";
+  if (assignedToId) {
+    const [staff] = await db
+      .select({ _id: users._id, name: users.name })
+      .from(users)
+      .where(and(eq(users._id, assignedToId), inArray(users.role, ["ADMIN", "EMPLOYEE"]), eq(users.disabled, false)))
+      .limit(1);
+    if (!staff) return res.status(400).json({ error: "Choose an active admin or employee." });
+    staffName = staff.name;
+  }
+
+  const existingLeads = await db
+    .select({ _id: buyerCrmLeads._id, fullName: buyerCrmLeads.fullName, assignedToId: buyerCrmLeads.assignedToId })
+    .from(buyerCrmLeads)
+    .where(inArray(buyerCrmLeads._id, leadIds));
+
+  if (!existingLeads.length) {
+    return res.status(404).json({ error: "No matching leads found." });
+  }
+
+  const now = new Date();
+  await db
+    .update(buyerCrmLeads)
+    .set({ assignedToId: assignedToId ?? null, updatedAt: now })
+    .where(inArray(buyerCrmLeads._id, existingLeads.map((l) => l._id)));
+
+  const activities = existingLeads.map((l) => ({
+    leadId: l._id,
+    actorUserId: req.user!.userId,
+    type: "ASSIGNMENT",
+    content: assignedToId ? `Assigned to ${staffName} via bulk assignment.` : "Unassigned via bulk action.",
+  }));
+  await db.insert(buyerCrmActivities).values(activities);
+
+  if (assignedToId && assignedToId !== req.user!.userId) {
+    await createNotifications([assignedToId], {
+      type: "general",
+      title: "Leads Assigned to You",
+      message: `${existingLeads.length} buyer ${existingLeads.length === 1 ? "lead has" : "leads have"} been assigned to you by admin.`,
+      data: { leadIds: existingLeads.map((l) => l._id), source: "crm_bulk_assign" },
+      priority: "normal",
+      actorUserId: req.user!.userId,
+    }).catch((err) => console.warn("Failed to create assignment notifications:", err));
+  }
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "BUYER_CRM_LEADS_BULK_ASSIGNED",
+    resourceType: "buyer_crm_lead",
+    metadata: { count: existingLeads.length, assignedToId: assignedToId ?? null, leadIds: existingLeads.map((l) => l._id) },
+  });
+
+  res.json({ success: true, count: existingLeads.length, assignedToId: assignedToId ?? null });
+});
+
+router.patch("/admin/leads/bulk-status", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
+  const access = await getBuyerCrmAccess(req);
+  if (!access || (!access.isAdmin && !access.canUpdateStatus)) {
+    return res.status(403).json({ error: "You do not have permission to update lead status." });
+  }
+
+  const parsed = bulkStatusSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid bulk status request." });
+  }
+  const { leadIds, status } = parsed.data;
+  const db = getDb();
+
+  const conditions: SQL[] = [inArray(buyerCrmLeads._id, leadIds)];
+  if (!access.isAdmin) {
+    if (access.canReadAssigned && !access.canReadSite) {
+      conditions.push(eq(buyerCrmLeads.assignedToId, access.userId));
+    } else if (access.canReadSite && !access.canReadAssigned) {
+      conditions.push(sql`${buyerCrmLeads.projectId} IS NOT NULL`);
+    } else if (access.canReadSite && access.canReadAssigned) {
+      conditions.push(or(eq(buyerCrmLeads.assignedToId, access.userId), sql`${buyerCrmLeads.projectId} IS NOT NULL`)!);
+    }
+  }
+
+  const existingLeads = await db
+    .select({ _id: buyerCrmLeads._id, status: buyerCrmLeads.status })
+    .from(buyerCrmLeads)
+    .where(and(...conditions));
+
+  if (!existingLeads.length) {
+    return res.status(404).json({ error: "No matching leads found." });
+  }
+
+  await db
+    .update(buyerCrmLeads)
+    .set({ status, updatedAt: new Date() })
+    .where(inArray(buyerCrmLeads._id, existingLeads.map((l) => l._id)));
+
+  await db.insert(buyerCrmActivities).values(
+    existingLeads.map((l) => ({
+      leadId: l._id,
+      actorUserId: req.user!.userId,
+      type: "STATUS",
+      content: `Status changed to ${status} via bulk update.`,
+    }))
+  );
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "BUYER_CRM_LEADS_BULK_STATUS_UPDATED",
+    resourceType: "buyer_crm_lead",
+    metadata: { count: existingLeads.length, status, leadIds: existingLeads.map((l) => l._id) },
+  });
+
+  res.json({ success: true, count: existingLeads.length, status });
 });
 
 router.patch("/admin/leads/:id", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
