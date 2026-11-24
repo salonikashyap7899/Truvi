@@ -1391,10 +1391,12 @@ export default function AdminBuyerCrmPage() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[11px] text-muted-foreground space-y-1">
-                <p className="font-semibold text-foreground">Smart Ingestion Rules:</p>
-                <p>• Duplicate leads (same phone number) will not create messy duplicates; their record is updated.</p>
-                <p>• Buyer names, email addresses, campaign names, and creation timestamps will be preserved.</p>
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-[11px] text-muted-foreground space-y-1.5">
+                <p className="font-semibold text-foreground">Field Validation & Parsing Rules:</p>
+                <p>• <strong className="text-foreground">Required fields:</strong> <code>full_name</code>, <code>phone_number</code>, <code>email_id</code> (rows missing these will be skipped).</p>
+                <p>• <strong className="text-foreground">Supported form fields:</strong> <code>city</code>, <code>kab_aap_site_visit_karna_chahenge?</code>, <code>aap_kitne_size_ka_plot_prefer_karenge?</code>, <code>aapka_approximate_budget_kya_hai?</code>.</p>
+                <p>• <strong className="text-foreground">Missing optional values:</strong> If plot size, budget, city, or visit timing are blank or missing, the lead will still upload successfully.</p>
+                <p>• <strong className="text-foreground">Smart deduplication:</strong> Leads with matching phone numbers update the existing contact without duplicating.</p>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
@@ -1541,10 +1543,25 @@ function LeadCard({
         )}
       </div>
 
-      {/* Requirement Details */}
-      <p className="text-xs text-muted-foreground">
-        {[row.propertyType, row.preferredLocation, row.requirement].filter(Boolean).join(" · ") || "No additional requirements."}
-      </p>
+      {/* Lead Custom Details (City, Plot Size, Site Visit, Requirements) */}
+      <div className="space-y-1.5 rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-xs">
+        {row.requirement ? (
+          <p className="font-medium text-foreground">{row.requirement}</p>
+        ) : (
+          <p className="text-muted-foreground italic">No property requirements entered.</p>
+        )}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          {row.preferredLocation && (
+            <span>📍 City: <strong className="font-semibold text-foreground">{row.preferredLocation}</strong></span>
+          )}
+          {row.purchaseTimeline && (
+            <span>📅 Visit: <strong className="font-semibold text-foreground">{row.purchaseTimeline}</strong></span>
+          )}
+          {row.propertyType && (
+            <span>🏡 Type: <strong className="font-semibold text-foreground">{row.propertyType}</strong></span>
+          )}
+        </div>
+      </div>
 
       {/* Status & Quick Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-3">

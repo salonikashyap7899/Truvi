@@ -704,6 +704,183 @@ router.delete("/admin/meta-mappings/:id", requireRole("ADMIN"), async (req: Auth
   res.json({ success: true });
 });
 
+/* =========================================================================
+ * Meta Lead Extraction & Validation Engine
+ * ========================================================================= */
+
+type MetaField = { name?: unknown; values?: unknown };
+type MetaLead = {
+  id?: unknown;
+  created_time?: unknown;
+  form_id?: unknown;
+  ad_id?: unknown;
+  ad_name?: unknown;
+  campaign_id?: unknown;
+  campaign_name?: unknown;
+  adset_id?: unknown;
+  adset_name?: unknown;
+  field_data?: unknown;
+};
+
+function safeText(value: unknown, limit = 250): string {
+  return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+
+function normalizeFieldKey(key: string): string {
+  return key
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function fieldsToMap(value: unknown): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!Array.isArray(value)) return map;
+  for (const item of value as MetaField[]) {
+    const rawName = safeText(item.name, 150);
+    const name = normalizeFieldKey(rawName);
+    const raw = Array.isArray(item.values) ? item.values[0] : item.values;
+    const answer = safeText(raw, 1200);
+    if (name && answer) map.set(name, answer);
+  }
+  return map;
+}
+
+function firstField(fields: Map<string, string>, ...names: string[]): string {
+  for (const name of names) {
+    const result = fields.get(normalizeFieldKey(name));
+    if (result) return result;
+  }
+  return "";
+}
+
+function extractMetaFieldValues(fields: Map<string, string>) {
+  const findValue = (...patterns: (string | RegExp)[]): string => {
+    for (const pat of patterns) {
+      if (typeof pat === "string") {
+        const val = fields.get(normalizeFieldKey(pat));
+        if (val && val.trim()) return val.trim();
+      } else {
+        for (const [k, val] of fields.entries()) {
+          if (pat.test(k) && val && val.trim()) return val.trim();
+        }
+      }
+    }
+    return "";
+  };
+
+  // 1. Phone number (Mandatory - must be valid Indian 10-digit number)
+  const rawPhone = findValue(
+    "phone_number",
+    "phone",
+    "mobile_number",
+    "contact_number",
+    "contact",
+    /phone|mobile|contact/i
+  );
+  const phone = normalizePhone(rawPhone);
+  const isPhoneValid = /^[6-9]\d{9}$/.test(phone);
+
+  // 2. Full Name (Mandatory)
+  const firstName = findValue("first_name", /first_?name/i);
+  const lastName = findValue("last_name", /last_?name/i);
+  const combinedName = [firstName, lastName].filter(Boolean).join(" ");
+  const rawFullName = findValue(
+    "full_name",
+    "name",
+    "buyer_name",
+    /full_?name|buyer_?name/i
+  ) || combinedName;
+  const fullName = rawFullName.trim().slice(0, 100);
+  const isNameValid = fullName.length > 0 && !/^(unknown|ad lead|lead|n\/a|na|null|undefined|-)$/i.test(fullName);
+
+  // 3. Email (Mandatory)
+  const rawEmail = findValue(
+    "email_id",
+    "email",
+    "email_address",
+    /email/i
+  ).toLowerCase().trim();
+  const isEmailValid = rawEmail.length > 3 && rawEmail.includes("@") && rawEmail.includes(".");
+
+  // Mandatory trio: Phone, Email, and Name must all be present.
+  const isValidLead = isPhoneValid && isNameValid && isEmailValid;
+
+  // 4. City (Optional: e.g. "city", "preferred_city", "location")
+  const city = findValue(
+    "city",
+    "preferred_city",
+    "location",
+    "preferred_location",
+    /city|location/i
+  ).slice(0, 100) || null;
+
+  // 5. Site visit timing: kab_aap_site_visit_karna_chahenge? (Optional)
+  const siteVisitPreference = findValue(
+    "kab_aap_site_visit_karna_chahenge",
+    "site_visit",
+    "preferred_site_visit",
+    "site_visit_timing",
+    /site_?visit|kab.*visit|visit.*karna/i
+  ).slice(0, 200) || null;
+
+  // 6. Plot size: aap_kitne_size_ka_plot_prefer_karenge? (Optional)
+  const plotSize = findValue(
+    "aap_kitne_size_ka_plot_prefer_karenge",
+    "plot_size",
+    "preferred_plot_size",
+    "size_of_plot",
+    /plot_?size|size.*plot|kitne.*size/i
+  ).slice(0, 200) || null;
+
+  // 7. Approximate budget: aapka_approximate_budget_kya_hai? (Optional)
+  const budget = findValue(
+    "aapka_approximate_budget_kya_hai",
+    "approximate_budget",
+    "budget_range",
+    "budget",
+    /approx.*budget|budget.*hai|budget/i
+  ).slice(0, 100) || null;
+
+  // 8. General requirement / additional notes (Optional)
+  const generalReq = findValue(
+    "requirement",
+    "property_requirement",
+    "what_are_you_looking_for",
+    "additional_requirements",
+    /requirement|looking_for/i
+  );
+
+  // Assemble structured requirement summary
+  const reqParts: string[] = [];
+  if (plotSize) reqParts.push(`Plot Size: ${plotSize}`);
+  if (siteVisitPreference) reqParts.push(`Site Visit: ${siteVisitPreference}`);
+  if (generalReq && !reqParts.some((p) => p.toLowerCase().includes(generalReq.toLowerCase()))) {
+    reqParts.push(generalReq);
+  }
+  const requirement = reqParts.join(" | ").slice(0, 500) || null;
+
+  // Property type: Plot if plot size is mentioned, or custom property type
+  const propertyType = plotSize ? "Plot" : findValue("property_type", "type_of_property", /property_?type/i) || null;
+
+  return {
+    phone,
+    fullName,
+    email: rawEmail || null,
+    isValidLead,
+    isPhoneValid,
+    isNameValid,
+    isEmailValid,
+    city,
+    siteVisitPreference,
+    plotSize,
+    budget,
+    requirement,
+    propertyType,
+  };
+}
+
 router.post("/admin/meta-mappings/:id/sync", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Mapping not found." });
   const db = getDb();
@@ -742,34 +919,54 @@ router.post("/admin/meta-mappings/:id/sync", requireRole("ADMIN"), async (req: A
         totalFetched += 1;
         const providerLeadId = safeText(item.id, 160);
         const fields = fieldsToMap(item.field_data);
-        const phone = normalizePhone(firstField(fields, "phone_number", "mobile_number", "phone", "contact_number"));
-        if (!/^[6-9]\d{9}$/.test(phone)) {
+        const extracted = extractMetaFieldValues(fields);
+
+        // Name, Phone, and Email are mandatory
+        if (!extracted.isValidLead) {
           skipped += 1;
           continue;
         }
 
-        const email = firstField(fields, "email", "email_address").toLowerCase();
-        const fullName = firstField(fields, "full_name", "name") || [firstField(fields, "first_name"), firstField(fields, "last_name")].filter(Boolean).join(" ") || "Meta Ad lead";
         const purpose = firstField(fields, "purchase_purpose", "purpose").toLowerCase();
         const normalizedPurpose = purpose.includes("invest") ? "INVESTMENT" : purpose.includes("self") || purpose.includes("live") ? "SELF_USE" : purpose ? "UNDECIDED" : null;
         const consentField = ["contact_consent", "consent_to_contact", "marketing_consent", "agree_to_contact", "consent"]
           .map((f) => fields.get(f)).find(Boolean);
         const consentGranted = Boolean(consentField && /^(?:yes\b|true\b|1$|i\s+agree\b|agree(?:d)?\b|opt[\s-]?in\b)/i.test(consentField.trim()));
-        const followup = firstField(fields, "requirement", "property_requirement", "what_are_you_looking_for", "additional_requirements");
 
-        const [existing] = await db.select({ _id: buyerCrmLeads._id, duplicateCount: buyerCrmLeads.duplicateCount, projectId: buyerCrmLeads.projectId })
+        const [existing] = await db.select({
+          _id: buyerCrmLeads._id,
+          duplicateCount: buyerCrmLeads.duplicateCount,
+          projectId: buyerCrmLeads.projectId,
+          email: buyerCrmLeads.email,
+          preferredLocation: buyerCrmLeads.preferredLocation,
+          budgetRange: buyerCrmLeads.budgetRange,
+          propertyType: buyerCrmLeads.propertyType,
+          purchaseTimeline: buyerCrmLeads.purchaseTimeline,
+          requirement: buyerCrmLeads.requirement,
+        })
           .from(buyerCrmLeads)
           .where(or(
-            eq(buyerCrmLeads.phone, phone),
+            eq(buyerCrmLeads.phone, extracted.phone),
             ...(providerLeadId ? [eq(buyerCrmLeads.providerLeadId, providerLeadId)] : [])
           )!)
           .limit(1);
 
         if (existing) {
           duplicates += 1;
-          if (!existing.projectId && mapping.projectId) {
-            await db.update(buyerCrmLeads).set({ projectId: mapping.projectId, updatedAt: new Date() }).where(eq(buyerCrmLeads._id, existing._id));
-          }
+          const updates: Partial<typeof buyerCrmLeads.$inferInsert> = {
+            isDuplicate: true,
+            duplicateCount: (existing.duplicateCount || 1) + 1,
+            updatedAt: new Date(),
+          };
+          if (!existing.projectId && mapping.projectId) updates.projectId = mapping.projectId;
+          if (!existing.email && extracted.email) updates.email = extracted.email;
+          if (!existing.preferredLocation && extracted.city) updates.preferredLocation = extracted.city;
+          if (!existing.budgetRange && extracted.budget) updates.budgetRange = extracted.budget;
+          if (!existing.propertyType && extracted.propertyType) updates.propertyType = extracted.propertyType;
+          if (!existing.purchaseTimeline && extracted.siteVisitPreference) updates.purchaseTimeline = extracted.siteVisitPreference;
+          if (!existing.requirement && extracted.requirement) updates.requirement = extracted.requirement;
+
+          await db.update(buyerCrmLeads).set(updates).where(eq(buyerCrmLeads._id, existing._id));
           continue;
         }
 
@@ -777,18 +974,18 @@ router.post("/admin/meta-mappings/:id/sync", requireRole("ADMIN"), async (req: A
         const leadCreatedAt = isNaN(rawCreatedAt.getTime()) ? new Date() : rawCreatedAt;
 
         await db.insert(buyerCrmLeads).values({
-          fullName: fullName.slice(0, 100),
-          phone,
-          email: email || null,
+          fullName: extracted.fullName,
+          phone: extracted.phone,
+          email: extracted.email,
           source: "META_AD",
           status: "NEW",
           projectId: mapping.projectId,
-          propertyType: firstField(fields, "property_type", "type_of_property") || null,
-          preferredLocation: firstField(fields, "preferred_location", "location", "city") || null,
-          budgetRange: firstField(fields, "budget", "budget_range") || null,
+          propertyType: extracted.propertyType,
+          preferredLocation: extracted.city,
+          budgetRange: extracted.budget,
           purchasePurpose: normalizedPurpose,
-          purchaseTimeline: firstField(fields, "timeline", "purchase_timeline") || null,
-          requirement: followup || null,
+          purchaseTimeline: extracted.siteVisitPreference,
+          requirement: extracted.requirement,
           contactConsent: consentGranted,
           consentBasis: consentGranted ? `Meta form consent: ${consentField}` : "Synced from Meta Lead Form history",
           providerLeadId: providerLeadId || null,
@@ -844,23 +1041,23 @@ router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file
   const mappings = await db.select().from(metaAdFormMappings).where(eq(metaAdFormMappings.isActive, true));
 
   for (const row of parsed.data) {
-    const keys = Object.keys(row);
-    const phoneKey = keys.find((k) => /phone|mobile|contact/i.test(k));
-    const rawPhone = phoneKey ? row[phoneKey] : "";
-    const phone = normalizePhone(String(rawPhone || ""));
-    if (!/^[6-9]\d{9}$/.test(phone)) {
+    const fields = new Map<string, string>();
+    for (const [k, v] of Object.entries(row)) {
+      const cleanKey = normalizeFieldKey(k);
+      if (cleanKey && v != null && String(v).trim()) {
+        fields.set(cleanKey, String(v).trim());
+      }
+    }
+
+    const extracted = extractMetaFieldValues(fields);
+
+    // Name, Phone, and Email are mandatory
+    if (!extracted.isValidLead) {
       skipped += 1;
       continue;
     }
 
-    const nameKey = keys.find((k) => /full_?name|buyer_?name/i.test(k));
-    const firstNameKey = keys.find((k) => /first_?name/i.test(k));
-    const lastNameKey = keys.find((k) => /last_?name/i.test(k));
-    const fullName = String(nameKey ? row[nameKey] : [row[firstNameKey || ""], row[lastNameKey || ""]].filter(Boolean).join(" ") || "Imported Lead").trim().slice(0, 100);
-
-    const emailKey = keys.find((k) => /email/i.test(k));
-    const email = emailKey ? String(row[emailKey] || "").trim().toLowerCase() : null;
-
+    const keys = Object.keys(row);
     const adKey = keys.find((k) => /ad_?name/i.test(k));
     const campaignKey = keys.find((k) => /campaign_?name/i.test(k));
     const formIdKey = keys.find((k) => /form_?id/i.test(k));
@@ -875,39 +1072,57 @@ router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file
     const leadIdKey = keys.find((k) => /^id$|lead_?id/i.test(k));
     const providerLeadId = leadIdKey ? String(row[leadIdKey] || "").trim() : null;
 
-    const budgetKey = keys.find((k) => /budget/i.test(k));
-    const budgetRange = budgetKey ? String(row[budgetKey] || "").trim() : null;
-
-    const requirementKey = keys.find((k) => /requirement|note|looking_for/i.test(k));
-    const requirement = requirementKey ? String(row[requirementKey] || "").trim() : null;
-
     const createdTimeKey = keys.find((k) => /created_?time|date/i.test(k));
     const rawTime = createdTimeKey ? row[createdTimeKey] : null;
     const rawCreatedAt = rawTime ? new Date(String(rawTime)) : new Date();
     const createdAt = isNaN(rawCreatedAt.getTime()) ? new Date() : rawCreatedAt;
 
-    const [existing] = await db.select({ _id: buyerCrmLeads._id, duplicateCount: buyerCrmLeads.duplicateCount, projectId: buyerCrmLeads.projectId })
+    const [existing] = await db.select({
+      _id: buyerCrmLeads._id,
+      duplicateCount: buyerCrmLeads.duplicateCount,
+      projectId: buyerCrmLeads.projectId,
+      email: buyerCrmLeads.email,
+      preferredLocation: buyerCrmLeads.preferredLocation,
+      budgetRange: buyerCrmLeads.budgetRange,
+      propertyType: buyerCrmLeads.propertyType,
+      purchaseTimeline: buyerCrmLeads.purchaseTimeline,
+      requirement: buyerCrmLeads.requirement,
+    })
       .from(buyerCrmLeads)
-      .where(eq(buyerCrmLeads.phone, phone))
+      .where(eq(buyerCrmLeads.phone, extracted.phone))
       .limit(1);
 
     if (existing) {
       duplicates += 1;
-      if (!existing.projectId && resolvedProjectId) {
-        await db.update(buyerCrmLeads).set({ projectId: resolvedProjectId, updatedAt: new Date() }).where(eq(buyerCrmLeads._id, existing._id));
-      }
+      const updates: Partial<typeof buyerCrmLeads.$inferInsert> = {
+        isDuplicate: true,
+        duplicateCount: (existing.duplicateCount || 1) + 1,
+        updatedAt: new Date(),
+      };
+      if (!existing.projectId && resolvedProjectId) updates.projectId = resolvedProjectId;
+      if (!existing.email && extracted.email) updates.email = extracted.email;
+      if (!existing.preferredLocation && extracted.city) updates.preferredLocation = extracted.city;
+      if (!existing.budgetRange && extracted.budget) updates.budgetRange = extracted.budget;
+      if (!existing.propertyType && extracted.propertyType) updates.propertyType = extracted.propertyType;
+      if (!existing.purchaseTimeline && extracted.siteVisitPreference) updates.purchaseTimeline = extracted.siteVisitPreference;
+      if (!existing.requirement && extracted.requirement) updates.requirement = extracted.requirement;
+
+      await db.update(buyerCrmLeads).set(updates).where(eq(buyerCrmLeads._id, existing._id));
       continue;
     }
 
     await db.insert(buyerCrmLeads).values({
-      fullName,
-      phone,
-      email: email || null,
+      fullName: extracted.fullName,
+      phone: extracted.phone,
+      email: extracted.email,
       source: "META_AD",
       status: "NEW",
       projectId: resolvedProjectId,
-      budgetRange: budgetRange || null,
-      requirement: requirement || null,
+      propertyType: extracted.propertyType,
+      preferredLocation: extracted.city,
+      budgetRange: extracted.budget,
+      purchaseTimeline: extracted.siteVisitPreference,
+      requirement: extracted.requirement,
       contactConsent: true,
       consentBasis: "Imported from Meta Lead Ads CSV export",
       providerLeadId: providerLeadId || null,
@@ -939,44 +1154,6 @@ export default router;
 /* =========================================================================
  * Meta Lead Ads Webhook Receiver & Processor
  * ========================================================================= */
-
-type MetaField = { name?: unknown; values?: unknown };
-type MetaLead = {
-  id?: unknown;
-  created_time?: unknown;
-  form_id?: unknown;
-  ad_id?: unknown;
-  ad_name?: unknown;
-  campaign_id?: unknown;
-  campaign_name?: unknown;
-  adset_id?: unknown;
-  adset_name?: unknown;
-  field_data?: unknown;
-};
-
-function safeText(value: unknown, limit = 250): string {
-  return typeof value === "string" ? value.trim().slice(0, limit) : "";
-}
-
-function fieldsToMap(value: unknown): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!Array.isArray(value)) return map;
-  for (const item of value as MetaField[]) {
-    const name = safeText(item.name, 100).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-    const raw = Array.isArray(item.values) ? item.values[0] : item.values;
-    const answer = safeText(raw, 1200);
-    if (name && answer) map.set(name, answer);
-  }
-  return map;
-}
-
-function firstField(fields: Map<string, string>, ...names: string[]): string {
-  for (const name of names) {
-    const result = fields.get(name);
-    if (result) return result;
-  }
-  return "";
-}
 
 function textEquals(a: string, b: string): boolean {
   const left = Buffer.from(a);
@@ -1037,10 +1214,8 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
         if (!providerLeadId) throw new Error("Meta lead details did not include a lead ID.");
 
         const fields = fieldsToMap(data.field_data);
-        const phone = normalizePhone(firstField(fields, "phone_number", "mobile_number", "phone", "contact_number"));
-        if (!/^[6-9]\d{9}$/.test(phone)) throw new Error("Meta lead details did not include a valid Indian mobile number.");
-        const email = firstField(fields, "email", "email_address").toLowerCase();
-        const fullName = firstField(fields, "full_name", "name") || [firstField(fields, "first_name"), firstField(fields, "last_name")].filter(Boolean).join(" ") || "Ad lead";
+        const extracted = extractMetaFieldValues(fields);
+        if (!extracted.isValidLead) throw new Error("Meta lead details did not include valid name, email, and Indian mobile number.");
 
         const providerFormId = safeText(data.form_id ?? change.value?.form_id, 160) || null;
         const providerAdId = safeText(data.ad_id ?? change.value?.ad_id, 160) || null;
@@ -1099,16 +1274,15 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
         const consentField = ["contact_consent", "consent_to_contact", "marketing_consent", "agree_to_contact", "consent"]
           .map((f) => fields.get(f)).find(Boolean);
         const consentGranted = Boolean(consentField && /^(?:yes\b|true\b|1$|i\s+agree\b|agree(?:d)?\b|opt[\s-]?in\b)/i.test(consentField.trim()));
-        const followup = firstField(fields, "requirement", "property_requirement", "what_are_you_looking_for", "additional_requirements");
 
         const [buyer] = await db.select({ _id: users._id }).from(users)
           .where(and(eq(users.role, "BUYER"), or(
-            sql`right(regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g'), 10) = ${phone}`,
-            ...(email ? [eq(users.email, email)] : []),
+            sql`right(regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g'), 10) = ${extracted.phone}`,
+            ...(extracted.email ? [eq(users.email, extracted.email)] : []),
           )!)).limit(1);
 
         // Deduplication check: check if phone already exists
-        const [existingLead] = await db.select().from(buyerCrmLeads).where(eq(buyerCrmLeads.phone, phone)).limit(1);
+        const [existingLead] = await db.select().from(buyerCrmLeads).where(eq(buyerCrmLeads.phone, extracted.phone)).limit(1);
 
         if (existingLead) {
           const newCount = (existingLead.duplicateCount || 1) + 1;
@@ -1118,8 +1292,16 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
             updatedAt: new Date(),
           };
           if (!existingLead.projectId && projectId) updates.projectId = projectId;
-          if (!existingLead.email && email) updates.email = email;
-          if (!existingLead.requirement && followup) updates.requirement = followup;
+          if (!existingLead.email && extracted.email) updates.email = extracted.email;
+          if (!existingLead.preferredLocation && extracted.city) updates.preferredLocation = extracted.city;
+          if (!existingLead.budgetRange && extracted.budget) updates.budgetRange = extracted.budget;
+          if (!existingLead.propertyType && extracted.propertyType) updates.propertyType = extracted.propertyType;
+          if (!existingLead.purchaseTimeline && extracted.siteVisitPreference) updates.purchaseTimeline = extracted.siteVisitPreference;
+          if (extracted.requirement) {
+            updates.requirement = existingLead.requirement
+              ? `${existingLead.requirement} | ${extracted.requirement}`
+              : extracted.requirement;
+          }
           if (providerCampaignName && !existingLead.providerCampaignName) updates.providerCampaignName = providerCampaignName;
           if (providerAdName && !existingLead.providerAdName) updates.providerAdName = providerAdName;
 
@@ -1134,7 +1316,7 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
           await db.insert(buyerCrmActivities).values({
             leadId: existingLead._id,
             type: "NOTE",
-            content: `Repeat Meta Ad submission received (${adDetail || "Instant Form"}). Submission #${newCount}.${followup ? ` Requirement notes: "${followup}".` : ""}`,
+            content: `Repeat Meta Ad submission received (${adDetail || "Instant Form"}). Submission #${newCount}.${extracted.requirement ? ` Details: "${extracted.requirement}".` : ""}`,
           });
 
           const admins = await db.select({ id: users._id }).from(users).where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
@@ -1146,8 +1328,8 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
             }
             await createNotifications(admins.map((a) => a.id), {
               type: "new_lead",
-              title: `Repeat Lead (${newCount}x): ${fullName}`,
-              message: `${fullName} (${phone}) submitted another Meta lead form for ${projName}.`,
+              title: `Repeat Lead (${newCount}x): ${extracted.fullName}`,
+              message: `${extracted.fullName} (${extracted.phone}) submitted another Meta lead form for ${projName}.`,
               data: { href: "/admin/buyer-crm" },
               priority: "normal",
               dedupeKey: `meta-repeat:${existingLead._id}:${newCount}`,
@@ -1161,18 +1343,18 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
         // New lead insert
         const [lead] = await db.insert(buyerCrmLeads).values({
           buyerUserId: buyer?._id ?? null,
-          fullName: fullName.slice(0, 100),
-          phone,
-          email: email || null,
+          fullName: extracted.fullName,
+          phone: extracted.phone,
+          email: extracted.email,
           source: "META_AD",
           status: "NEW",
           projectId,
-          propertyType: firstField(fields, "property_type", "type_of_property") || null,
-          preferredLocation: firstField(fields, "preferred_location", "location", "city") || null,
-          budgetRange: firstField(fields, "budget", "budget_range") || null,
+          propertyType: extracted.propertyType,
+          preferredLocation: extracted.city,
+          budgetRange: extracted.budget,
           purchasePurpose: normalizedPurpose,
-          purchaseTimeline: firstField(fields, "timeline", "purchase_timeline") || null,
-          requirement: followup || null,
+          purchaseTimeline: extracted.siteVisitPreference,
+          requirement: extracted.requirement,
           contactConsent: consentGranted,
           consentBasis: consentGranted ? `Meta form consent field: ${consentField}` : null,
           providerLeadId,
@@ -1213,8 +1395,8 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
           }
           await createNotifications(admins.map((a) => a.id), {
             type: "new_lead",
-            title: `New Meta Ad Lead: ${fullName}`,
-            message: `${fullName} (${phone}) registered interest for ${projName}. Budget: ${firstField(fields, "budget", "budget_range") || "Not specified"}.`,
+            title: `New Meta Ad Lead: ${extracted.fullName}`,
+            message: `${extracted.fullName} (${extracted.phone}) registered interest for ${projName}. Budget: ${extracted.budget || "Not specified"}.`,
             data: { href: "/admin/buyer-crm" },
             priority: "high",
             dedupeKey: `meta-lead:${lead._id}`,
