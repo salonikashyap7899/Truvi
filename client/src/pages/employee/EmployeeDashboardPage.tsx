@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, MessageCircle, Phone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -12,7 +12,7 @@ import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { useAuthStore } from "@/store/authStore";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-type Tab = "home" | "tasks" | "leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
+type Tab = "home" | "tasks" | "leads" | "buyer_leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
 type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
@@ -37,23 +37,17 @@ function Panel({ title, note, children }: { title: string; note?: string; childr
 function Input({ label, value, onChange, type = "text", required = false, placeholder = "" }: { label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean; placeholder?: string }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><input type={type} required={required} value={value} placeholder={placeholder} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary"/></label>; }
 function Select({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; required?: boolean }) { return <label className="block space-y-1.5 text-sm"><span className="text-muted-foreground">{label}</span><select required={required} value={value} onChange={(e)=>onChange(e.target.value)} className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary">{options.map((o)=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>; }
 
-const tabItems: { id: Tab; label: string }[] = [
+const baseTabItems: { id: Tab; label: string }[] = [
   { id:"home", label:"Overview" }, { id:"tasks", label:"My tasks" }, { id:"leads", label:"My leads" },
+  { id:"buyer_leads", label:"Buyer leads (CRM)" },
   { id:"telecalling", label:"Telecalling" }, { id:"visits", label:"Site visits" }, { id:"attendance", label:"Attendance" },
   { id:"leave", label:"Leave requests" }, { id:"profile", label:"My profile" }, { id:"salary", label:"My salary" }, { id:"notifications", label:"Notifications" },
 ];
 const tabIcons = {
-  home: LayoutDashboard, tasks: ListChecks, leads: Users, telecalling: PhoneCall,
+  home: LayoutDashboard, tasks: ListChecks, leads: Users, buyer_leads: Megaphone, telecalling: PhoneCall,
   visits: MapPin, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
   salary: Wallet, notifications: Bell,
 } as const;
-
-const navigationGroups: { label: string; items: Tab[] }[] = [
-  { label: "Workspace", items: ["home", "tasks"] },
-  { label: "Sales & field", items: ["leads", "telecalling", "visits"] },
-  { label: "People & time", items: ["attendance", "leave"] },
-  { label: "Account", items: ["profile", "salary", "notifications"] },
-];
 
 type QuickSearchItem = { id: string; kind: string; title: string; detail: string; tab: Tab; icon: LucideIcon };
 
@@ -125,6 +119,114 @@ export default function EmployeeDashboardPage() {
   const [followupForm, setFollowupForm] = useState({ leadId:"", dueAt:"", channel:"CALL", note:"" });
   const [visitForm, setVisitForm] = useState({ leadId:"", scheduledAt:"", timeSlot:"", notes:"" });
   const [leaveForm, setLeaveForm] = useState({ leaveType:"CASUAL", startDate:new Date(Date.now()+19800000).toISOString().slice(0,10), endDate:new Date(Date.now()+19800000).toISOString().slice(0,10), reason:"" });
+
+  // Buyer CRM (Meta Leads / Site Leads) State
+  const [crmLeads, setCrmLeads] = useState<any[]>([]);
+  const [_crmSummary, setCrmSummary] = useState<any>(null);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [crmSite, setCrmSite] = useState("");
+  const [crmStage, setCrmStage] = useState("");
+  const [crmSearch, setCrmSearch] = useState("");
+  const [crmExpandedId, setCrmExpandedId] = useState<string | null>(null);
+  const [crmActivities, setCrmActivities] = useState<any[]>([]);
+  const [crmNote, setCrmNote] = useState("");
+  const [crmActType, setCrmActType] = useState<"CALL" | "WHATSAPP" | "NOTE">("CALL");
+
+  const canAccessBuyerCrm = Boolean(
+    employee?.permissions?.includes("buyer_crm.read.assigned") ||
+    employee?.permissions?.includes("buyer_crm.read.site")
+  );
+
+  const tabItems = useMemo(() => {
+    return baseTabItems.filter((item) => item.id !== "buyer_leads" || canAccessBuyerCrm);
+  }, [canAccessBuyerCrm]);
+
+  const navigationGroups = useMemo(() => [
+    { label: "Workspace", items: ["home", "tasks"] as Tab[] },
+    {
+      label: "Sales & field",
+      items: (canAccessBuyerCrm
+        ? ["leads", "buyer_leads", "telecalling", "visits"]
+        : ["leads", "telecalling", "visits"]) as Tab[],
+    },
+    { label: "People & time", items: ["attendance", "leave"] as Tab[] },
+    { label: "Account", items: ["profile", "salary", "notifications"] as Tab[] },
+  ], [canAccessBuyerCrm]);
+
+  const loadCrmLeads = useCallback(async () => {
+    if (!canAccessBuyerCrm) return;
+    setCrmLoading(true);
+    try {
+      const [leadsRes, sumRes] = await Promise.all([
+        api.get("/buyer-crm/admin/leads", {
+          params: {
+            projectId: crmSite || undefined,
+            status: crmStage || undefined,
+            q: crmSearch.trim() || undefined,
+            limit: 50,
+          },
+        }),
+        api.get("/buyer-crm/admin/summary"),
+      ]);
+      setCrmLeads(leadsRes.data.leads ?? []);
+      setCrmSummary(sumRes.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not load buyer CRM leads.");
+    } finally {
+      setCrmLoading(false);
+    }
+  }, [canAccessBuyerCrm, crmSite, crmStage, crmSearch]);
+
+  useEffect(() => {
+    if (tab === "buyer_leads") {
+      void loadCrmLeads();
+    }
+  }, [tab, loadCrmLeads]);
+
+  async function updateCrmLeadStage(leadId: string, newStatus: string) {
+    try {
+      await api.patch(`/buyer-crm/admin/leads/${leadId}`, { status: newStatus });
+      toast.success("Lead stage updated.");
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not update lead stage.");
+    }
+  }
+
+  async function toggleCrmLeadHistory(leadId: string) {
+    if (crmExpandedId === leadId) {
+      setCrmExpandedId(null);
+      return;
+    }
+    setCrmExpandedId(leadId);
+    setCrmNote("");
+    try {
+      const res = await api.get(`/buyer-crm/admin/leads/${leadId}/activities`);
+      setCrmActivities(res.data.activities ?? []);
+    } catch {
+      toast.error("Could not load activity history.");
+    }
+  }
+
+  async function logCrmActivity(leadId: string) {
+    if (crmNote.trim().length < 2) {
+      toast.error("Add a short activity note.");
+      return;
+    }
+    try {
+      await api.post(`/buyer-crm/admin/leads/${leadId}/activities`, {
+        type: crmActType,
+        content: crmNote.trim(),
+      });
+      setCrmNote("");
+      toast.success("Activity logged.");
+      const res = await api.get(`/buyer-crm/admin/leads/${leadId}/activities`);
+      setCrmActivities(res.data.activities ?? []);
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not log activity.");
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -852,6 +954,248 @@ export default function EmployeeDashboardPage() {
             <button disabled={busy} className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy?"Submitting…":"Submit to central CRM"}</button>
           </form></Panel>}
           <Panel title="Lead history"><div className="space-y-3">{leads.map((l)=><article id={"employee-lead-"+l._id} key={l._id} className="rounded-xl border border-white/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{l.clientName}</h3><p className="mt-1 text-xs text-muted-foreground">{l.clientPhone} · {projectName(l.projectId)} · {l.source}</p><p className="mt-1 text-xs text-muted-foreground">TRV-L-{String(l.leadNo||"").padStart(6,"0")} · Created {fmtDate(l.createdAt)}</p></div><div className="flex flex-wrap gap-2"><Badge value={l.stage}/><Badge value={l.leadTemperature||"UNRATED"}/></div></div><div className="mt-3 flex flex-wrap items-center gap-2"><label className="text-xs text-muted-foreground">Update stage</label><select aria-label={`Stage for ${l.clientName}`} value={l.stage} onChange={(e)=>void updateLeadStage(l,e.target.value)} className="rounded-lg border border-white/10 bg-background px-2 py-1.5 text-xs">{["GENERATED","CONTACTED","INTERESTED","SITE_VISIT","NEGOTIATION","LOST"].map((v)=><option key={v}>{v}</option>)}</select><button onClick={()=>{setCallForm((s)=>({...s,leadId:l._id}));setTab("telecalling");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Log a call</button><button onClick={()=>{setVisitForm((s)=>({...s,leadId:l._id}));setTab("visits");}} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs">Propose visit</button></div><p className="mt-2 text-xs text-muted-foreground">Next follow-up: {fmtDateTime(l.nextFollowUpAt)}</p></article>)}{leads.length===0&&<p className="py-8 text-center text-sm text-muted-foreground">No submitted or assigned leads yet.</p>}</div></Panel>
+        </div>}
+
+        {tab==="buyer_leads" && <div className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Megaphone size={18} className="text-sky-400" />
+                Buyer Leads & Meta Ads CRM
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Inbound buyer inquiries from Meta Ads (Facebook / Instagram) and site assignments.
+              </p>
+            </div>
+            <button
+              onClick={() => void loadCrmLeads()}
+              disabled={crmLoading}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold hover:bg-white/5"
+            >
+              <RefreshCw size={13} className={crmLoading ? "animate-spin" : ""} /> Refresh Leads
+            </button>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Kpi label="Visible Leads" value={crmLeads.length} note="In current view" icon={Users} tone="blue" />
+            <Kpi label="New Leads" value={crmLeads.filter((l) => l.status === "NEW").length} note="Pending first contact" icon={Flame} tone="amber" />
+            <Kpi label="Visits Scheduled" value={crmLeads.filter((l) => ["SITE_VISIT_SCHEDULED", "SITE_VISIT_COMPLETED"].includes(l.status)).length} note="Site walkthroughs" icon={Building2} tone="cyan" />
+            <Kpi label="Tokens & Converted" value={crmLeads.filter((l) => ["BOOKING_TOKEN", "CONVERTED"].includes(l.status)).length} note="Active bookings" icon={CheckCircle2} tone="green" />
+          </div>
+
+          {/* Project / Site Tabs */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Site / Project</p>
+            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
+              <button
+                type="button"
+                onClick={() => setCrmSite("")}
+                className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                  crmSite === ""
+                    ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                    : "border border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/5"
+                }`}
+              >
+                All Sites
+              </button>
+              {projects.map((p) => (
+                <button
+                  key={p._id}
+                  type="button"
+                  onClick={() => setCrmSite(p._id)}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+                    crmSite === p._id
+                      ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
+                      : "border border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/5"
+                  }`}
+                >
+                  <Building2 size={12} /> {p.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filters row */}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="relative">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={crmSearch}
+                onChange={(e) => setCrmSearch(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-background pl-9 pr-3 py-2 text-xs text-foreground outline-none focus:border-sky-400"
+                placeholder="Search name, phone, email, notes…"
+              />
+            </div>
+            <select
+              value={crmStage}
+              onChange={(e) => setCrmStage(e.target.value)}
+              className="rounded-xl border border-white/10 bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-sky-400"
+            >
+              <option value="">All Pipeline Stages</option>
+              <option value="NEW">New</option>
+              <option value="CONTACTED">Contacted</option>
+              <option value="QUALIFIED">Qualified</option>
+              <option value="SITE_VISIT_SCHEDULED">Visit Scheduled</option>
+              <option value="SITE_VISIT_COMPLETED">Visit Completed</option>
+              <option value="BOOKING_TOKEN">Booking Token Received</option>
+              <option value="CONVERTED">Converted / Won</option>
+              <option value="LOST">Lost</option>
+            </select>
+          </div>
+
+          {/* Leads Listing */}
+          <Panel title={`Buyer Leads · ${crmLeads.length}`}>
+            {crmLoading ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">Loading buyer leads…</p>
+            ) : crmLeads.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-foreground">No buyer leads match the selected site or filters.</p>
+            ) : (
+              <div className="space-y-3">
+                {crmLeads.map((lead: any) => (
+                  <article key={lead._id} className="rounded-xl border border-white/10 bg-white/[0.015] p-4 space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{lead.fullName}</h3>
+                          {lead.isDuplicate && (
+                            <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
+                              Repeat x{lead.duplicateCount || 2}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-sky-400 font-medium">
+                            <Phone size={11} /> {lead.phone}
+                          </a>
+                          {lead.email && <span>· {lead.email}</span>}
+                          <span>· Created {fmtDate(lead.createdAt)}</span>
+                        </div>
+                      </div>
+
+                      {/* Site & Meta Campaign Badges */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {lead.project ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-xs font-semibold text-sky-300">
+                            <Building2 size={11} /> {lead.project.name}
+                          </span>
+                        ) : (
+                          <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
+                            General Requirement
+                          </span>
+                        )}
+                        {lead.source === "META_AD" && (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-300">
+                            <Megaphone size={11} /> Meta Ad
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Requirements & Budget */}
+                    <div className="text-xs text-muted-foreground">
+                      {lead.budgetRange && <span className="font-medium text-emerald-400 mr-2">Budget: {lead.budgetRange}</span>}
+                      {[lead.propertyType, lead.preferredLocation, lead.requirement].filter(Boolean).join(" · ") || "No additional requirement notes."}
+                    </div>
+
+                    {/* Stage & Contact Actions */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Stage:</label>
+                        <select
+                          aria-label={`Stage for ${lead.fullName}`}
+                          value={lead.status}
+                          onChange={(e) => void updateCrmLeadStage(lead._id, e.target.value)}
+                          className="rounded-lg border border-white/15 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground outline-none"
+                        >
+                          <option value="NEW">New</option>
+                          <option value="CONTACTED">Contacted</option>
+                          <option value="QUALIFIED">Qualified</option>
+                          <option value="SITE_VISIT_SCHEDULED">Visit Scheduled</option>
+                          <option value="SITE_VISIT_COMPLETED">Visit Completed</option>
+                          <option value="BOOKING_TOKEN">Booking Token Received</option>
+                          <option value="CONVERTED">Converted / Won</option>
+                          <option value="LOST">Lost</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`https://wa.me/91${lead.phone}?text=${encodeURIComponent(
+                            `Hello ${lead.fullName}, thank you for your enquiry regarding ${lead.project?.name || "our premier residential developments"} with Truvi. I am reaching out to share site details and answer any questions. When is a good time to speak?`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                        >
+                          <MessageCircle size={13} /> WhatsApp
+                        </a>
+                        <a
+                          href={`tel:${lead.phone}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-white/10 transition"
+                        >
+                          <Phone size={11} /> Call
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => void toggleCrmLeadHistory(lead._id)}
+                          className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs hover:bg-white/5"
+                        >
+                          {crmExpandedId === lead._id ? "Close" : "History / Note"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Activity Panel */}
+                    {crmExpandedId === lead._id && (
+                      <div className="border-t border-white/10 pt-3 space-y-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity & Call Notes</h4>
+                        {crmActivities.length ? (
+                          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+                            {crmActivities.map((act: any) => (
+                              <div key={act._id} className="rounded-lg border border-white/10 bg-white/[0.015] p-2 text-xs">
+                                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <strong>{act.type} · {act.actor || "System"}</strong>
+                                  <span>{fmtDateTime(act.createdAt)}</span>
+                                </div>
+                                <p className="mt-1 text-muted-foreground whitespace-pre-wrap">{act.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No notes logged yet.</p>
+                        )}
+                        <div className="flex gap-2">
+                          <select
+                            value={crmActType}
+                            onChange={(e) => setCrmActType(e.target.value as any)}
+                            className="rounded-lg border border-white/10 bg-background px-2 text-xs"
+                          >
+                            <option value="CALL">Call</option>
+                            <option value="WHATSAPP">WhatsApp</option>
+                            <option value="NOTE">Note</option>
+                          </select>
+                          <input
+                            value={crmNote}
+                            onChange={(e) => setCrmNote(e.target.value)}
+                            className="flex-1 rounded-lg border border-white/10 bg-background px-3 py-1.5 text-xs outline-none focus:border-sky-400"
+                            placeholder="Add call outcome or conversation note…"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void logCrmActivity(lead._id)}
+                            className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500"
+                          >
+                            Save Note
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </Panel>
         </div>}
 
         {tab==="telecalling" && <div className="space-y-4">

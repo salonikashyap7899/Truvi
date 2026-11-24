@@ -37,6 +37,7 @@ const DEFAULT_EMPLOYEE_PERMISSIONS = [
   "lead.call.own", "lead.call.assigned", "telecalling.use", "followup.create.own", "followup.create.assigned",
   "sitevisit.create", "sitevisit.read.own", "sitevisit.update.own", "attendance.read.own", "attendance.checkin",
   "attendance.checkout", "leave.request.own", "leave.read.own", "profile.read.own", "salary.read.own",
+  "buyer_crm.read.assigned", "buyer_crm.read.site", "buyer_crm.activity.create", "buyer_crm.status.update",
 ] as const;
 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));

@@ -893,6 +893,12 @@ export const buyerCrmLeads = pgTable(
     providerFormId: text("provider_form_id"),
     providerAdId: text("provider_ad_id"),
     providerAdName: text("provider_ad_name"),
+    providerCampaignId: text("provider_campaign_id"),
+    providerCampaignName: text("provider_campaign_name"),
+    providerAdsetId: text("provider_adset_id"),
+    providerAdsetName: text("provider_adset_name"),
+    isDuplicate: boolean("is_duplicate").notNull().default(false),
+    duplicateCount: integer("duplicate_count").notNull().default(1),
     createdById: uuid("created_by_id").references(() => users._id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -904,9 +910,36 @@ export const buyerCrmLeads = pgTable(
     index("buyer_crm_leads_follow_up_idx").on(t.nextFollowUpAt),
     index("buyer_crm_leads_phone_idx").on(t.phone),
     index("buyer_crm_leads_buyer_user_idx").on(t.buyerUserId),
+    index("buyer_crm_leads_campaign_idx").on(t.providerCampaignName),
+    index("buyer_crm_leads_form_idx").on(t.providerFormId),
   ],
 );
 export type IBuyerCrmLead = typeof buyerCrmLeads.$inferSelect;
+
+/** Admin-managed mappings linking Meta Lead Gen forms and ads directly to projects/sites. */
+export const metaAdFormMappings = pgTable(
+  "meta_ad_form_mappings",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    formId: text("form_id").notNull(),
+    formName: text("form_name"),
+    adId: text("ad_id"),
+    adName: text("ad_name"),
+    campaignId: text("campaign_id"),
+    campaignName: text("campaign_name"),
+    projectId: uuid("project_id").notNull().references(() => projects._id, { onDelete: "cascade" }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdById: uuid("created_by_id").references(() => users._id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("meta_ad_form_mappings_form_idx").on(t.formId),
+    index("meta_ad_form_mappings_project_idx").on(t.projectId),
+    index("meta_ad_form_mappings_ad_idx").on(t.adId),
+  ],
+);
+export type IMetaAdFormMapping = typeof metaAdFormMappings.$inferSelect;
 
 /** Append-only call, WhatsApp and note history for each private buyer enquiry. */
 export const buyerCrmActivities = pgTable(

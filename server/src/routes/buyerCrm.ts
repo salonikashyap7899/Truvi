@@ -4,22 +4,88 @@ import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from "dr
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import { getDatabaseStatus, getDb } from "../config/db";
-import { buyerCrmActivities, buyerCrmLeads, leads, projects, propertyRequirements, users } from "../db/schema";
+import {
+  buyerCrmActivities,
+  buyerCrmLeads,
+  employees,
+  leads,
+  metaAdFormMappings,
+  projects,
+  propertyRequirements,
+  users,
+} from "../db/schema";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
 import { logAudit } from "../services/audit";
+import { createNotifications } from "../services/notificationService";
 
 const router = Router();
 const SOURCES = ["META_AD", "GOOGLE_AD", "TELECALLER", "WHATSAPP", "WEBSITE", "CUSTOMER_REFERRAL", "OTHER"] as const;
-const STATUSES = ["NEW", "CONTACTED", "QUALIFIED", "SITE_VISIT_SCHEDULED", "CONVERTED", "LOST"] as const;
+const STATUSES = [
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+  "SITE_VISIT_SCHEDULED",
+  "SITE_VISIT_COMPLETED",
+  "BOOKING_TOKEN",
+  "CONVERTED",
+  "LOST",
+] as const;
 const ACTIVITY_TYPES = ["CALL", "WHATSAPP", "NOTE", "FOLLOW_UP"] as const;
-const terminalStatuses = ["CONVERTED", "LOST"] as const;
 
 function normalizePhone(value: string): string {
   let digits = value.replace(/\D/g, "");
   if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
   if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
   return digits;
+}
+
+export type BuyerCrmAccess = {
+  isAdmin: boolean;
+  canReadAssigned: boolean;
+  canReadSite: boolean;
+  canUpdateStatus: boolean;
+  canCreateActivity: boolean;
+  userId: string;
+};
+
+async function getBuyerCrmAccess(req: AuthedRequest): Promise<BuyerCrmAccess | null> {
+  if (!req.user) return null;
+  if (req.user.role === "ADMIN") {
+    return {
+      isAdmin: true,
+      canReadAssigned: true,
+      canReadSite: true,
+      canUpdateStatus: true,
+      canCreateActivity: true,
+      userId: req.user.userId,
+    };
+  }
+  if (req.user.role === "EMPLOYEE") {
+    const db = getDb();
+    const [emp] = await db.select({ permissions: employees.permissions, status: employees.status })
+      .from(employees)
+      .where(eq(employees.accountUserId, req.user.userId))
+      .limit(1);
+    if (!emp || emp.status === "INACTIVE") return null;
+    const perms = emp.permissions || [];
+    const canReadAssigned = perms.includes("buyer_crm.read.assigned");
+    const canReadSite = perms.includes("buyer_crm.read.site");
+    const canUpdateStatus = perms.includes("buyer_crm.status.update");
+    const canCreateActivity = perms.includes("buyer_crm.activity.create");
+
+    if (!canReadAssigned && !canReadSite) return null;
+
+    return {
+      isAdmin: false,
+      canReadAssigned,
+      canReadSite,
+      canUpdateStatus,
+      canCreateActivity,
+      userId: req.user.userId,
+    };
+  }
+  return null;
 }
 
 const createLeadSchema = z.object({
@@ -56,16 +122,74 @@ const updateLeadSchema = z.object({
   path: ["consentBasis"],
 });
 
-function listFilters(query: Record<string, unknown>): { conditions: SQL[]; page: number; limit: number } {
+const createMappingSchema = z.object({
+  formId: z.string().trim().min(1).max(160),
+  formName: z.string().trim().max(250).optional().or(z.literal("")),
+  adId: z.string().trim().max(160).optional().or(z.literal("")),
+  adName: z.string().trim().max(250).optional().or(z.literal("")),
+  campaignId: z.string().trim().max(160).optional().or(z.literal("")),
+  campaignName: z.string().trim().max(250).optional().or(z.literal("")),
+  projectId: z.string().refine(isValidId, "Choose an approved project."),
+});
+
+const updateMappingSchema = z.object({
+  formId: z.string().trim().min(1).max(160).optional(),
+  formName: z.string().trim().max(250).nullable().optional(),
+  adId: z.string().trim().max(160).nullable().optional(),
+  adName: z.string().trim().max(250).nullable().optional(),
+  campaignId: z.string().trim().max(160).nullable().optional(),
+  campaignName: z.string().trim().max(250).nullable().optional(),
+  projectId: z.string().refine(isValidId, "Choose an approved project.").optional(),
+  isActive: z.boolean().optional(),
+});
+
+function listFilters(query: Record<string, unknown>, access: BuyerCrmAccess): { conditions: SQL[]; page: number; limit: number } {
   const page = Math.max(1, Math.min(10000, Number(query.page) || 1));
   const limit = Math.max(1, Math.min(100, Number(query.limit) || 50));
   const conditions: SQL[] = [];
-  if (typeof query.status === "string" && STATUSES.includes(query.status as typeof STATUSES[number])) conditions.push(eq(buyerCrmLeads.status, query.status));
-  if (typeof query.source === "string" && SOURCES.includes(query.source as typeof SOURCES[number])) conditions.push(eq(buyerCrmLeads.source, query.source));
+
+  // Employee scoping
+  if (!access.isAdmin) {
+    if (access.canReadAssigned && !access.canReadSite) {
+      conditions.push(eq(buyerCrmLeads.assignedToId, access.userId));
+    } else if (access.canReadSite && !access.canReadAssigned) {
+      conditions.push(sql`${buyerCrmLeads.projectId} IS NOT NULL`);
+    } else if (access.canReadSite && access.canReadAssigned) {
+      if (query.scope === "assigned" || query.assignedTo === "me") {
+        conditions.push(eq(buyerCrmLeads.assignedToId, access.userId));
+      } else if (typeof query.projectId === "string" && isValidId(query.projectId)) {
+        conditions.push(eq(buyerCrmLeads.projectId, query.projectId));
+      } else {
+        conditions.push(or(eq(buyerCrmLeads.assignedToId, access.userId), sql`${buyerCrmLeads.projectId} IS NOT NULL`)!);
+      }
+    }
+  }
+
+  if (typeof query.status === "string" && STATUSES.includes(query.status as typeof STATUSES[number])) {
+    conditions.push(eq(buyerCrmLeads.status, query.status));
+  }
+  if (typeof query.source === "string" && SOURCES.includes(query.source as typeof SOURCES[number])) {
+    conditions.push(eq(buyerCrmLeads.source, query.source));
+  }
   if (typeof query.projectId === "string") {
     if (query.projectId === "GENERAL") conditions.push(sql`${buyerCrmLeads.projectId} IS NULL`);
     else if (isValidId(query.projectId)) conditions.push(eq(buyerCrmLeads.projectId, query.projectId));
   }
+  if (typeof query.campaign === "string" && query.campaign.trim()) {
+    conditions.push(eq(buyerCrmLeads.providerCampaignName, query.campaign.trim()));
+  }
+  if (typeof query.adName === "string" && query.adName.trim()) {
+    conditions.push(eq(buyerCrmLeads.providerAdName, query.adName.trim()));
+  }
+  if (query.isDuplicate === "true") {
+    conditions.push(eq(buyerCrmLeads.isDuplicate, true));
+  } else if (query.isDuplicate === "false") {
+    conditions.push(eq(buyerCrmLeads.isDuplicate, false));
+  }
+  if (access.isAdmin && typeof query.assignedTo === "string" && isValidId(query.assignedTo)) {
+    conditions.push(eq(buyerCrmLeads.assignedToId, query.assignedTo));
+  }
+
   if (typeof query.q === "string" && query.q.trim()) {
     const escaped = `%${query.q.trim().replace(/[\\%_]/g, "\\$&")}%`;
     conditions.push(or(
@@ -73,6 +197,8 @@ function listFilters(query: Record<string, unknown>): { conditions: SQL[]; page:
       ilike(buyerCrmLeads.phone, escaped),
       ilike(buyerCrmLeads.email, escaped),
       ilike(buyerCrmLeads.requirement, escaped),
+      ilike(buyerCrmLeads.providerCampaignName, escaped),
+      ilike(buyerCrmLeads.providerAdName, escaped),
       ilike(projects.name, escaped),
     )!);
   }
@@ -81,27 +207,72 @@ function listFilters(query: Record<string, unknown>): { conditions: SQL[]; page:
 
 router.use(authenticate);
 
-router.get("/admin/summary", requireRole("ADMIN"), async (_req: AuthedRequest, res: Response) => {
+router.get("/admin/summary", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
   const db = getDb();
+  const scopeCondition: SQL[] = [];
+  if (!access.isAdmin) {
+    if (access.canReadAssigned && !access.canReadSite) {
+      scopeCondition.push(eq(buyerCrmLeads.assignedToId, access.userId));
+    } else if (access.canReadSite && !access.canReadAssigned) {
+      scopeCondition.push(sql`${buyerCrmLeads.projectId} IS NOT NULL`);
+    } else {
+      scopeCondition.push(or(eq(buyerCrmLeads.assignedToId, access.userId), sql`${buyerCrmLeads.projectId} IS NOT NULL`)!);
+    }
+  }
+  const scopeWhere = scopeCondition.length ? and(...scopeCondition) : undefined;
+
   const [crmStats] = await db.select({
     total: count(),
     new: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.status} = 'NEW')::int`,
     projectInterests: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.projectId} IS NOT NULL)::int`,
     broaderRequirements: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.projectId} IS NULL AND ${buyerCrmLeads.requirement} IS NOT NULL AND ${buyerCrmLeads.requirement} <> '')::int`,
     followUpsDue: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.nextFollowUpAt} <= now() AND ${buyerCrmLeads.status} NOT IN ('CONVERTED','LOST'))::int`,
-  }).from(buyerCrmLeads);
-  const [registeredBuyers] = await db.select({ total: count() }).from(users).where(eq(users.role, "BUYER"));
+    siteVisitsScheduled: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.status} = 'SITE_VISIT_SCHEDULED')::int`,
+    siteVisitsCompleted: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.status} = 'SITE_VISIT_COMPLETED')::int`,
+    bookingTokens: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.status} = 'BOOKING_TOKEN')::int`,
+    converted: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.status} = 'CONVERTED')::int`,
+    duplicates: sql<number>`count(*) FILTER (WHERE ${buyerCrmLeads.isDuplicate} = true)::int`,
+  }).from(buyerCrmLeads).where(scopeWhere);
+
+  const [registeredBuyers] = access.isAdmin
+    ? await db.select({ total: count() }).from(users).where(eq(users.role, "BUYER"))
+    : [{ total: 0 }];
+
   const bySource = await db.select({ source: buyerCrmLeads.source, total: count() })
-    .from(buyerCrmLeads).groupBy(buyerCrmLeads.source).orderBy(desc(count()));
+    .from(buyerCrmLeads).where(scopeWhere).groupBy(buyerCrmLeads.source).orderBy(desc(count()));
+
+  const [campaignRows, adRows] = await Promise.all([
+    db.selectDistinct({ name: buyerCrmLeads.providerCampaignName })
+      .from(buyerCrmLeads)
+      .where(and(scopeWhere, sql`${buyerCrmLeads.providerCampaignName} IS NOT NULL AND ${buyerCrmLeads.providerCampaignName} <> ''`)),
+    db.selectDistinct({ name: buyerCrmLeads.providerAdName })
+      .from(buyerCrmLeads)
+      .where(and(scopeWhere, sql`${buyerCrmLeads.providerAdName} IS NOT NULL AND ${buyerCrmLeads.providerAdName} <> ''`)),
+  ]);
+
   res.json({
     leads: crmStats,
     registeredBuyers: registeredBuyers?.total ?? 0,
     bySource,
+    distinctCampaigns: campaignRows.map((r) => r.name).filter(Boolean),
+    distinctAds: adRows.map((r) => r.name).filter(Boolean),
     metaAdsConfigured: Boolean(process.env.META_LEADS_VERIFY_TOKEN?.trim() && process.env.META_LEADS_APP_SECRET?.trim() && process.env.META_LEADS_ACCESS_TOKEN?.trim()),
+    userPermissions: {
+      isAdmin: access.isAdmin,
+      canReadAssigned: access.canReadAssigned,
+      canReadSite: access.canReadSite,
+      canUpdateStatus: access.canUpdateStatus,
+      canCreateActivity: access.canCreateActivity,
+    },
   });
 });
 
-router.get("/admin/projects", requireRole("ADMIN"), async (_req: AuthedRequest, res: Response) => {
+router.get("/admin/projects", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
   const rows = await getDb().select({ _id: projects._id, name: projects.name, city: projects.city, location: projects.location })
     .from(projects).where(eq(projects.approvalStatus, "APPROVED")).orderBy(asc(projects.name));
   res.json({ projects: rows });
@@ -113,9 +284,12 @@ router.get("/admin/staff", requireRole("ADMIN"), async (_req: AuthedRequest, res
   res.json({ staff: rows });
 });
 
-router.get("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+router.get("/admin/leads", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
   const db = getDb();
-  const { conditions, page, limit } = listFilters(req.query as Record<string, unknown>);
+  const { conditions, page, limit } = listFilters(req.query as Record<string, unknown>, access);
   const where = and(...conditions);
   const [countRow] = await db.select({ total: count() }).from(buyerCrmLeads)
     .leftJoin(projects, eq(buyerCrmLeads.projectId, projects._id)).where(where);
@@ -138,6 +312,17 @@ router.get("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res:
     consentBasis: buyerCrmLeads.consentBasis,
     nextFollowUpAt: buyerCrmLeads.nextFollowUpAt,
     assignedToId: buyerCrmLeads.assignedToId,
+    providerLeadId: buyerCrmLeads.providerLeadId,
+    providerPageId: buyerCrmLeads.providerPageId,
+    providerFormId: buyerCrmLeads.providerFormId,
+    providerAdId: buyerCrmLeads.providerAdId,
+    providerAdName: buyerCrmLeads.providerAdName,
+    providerCampaignId: buyerCrmLeads.providerCampaignId,
+    providerCampaignName: buyerCrmLeads.providerCampaignName,
+    providerAdsetId: buyerCrmLeads.providerAdsetId,
+    providerAdsetName: buyerCrmLeads.providerAdsetName,
+    isDuplicate: buyerCrmLeads.isDuplicate,
+    duplicateCount: buyerCrmLeads.duplicateCount,
     createdAt: buyerCrmLeads.createdAt,
     updatedAt: buyerCrmLeads.updatedAt,
     project: { _id: projects._id, name: projects.name, city: projects.city },
@@ -146,7 +331,17 @@ router.get("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res:
     .leftJoin(projects, eq(buyerCrmLeads.projectId, projects._id))
     .leftJoin(assignee, eq(buyerCrmLeads.assignedToId, assignee._id))
     .where(where).orderBy(desc(buyerCrmLeads.updatedAt)).limit(limit).offset((page - 1) * limit);
-  res.json({ leads: rows.map((row) => ({ ...row, project: row.project?._id ? row.project : null, assignedTo: row.assignedTo?._id ? row.assignedTo : null })), total: countRow?.total ?? 0, page, limit });
+
+  res.json({
+    leads: rows.map((row) => ({
+      ...row,
+      project: row.project?._id ? row.project : null,
+      assignedTo: row.assignedTo?._id ? row.assignedTo : null,
+    })),
+    total: countRow?.total ?? 0,
+    page,
+    limit,
+  });
 });
 
 router.get("/admin/buyers", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
@@ -286,14 +481,37 @@ router.post("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res
   res.status(201).json({ lead });
 });
 
-router.patch("/admin/leads/:id", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+router.patch("/admin/leads/:id", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Buyer lead not found." });
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
   const parsed = updateLeadSchema.safeParse(req.body);
   if (!parsed.success || Object.keys(parsed.data ?? {}).length === 0) return res.status(400).json({ error: parsed.success ? "No changes supplied." : parsed.error.issues[0]?.message });
   const db = getDb();
   const [current] = await db.select().from(buyerCrmLeads).where(eq(buyerCrmLeads._id, req.params.id)).limit(1);
   if (!current) return res.status(404).json({ error: "Buyer lead not found." });
+
   const d = parsed.data;
+
+  // Employee checks & restrictions
+  if (!access.isAdmin) {
+    if (!access.canUpdateStatus) {
+      return res.status(403).json({ error: "You do not have permission to update buyer leads." });
+    }
+    const isAssigned = current.assignedToId === access.userId;
+    const isSiteLead = Boolean(current.projectId) && access.canReadSite;
+    if (!isAssigned && !isSiteLead) {
+      return res.status(403).json({ error: "You cannot modify this lead." });
+    }
+    if (d.assignedToId !== undefined && d.assignedToId !== current.assignedToId) {
+      return res.status(403).json({ error: "Only administrators can assign or reassign leads." });
+    }
+    if (d.projectId !== undefined && d.projectId !== current.projectId) {
+      return res.status(403).json({ error: "Only administrators can re-link leads to another project." });
+    }
+  }
+
   if (d.projectId === null && ![d.requirement ?? current.requirement, current.propertyType, current.preferredLocation, current.budgetRange].some((value) => Boolean(value?.trim()))) {
     return res.status(400).json({ error: "Add a broader requirement before unlinking this project." });
   }
@@ -305,14 +523,16 @@ router.patch("/admin/leads/:id", requireRole("ADMIN"), async (req: AuthedRequest
     const [staff] = await db.select({ _id: users._id }).from(users).where(and(eq(users._id, d.assignedToId), inArray(users.role, ["ADMIN", "EMPLOYEE"]), eq(users.disabled, false))).limit(1);
     if (!staff) return res.status(400).json({ error: "Choose an active admin or employee." });
   }
+
   const update: Partial<typeof buyerCrmLeads.$inferInsert> = { updatedAt: new Date() };
   if (d.status !== undefined) update.status = d.status;
-  if (d.projectId !== undefined) update.projectId = d.projectId;
+  if (d.projectId !== undefined && access.isAdmin) update.projectId = d.projectId;
   if (d.nextFollowUpAt !== undefined) update.nextFollowUpAt = d.nextFollowUpAt ? new Date(d.nextFollowUpAt) : null;
-  if (d.assignedToId !== undefined) update.assignedToId = d.assignedToId;
+  if (d.assignedToId !== undefined && access.isAdmin) update.assignedToId = d.assignedToId;
   if (d.requirement !== undefined) update.requirement = d.requirement;
   if (d.contactConsent !== undefined) update.contactConsent = d.contactConsent;
   if (d.consentBasis !== undefined) update.consentBasis = d.consentBasis;
+
   const [lead] = await db.update(buyerCrmLeads).set(update).where(eq(buyerCrmLeads._id, current._id)).returning();
   const activities: Array<{ type: string; content: string }> = [];
   if (d.status && d.status !== current.status) activities.push({ type: "STATUS", content: `Status changed from ${current.status} to ${d.status}.` });
@@ -326,27 +546,166 @@ router.patch("/admin/leads/:id", requireRole("ADMIN"), async (req: AuthedRequest
   res.json({ lead });
 });
 
-router.post("/admin/leads/:id/activities", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+router.post("/admin/leads/:id/activities", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Buyer lead not found." });
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
+  if (!access.isAdmin && !access.canCreateActivity) {
+    return res.status(403).json({ error: "You do not have permission to log activities." });
+  }
+
   const parsed = z.object({ type: z.enum(ACTIVITY_TYPES), content: z.string().trim().min(2).max(1200) }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Enter a short activity note." });
   const db = getDb();
-  const [lead] = await db.select({ _id: buyerCrmLeads._id }).from(buyerCrmLeads).where(eq(buyerCrmLeads._id, req.params.id)).limit(1);
+  const [lead] = await db.select().from(buyerCrmLeads).where(eq(buyerCrmLeads._id, req.params.id)).limit(1);
   if (!lead) return res.status(404).json({ error: "Buyer lead not found." });
+
+  if (!access.isAdmin) {
+    const isAssigned = lead.assignedToId === access.userId;
+    const isSiteLead = Boolean(lead.projectId) && access.canReadSite;
+    if (!isAssigned && !isSiteLead) {
+      return res.status(403).json({ error: "You cannot add notes to this lead." });
+    }
+  }
+
   const [activity] = await db.insert(buyerCrmActivities).values({ leadId: lead._id, actorUserId: req.user!.userId, type: parsed.data.type, content: parsed.data.content }).returning();
   await db.update(buyerCrmLeads).set({ updatedAt: new Date() }).where(eq(buyerCrmLeads._id, lead._id));
   res.status(201).json({ activity });
 });
 
-router.get("/admin/leads/:id/activities", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+router.get("/admin/leads/:id/activities", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
   if (!isValidId(req.params.id)) return res.status(404).json({ error: "Buyer lead not found." });
-  const rows = await getDb().select({ _id: buyerCrmActivities._id, type: buyerCrmActivities.type, content: buyerCrmActivities.content, createdAt: buyerCrmActivities.createdAt, actor: users.name })
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
+  const db = getDb();
+  const [lead] = await db.select({ _id: buyerCrmLeads._id, assignedToId: buyerCrmLeads.assignedToId, projectId: buyerCrmLeads.projectId })
+    .from(buyerCrmLeads).where(eq(buyerCrmLeads._id, req.params.id)).limit(1);
+  if (!lead) return res.status(404).json({ error: "Buyer lead not found." });
+
+  if (!access.isAdmin) {
+    const isAssigned = lead.assignedToId === access.userId;
+    const isSiteLead = Boolean(lead.projectId) && access.canReadSite;
+    if (!isAssigned && !isSiteLead) {
+      return res.status(403).json({ error: "You cannot view activities for this lead." });
+    }
+  }
+
+  const rows = await db.select({ _id: buyerCrmActivities._id, type: buyerCrmActivities.type, content: buyerCrmActivities.content, createdAt: buyerCrmActivities.createdAt, actor: users.name })
     .from(buyerCrmActivities).leftJoin(users, eq(buyerCrmActivities.actorUserId, users._id))
     .where(eq(buyerCrmActivities.leadId, req.params.id)).orderBy(desc(buyerCrmActivities.createdAt)).limit(100);
   res.json({ activities: rows });
 });
 
+/* =========================================================================
+ * Meta Lead Ad Form & Campaign Mapping Endpoints (Admin Only)
+ * ========================================================================= */
+
+router.get("/admin/meta-mappings", requireRole("ADMIN"), async (_req: AuthedRequest, res: Response) => {
+  const rows = await getDb().select({
+    _id: metaAdFormMappings._id,
+    formId: metaAdFormMappings.formId,
+    formName: metaAdFormMappings.formName,
+    adId: metaAdFormMappings.adId,
+    adName: metaAdFormMappings.adName,
+    campaignId: metaAdFormMappings.campaignId,
+    campaignName: metaAdFormMappings.campaignName,
+    projectId: metaAdFormMappings.projectId,
+    isActive: metaAdFormMappings.isActive,
+    createdAt: metaAdFormMappings.createdAt,
+    updatedAt: metaAdFormMappings.updatedAt,
+    project: { _id: projects._id, name: projects.name, city: projects.city },
+  }).from(metaAdFormMappings)
+    .leftJoin(projects, eq(metaAdFormMappings.projectId, projects._id))
+    .orderBy(desc(metaAdFormMappings.createdAt));
+
+  res.json({ mappings: rows });
+});
+
+router.post("/admin/meta-mappings", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+  const parsed = createMappingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid mapping details." });
+  const d = parsed.data;
+  const db = getDb();
+
+  const [project] = await db.select({ _id: projects._id, name: projects.name }).from(projects)
+    .where(and(eq(projects._id, d.projectId), eq(projects.approvalStatus, "APPROVED"))).limit(1);
+  if (!project) return res.status(400).json({ error: "Selected project was not found or is not approved." });
+
+  const [mapping] = await db.insert(metaAdFormMappings).values({
+    formId: d.formId,
+    formName: d.formName || null,
+    adId: d.adId || null,
+    adName: d.adName || null,
+    campaignId: d.campaignId || null,
+    campaignName: d.campaignName || null,
+    projectId: d.projectId,
+    isActive: true,
+    createdById: req.user!.userId,
+  }).returning();
+
+  await logAudit({
+    userId: req.user!.userId,
+    action: "META_MAPPING_CREATED",
+    resourceType: "meta_ad_form_mapping",
+    resourceId: mapping._id,
+    metadata: { formId: d.formId, projectId: d.projectId, projectName: project.name },
+  });
+
+  res.status(201).json({ mapping: { ...mapping, project } });
+});
+
+router.patch("/admin/meta-mappings/:id", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Mapping not found." });
+  const parsed = updateMappingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid mapping updates." });
+  const d = parsed.data;
+  const db = getDb();
+
+  const [current] = await db.select().from(metaAdFormMappings).where(eq(metaAdFormMappings._id, req.params.id)).limit(1);
+  if (!current) return res.status(404).json({ error: "Mapping not found." });
+
+  if (d.projectId) {
+    const [project] = await db.select({ _id: projects._id }).from(projects)
+      .where(and(eq(projects._id, d.projectId), eq(projects.approvalStatus, "APPROVED"))).limit(1);
+    if (!project) return res.status(400).json({ error: "Selected project was not found." });
+  }
+
+  const update: Partial<typeof metaAdFormMappings.$inferInsert> = { updatedAt: new Date() };
+  if (d.formId !== undefined) update.formId = d.formId;
+  if (d.formName !== undefined) update.formName = d.formName;
+  if (d.adId !== undefined) update.adId = d.adId;
+  if (d.adName !== undefined) update.adName = d.adName;
+  if (d.campaignId !== undefined) update.campaignId = d.campaignId;
+  if (d.campaignName !== undefined) update.campaignName = d.campaignName;
+  if (d.projectId !== undefined) update.projectId = d.projectId;
+  if (d.isActive !== undefined) update.isActive = d.isActive;
+
+  const [mapping] = await db.update(metaAdFormMappings).set(update).where(eq(metaAdFormMappings._id, current._id)).returning();
+  res.json({ mapping });
+});
+
+router.delete("/admin/meta-mappings/:id", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+  if (!isValidId(req.params.id)) return res.status(404).json({ error: "Mapping not found." });
+  const db = getDb();
+  const [deleted] = await db.delete(metaAdFormMappings).where(eq(metaAdFormMappings._id, req.params.id)).returning();
+  if (!deleted) return res.status(404).json({ error: "Mapping not found." });
+  await logAudit({
+    userId: req.user!.userId,
+    action: "META_MAPPING_DELETED",
+    resourceType: "meta_ad_form_mapping",
+    resourceId: deleted._id,
+    metadata: { formId: deleted.formId, projectId: deleted.projectId },
+  });
+  res.json({ success: true });
+});
+
 export default router;
+
+/* =========================================================================
+ * Meta Lead Ads Webhook Receiver & Processor
+ * ========================================================================= */
 
 type MetaField = { name?: unknown; values?: unknown };
 type MetaLead = {
@@ -355,6 +714,10 @@ type MetaLead = {
   form_id?: unknown;
   ad_id?: unknown;
   ad_name?: unknown;
+  campaign_id?: unknown;
+  campaign_name?: unknown;
+  adset_id?: unknown;
+  adset_name?: unknown;
   field_data?: unknown;
 };
 
@@ -429,44 +792,147 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
         if (change.field !== "leadgen") continue;
         const leadId = safeText(change.value?.leadgen_id, 160);
         if (!leadId) throw new Error("Meta notification was missing a lead ID.");
+
         const url = new URL(`https://graph.facebook.com/${graphVersion}/${encodeURIComponent(leadId)}`);
-        url.searchParams.set("fields", "id,created_time,field_data,ad_id,ad_name,form_id");
+        url.searchParams.set("fields", "id,created_time,field_data,ad_id,ad_name,form_id,campaign_id,campaign_name,adset_id,adset_name");
         url.searchParams.set("access_token", process.env.META_LEADS_ACCESS_TOKEN!.trim());
+
         const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-        if (!response.ok) throw new Error("Meta lead details could not be fetched.");
+        if (!response.ok) throw new Error(`Meta lead details could not be fetched (${response.status}).`);
         const data = await response.json() as MetaLead;
         const providerLeadId = safeText(data.id ?? leadId, 160);
         if (!providerLeadId) throw new Error("Meta lead details did not include a lead ID.");
+
         const fields = fieldsToMap(data.field_data);
-        const phone = normalizePhone(firstField(fields, "phone_number", "mobile_number", "phone"));
+        const phone = normalizePhone(firstField(fields, "phone_number", "mobile_number", "phone", "contact_number"));
         if (!/^[6-9]\d{9}$/.test(phone)) throw new Error("Meta lead details did not include a valid Indian mobile number.");
         const email = firstField(fields, "email", "email_address").toLowerCase();
         const fullName = firstField(fields, "full_name", "name") || [firstField(fields, "first_name"), firstField(fields, "last_name")].filter(Boolean).join(" ") || "Ad lead";
-        const projectAnswer = firstField(fields, "project_id", "project", "project_name");
-        const possibleProjectId: unknown = projectAnswer;
+
+        const providerFormId = safeText(data.form_id ?? change.value?.form_id, 160) || null;
+        const providerAdId = safeText(data.ad_id ?? change.value?.ad_id, 160) || null;
+        const providerAdName = safeText(data.ad_name, 250) || null;
+        const providerCampaignId = safeText(data.campaign_id ?? change.value?.campaign_id, 160) || null;
+        const providerCampaignName = safeText(data.campaign_name, 250) || null;
+        const providerAdsetId = safeText(data.adset_id ?? change.value?.adset_id, 160) || null;
+        const providerAdsetName = safeText(data.adset_name, 250) || null;
+        const providerPageId = safeText(change.value?.page_id ?? entry.id, 160) || null;
+
+        // 1. Site attribution: Check metaAdFormMappings table
         let projectId: string | null = null;
-        if (isValidId(possibleProjectId)) {
-          const [project] = await db.select({ _id: projects._id }).from(projects).where(and(eq(projects._id, projectAnswer), eq(projects.approvalStatus, "APPROVED"))).limit(1);
-          projectId = project?._id ?? null;
-        } else if (projectAnswer) {
-          const exactProjectName = projectAnswer.replace(/[\\%_]/g, "\\$&");
-          const [project] = await db.select({ _id: projects._id }).from(projects).where(and(eq(projects.approvalStatus, "APPROVED"), ilike(projects.name, exactProjectName))).limit(1);
-          projectId = project?._id ?? null;
+        const mappingOrs = [];
+        if (providerFormId) mappingOrs.push(eq(metaAdFormMappings.formId, providerFormId));
+        if (providerAdId) mappingOrs.push(eq(metaAdFormMappings.adId, providerAdId));
+        if (providerCampaignId) mappingOrs.push(eq(metaAdFormMappings.campaignId, providerCampaignId));
+
+        if (mappingOrs.length > 0) {
+          const [mapping] = await db.select({ projectId: metaAdFormMappings.projectId })
+            .from(metaAdFormMappings)
+            .where(and(eq(metaAdFormMappings.isActive, true), or(...mappingOrs)!))
+            .limit(1);
+          if (mapping) projectId = mapping.projectId;
         }
+
+        // 2. Fallback to form field value (project_id, project_name, etc.)
+        if (!projectId) {
+          const rawAnswer = firstField(fields, "project_id", "project", "project_name", "site", "property_name");
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAnswer);
+          if (isUuid) {
+            const [p] = await db.select({ _id: projects._id }).from(projects).where(and(eq(projects._id, rawAnswer), eq(projects.approvalStatus, "APPROVED"))).limit(1);
+            projectId = p?._id ?? null;
+          } else if (rawAnswer) {
+            const exactProjectName = rawAnswer.replace(/[\\%_]/g, "\\$&");
+            const [p] = await db.select({ _id: projects._id }).from(projects).where(and(eq(projects.approvalStatus, "APPROVED"), ilike(projects.name, `%${exactProjectName}%`))).limit(1);
+            projectId = p?._id ?? null;
+          }
+        }
+
+        // 3. Fallback to scanning ad_name or campaign_name for approved project names
+        if (!projectId) {
+          const textToScan = `${providerCampaignName ?? ""} ${providerAdName ?? ""}`.toLowerCase();
+          if (textToScan.trim()) {
+            const approvedProjects = await db.select({ _id: projects._id, name: projects.name }).from(projects).where(eq(projects.approvalStatus, "APPROVED"));
+            for (const p of approvedProjects) {
+              if (textToScan.includes(p.name.toLowerCase())) {
+                projectId = p._id;
+                break;
+              }
+            }
+          }
+        }
+
         const purpose = firstField(fields, "purchase_purpose", "purpose").toLowerCase();
         const normalizedPurpose = purpose.includes("invest") ? "INVESTMENT" : purpose.includes("self") || purpose.includes("live") ? "SELF_USE" : purpose ? "UNDECIDED" : null;
         const consentField = ["contact_consent", "consent_to_contact", "marketing_consent", "agree_to_contact", "consent"]
-          .map((field) => fields.get(field)).find(Boolean);
+          .map((f) => fields.get(f)).find(Boolean);
         const consentGranted = Boolean(consentField && /^(?:yes\b|true\b|1$|i\s+agree\b|agree(?:d)?\b|opt[\s-]?in\b)/i.test(consentField.trim()));
         const followup = firstField(fields, "requirement", "property_requirement", "what_are_you_looking_for", "additional_requirements");
+
         const [buyer] = await db.select({ _id: users._id }).from(users)
           .where(and(eq(users.role, "BUYER"), or(
             sql`right(regexp_replace(coalesce(${users.phone}, ''), '\\D', '', 'g'), 10) = ${phone}`,
             ...(email ? [eq(users.email, email)] : []),
           )!)).limit(1);
+
+        // Deduplication check: check if phone already exists
+        const [existingLead] = await db.select().from(buyerCrmLeads).where(eq(buyerCrmLeads.phone, phone)).limit(1);
+
+        if (existingLead) {
+          const newCount = (existingLead.duplicateCount || 1) + 1;
+          const updates: Partial<typeof buyerCrmLeads.$inferInsert> = {
+            isDuplicate: true,
+            duplicateCount: newCount,
+            updatedAt: new Date(),
+          };
+          if (!existingLead.projectId && projectId) updates.projectId = projectId;
+          if (!existingLead.email && email) updates.email = email;
+          if (!existingLead.requirement && followup) updates.requirement = followup;
+          if (providerCampaignName && !existingLead.providerCampaignName) updates.providerCampaignName = providerCampaignName;
+          if (providerAdName && !existingLead.providerAdName) updates.providerAdName = providerAdName;
+
+          await db.update(buyerCrmLeads).set(updates).where(eq(buyerCrmLeads._id, existingLead._id));
+
+          const adDetail = [
+            providerCampaignName ? `Campaign: ${providerCampaignName}` : null,
+            providerAdName ? `Ad: ${providerAdName}` : null,
+            providerFormId ? `Form: ${providerFormId}` : null,
+          ].filter(Boolean).join(" | ");
+
+          await db.insert(buyerCrmActivities).values({
+            leadId: existingLead._id,
+            type: "NOTE",
+            content: `Repeat Meta Ad submission received (${adDetail || "Instant Form"}). Submission #${newCount}.${followup ? ` Requirement notes: "${followup}".` : ""}`,
+          });
+
+          const admins = await db.select({ id: users._id }).from(users).where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+          if (admins.length > 0) {
+            let projName = "General Buyer CRM";
+            if (projectId || existingLead.projectId) {
+              const [p] = await db.select({ name: projects.name }).from(projects).where(eq(projects._id, (projectId || existingLead.projectId)!)).limit(1);
+              if (p) projName = p.name;
+            }
+            await createNotifications(admins.map((a) => a.id), {
+              type: "new_lead",
+              title: `Repeat Lead (${newCount}x): ${fullName}`,
+              message: `${fullName} (${phone}) submitted another Meta lead form for ${projName}.`,
+              data: { href: "/admin/buyer-crm" },
+              priority: "normal",
+              dedupeKey: `meta-repeat:${existingLead._id}:${newCount}`,
+            }).catch(() => []);
+          }
+
+          captured += 1;
+          continue;
+        }
+
+        // New lead insert
         const [lead] = await db.insert(buyerCrmLeads).values({
           buyerUserId: buyer?._id ?? null,
-          fullName: fullName.slice(0, 100), phone, email: email || null, source: "META_AD", status: "NEW",
+          fullName: fullName.slice(0, 100),
+          phone,
+          email: email || null,
+          source: "META_AD",
+          status: "NEW",
           projectId,
           propertyType: firstField(fields, "property_type", "type_of_property") || null,
           preferredLocation: firstField(fields, "preferred_location", "location", "city") || null,
@@ -477,21 +943,63 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
           contactConsent: consentGranted,
           consentBasis: consentGranted ? `Meta form consent field: ${consentField}` : null,
           providerLeadId,
-          providerPageId: safeText(change.value?.page_id ?? entry.id, 160) || null,
-          providerFormId: safeText(data.form_id ?? change.value?.form_id, 160) || null,
-          providerAdId: safeText(data.ad_id ?? change.value?.ad_id, 160) || null,
-          providerAdName: safeText(data.ad_name, 250) || null,
+          providerPageId,
+          providerFormId,
+          providerAdId,
+          providerAdName,
+          providerCampaignId,
+          providerCampaignName,
+          providerAdsetId,
+          providerAdsetName,
+          isDuplicate: false,
+          duplicateCount: 1,
+          assignedToId: null,
         }).onConflictDoNothing().returning();
+
         if (!lead) continue;
-        await db.insert(buyerCrmActivities).values({ leadId: lead._id, type: "CREATED", content: "Automatically fetched from a Meta Lead Ad." });
-        await logAudit({ action: "BUYER_CRM_META_LEAD_RECEIVED", resourceType: "buyer_crm_lead", resourceId: lead._id, metadata: { projectId, consentRecorded: consentGranted } });
+
+        const adDetail = [
+          providerCampaignName ? `Campaign: ${providerCampaignName}` : null,
+          providerAdName ? `Ad: ${providerAdName}` : null,
+          providerFormId ? `Form: ${providerFormId}` : null,
+        ].filter(Boolean).join(" | ");
+
+        await db.insert(buyerCrmActivities).values({
+          leadId: lead._id,
+          type: "CREATED",
+          content: `Captured from Meta Lead Ad (${adDetail || "Instant Form"}).`,
+        });
+
+        // Real-time notification to admins
+        const admins = await db.select({ id: users._id }).from(users).where(and(eq(users.role, "ADMIN"), eq(users.disabled, false)));
+        if (admins.length > 0) {
+          let projName = "General Buyer CRM";
+          if (projectId) {
+            const [p] = await db.select({ name: projects.name }).from(projects).where(eq(projects._id, projectId)).limit(1);
+            if (p) projName = p.name;
+          }
+          await createNotifications(admins.map((a) => a.id), {
+            type: "new_lead",
+            title: `New Meta Ad Lead: ${fullName}`,
+            message: `${fullName} (${phone}) registered interest for ${projName}. Budget: ${firstField(fields, "budget", "budget_range") || "Not specified"}.`,
+            data: { href: "/admin/buyer-crm" },
+            priority: "high",
+            dedupeKey: `meta-lead:${lead._id}`,
+          }).catch(() => []);
+        }
+
+        await logAudit({
+          action: "BUYER_CRM_META_LEAD_RECEIVED",
+          resourceType: "buyer_crm_lead",
+          resourceId: lead._id,
+          metadata: { projectId, campaign: providerCampaignName, ad: providerAdName, consentRecorded: consentGranted },
+        });
+
         captured += 1;
       }
     }
     return res.status(200).json({ received: true, captured });
   } catch (error) {
-    // Provider retries are safe: providerLeadId is unique, so prior records in
-    // a partially handled webhook cannot be inserted a second time.
     console.warn("Meta buyer lead webhook processing failed:", error instanceof Error ? error.message : "unknown error");
     return res.status(503).json({ error: "Meta lead notification could not be processed; it can be retried." });
   }

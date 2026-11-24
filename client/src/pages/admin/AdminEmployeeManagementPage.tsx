@@ -112,6 +112,7 @@ const STANDARD_EMPLOYEE_PERMISSIONS = [
   "sitevisit.create", "sitevisit.read.own", "sitevisit.update.own", "attendance.read.own",
   "attendance.checkin", "attendance.checkout", "leave.request.own", "leave.read.own",
   "profile.read.own", "salary.read.own",
+  "buyer_crm.read.assigned", "buyer_crm.read.site", "buyer_crm.activity.create", "buyer_crm.status.update",
 ] as const;
 
 const emptyEmployee = {
@@ -647,7 +648,7 @@ export default function AdminEmployeeManagementPage() {
               <button type="button" onClick={() => setEmployeeForm((s) => ({ ...s, permissions: STANDARD_EMPLOYEE_PERMISSIONS.join(", ") }))} className="rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-medium text-primary transition hover:bg-primary/10">Apply standard employee access</button>
             </div>
             <Field label="Assigned permissions (separate keys with commas, spaces, or new lines)" value={employeeForm.permissions} onChange={(v) => setEmployeeForm((s) => ({ ...s, permissions: v }))} placeholder="task.read.own, lead.create, salary.read.own"/>
-            <p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add <code>marketing.os.manage</code>. For campaign read-only access, add <code>marketing.os.read</code>. Employee-level task access remains controlled by the existing task permissions.</p>
+            <p className="mt-1 text-xs text-muted-foreground">For Marketing Manager access, add <code>marketing.os.manage</code>. For campaign read-only access, add <code>marketing.os.read</code>. For Buyer CRM leads access, add <code>buyer_crm.read.assigned</code> (assigned leads), <code>buyer_crm.read.site</code> (all site leads), <code>buyer_crm.status.update</code>, and <code>buyer_crm.activity.create</code>.</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-3"><button disabled={busy} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : editing ? "Save changes" : "Create employee & send invitation"}</button><button type="button" className="rounded-xl border border-white/10 px-4 py-2.5 text-sm" onClick={() => { setShowForm(false); setEditing(null); }}>Cancel</button></div>
         </form>
