@@ -21,7 +21,7 @@ const AmbientBackground = lazy(() =>
 // authenticated routes do not have to download and parse marketing animations.
 import GlobalNav, { GLOBAL_NAV_OFFSET, useGlobalNavVisible } from "@/components/GlobalNav";
 import PageBackLink from "@/components/PageBackLink";
-import { showsNavBack } from "@/lib/navChrome";
+import { hasOwnShell, showsNavBack } from "@/lib/navChrome";
 import { dashboardPath } from "@/lib/rolePaths";
 import { useAuthStore } from "@/store/authStore";
 import OfflineBanner from "@/components/OfflineBanner";
@@ -227,7 +227,11 @@ function PageTransition({ children }: { children: ReactNode }) {
   // The admin OS is one persistent shell: keep it mounted while moving between
   // its modules (only its content area changes), instead of re-animating.
   const transitionKey = pathname.startsWith("/admin/") ? "/admin" : pathname;
-  const navOffset = useGlobalNavVisible();
+  const ownShell = hasOwnShell(pathname);
+  const globalNavVisible = useGlobalNavVisible();
+  // Full-screen workspaces render their own navigation. Keep their shell flush
+  // with the viewport even if a previous route left the shared-nav state stale.
+  const navOffset = globalNavVisible && !ownShell;
   const user = useAuthStore((s) => s.user);
   // The "← Back" link sits just under the app-level navbar, in the page flow.
   const pageBack = navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
@@ -237,7 +241,7 @@ function PageTransition({ children }: { children: ReactNode }) {
       initial={{ opacity: 0, y: IS_TOUCH ? 0 : 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: IS_TOUCH ? 0.18 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className={`relative z-10 min-h-full ${navOffset ? "has-global-nav" : ""} ${pageBack ? "has-page-back" : ""}`}
+      className={`relative z-10 min-h-full ${ownShell ? "has-own-shell" : ""} ${navOffset ? "has-global-nav" : ""} ${pageBack ? "has-page-back" : ""}`}
       // Leave room for the app-level navbar at the top (inside the page's
       // height, so short pages don't scroll) and for the app's bottom tab bar.
       style={{

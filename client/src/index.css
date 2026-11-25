@@ -47,6 +47,12 @@ body.ask-truvi-open [data-fab="invest"] {
 /* Pages sized "one screen tall" sit below the shared fixed navbar (the page
    wrapper pads for it), so they're one navbar shorter — otherwise every short
    page would scroll by exactly the navbar's height. */
+.has-own-shell {
+  /* Full-screen workspaces have their own fixed navigation and must start at
+     the viewport edge, even if a route transition briefly retains nav spacing. */
+  padding-top: 0 !important;
+}
+
 .has-global-nav > .min-h-screen {
   min-height: calc(100dvh - 4.75rem - env(safe-area-inset-top, 0px));
 }
