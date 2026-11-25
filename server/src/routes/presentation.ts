@@ -237,6 +237,17 @@ router.post(
       return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
     }
 
+    const extension = path.extname(req.file.originalname).toLowerCase();
+    const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+    if (parsed.data.category === "PROJECT_LAYOUT_PDF" && extension !== ".pdf") {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Project Layout PDF accepts PDF files only." });
+    }
+    if (parsed.data.category === "SKETCH_LAYOUT" && !imageExtensions.has(extension)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Project Sketch / Layout Plan accepts image files only." });
+    }
+
     // Legal documents uploaded by a developer need admin verification before
     // they appear publicly. Admin uploads (and non-legal categories) go live
     // immediately.

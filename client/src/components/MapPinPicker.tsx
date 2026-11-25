@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { addTruviBaseLayers } from "@/lib/leafletTiles";
 import { isGeocodingConfigured, reverseGeocode, geocodeAddress, GeocodeError, geocodeErrorMessage } from "@/lib/geocoding";
 import {
+  createPlacesSessionToken,
   getPlacePredictions,
   resolvePlace,
   nearbyLandmarks,
@@ -63,6 +64,8 @@ export default function MapPinPicker({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const debounceRef = useRef<number | undefined>(undefined);
+  const placesSessionRef = useRef<unknown>(null);
+  const selectedPredictionQueryRef = useRef<string | null>(null);
 
   const [address, setAddress] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -73,6 +76,7 @@ export default function MapPinPicker({
   const [loadingLandmarks, setLoadingLandmarks] = useState(false);
   const [searching, setSearching] = useState(false);
   const [loadingPreds, setLoadingPreds] = useState(false);
+  const [autocompleteUnavailable, setAutocompleteUnavailable] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const geoReady = isGeocodingConfigured();
@@ -135,24 +139,46 @@ export default function MapPinPicker({
 
   // Address autocomplete — fires as you type (short debounce for an instant feel).
   useEffect(() => {
-    if (!geoReady || query.trim().length < 2) {
+    if (selectedPredictionQueryRef.current === query) {
+      selectedPredictionQueryRef.current = null;
       setPredictions([]);
       setLoadingPreds(false);
       return;
     }
+    selectedPredictionQueryRef.current = null;
+    if (!geoReady || query.trim().length < 2) {
+      setPredictions([]);
+      setLoadingPreds(false);
+      setAutocompleteUnavailable(false);
+      return;
+    }
     window.clearTimeout(debounceRef.current);
     setLoadingPreds(true);
-    debounceRef.current = window.setTimeout(() => {
-      getPlacePredictions(query)
-        .then((p) => {
-          setPredictions(p);
-          setActiveIndex(-1);
-          setShowPredictions(true);
-        })
-        .catch(() => setPredictions([]))
-        .finally(() => setLoadingPreds(false));
+    let cancelled = false;
+    debounceRef.current = window.setTimeout(async () => {
+      try {
+        const sessionToken = placesSessionRef.current ?? await createPlacesSessionToken();
+        if (cancelled) return;
+        placesSessionRef.current = sessionToken;
+        const matches = await getPlacePredictions(query, sessionToken);
+        if (cancelled) return;
+        setPredictions(matches);
+        setAutocompleteUnavailable(false);
+        setActiveIndex(-1);
+        setShowPredictions(true);
+      } catch {
+        if (!cancelled) {
+          setPredictions([]);
+          setAutocompleteUnavailable(true);
+        }
+      } finally {
+        if (!cancelled) setLoadingPreds(false);
+      }
     }, 120);
-    return () => window.clearTimeout(debounceRef.current);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(debounceRef.current);
+    };
   }, [query, geoReady]);
 
   /** Keyboard navigation for the autocomplete box: ↑/↓ move, Enter selects the
@@ -184,6 +210,7 @@ export default function MapPinPicker({
     const q = query.trim();
     if (q.length < 2) return;
     setShowPredictions(false);
+    placesSessionRef.current = null;
     setSearching(true);
     try {
       const r = await geocodeAddress(q);
@@ -199,13 +226,17 @@ export default function MapPinPicker({
 
   async function pickPrediction(p: PlacePrediction) {
     setShowPredictions(false);
-    setQuery(`${p.primary}${p.secondary ? ", " + p.secondary : ""}`);
+    const selectedQuery = `${p.primary}${p.secondary ? ", " + p.secondary : ""}`;
+    selectedPredictionQueryRef.current = selectedQuery;
+    setQuery(selectedQuery);
     try {
-      const place = await resolvePlace(p.placeId);
+      const place = await resolvePlace(p.prediction);
       onChangeRef.current({ lat: place.lat, lng: place.lng });
       mapRef.current?.setView([place.lat, place.lng], 16);
     } catch {
       toast.error("Couldn't open that place — try another, or click the map.");
+    } finally {
+      placesSessionRef.current = null;
     }
   }
 
@@ -328,6 +359,11 @@ export default function MapPinPicker({
                 </li>
               ))}
             </ul>
+          )}
+          {autocompleteUnavailable && (
+            <p className="mt-1 text-[11px] text-amber-300">
+              Place suggestions are unavailable. Check that Places API (New) is enabled and the website is allowed for this Maps key.
+            </p>
           )}
         </div>
       )}

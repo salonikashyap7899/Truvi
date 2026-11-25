@@ -61,36 +61,40 @@ export default function ProjectDetailsEditor({
       toast.error("Enter the location/area and city first");
       return;
     }
-    // Try the most specific address first, then fall back to broader queries so
-    // a slightly-off or misspelled locality still lands on the right city
-    // instead of failing outright.
+    // Try the most specific address first, then fall back to broader queries.
+    // Keep this country-neutral because inventory includes properties outside India.
     const queries = [
-      [location.trim(), city.trim(), "India"].filter(Boolean).join(", "),
-      [city.trim(), "India"].filter(Boolean).join(", "),
-      [location.trim(), "India"].filter(Boolean).join(", "),
+      [location.trim(), city.trim()].filter(Boolean).join(", "),
+      city.trim(),
+      location.trim(),
     ].filter((q, i, arr) => q.length > 3 && arr.indexOf(q) === i);
 
     setLocating(true);
     let located: Awaited<ReturnType<typeof geocodeAddress>> | null = null;
     let lastStatus: string | undefined;
-    for (const q of queries) {
-      try {
-        located = await geocodeAddress(q);
-        break;
-      } catch (err) {
-        if (err instanceof GeocodeError) lastStatus = err.status;
-        /* try the next, broader query */
+    try {
+      for (const q of queries) {
+        try {
+          located = await geocodeAddress(q);
+          break;
+        } catch (err) {
+          lastStatus = err instanceof GeocodeError ? err.status : undefined;
+          // Broader queries only help when the address did not match. Don't
+          // spend another long timeout retrying a denied key or API request.
+          if (lastStatus !== "ZERO_RESULTS" && lastStatus !== "UNKNOWN_ERROR") break;
+        }
       }
-    }
-    setLocating(false);
 
-    if (located) {
-      setPin({ lat: located.lat, lng: located.lng });
-      toast.success(`Located: ${located.formattedAddress}`);
-    } else {
-      // Show Google's real reason (timeout / denied / quota / no-match) so the
-      // developer knows whether it's a Cloud-config problem or a bad address.
-      toast.error(geocodeErrorMessage(lastStatus));
+      if (located) {
+        setPin({ lat: located.lat, lng: located.lng });
+        toast.success(`Located: ${located.formattedAddress}`);
+      } else {
+        // Show Google's reason so it's clear whether Cloud configuration or
+        // the entered address needs attention.
+        toast.error(geocodeErrorMessage(lastStatus));
+      }
+    } finally {
+      setLocating(false);
     }
   }
 

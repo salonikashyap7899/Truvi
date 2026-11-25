@@ -12,6 +12,12 @@ import type { Project, ProjectAsset } from "@/types";
 
 /** Categories treated as legal documents — public only after admin verification. */
 const LEGAL_CATEGORIES = ["APPROVAL_DOC", "APPROVAL_CERT"];
+const MULTI_IMAGE_CATEGORIES = new Set(["GALLERY_IMAGE", "SKETCH_LAYOUT"]);
+const IMAGE_FILE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+
+function isImageFile(file: File): boolean {
+  return IMAGE_FILE_EXTENSIONS.has(file.name.slice(file.name.lastIndexOf(".")).toLowerCase());
+}
 
 interface Props {
   project: Project;
@@ -72,6 +78,8 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
   const [title, setTitle] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [uploadIndex, setUploadIndex] = useState(0);
+  const allowsMultipleImages = MULTI_IMAGE_CATEGORIES.has(category);
+  const isProjectLayoutPdf = category === "PROJECT_LAYOUT_PDF";
 
   // Info form
   const [projectType, setProjectType] = useState(project.projectType ?? "");
@@ -308,7 +316,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
               onChange={(e) => {
                 const nextCategory = e.target.value;
                 setCategory(nextCategory);
-                if (nextCategory !== "GALLERY_IMAGE" && files.length > 1) {
+                if (!MULTI_IMAGE_CATEGORIES.has(nextCategory) && files.length > 1) {
                   setFiles([]);
                   if (fileRef.current) fileRef.current.value = "";
                 }
@@ -328,7 +336,11 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
             <Label className="text-foreground/90">Title</Label>
             <Input
               required={category !== "GALLERY_IMAGE"}
-              placeholder={category === "GALLERY_IMAGE" ? "Optional title or gallery prefix" : "e.g. Tower A — 3BHK Floor Plan"}
+              placeholder={category === "GALLERY_IMAGE"
+                ? "Optional title or gallery prefix"
+                : isProjectLayoutPdf
+                  ? "e.g. Phase 1 — Project Layout PDF"
+                  : "e.g. Tower A — 3BHK Floor Plan"}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border-white/15 bg-card text-white"
@@ -339,14 +351,16 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
             <label className="mt-1 flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-white/20 px-3 text-sm text-muted-foreground hover:border-blue-500/50 hover:text-blue-300 transition-colors">
               <Upload size={14} className="shrink-0" />
               <span className="truncate">
-                {files.length > 1 ? `${files.length} photos selected` : files[0]?.name ?? "Choose file"}
+                {files.length > 1 ? `${files.length} ${category === "SKETCH_LAYOUT" ? "images" : "photos"} selected` : files[0]?.name ?? "Choose file"}
               </span>
               <input
                 ref={fileRef}
                 type="file"
                 required={category !== "GALLERY_IMAGE"}
-                multiple={category === "GALLERY_IMAGE"}
-                accept={category === "GALLERY_IMAGE"
+                multiple={allowsMultipleImages}
+                accept={isProjectLayoutPdf
+                  ? ".pdf,application/pdf"
+                  : allowsMultipleImages
                   ? ".jpg,.jpeg,.png,.webp,.gif,.svg"
                   : ".pdf,.jpg,.jpeg,.png,.webp,.gif,.svg,.mp4,.webm,.mov,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip"}
                 className="sr-only"
@@ -358,6 +372,16 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
                     e.target.value = "";
                     return;
                   }
+                  if (isProjectLayoutPdf && selected.some((file) => !file.name.toLowerCase().endsWith(".pdf"))) {
+                    toast.error("Project Layout PDF accepts PDF files only.");
+                    e.target.value = "";
+                    return;
+                  }
+                  if (allowsMultipleImages && selected.some((file) => !isImageFile(file))) {
+                    toast.error("Choose image files for sketches and layout plans.");
+                    e.target.value = "";
+                    return;
+                  }
                   setFiles(selected);
                 }}
               />
@@ -365,8 +389,12 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {category === "GALLERY_IMAGE"
-            ? "Select multiple photos to add them to the gallery in one upload. Each image can be up to 50 MB."
+          {allowsMultipleImages
+            ? category === "SKETCH_LAYOUT"
+              ? "Select multiple sketch or layout images together. Each image can be up to 50 MB."
+              : "Select multiple photos to add them to the gallery in one upload. Each image can be up to 50 MB."
+            : category === "PROJECT_LAYOUT_PDF"
+              ? "Upload the project layout as a PDF. Maximum file size: 50 MB."
             : "Drawings, CAD files (DWG/DXF), PDFs, images, videos, presentations, reports & certificates — up to 50 MB."}
         </p>
         {LEGAL_CATEGORIES.includes(category) && !isAdmin && (
@@ -381,7 +409,7 @@ export default function PresentationManager({ project, onProjectUpdated }: Props
               {files.length > 1 ? `Uploading ${uploadIndex} of ${files.length}… ` : "Uploading… "}
               {uploadPct}%
             </>
-          ) : files.length > 1 ? `Upload ${files.length} Photos` : "Upload"}
+          ) : files.length > 1 ? `Upload ${files.length} ${category === "SKETCH_LAYOUT" ? "Images" : "Photos"}` : "Upload"}
         </Button>
       </form>
 

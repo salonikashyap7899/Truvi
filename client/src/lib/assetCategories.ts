@@ -18,6 +18,7 @@ export const ASSET_SECTIONS: AssetSection[] = [
     title: "Plans & Drawings",
     categories: [
       { value: "SKETCH_LAYOUT", label: "Project Sketch / Layout Plan" },
+      { value: "PROJECT_LAYOUT_PDF", label: "Project Layout PDF" },
       { value: "MASTER_PLAN", label: "Master Plan" },
       { value: "SITE_PLAN", label: "Site Plan" },
       { value: "FLOOR_PLAN", label: "Floor Plan" },

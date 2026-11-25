@@ -72,12 +72,13 @@ function pageContentSecurityPolicy(requestUrl: string): string {
   const mediaOrigins = configuredHttpsOrigins(process.env.CSP_MEDIA_ORIGINS);
   const connectSources = [...new Set([
     "'self'", apiOrigin, websocketOrigin(pageOrigin), websocketOrigin(apiOrigin),
-    "https://maps.googleapis.com", "https://maps.gstatic.com",
+    "https://maps.googleapis.com", "https://maps.gstatic.com", "https://places.googleapis.com",
     "https://api.razorpay.com", "https://checkout.razorpay.com",
   ])];
   const imageSources = [...new Set([
     "'self'", "data:", "blob:", apiOrigin, ...mediaOrigins,
     "https://maps.googleapis.com", "https://maps.gstatic.com",
+    "https://server.arcgisonline.com", "https://*.basemaps.cartocdn.com",
   ])];
   const mediaSources = [...new Set(["'self'", "data:", "blob:", apiOrigin, ...mediaOrigins])];
   return [

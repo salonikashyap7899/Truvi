@@ -129,7 +129,7 @@ export async function geocodeAddress(query: string): Promise<GeocodeResult> {
   const geocoder = new window.google.maps.Geocoder();
   const { results, status } = await withTimeout(
     new Promise<{ results: any[]; status: string }>((resolve) => {
-      geocoder.geocode({ address: query, region: "in" }, (r: any, s: any) =>
+      geocoder.geocode({ address: query }, (r: any, s: any) =>
         resolve({ results: r ?? [], status: s }),
       );
     }),

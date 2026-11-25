@@ -1,9 +1,8 @@
 /**
  * Google Places helpers for the map location picker: address autocomplete and
  * nearby-landmark lookups. Reuses the single Maps JS load from geocoding.ts
- * (which now loads the `places` library). All functions degrade gracefully —
- * they resolve to empty results if the Places API isn't enabled or a call is
- * denied, so the picker still works as a plain click-to-drop map.
+ * (which now loads the `places` library). The picker catches Places failures
+ * so it still works as a plain click-to-drop map when Places isn't configured.
  *
  * Requires the "Places API" enabled in Google Cloud Console (in addition to
  * Maps JavaScript API + Geocoding API).
@@ -14,27 +13,35 @@ export interface PlacePrediction {
   placeId: string;
   primary: string;
   secondary: string;
+  /** The Maps JS PlacePrediction used by the new Places API for place details. */
+  prediction: unknown;
 }
 
-/** Address/place suggestions for an autocomplete box (India-biased). */
-export async function getPlacePredictions(input: string): Promise<PlacePrediction[]> {
+/** Create one billing session for a user's autocomplete typing session. */
+export async function createPlacesSessionToken(): Promise<unknown> {
+  await loadGoogleMaps();
+  const places = await window.google.maps.importLibrary("places");
+  return new places.AutocompleteSessionToken();
+}
+
+/** Address/place suggestions via Google's current Places Autocomplete Data API. */
+export async function getPlacePredictions(input: string, sessionToken?: unknown): Promise<PlacePrediction[]> {
   if (!isGeocodingConfigured() || input.trim().length < 3) return [];
   await loadGoogleMaps();
-  const service = new window.google.maps.places.AutocompleteService();
-  return new Promise((resolve) => {
-    service.getPlacePredictions(
-      { input, componentRestrictions: { country: "in" } },
-      (preds: any[] | null, status: string) => {
-        if (status !== "OK" || !preds) return resolve([]);
-        resolve(
-          preds.map((p) => ({
-            placeId: p.place_id,
-            primary: p.structured_formatting?.main_text ?? p.description,
-            secondary: p.structured_formatting?.secondary_text ?? "",
-          })),
-        );
-      },
-    );
+  const places = await window.google.maps.importLibrary("places");
+  const { suggestions } = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input: input.trim(),
+    ...(sessionToken ? { sessionToken } : {}),
+  });
+  return (suggestions ?? []).flatMap((suggestion: any) => {
+    const prediction = suggestion.placePrediction;
+    if (!prediction) return [];
+    return [{
+      placeId: prediction.placeId,
+      primary: prediction.mainText?.text ?? prediction.text?.text ?? "",
+      secondary: prediction.secondaryText?.text ?? "",
+      prediction,
+    }];
   });
 }
 
@@ -45,22 +52,17 @@ export interface ResolvedPlace {
 }
 
 /** Turn a chosen autocomplete prediction into coordinates + a display address. */
-export async function resolvePlace(placeId: string): Promise<ResolvedPlace> {
+export async function resolvePlace(prediction: unknown): Promise<ResolvedPlace> {
   await loadGoogleMaps();
-  const service = new window.google.maps.places.PlacesService(document.createElement("div"));
-  return new Promise((resolve, reject) => {
-    service.getDetails(
-      { placeId, fields: ["geometry", "formatted_address", "name"] },
-      (place: any, status: string) => {
-        if (status !== "OK" || !place?.geometry?.location) return reject(new Error(status));
-        resolve({
-          lat: +place.geometry.location.lat().toFixed(6),
-          lng: +place.geometry.location.lng().toFixed(6),
-          address: place.formatted_address ?? place.name ?? "",
-        });
-      },
-    );
-  });
+  const place = (prediction as any)?.toPlace?.();
+  if (!place) throw new Error("Place details are unavailable");
+  await place.fetchFields({ fields: ["location", "formattedAddress", "displayName"] });
+  if (!place.location) throw new Error("Place location is unavailable");
+  return {
+    lat: +place.location.lat().toFixed(6),
+    lng: +place.location.lng().toFixed(6),
+    address: place.formattedAddress ?? place.displayName ?? "",
+  };
 }
 
 export type LandmarkCategory = "school" | "transit" | "hospital";
@@ -81,36 +83,39 @@ const CATEGORY_TYPE: Record<LandmarkCategory, string> = {
 
 /**
  * Nearby schools, transit stations and hospitals around a point (default 2.5km).
- * Returns up to 5 of each category. Empty on any failure (API not enabled etc.).
+ * Returns up to 5 of each category. An unavailable category is skipped.
  */
 export async function nearbyLandmarks(lat: number, lng: number, radius = 2500): Promise<Landmark[]> {
   if (!isGeocodingConfigured()) return [];
   await loadGoogleMaps();
-  const service = new window.google.maps.places.PlacesService(document.createElement("div"));
+  const placesLibrary = await window.google.maps.importLibrary("places");
   const location = new window.google.maps.LatLng(lat, lng);
   const categories = Object.keys(CATEGORY_TYPE) as LandmarkCategory[];
 
   const perCategory = await Promise.all(
-    categories.map(
-      (category) =>
-        new Promise<Landmark[]>((resolve) => {
-          service.nearbySearch(
-            { location, radius, type: CATEGORY_TYPE[category] },
-            (places: any[] | null, status: string) => {
-              if (status !== "OK" || !places) return resolve([]);
-              resolve(
-                places.slice(0, 5).map((p) => ({
-                  name: p.name,
-                  category,
-                  lat: p.geometry.location.lat(),
-                  lng: p.geometry.location.lng(),
-                  vicinity: p.vicinity,
-                })),
-              );
-            },
-          );
-        }),
-    ),
+    categories.map(async (category) => {
+      try {
+        const { places = [] } = await placesLibrary.Place.searchNearby({
+          fields: ["displayName", "location", "formattedAddress"],
+          locationRestriction: { center: location, radius },
+          includedPrimaryTypes: [CATEGORY_TYPE[category]],
+          maxResultCount: 5,
+          rankPreference: placesLibrary.SearchNearbyRankPreference.DISTANCE,
+        });
+        return places.flatMap((place: any) => {
+          if (!place.location) return [];
+          return [{
+            name: place.displayName ?? "Nearby place",
+            category,
+            lat: place.location.lat(),
+            lng: place.location.lng(),
+            vicinity: place.formattedAddress,
+          }];
+        });
+      } catch {
+        return [];
+      }
+    }),
   );
   return perCategory.flat();
 }

@@ -68,11 +68,12 @@ export const securityHeaders = (req: import("express").Request, res: import("exp
     imgSrc: [
       "'self'", "data:", "blob:", ...apiOrigins, ...mediaOrigins,
       "https://maps.googleapis.com", "https://maps.gstatic.com",
+      "https://server.arcgisonline.com", "https://*.basemaps.cartocdn.com",
     ],
     fontSrc: ["'self'", "data:"],
     connectSrc: [
       "'self'", ...apiOrigins, ...clientOrigins, ...socketOrigins,
-      "https://maps.googleapis.com", "https://maps.gstatic.com",
+      "https://maps.googleapis.com", "https://maps.gstatic.com", "https://places.googleapis.com",
       "https://api.razorpay.com", "https://checkout.razorpay.com",
     ],
     frameSrc: ["'self'", "https://checkout.razorpay.com", "https://api.razorpay.com"],
