@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { KanbanSquare, Users, Wallet, Trophy, MessageCircle } from "lucide-react";
+import { KanbanSquare, Users, Wallet, Trophy, MessageCircle, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Card, CardTitle, CardValue } from "@/components/ui/primitives";
@@ -94,7 +94,10 @@ export default function DeveloperSalesPage() {
                   <div className="max-h-[420px] space-y-2 overflow-y-auto p-2">
                     {stageLeads.map((l) => (
                       <div key={l._id} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                        <p className="text-sm font-medium">{l.clientName}</p>
+                        <p className="text-sm font-medium">
+                          {l.contactDetailsVisible ? l.clientName : "Buyer identity hidden"}
+                          {!l.contactDetailsVisible && <LockKeyhole size={12} className="ml-1 inline text-muted-foreground" />}
+                        </p>
                         <p className="text-xs text-muted-foreground">{nameOf(l.projectId)} · {formatCompactINR(leadValue(l, avgPriceByProject))}</p>
                         <div className="mt-2 flex items-center gap-2">
                           <select
@@ -105,15 +108,19 @@ export default function DeveloperSalesPage() {
                           >
                             {ALL_STAGES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
                           </select>
-                          <a
-                            href={`https://wa.me/91${l.clientPhone}?text=${encodeURIComponent(`Hi ${l.clientName}, following up on your interest.`)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-md bg-emerald-500/15 p-1.5 text-emerald-400 hover:bg-emerald-500/25"
-                            aria-label="WhatsApp"
-                          >
-                            <MessageCircle size={13} />
-                          </a>
+                          {l.contactDetailsVisible && l.clientPhone ? (
+                            <a
+                              href={`https://wa.me/91${l.clientPhone}?text=${encodeURIComponent(`Hi ${l.clientName}, following up on your interest.`)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-md bg-emerald-500/15 p-1.5 text-emerald-400 hover:bg-emerald-500/25"
+                              aria-label="WhatsApp"
+                            >
+                              <MessageCircle size={13} />
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Contact hidden</span>
+                          )}
                         </div>
                       </div>
                     ))}

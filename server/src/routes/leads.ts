@@ -47,7 +47,11 @@ router.get("/", async (req: AuthedRequest, res) => {
   const rows = await db
     .select({
       lead: leads,
-      project: { _id: projects._id, name: projects.name },
+      project: {
+        _id: projects._id,
+        name: projects.name,
+        developerLeadDetailsEnabled: projects.developerLeadDetailsEnabled,
+      },
       submitter: { _id: submitter._id, name: submitter.name },
       assignee: { _id: assignee._id, name: assignee.name },
     })
@@ -58,12 +62,26 @@ router.get("/", async (req: AuthedRequest, res) => {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(leads.updatedAt));
 
-  const result = rows.map(({ lead, project, submitter: sub, assignee: asg }) => ({
-    ...lead,
-    projectId: project ?? lead.projectId,
-    submittedById: sub ?? lead.submittedById,
-    assignedToId: asg ?? lead.assignedToId,
-  }));
+  const result = rows.map(({ lead, project, submitter: sub, assignee: asg }) => {
+    const contactDetailsVisible = user.role !== "DEVELOPER" ||
+      (project?.developerLeadDetailsEnabled === true && lead.contactConsent === true);
+    return {
+      ...lead,
+      ...(!contactDetailsVisible ? {
+        clientName: "Buyer details hidden",
+        clientPhone: "",
+        clientEmail: null,
+        notes: null,
+        followUpNotes: null,
+        additionalRequirements: null,
+        requirement: null,
+      } : {}),
+      contactDetailsVisible,
+      projectId: project ? { _id: project._id, name: project.name } : lead.projectId,
+      submittedById: sub ?? lead.submittedById,
+      assignedToId: asg ?? lead.assignedToId,
+    };
+  });
 
   res.json({ leads: result });
 });
@@ -158,7 +176,7 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     return res.status(403).json({ error: "You can only update leads assigned to you" });
   }
   const [leadProject] = await db
-    .select({ developerId: projects.developerId })
+    .select({ developerId: projects.developerId, developerLeadDetailsEnabled: projects.developerLeadDetailsEnabled })
     .from(projects)
     .where(eq(projects._id, lead.projectId));
   if (user.role === "DEVELOPER") {
@@ -258,7 +276,21 @@ router.patch("/:id", async (req: AuthedRequest, res) => {
     /* non-fatal */
   }
 
-  res.json({ lead: updated });
+  const contactDetailsVisible = user.role !== "DEVELOPER" ||
+    (leadProject?.developerLeadDetailsEnabled === true && lead.contactConsent === true);
+  res.json({
+    lead: contactDetailsVisible ? { ...updated, contactDetailsVisible } : {
+      ...updated,
+      clientName: "Buyer details hidden",
+      clientPhone: "",
+      clientEmail: null,
+      notes: null,
+      followUpNotes: null,
+      additionalRequirements: null,
+      requirement: null,
+      contactDetailsVisible: false,
+    },
+  });
 });
 
 export default router;

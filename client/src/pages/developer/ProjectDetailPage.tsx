@@ -41,18 +41,22 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [buyerCrmLeadCount, setBuyerCrmLeadCount] = useState(0);
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [unitForm, setUnitForm] = useState({ unitNumber: "", type: "", areaSqft: "", plotSize: "", price: "" });
   const [uploading, setUploading] = useState(false);
 
   async function load() {
-    const [projectRes, leadsRes] = await Promise.all([
+    const [projectRes, leadsRes, leadSummaryRes] = await Promise.all([
       api.get(`/projects/${id}`),
       api.get("/leads", { params: { projectId: id } }),
+      api.get("/projects/lead-summary").catch(() => ({ data: { projects: [] } })),
     ]);
     setProject(projectRes.data.project);
     setUnits(projectRes.data.units);
     setLeads(leadsRes.data.leads);
+    const summary = (leadSummaryRes.data.projects ?? []).find((item: { projectId: string }) => item.projectId === id);
+    setBuyerCrmLeadCount(summary?.entries?.filter((entry: { kind: string }) => entry.kind === "BUYER_CRM").length ?? 0);
   }
 
   useEffect(() => {
@@ -366,7 +370,7 @@ export default function ProjectDetailPage() {
             </div>
             <div>
               <Label className="text-foreground/90">Area (sqft)</Label>
-              <Input required type="number" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-white/15 bg-card text-white" />
+              <Input required type="number" min="0.01" step="any" value={unitForm.areaSqft} onChange={(e) => setUnitForm({ ...unitForm, areaSqft: e.target.value })} className="border-white/15 bg-card text-white" />
             </div>
             <div>
               <Label className="text-foreground/90">Plot size (optional)</Label>
@@ -405,7 +409,7 @@ export default function ProjectDetailPage() {
                   <tr key={u._id} className="border-t border-white/10 bg-white/[0.02]">
                     <td className="p-2"><Input value={unitEdit.unitNumber} onChange={(e) => setUnitEdit({ ...unitEdit, unitNumber: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-2"><Input value={unitEdit.type} onChange={(e) => setUnitEdit({ ...unitEdit, type: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
-                    <td className="p-2"><Input type="number" value={unitEdit.areaSqft} onChange={(e) => setUnitEdit({ ...unitEdit, areaSqft: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
+                    <td className="p-2"><Input type="number" min="0.01" step="any" value={unitEdit.areaSqft} onChange={(e) => setUnitEdit({ ...unitEdit, areaSqft: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-2"><Input value={unitEdit.plotSize} onChange={(e) => setUnitEdit({ ...unitEdit, plotSize: e.target.value })} placeholder="30×40 ft" className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-2"><Input type="number" value={unitEdit.price} onChange={(e) => setUnitEdit({ ...unitEdit, price: e.target.value })} className="h-8 border-white/15 bg-card text-white" /></td>
                     <td className="p-3"><Badge variant={STATUS_VARIANT[u.status]}>{u.status === "RESERVED" ? "BLOCKED" : u.status === "SOLD" ? "SOLD OUT" : u.status}</Badge></td>
@@ -465,7 +469,9 @@ export default function ProjectDetailPage() {
 
       {/* Leads: aggregate counts only — individual buyer names/numbers are not exposed here. */}
       <section className="mt-10">
-        <h2 className="text-lg font-medium">Leads ({leads.length})</h2>
+        <h2 className="text-lg font-medium">Total enquiries ({leads.length + buyerCrmLeadCount})</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{buyerCrmLeadCount} Meta Ads / call enquiries · {leads.length} referral pipeline leads</p>
+        <h3 className="mt-4 text-sm font-medium text-muted-foreground">Referral pipeline by stage</h3>
         <div className="mt-3 flex flex-wrap gap-3">
           {LEAD_STAGES.map((stage) => {
             const count = leads.filter((l) => l.stage === stage).length;

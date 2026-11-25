@@ -176,7 +176,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
           </div>
           <div>
             <Label className="text-foreground/90">Area (sq.ft)</Label>
-            <Input type="number" min="1" value={areaSqft} onChange={(e) => setAreaSqft(e.target.value)} placeholder="1800" className={inputCls} />
+            <Input type="number" min="0.01" step="any" value={areaSqft} onChange={(e) => setAreaSqft(e.target.value)} placeholder="1800" className={inputCls} />
           </div>
           <div>
             <Label className="text-foreground/90">Plot size (optional)</Label>
@@ -218,7 +218,7 @@ export default function UnitsManager({ projectId }: { projectId: string }) {
                   <tr key={u._id} className="border-b border-white/5 bg-white/[0.02] last:border-0">
                     <td className="px-4 py-2"><Input value={edit.unitNumber} onChange={(e) => setEdit({ ...edit, unitNumber: e.target.value })} className={`h-8 ${inputCls}`} /></td>
                     <td className="px-4 py-2"><Input value={edit.type} onChange={(e) => setEdit({ ...edit, type: e.target.value })} className={`h-8 ${inputCls}`} /></td>
-                    <td className="px-4 py-2"><Input type="number" min="1" value={edit.areaSqft} onChange={(e) => setEdit({ ...edit, areaSqft: e.target.value })} className={`h-8 ${inputCls}`} /></td>
+                    <td className="px-4 py-2"><Input type="number" min="0.01" step="any" value={edit.areaSqft} onChange={(e) => setEdit({ ...edit, areaSqft: e.target.value })} className={`h-8 ${inputCls}`} /></td>
                     <td className="px-4 py-2"><Input value={edit.plotSize} onChange={(e) => setEdit({ ...edit, plotSize: e.target.value })} placeholder="30×40 ft" className={`h-8 ${inputCls}`} /></td>
                     <td className="px-4 py-2"><Input type="number" min="1" value={edit.price} onChange={(e) => setEdit({ ...edit, price: e.target.value })} className={`h-8 ${inputCls}`} /></td>
                     <td className={`px-4 py-2 font-medium ${STATUS_CLS[u.status]}`}>{u.status === "SOLD" ? "SOLD OUT" : u.status}</td>

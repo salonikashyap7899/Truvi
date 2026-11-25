@@ -543,6 +543,9 @@ export const projects = pgTable(
     possessionDate: timestamp("possession_date", { withTimezone: true, mode: "date" }),
     // Sales enquiry contact shown on the listing.
     salesContact: jsonb("sales_contact").$type<SalesContact>(),
+    // Admin-controlled, project-scoped permission for the owner to view
+    // consented buyer contact details. Qualification data stays anonymized.
+    developerLeadDetailsEnabled: boolean("developer_lead_details_enabled").notNull().default(false),
     // Set by an admin once the Truvi team has physically visited/inspected the
     // site. Feeds a +20 verification check into the Trust Score.
     teamSiteVisited: boolean("team_site_visited").notNull().default(false),

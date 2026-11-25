@@ -3,7 +3,7 @@ import { zodMessage } from "../lib/validationError";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../config/db";
-import { projects, units, leads, users, projectAssets, IProject } from "../db/schema";
+import { projects, units, leads, buyerCrmLeads, users, projectAssets, IProject } from "../db/schema";
 import { isValidId } from "../lib/ids";
 import { isApprovalEvidenceVerified } from "../lib/approvalEvidence";
 import { createProjectSchema, PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
@@ -42,7 +42,7 @@ router.get("/", async (req: AuthedRequest, res) => {
 
   const projectIds = rows.map((project) => project._id);
 
-  const [unitCounts, leadCounts] = await Promise.all([
+  const [unitCounts, leadCounts, buyerCrmCounts] = await Promise.all([
     projectIds.length
       ? db
           .select({ projectId: units.projectId, count: sql<number>`count(*)::int` })
@@ -57,10 +57,18 @@ router.get("/", async (req: AuthedRequest, res) => {
           .where(inArray(leads.projectId, projectIds))
           .groupBy(leads.projectId)
       : Promise.resolve([]),
+    projectIds.length
+      ? db
+          .select({ projectId: buyerCrmLeads.projectId, count: sql<number>`count(*)::int` })
+          .from(buyerCrmLeads)
+          .where(inArray(buyerCrmLeads.projectId, projectIds))
+          .groupBy(buyerCrmLeads.projectId)
+      : Promise.resolve([]),
   ]);
 
   const unitCountMap = new Map(unitCounts.map((item) => [String(item.projectId), item.count]));
   const leadCountMap = new Map(leadCounts.map((item) => [String(item.projectId), item.count]));
+  const buyerCrmCountMap = new Map(buyerCrmCounts.map((item) => [String(item.projectId), item.count]));
 
   // Cover photo for the listing card = the project's first public gallery
   // image (developers add these at registration or from the workspace).
@@ -117,7 +125,11 @@ router.get("/", async (req: AuthedRequest, res) => {
         (privilegedProjectViewer || isApprovalEvidenceVerified(project)),
       developerId: developer,
       unitCount: unitCountMap.get(String(project._id)) || 0,
-      leadCount: leadCountMap.get(String(project._id)) || 0,
+      // The developer dashboard's project count includes Meta/call enquiries
+      // managed in Buyer CRM as well as referral leads in the sales pipeline.
+      leadCount: user.role === "DEVELOPER"
+        ? (leadCountMap.get(String(project._id)) || 0) + (buyerCrmCountMap.get(String(project._id)) || 0)
+        : (leadCountMap.get(String(project._id)) || 0),
       coverImageUrl: coverMap.get(String(project._id)) ?? null,
       isSaved,
       isCompared,
@@ -125,6 +137,120 @@ router.get("/", async (req: AuthedRequest, res) => {
   });
 
   res.json({ projects: enriched });
+});
+
+/** Anonymized Meta/call + referral lead summary for the owning developer. */
+router.get("/lead-summary", requireRole("DEVELOPER"), async (req: AuthedRequest, res) => {
+  const db = getDb();
+  const ownedProjects = await db.select({
+    _id: projects._id,
+    name: projects.name,
+    developerLeadDetailsEnabled: projects.developerLeadDetailsEnabled,
+  }).from(projects).where(eq(projects.developerId, req.user!.userId));
+  const ids = ownedProjects.map((project) => project._id);
+  if (!ids.length) return res.json({ projects: [] });
+
+  const [pipelineRows, buyerCrmRows] = await Promise.all([
+    db.select({
+      projectId: leads.projectId,
+      clientName: leads.clientName,
+      clientPhone: leads.clientPhone,
+      clientEmail: leads.clientEmail,
+      contactConsent: leads.contactConsent,
+      stage: leads.stage,
+      source: leads.source,
+      budgetRange: leads.budgetRange,
+      purchasePurpose: leads.purchasePurpose,
+      purchaseTimeline: leads.purchaseTimeline,
+      preferredLocation: leads.preferredLocation,
+      preferredPropertyType: leads.preferredPropertyType,
+      preferredPlotSize: leads.preferredPlotSize,
+      createdAt: leads.createdAt,
+    }).from(leads).where(inArray(leads.projectId, ids)).orderBy(desc(leads.createdAt)),
+    db.select({
+      projectId: buyerCrmLeads.projectId,
+      fullName: buyerCrmLeads.fullName,
+      phone: buyerCrmLeads.phone,
+      email: buyerCrmLeads.email,
+      contactConsent: buyerCrmLeads.contactConsent,
+      status: buyerCrmLeads.status,
+      source: buyerCrmLeads.source,
+      providerAdName: buyerCrmLeads.providerAdName,
+      providerCampaignName: buyerCrmLeads.providerCampaignName,
+      propertyType: buyerCrmLeads.propertyType,
+      preferredLocation: buyerCrmLeads.preferredLocation,
+      budgetRange: buyerCrmLeads.budgetRange,
+      purchasePurpose: buyerCrmLeads.purchasePurpose,
+      purchaseTimeline: buyerCrmLeads.purchaseTimeline,
+      createdAt: buyerCrmLeads.createdAt,
+    }).from(buyerCrmLeads).where(inArray(buyerCrmLeads.projectId, ids)).orderBy(desc(buyerCrmLeads.createdAt)),
+  ]);
+
+  const cleanQualification = (value: string | null | undefined) => value
+    ? value.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email hidden]")
+      .replace(/(?:\+?91[\s-]?)?[6-9]\d(?:[\s-]?\d){8}/g, "[phone hidden]")
+    : null;
+  const byProject = new Map(ids.map((projectId) => [String(projectId), [] as Array<Record<string, unknown>>]));
+  const addEntry = (projectId: string, entry: Record<string, unknown>) => {
+    const list = byProject.get(projectId);
+    if (list) list.push(entry);
+  };
+
+  for (const lead of pipelineRows) {
+    const projectId = String(lead.projectId);
+    const project = ownedProjects.find((item) => String(item._id) === projectId);
+    const canShowContact = project?.developerLeadDetailsEnabled === true && lead.contactConsent === true;
+    addEntry(projectId, {
+      kind: "REFERRAL",
+      status: lead.stage,
+      source: lead.source,
+      budgetRange: lead.budgetRange,
+      propertyType: lead.preferredPropertyType,
+      preferredLocation: lead.preferredLocation,
+      plotSize: lead.preferredPlotSize,
+      purchasePurpose: lead.purchasePurpose,
+      purchaseTimeline: lead.purchaseTimeline,
+      contactDetailsVisible: canShowContact,
+      ...(canShowContact ? { name: lead.clientName, phone: lead.clientPhone, email: lead.clientEmail } : {}),
+      createdAt: lead.createdAt,
+    });
+  }
+  for (const lead of buyerCrmRows) {
+    if (!lead.projectId) continue;
+    const projectId = String(lead.projectId);
+    const project = ownedProjects.find((item) => String(item._id) === projectId);
+    const canShowContact = project?.developerLeadDetailsEnabled === true && lead.contactConsent === true;
+    addEntry(projectId, {
+      kind: "BUYER_CRM",
+      status: lead.status,
+      source: lead.source,
+      campaign: cleanQualification(lead.providerCampaignName),
+      ad: cleanQualification(lead.providerAdName),
+      budgetRange: lead.budgetRange,
+      propertyType: lead.propertyType,
+      preferredLocation: lead.preferredLocation,
+      purchasePurpose: lead.purchasePurpose,
+      purchaseTimeline: lead.purchaseTimeline,
+      contactDetailsVisible: canShowContact,
+      ...(canShowContact ? { name: lead.fullName, phone: lead.phone, email: lead.email } : {}),
+      createdAt: lead.createdAt,
+    });
+  }
+
+  res.json({
+    projects: ownedProjects.map((project) => {
+      const entries = (byProject.get(String(project._id)) ?? []).sort((a, b) =>
+        new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime(),
+      );
+      return {
+        projectId: project._id,
+        projectName: project.name,
+        total: entries.length,
+        detailsEnabled: project.developerLeadDetailsEnabled,
+        entries: entries.map((entry, index) => ({ label: `Enquiry ${index + 1}`, ...entry })),
+      };
+    }),
+  });
 });
 
 router.get("/:id", async (req: AuthedRequest, res) => {

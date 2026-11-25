@@ -4,7 +4,7 @@ import { verifyAccessToken } from "../lib/jwt";
 import { getAllowedOrigins } from "../config/origins";
 import { getDb } from "../config/db";
 import { projects } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 let io: SocketIOServer | null = null;
 
@@ -83,14 +83,90 @@ export function emitUnitUpdate(projectId: string, unit: unknown) {
  * (passed in by the caller) and admins — never broadcast to every socket.
  */
 export function emitLeadUpdate(
-  lead: { assignedToId?: string | null; submittedById?: string | null },
+  lead: {
+    _id?: string;
+    projectId?: string | { _id?: string } | null;
+    assignedToId?: string | null;
+    submittedById?: string | null;
+    contactConsent?: boolean;
+    clientName?: string;
+    clientPhone?: string;
+    clientEmail?: string | null;
+    notes?: string | null;
+    followUpNotes?: string | null;
+    additionalRequirements?: string | null;
+    requirement?: string | null;
+  },
   developerId?: string | null,
 ) {
+  // Admins and the CP(s) assigned/submitting the lead retain their existing
+  // access. Developer delivery is separated so it can follow the same
+  // project-level + buyer-consent gate as the HTTP endpoints.
   const rooms = new Set<string>(["role:ADMIN"]);
-  for (const id of [lead.assignedToId, lead.submittedById, developerId]) {
-    if (id) rooms.add(`user:${id}`);
+  for (const id of [lead.assignedToId, lead.submittedById]) {
+    if (id && id !== developerId) rooms.add(`user:${id}`);
   }
   getIO().to([...rooms]).emit("lead:update", lead);
+
+  if (!developerId) return;
+  void (async () => {
+    try {
+      const projectId = typeof lead.projectId === "string" ? lead.projectId : lead.projectId?._id;
+      const [project] = projectId
+        ? await getDb().select({ developerLeadDetailsEnabled: projects.developerLeadDetailsEnabled })
+            .from(projects).where(eq(projects._id, projectId)).limit(1)
+        : [];
+      const canShowContact = project?.developerLeadDetailsEnabled === true && lead.contactConsent === true;
+      const developerLead = {
+        ...(canShowContact ? lead : {
+          ...lead,
+          clientName: "Buyer details hidden",
+          clientPhone: "",
+          clientEmail: null,
+          notes: null,
+          followUpNotes: null,
+          additionalRequirements: null,
+          requirement: null,
+        }),
+        contactDetailsVisible: canShowContact,
+      };
+      getIO().to(`user:${developerId}`).emit("lead:update", developerLead);
+    } catch (error) {
+      // On lookup failure fail closed: no contact data is sent to developers.
+      const safeLead = {
+        ...lead,
+        clientName: "Buyer details hidden",
+        clientPhone: "",
+        clientEmail: null,
+        notes: null,
+        followUpNotes: null,
+        additionalRequirements: null,
+        requirement: null,
+        contactDetailsVisible: false,
+      };
+      try { getIO().to(`user:${developerId}`).emit("lead:update", safeLead); } catch { /* non-fatal */ }
+      console.error("Developer lead update was redacted after permission lookup failed:", error instanceof Error ? error.message : error);
+    }
+  })();
+}
+
+/** Notify only project owners that aggregate Buyer CRM counts may have changed. */
+export function emitBuyerCrmProjectLeadCountUpdate(projectIds: Array<string | null | undefined> | string | null | undefined) {
+  const ids = [...new Set((Array.isArray(projectIds) ? projectIds : [projectIds]).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return;
+  void (async () => {
+    try {
+      const affectedProjects = await getDb()
+        .select({ _id: projects._id, developerId: projects.developerId })
+        .from(projects)
+        .where(inArray(projects._id, ids));
+      for (const project of affectedProjects) {
+        getIO().to(`user:${project.developerId}`).emit("buyer-crm:project-leads:update", { projectId: project._id });
+      }
+    } catch (error) {
+      console.error("Buyer CRM lead count update could not be delivered:", error instanceof Error ? error.message : error);
+    }
+  })();
 }
 
 export function emitNotification(userId: string, notification: unknown) {

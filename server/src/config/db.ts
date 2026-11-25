@@ -59,6 +59,9 @@ async function ensureSchema(db: Db): Promise<void> {
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lat" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "lng" double precision`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sales_contact" jsonb`,
+    // Developers only see buyer contact details when an admin enables this
+    // project-level permission; each lead must also have contact consent.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "developer_lead_details_enabled" boolean NOT NULL DEFAULT false`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     // Admin-curated, Truvi-verified ownership history + appreciation forecast.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "owner_history" jsonb`,

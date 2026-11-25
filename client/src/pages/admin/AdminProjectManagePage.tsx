@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowLeft, ExternalLink, MapPin, Building2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, MapPin, Building2, LockKeyhole } from "lucide-react";
 import PresentationManager from "@/components/PresentationManager";
 import UnitsManager from "@/components/UnitsManager";
 import ProjectDetailsEditor from "@/components/ProjectDetailsEditor";
@@ -18,6 +18,7 @@ export default function AdminProjectManagePage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingLeadAccess, setSavingLeadAccess] = useState(false);
 
   useEffect(() => {
     api
@@ -98,6 +99,39 @@ export default function AdminProjectManagePage() {
           className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${project.teamSiteVisited ? "border border-emerald-400/40 bg-emerald-500/20 text-emerald-300" : "border border-white/15 text-white/70 hover:bg-white/10"}`}
         >
           {project.teamSiteVisited ? "✓ Visited" : "Mark as visited"}
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-sky-500/20 bg-sky-500/[0.04] p-4">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 text-sm font-semibold"><LockKeyhole size={15} className="text-sky-300" /> Developer buyer contact access</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Developers can always see project lead counts and anonymized budget / interest data. Turning this on reveals names and contact details only for leads with recorded buyer consent.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={savingLeadAccess}
+          aria-pressed={project.developerLeadDetailsEnabled === true}
+          onClick={async () => {
+            const next = project.developerLeadDetailsEnabled !== true;
+            setSavingLeadAccess(true);
+            try {
+              const res = await api.patch("/admin/projects", { projectId: project._id, developerLeadDetailsEnabled: next });
+              setProject((current) => current ? {
+                ...current,
+                developerLeadDetailsEnabled: res.data.project.developerLeadDetailsEnabled,
+              } : current);
+              toast.success(next ? "Consented contact details enabled for this project" : "Developer contact access disabled");
+            } catch (e: any) {
+              toast.error(e?.response?.data?.error || "Failed to update lead access");
+            } finally {
+              setSavingLeadAccess(false);
+            }
+          }}
+          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition disabled:opacity-50 ${project.developerLeadDetailsEnabled ? "border border-emerald-400/40 bg-emerald-500/15 text-emerald-300" : "border border-white/15 text-white/75 hover:bg-white/10"}`}
+        >
+          {savingLeadAccess ? "Saving…" : project.developerLeadDetailsEnabled ? "Enabled — revoke access" : "Enable contact access"}
         </button>
       </div>
 

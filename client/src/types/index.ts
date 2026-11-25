@@ -215,6 +215,8 @@ export interface Project {
   /** Plots/units to display: declared total → largest unit number → row count. */
   plotCount?: number;
   leadCount?: number;
+  /** Admin-controlled access to consented buyer contact details. */
+  developerLeadDetailsEnabled?: boolean;
   coverImageUrl?: string | null;
   isSaved?: boolean;
   isCompared?: boolean;
@@ -282,6 +284,8 @@ export interface Lead {
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
+  /** Contact fields are blank until project access is granted and consent exists. */
+  contactDetailsVisible?: boolean;
   stage: LeadStage;
   source: string;
   notes?: string;

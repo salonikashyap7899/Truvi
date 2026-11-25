@@ -1493,6 +1493,7 @@ const patchProjectSchema = z.object({
   featuredUntil: z.string().datetime().optional().nullable(),
   isVerified: z.boolean().optional(),
   isPrimeListing: z.boolean().optional(),
+  developerLeadDetailsEnabled: z.boolean().optional(),
   threeDModelUrl: z.string().url().or(z.literal("")).nullable().optional(),
   masterPlanUrl: z.string().min(1).or(z.literal("")).nullable().optional(),
   verificationDetails: verificationDetailsSchema,
@@ -1534,6 +1535,9 @@ router.patch("/projects", requireRole("ADMIN"), async (req: AuthedRequest, res) 
     update.verifiedAt = data.isVerified ? new Date() : null;
   }
   if (data.isPrimeListing !== undefined) update.isPrimeListing = data.isPrimeListing;
+  if (data.developerLeadDetailsEnabled !== undefined) {
+    update.developerLeadDetailsEnabled = data.developerLeadDetailsEnabled;
+  }
   if (data.threeDModelUrl !== undefined) update.threeDModelUrl = data.threeDModelUrl || null;
   if (data.masterPlanUrl !== undefined) update.masterPlanUrl = data.masterPlanUrl || null;
   if (data.verificationDetails !== undefined) {

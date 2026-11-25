@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Flame, CalendarCheck, TrendingUp, Boxes, Activity, Megaphone, BrainCircuit,
-  ShieldCheck, Zap, ArrowRight, Sparkles, Pencil, FileText,
+  ShieldCheck, Zap, ArrowRight, Sparkles, Pencil, FileText, ChevronDown, LockKeyhole,
 } from "lucide-react";
 import { Card, CardTitle, CardValue, Badge } from "@/components/ui/primitives";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -34,9 +34,10 @@ const isThisMonth = (d: string | Date) => {
 };
 
 export default function DeveloperDashboardPage() {
-  const { projects, units, unitsByProject, leads, siteVisits, avgPriceByProject, loading } = useDeveloperData();
+  const { projects, units, unitsByProject, leads, projectLeadSummaries, siteVisits, avgPriceByProject, loading } = useDeveloperData();
   const { entitlement } = useDeveloperEntitlement();
   const [upsell, setUpsell] = useState<{ plan: DevUpsellPlan; feature?: string } | null>(null);
+  const [expandedLeadProject, setExpandedLeadProject] = useState<string | null>(null);
 
   if (loading) return <DashboardSkeleton variant="content" />;
 
@@ -284,6 +285,86 @@ export default function DeveloperDashboardPage() {
               </Link>
             </Card>
           ))}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <div>
+          <h2 className="text-lg font-medium">Buyer demand by project</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Meta Ads, calls and referral enquiries are counted together. Buyer identity stays hidden unless an admin enables access and the buyer has consented.
+          </p>
+        </div>
+        <div className="mt-3 space-y-3">
+          {projectLeadSummaries.map((summary) => {
+            const expanded = expandedLeadProject === summary.projectId;
+            return (
+              <Card key={summary.projectId} className="border-white/10 glass text-white">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{summary.projectName}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {summary.total} {summary.total === 1 ? "enquiry" : "enquiries"} · Buyer CRM and sales pipeline
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => setExpandedLeadProject(expanded ? null : summary.projectId)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/5"
+                  >
+                    {summary.detailsEnabled ? "View enquiries" : "View anonymized enquiries"}
+                    <ChevronDown size={15} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+                {expanded && (
+                  <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                    {!summary.entries.length && <p className="text-sm text-muted-foreground">No enquiries linked to this project yet.</p>}
+                    {summary.entries.map((entry) => (
+                      <div key={`${entry.kind}-${entry.label}`} className="rounded-lg border border-white/10 bg-black/10 p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {entry.contactDetailsVisible && entry.name ? entry.name : entry.label}
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                {entry.kind === "BUYER_CRM" ? "Meta / call enquiry" : "Referral enquiry"}
+                              </span>
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">{entry.status.replace(/_/g, " ")} · {entry.source.replace(/_/g, " ")}</p>
+                          </div>
+                          {entry.contactDetailsVisible ? (
+                            <div className="text-right text-xs text-muted-foreground">
+                              {entry.phone && <p>{entry.phone}</p>}
+                              {entry.email && <p>{entry.email}</p>}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><LockKeyhole size={12} /> Identity hidden</span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {entry.budgetRange && <span>Budget: <b className="text-white/80">{entry.budgetRange}</b></span>}
+                          {entry.propertyType && <span>Looking for: <b className="text-white/80">{entry.propertyType}</b></span>}
+                          {entry.preferredLocation && <span>Area: <b className="text-white/80">{entry.preferredLocation}</b></span>}
+                          {entry.plotSize && <span>Plot size: <b className="text-white/80">{entry.plotSize}</b></span>}
+                          {entry.purchasePurpose && <span>Purpose: <b className="text-white/80">{entry.purchasePurpose.replace(/_/g, " ")}</b></span>}
+                          {entry.purchaseTimeline && <span>Timeline: <b className="text-white/80">{entry.purchaseTimeline.replace(/_/g, " ")}</b></span>}
+                          {entry.campaign && <span>Campaign: <b className="text-white/80">{entry.campaign}</b></span>}
+                          {entry.ad && <span>Ad: <b className="text-white/80">{entry.ad}</b></span>}
+                        </div>
+                      </div>
+                    ))}
+                    {!summary.detailsEnabled && (
+                      <p className="pt-1 text-xs text-muted-foreground">Names, phone numbers and email addresses are withheld. Ask your Truvi admin to enable consented contact access for this project.</p>
+                    )}
+                    {summary.detailsEnabled && summary.entries.some((entry) => !entry.contactDetailsVisible) && (
+                      <p className="pt-1 text-xs text-muted-foreground">Some contact details remain hidden because the buyer has not given contact consent.</p>
+                    )}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+          {projectLeadSummaries.length === 0 && <p className="text-sm text-muted-foreground">Project enquiry summaries will appear here.</p>}
         </div>
       </section>
 

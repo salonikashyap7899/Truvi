@@ -20,6 +20,7 @@ import { authenticate, requireRole, type AuthedRequest } from "../middleware/aut
 import { isValidId } from "../lib/ids";
 import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
+import { emitBuyerCrmProjectLeadCountUpdate } from "../sockets";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
@@ -508,6 +509,7 @@ router.post("/admin/leads", requireRole("ADMIN", "EMPLOYEE"), async (req: Authed
   }).returning();
   await db.insert(buyerCrmActivities).values({ leadId: lead._id, actorUserId: req.user!.userId, type: "CREATED", content: `Added manually from ${d.source.replace(/_/g, " ").toLowerCase()}.` });
   await logAudit({ userId: req.user!.userId, action: "BUYER_CRM_LEAD_CREATED", resourceType: "buyer_crm_lead", resourceId: lead._id, metadata: { source: d.source, projectId } });
+  emitBuyerCrmProjectLeadCountUpdate(projectId);
   res.status(201).json({ lead });
 });
 
@@ -693,6 +695,9 @@ router.patch("/admin/leads/:id", requireRole("ADMIN", "EMPLOYEE"), async (req: A
   if (d.contactConsent === true && !current.contactConsent) activities.push({ type: "CONSENT", content: `Contact permission recorded: ${d.consentBasis}` });
   if (activities.length) await db.insert(buyerCrmActivities).values(activities.map((activity) => ({ ...activity, leadId: current._id, actorUserId: req.user!.userId })));
   await logAudit({ userId: req.user!.userId, action: "BUYER_CRM_LEAD_UPDATED", resourceType: "buyer_crm_lead", resourceId: current._id, metadata: { fields: Object.keys(d) } });
+  if (d.projectId !== undefined && d.projectId !== current.projectId) {
+    emitBuyerCrmProjectLeadCountUpdate([current.projectId, lead.projectId]);
+  }
   res.json({ lead });
 });
 
@@ -1163,6 +1168,7 @@ router.post("/admin/meta-mappings/:id/sync", requireRole("ADMIN"), async (req: A
       metadata: { formId: mapping.formId, projectId: mapping.projectId, totalFetched, inserted, duplicates, skipped },
     });
 
+    emitBuyerCrmProjectLeadCountUpdate(mapping.projectId);
     res.json({ success: true, totalFetched, inserted, duplicates, skipped });
   } catch (err: any) {
     console.warn("Meta lead form sync failed:", err?.message || err);
@@ -1184,6 +1190,7 @@ router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file
   let inserted = 0;
   let duplicates = 0;
   let skipped = 0;
+  const affectedProjectIds = new Set<string>();
 
   const mappings = await db.select().from(metaAdFormMappings).where(eq(metaAdFormMappings.isActive, true));
 
@@ -1215,6 +1222,7 @@ router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file
       const match = mappings.find((m) => m.formId === formId);
       if (match) resolvedProjectId = match.projectId;
     }
+    if (resolvedProjectId) affectedProjectIds.add(resolvedProjectId);
 
     const leadIdKey = keys.find((k) => /^id$|lead_?id/i.test(k));
     const providerLeadId = leadIdKey ? String(row[leadIdKey] || "").trim() : null;
@@ -1293,6 +1301,7 @@ router.post("/admin/import-leads-csv", requireRole("ADMIN"), upload.single("file
     metadata: { totalRows: parsed.data.length, inserted, duplicates, skipped },
   });
 
+  emitBuyerCrmProjectLeadCountUpdate([...affectedProjectIds]);
   res.json({ success: true, totalRows: parsed.data.length, inserted, duplicates, skipped });
 });
 
@@ -1343,6 +1352,7 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
   if (!/^v\d+\.\d+$/.test(graphVersion)) return res.status(500).json({ error: "Meta Graph API version is not configured correctly." });
   const db = getDb();
   let captured = 0;
+  const affectedProjectIds = new Set<string>();
   try {
     for (const entry of event.entry) {
       for (const change of entry.changes ?? []) {
@@ -1415,6 +1425,8 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
             }
           }
         }
+
+        if (projectId) affectedProjectIds.add(projectId);
 
         const purpose = firstField(fields, "purchase_purpose", "purpose").toLowerCase();
         const normalizedPurpose = purpose.includes("invest") ? "INVESTMENT" : purpose.includes("self") || purpose.includes("live") ? "SELF_USE" : purpose ? "UNDECIDED" : null;
@@ -1560,6 +1572,7 @@ export async function metaLeadWebhookHandler(req: Request, res: Response) {
         captured += 1;
       }
     }
+    emitBuyerCrmProjectLeadCountUpdate([...affectedProjectIds]);
     return res.status(200).json({ received: true, captured });
   } catch (error) {
     console.warn("Meta buyer lead webhook processing failed:", error instanceof Error ? error.message : "unknown error");
