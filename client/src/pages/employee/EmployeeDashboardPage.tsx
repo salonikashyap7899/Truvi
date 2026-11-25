@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, MessageCircle, Phone, PhoneCall, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, Bell, Building2, Camera, CalendarCheck, CalendarClock, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDollarSign, ClipboardList, Clock3, Flame, Info, LayoutDashboard, ListChecks, MapPin, Megaphone, MessageCircle, Phone, PhoneCall, Plus, RefreshCw, Search, ShieldAlert, Trash2, UserRound, Users, Wallet, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSocketEvent } from "@/lib/socket";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -127,34 +127,58 @@ export default function EmployeeDashboardPage() {
   const [crmSite, setCrmSite] = useState("");
   const [crmStage, setCrmStage] = useState("");
   const [crmSearch, setCrmSearch] = useState("");
+  const [crmQuickFilter, setCrmQuickFilter] = useState<string>("ALL");
   const [crmExpandedId, setCrmExpandedId] = useState<string | null>(null);
   const [crmActivities, setCrmActivities] = useState<any[]>([]);
   const [crmNote, setCrmNote] = useState("");
   const [crmActType, setCrmActType] = useState<"CALL" | "WHATSAPP" | "NOTE">("CALL");
 
-  const canAccessBuyerCrm = Boolean(
-    employee?.permissions?.includes("buyer_crm.read.assigned") ||
-    employee?.permissions?.includes("buyer_crm.read.site")
-  );
+  // Mobile Lead Creation Modal State
+  const [showAddLeadModal, setShowAddLeadModal] = useState(false);
+  const [addLeadBusy, setAddLeadBusy] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    source: "TELECALLER",
+    projectId: "",
+    budgetRange: "",
+    propertyType: "",
+    preferredLocation: "",
+    purchasePurpose: "SELF_USE",
+    purchaseTimeline: "IMMEDIATE",
+    requirement: "",
+    nextFollowUpAt: "",
+  });
+
+  // Mobile Site Visit Scheduling State
+  const [visitScheduleLead, setVisitScheduleLead] = useState<any | null>(null);
+  const [visitScheduleForm, setVisitScheduleForm] = useState({
+    scheduledAt: "",
+    notes: "",
+  });
+  const [visitScheduleBusy, setVisitScheduleBusy] = useState(false);
+
+  // Mobile Custom Follow-up Scheduling State
+  const [followUpScheduleLead, setFollowUpScheduleLead] = useState<any | null>(null);
+  const [followUpCustomDate, setFollowUpCustomDate] = useState("");
+  const [followUpBusy, setFollowUpBusy] = useState(false);
 
   const tabItems = useMemo(() => {
-    return baseTabItems.filter((item) => item.id !== "buyer_leads" || canAccessBuyerCrm);
-  }, [canAccessBuyerCrm]);
+    return baseTabItems;
+  }, []);
 
   const navigationGroups = useMemo(() => [
     { label: "Workspace", items: ["home", "tasks"] as Tab[] },
     {
       label: "Sales & field",
-      items: (canAccessBuyerCrm
-        ? ["leads", "buyer_leads", "telecalling", "visits"]
-        : ["leads", "telecalling", "visits"]) as Tab[],
+      items: ["buyer_leads", "leads", "telecalling", "visits"] as Tab[],
     },
     { label: "People & time", items: ["attendance", "leave"] as Tab[] },
     { label: "Account", items: ["profile", "salary", "notifications"] as Tab[] },
-  ], [canAccessBuyerCrm]);
+  ], []);
 
   const loadCrmLeads = useCallback(async () => {
-    if (!canAccessBuyerCrm) return;
     setCrmLoading(true);
     try {
       const [leadsRes, sumRes] = await Promise.all([
@@ -163,7 +187,7 @@ export default function EmployeeDashboardPage() {
             projectId: crmSite || undefined,
             status: crmStage || undefined,
             q: crmSearch.trim() || undefined,
-            limit: 50,
+            limit: 100,
           },
         }),
         api.get("/buyer-crm/admin/summary"),
@@ -175,7 +199,7 @@ export default function EmployeeDashboardPage() {
     } finally {
       setCrmLoading(false);
     }
-  }, [canAccessBuyerCrm, crmSite, crmStage, crmSearch]);
+  }, [crmSite, crmStage, crmSearch]);
 
   useEffect(() => {
     if (tab === "buyer_leads") {
@@ -190,6 +214,100 @@ export default function EmployeeDashboardPage() {
       await loadCrmLeads();
     } catch (err: any) {
       toast.error(err?.response?.data?.error || "Could not update lead stage.");
+    }
+  }
+
+  async function updateCrmLeadFollowUp(leadId: string, dateIso: string | null, noteMessage?: string) {
+    try {
+      await api.patch(`/buyer-crm/admin/leads/${leadId}`, { nextFollowUpAt: dateIso });
+      if (noteMessage) {
+        await api.post(`/buyer-crm/admin/leads/${leadId}/activities`, {
+          type: "FOLLOW_UP",
+          content: noteMessage,
+        }).catch(() => null);
+      }
+      toast.success(dateIso ? "Follow-up reminder set." : "Follow-up reminder cleared.");
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not update follow-up.");
+    }
+  }
+
+  async function handleQuickFollowUp(lead: any, preset: "today_5pm" | "tomorrow_11am" | "tomorrow_4pm" | "in_2d" | "weekend") {
+    const d = new Date();
+    let noteDesc = "";
+    if (preset === "today_5pm") {
+      d.setHours(17, 0, 0, 0);
+      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+      noteDesc = "Follow-up scheduled for Today 5:00 PM.";
+    } else if (preset === "tomorrow_11am") {
+      d.setDate(d.getDate() + 1);
+      d.setHours(11, 0, 0, 0);
+      noteDesc = "Follow-up scheduled for Tomorrow 11:00 AM.";
+    } else if (preset === "tomorrow_4pm") {
+      d.setDate(d.getDate() + 1);
+      d.setHours(16, 0, 0, 0);
+      noteDesc = "Follow-up scheduled for Tomorrow 4:00 PM.";
+    } else if (preset === "in_2d") {
+      d.setDate(d.getDate() + 2);
+      d.setHours(11, 0, 0, 0);
+      noteDesc = "Follow-up scheduled in 2 days at 11:00 AM.";
+    } else if (preset === "weekend") {
+      const day = d.getDay();
+      const daysUntilSaturday = (6 - day + 7) % 7 || 7;
+      d.setDate(d.getDate() + daysUntilSaturday);
+      d.setHours(11, 0, 0, 0);
+      noteDesc = "Follow-up scheduled for Saturday 11:00 AM.";
+    }
+    await updateCrmLeadFollowUp(lead._id, d.toISOString(), noteDesc);
+  }
+
+  async function handleSaveCustomFollowUp(e: FormEvent) {
+    e.preventDefault();
+    if (!followUpScheduleLead || !followUpCustomDate) return;
+    setFollowUpBusy(true);
+    try {
+      const dateIso = new Date(followUpCustomDate).toISOString();
+      await updateCrmLeadFollowUp(
+        followUpScheduleLead._id,
+        dateIso,
+        `Follow-up scheduled for ${fmtDateTime(followUpCustomDate)}.`
+      );
+      setFollowUpScheduleLead(null);
+      setFollowUpCustomDate("");
+    } finally {
+      setFollowUpBusy(false);
+    }
+  }
+
+  async function handleSaveSiteVisit(e: FormEvent) {
+    e.preventDefault();
+    if (!visitScheduleLead || !visitScheduleForm.scheduledAt) {
+      toast.error("Choose visit date and time.");
+      return;
+    }
+    setVisitScheduleBusy(true);
+    try {
+      const dateIso = new Date(visitScheduleForm.scheduledAt).toISOString();
+      await api.patch(`/buyer-crm/admin/leads/${visitScheduleLead._id}`, {
+        status: "SITE_VISIT_SCHEDULED",
+        nextFollowUpAt: dateIso,
+      });
+      const noteContent = `Site visit scheduled for ${fmtDateTime(visitScheduleForm.scheduledAt)}${
+        visitScheduleForm.notes ? " · Notes: " + visitScheduleForm.notes : ""
+      }`;
+      await api.post(`/buyer-crm/admin/leads/${visitScheduleLead._id}/activities`, {
+        type: "FOLLOW_UP",
+        content: noteContent,
+      });
+      toast.success("Site visit scheduled successfully.");
+      setVisitScheduleLead(null);
+      setVisitScheduleForm({ scheduledAt: "", notes: "" });
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not schedule site visit.");
+    } finally {
+      setVisitScheduleBusy(false);
     }
   }
 
@@ -227,6 +345,105 @@ export default function EmployeeDashboardPage() {
       toast.error(err?.response?.data?.error || "Could not log activity.");
     }
   }
+
+  async function logPresetActivity(leadId: string, type: "CALL" | "WHATSAPP" | "NOTE", text: string) {
+    try {
+      await api.post(`/buyer-crm/admin/leads/${leadId}/activities`, {
+        type,
+        content: text,
+      });
+      toast.success("Activity logged: " + text);
+      const res = await api.get(`/buyer-crm/admin/leads/${leadId}/activities`);
+      setCrmActivities(res.data.activities ?? []);
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not log activity.");
+    }
+  }
+
+  async function submitCreateBuyerLead(e: FormEvent) {
+    e.preventDefault();
+    if (newLeadForm.fullName.trim().length < 2) {
+      toast.error("Enter buyer's full name (at least 2 characters).");
+      return;
+    }
+    const cleanDigits = newLeadForm.phone.replace(/\D/g, "");
+    if (cleanDigits.length < 10) {
+      toast.error("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    setAddLeadBusy(true);
+    try {
+      await api.post("/buyer-crm/admin/leads", {
+        fullName: newLeadForm.fullName.trim(),
+        phone: newLeadForm.phone.trim(),
+        email: newLeadForm.email.trim() || undefined,
+        source: newLeadForm.source || "TELECALLER",
+        projectId: newLeadForm.projectId || undefined,
+        budgetRange: newLeadForm.budgetRange || undefined,
+        propertyType: newLeadForm.propertyType || undefined,
+        preferredLocation: newLeadForm.preferredLocation || undefined,
+        purchasePurpose: newLeadForm.purchasePurpose || undefined,
+        purchaseTimeline: newLeadForm.purchaseTimeline || undefined,
+        requirement: newLeadForm.requirement.trim() || undefined,
+        nextFollowUpAt: newLeadForm.nextFollowUpAt ? new Date(newLeadForm.nextFollowUpAt).toISOString() : undefined,
+        contactConsent: true,
+        consentBasis: "Lead added via Mobile CRM by sales executive",
+      });
+      toast.success("Buyer lead added successfully.");
+      setShowAddLeadModal(false);
+      setNewLeadForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        source: "TELECALLER",
+        projectId: "",
+        budgetRange: "",
+        propertyType: "",
+        preferredLocation: "",
+        purchasePurpose: "SELF_USE",
+        purchaseTimeline: "IMMEDIATE",
+        requirement: "",
+        nextFollowUpAt: "",
+      });
+      await loadCrmLeads();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Could not create lead.");
+    } finally {
+      setAddLeadBusy(false);
+    }
+  }
+
+  const filteredCrmLeads = useMemo(() => {
+    return crmLeads.filter((l) => {
+      if (crmQuickFilter === "DUE") {
+        if (!l.nextFollowUpAt) return false;
+        const dueTime = new Date(l.nextFollowUpAt).getTime();
+        return dueTime <= Date.now() + 24 * 60 * 60 * 1000 && !["CONVERTED", "LOST"].includes(l.status);
+      }
+      if (crmQuickFilter === "NEW") return l.status === "NEW";
+      if (crmQuickFilter === "CONTACTED") return l.status === "CONTACTED";
+      if (crmQuickFilter === "QUALIFIED") return l.status === "QUALIFIED";
+      if (crmQuickFilter === "VISITS") return ["SITE_VISIT_SCHEDULED", "SITE_VISIT_COMPLETED"].includes(l.status);
+      if (crmQuickFilter === "WON") return ["BOOKING_TOKEN", "CONVERTED"].includes(l.status);
+      if (crmQuickFilter === "LOST") return l.status === "LOST";
+      return true;
+    });
+  }, [crmLeads, crmQuickFilter]);
+
+  const filterCounts = useMemo(() => {
+    const now = Date.now();
+    return {
+      all: crmLeads.length,
+      due: crmLeads.filter((l) => l.nextFollowUpAt && new Date(l.nextFollowUpAt).getTime() <= now + 24 * 60 * 60 * 1000 && !["CONVERTED", "LOST"].includes(l.status)).length,
+      new: crmLeads.filter((l) => l.status === "NEW").length,
+      contacted: crmLeads.filter((l) => l.status === "CONTACTED").length,
+      qualified: crmLeads.filter((l) => l.status === "QUALIFIED").length,
+      visits: crmLeads.filter((l) => ["SITE_VISIT_SCHEDULED", "SITE_VISIT_COMPLETED"].includes(l.status)).length,
+      won: crmLeads.filter((l) => ["BOOKING_TOKEN", "CONVERTED"].includes(l.status)).length,
+      lost: crmLeads.filter((l) => l.status === "LOST").length,
+    };
+  }, [crmLeads]);
 
   async function load() {
     setLoading(true);
@@ -957,107 +1174,251 @@ export default function EmployeeDashboardPage() {
         </div>}
 
         {tab==="buyer_leads" && <div className="space-y-4">
+          {/* Header & Quick Action */}
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Megaphone size={18} className="text-sky-400" />
-                Buyer Leads & Meta Ads CRM
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Megaphone size={19} className="text-sky-400" />
+                Buyer CRM Hub
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Inbound buyer inquiries from Meta Ads (Facebook / Instagram) and site assignments.
+              <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+                Inbound buyer leads, Meta Ads inquiries, and direct telecalling. 1-tap Call, WhatsApp, and Site Visits.
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddLeadModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-sky-500/25 hover:from-sky-400 hover:to-blue-500 active:scale-95 transition"
+              >
+                <Plus size={14} /> Add Buyer Lead
+              </button>
+              <button
+                type="button"
+                onClick={() => void loadCrmLeads()}
+                disabled={crmLoading}
+                aria-label="Refresh buyer leads"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold hover:bg-white/10 active:scale-95 transition"
+              >
+                <RefreshCw size={13} className={crmLoading ? "animate-spin" : ""} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Metrics KPI Bar */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <button
-              onClick={() => void loadCrmLeads()}
-              disabled={crmLoading}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold hover:bg-white/5"
+              type="button"
+              onClick={() => setCrmQuickFilter("ALL")}
+              className={`text-left rounded-xl border p-3 transition ${
+                crmQuickFilter === "ALL"
+                  ? "border-sky-500/50 bg-sky-500/10 shadow-sm"
+                  : "border-white/10 bg-card/60 hover:bg-white/5"
+              }`}
             >
-              <RefreshCw size={13} className={crmLoading ? "animate-spin" : ""} /> Refresh Leads
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Total Leads</span>
+                <Users size={14} className="text-sky-400" />
+              </div>
+              <p className="mt-1.5 text-xl font-bold">{filterCounts.all}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">In active pipeline</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCrmQuickFilter("DUE")}
+              className={`text-left rounded-xl border p-3 transition ${
+                crmQuickFilter === "DUE"
+                  ? "border-amber-500/50 bg-amber-500/10 shadow-sm"
+                  : "border-white/10 bg-card/60 hover:bg-white/5"
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Follow-ups Due</span>
+                <Clock3 size={14} className="text-amber-400" />
+              </div>
+              <p className="mt-1.5 text-xl font-bold text-amber-400">{filterCounts.due}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Action needed</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCrmQuickFilter("VISITS")}
+              className={`text-left rounded-xl border p-3 transition ${
+                crmQuickFilter === "VISITS"
+                  ? "border-cyan-500/50 bg-cyan-500/10 shadow-sm"
+                  : "border-white/10 bg-card/60 hover:bg-white/5"
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Site Visits</span>
+                <MapPin size={14} className="text-cyan-400" />
+              </div>
+              <p className="mt-1.5 text-xl font-bold text-cyan-400">{filterCounts.visits}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Scheduled & done</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCrmQuickFilter("WON")}
+              className={`text-left rounded-xl border p-3 transition ${
+                crmQuickFilter === "WON"
+                  ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm"
+                  : "border-white/10 bg-card/60 hover:bg-white/5"
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Booked & Won</span>
+                <CheckCircle2 size={14} className="text-emerald-400" />
+              </div>
+              <p className="mt-1.5 text-xl font-bold text-emerald-400">{filterCounts.won}</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Token received</p>
             </button>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Kpi label="Visible Leads" value={crmLeads.length} note="In current view" icon={Users} tone="blue" />
-            <Kpi label="New Leads" value={crmLeads.filter((l) => l.status === "NEW").length} note="Pending first contact" icon={Flame} tone="amber" />
-            <Kpi label="Visits Scheduled" value={crmLeads.filter((l) => ["SITE_VISIT_SCHEDULED", "SITE_VISIT_COMPLETED"].includes(l.status)).length} note="Site walkthroughs" icon={Building2} tone="cyan" />
-            <Kpi label="Tokens & Converted" value={crmLeads.filter((l) => ["BOOKING_TOKEN", "CONVERTED"].includes(l.status)).length} note="Active bookings" icon={CheckCircle2} tone="green" />
-          </div>
+          {/* Sticky Search & Filter Strip */}
+          <div className="space-y-2.5 rounded-2xl border border-white/10 bg-card/70 p-3 sm:p-3.5 backdrop-blur-sm">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="relative">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  aria-label="Search buyer leads"
+                  value={crmSearch}
+                  onChange={(e) => setCrmSearch(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-background/80 pl-9 pr-8 py-2 text-xs text-foreground outline-none focus:border-sky-400"
+                  placeholder="Search name, phone, notes, ad campaign…"
+                />
+                {crmSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setCrmSearch("")}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
 
-          {/* Project / Site Tabs */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Filter by Site / Project</p>
-            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
-              <button
-                type="button"
-                onClick={() => setCrmSite("")}
-                className={`rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                  crmSite === ""
-                    ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                    : "border border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/5"
-                }`}
+              <select
+                aria-label="Filter by project site"
+                value={crmSite}
+                onChange={(e) => setCrmSite(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-background/80 px-3 py-2 text-xs text-foreground outline-none focus:border-sky-400"
               >
-                All Sites
-              </button>
-              {projects.map((p) => (
+                <option value="">All Projects & Sites ({projects.length})</option>
+                {projects.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} {p.city ? `(${p.city})` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                aria-label="Filter by stage"
+                value={crmStage}
+                onChange={(e) => setCrmStage(e.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-background/80 px-3 py-2 text-xs text-foreground outline-none focus:border-sky-400 sm:col-span-2 lg:col-span-1"
+              >
+                <option value="">All Pipeline Stages</option>
+                <option value="NEW">New ({crmLeads.filter((l) => l.status === "NEW").length})</option>
+                <option value="CONTACTED">Contacted ({crmLeads.filter((l) => l.status === "CONTACTED").length})</option>
+                <option value="QUALIFIED">Qualified ({crmLeads.filter((l) => l.status === "QUALIFIED").length})</option>
+                <option value="SITE_VISIT_SCHEDULED">Visit Scheduled ({crmLeads.filter((l) => l.status === "SITE_VISIT_SCHEDULED").length})</option>
+                <option value="SITE_VISIT_COMPLETED">Visit Completed ({crmLeads.filter((l) => l.status === "SITE_VISIT_COMPLETED").length})</option>
+                <option value="BOOKING_TOKEN">Booking Token ({crmLeads.filter((l) => l.status === "BOOKING_TOKEN").length})</option>
+                <option value="CONVERTED">Converted / Won ({crmLeads.filter((l) => l.status === "CONVERTED").length})</option>
+                <option value="LOST">Lost ({crmLeads.filter((l) => l.status === "LOST").length})</option>
+              </select>
+            </div>
+
+            {/* Quick Filter Pill Slider */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+              {[
+                { id: "ALL", label: `All (${filterCounts.all})` },
+                { id: "DUE", label: `⏰ Due (${filterCounts.due})`, highlight: filterCounts.due > 0 },
+                { id: "NEW", label: `New (${filterCounts.new})` },
+                { id: "CONTACTED", label: `Contacted (${filterCounts.contacted})` },
+                { id: "QUALIFIED", label: `Qualified (${filterCounts.qualified})` },
+                { id: "VISITS", label: `Visits (${filterCounts.visits})` },
+                { id: "WON", label: `Won (${filterCounts.won})` },
+                { id: "LOST", label: `Lost (${filterCounts.lost})` },
+              ].map((pill) => (
                 <button
-                  key={p._id}
+                  key={pill.id}
                   type="button"
-                  onClick={() => setCrmSite(p._id)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
-                    crmSite === p._id
-                      ? "bg-sky-500 text-white shadow-md shadow-sky-500/20"
-                      : "border border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/5"
+                  onClick={() => setCrmQuickFilter(pill.id)}
+                  className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    crmQuickFilter === pill.id
+                      ? "bg-sky-500 text-white shadow-sm shadow-sky-500/30"
+                      : pill.highlight
+                      ? "border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                      : "border border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"
                   }`}
                 >
-                  <Building2 size={12} /> {p.name}
+                  {pill.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Filters row */}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={crmSearch}
-                onChange={(e) => setCrmSearch(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-background pl-9 pr-3 py-2 text-xs text-foreground outline-none focus:border-sky-400"
-                placeholder="Search name, phone, email, notes…"
-              />
-            </div>
-            <select
-              value={crmStage}
-              onChange={(e) => setCrmStage(e.target.value)}
-              className="rounded-xl border border-white/10 bg-background px-3 py-2 text-xs text-foreground outline-none focus:border-sky-400"
-            >
-              <option value="">All Pipeline Stages</option>
-              <option value="NEW">New</option>
-              <option value="CONTACTED">Contacted</option>
-              <option value="QUALIFIED">Qualified</option>
-              <option value="SITE_VISIT_SCHEDULED">Visit Scheduled</option>
-              <option value="SITE_VISIT_COMPLETED">Visit Completed</option>
-              <option value="BOOKING_TOKEN">Booking Token Received</option>
-              <option value="CONVERTED">Converted / Won</option>
-              <option value="LOST">Lost</option>
-            </select>
-          </div>
-
-          {/* Leads Listing */}
-          <Panel title={`Buyer Leads · ${crmLeads.length}`}>
+          {/* Lead Card Feed */}
+          <div className="space-y-3">
             {crmLoading ? (
-              <p className="py-8 text-center text-xs text-muted-foreground">Loading buyer leads…</p>
-            ) : crmLeads.length === 0 ? (
-              <p className="py-8 text-center text-xs text-muted-foreground">No buyer leads match the selected site or filters.</p>
+              <div className="rounded-2xl border border-white/10 bg-card/50 p-8 text-center text-xs text-muted-foreground">
+                <RefreshCw size={18} className="mx-auto mb-2 animate-spin text-sky-400" />
+                Loading buyer leads…
+              </div>
+            ) : filteredCrmLeads.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-card/50 p-8 text-center text-xs text-muted-foreground">
+                <Users size={24} className="mx-auto mb-2 text-muted-foreground/60" />
+                <p className="font-semibold text-foreground">No buyer leads found</p>
+                <p className="mt-1">Try clearing your filters or adding a new buyer inquiry.</p>
+                <button
+                  type="button"
+                  onClick={() => { setCrmQuickFilter("ALL"); setCrmSearch(""); setCrmStage(""); setCrmSite(""); }}
+                  className="mt-3 inline-flex items-center gap-1 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-foreground hover:bg-white/5"
+                >
+                  Clear all filters
+                </button>
+              </div>
             ) : (
-              <div className="space-y-3">
-                {crmLeads.map((lead: any) => (
-                  <article key={lead._id} className="rounded-xl border border-white/10 bg-white/[0.015] p-4 space-y-3">
+              filteredCrmLeads.map((lead: any) => {
+                const cleanPhone = (lead.phone || "").replace(/\D/g, "").slice(-10);
+                const agentName = employee?.name ? employee.name.split(" ")[0] : "Truvi Team";
+                const projName = lead.project?.name || "premium residential projects";
+                const waMessage = `Hello ${lead.fullName || "Sir/Madam"},\n\nThis is ${agentName} from *Truvi* regarding your enquiry for *${projName}*.\n\nI have the complete digital brochure, floor plans, and pricing ready to share with you. When is a good time to speak or arrange an exclusive site walkthrough?\n\nBest regards,\n${agentName} · Truvi`;
+                const waUrl = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(waMessage)}`;
+                const telUrl = `tel:+91${cleanPhone}`;
+
+                // Calculate follow-up status
+                let followUpStatus: { label: string; tone: string; isOverdue?: boolean } | null = null;
+                if (lead.nextFollowUpAt) {
+                  const d = new Date(lead.nextFollowUpAt);
+                  const diffHours = (d.getTime() - Date.now()) / (1000 * 60 * 60);
+                  const timeFormatted = d.toLocaleDateString("en-IN", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+                  if (diffHours < 0) {
+                    followUpStatus = { label: `Overdue: ${timeFormatted}`, tone: "border-rose-500/40 bg-rose-500/10 text-rose-300", isOverdue: true };
+                  } else if (diffHours <= 14) {
+                    followUpStatus = { label: `Due Today: ${timeFormatted}`, tone: "border-amber-500/40 bg-amber-500/10 text-amber-300" };
+                  } else if (diffHours <= 38) {
+                    followUpStatus = { label: `Tomorrow: ${timeFormatted}`, tone: "border-sky-500/40 bg-sky-500/10 text-sky-300" };
+                  } else {
+                    followUpStatus = { label: timeFormatted, tone: "border-white/10 bg-white/5 text-muted-foreground" };
+                  }
+                }
+
+                return (
+                  <article
+                    key={lead._id}
+                    className="rounded-2xl border border-white/10 bg-card/90 backdrop-blur-sm p-4 sm:p-5 shadow-sm space-y-3.5 transition hover:border-white/20"
+                  >
+                    {/* Header Row: Name, Duplicate Tag, Project Pill, Source */}
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{lead.fullName}</h3>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-bold text-foreground truncate">{lead.fullName}</h3>
                           {lead.isDuplicate && (
                             <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
                               Repeat x{lead.duplicateCount || 2}
@@ -1065,137 +1426,602 @@ export default function EmployeeDashboardPage() {
                           )}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 text-sky-400 font-medium">
-                            <Phone size={11} /> {lead.phone}
+                          <a href={telUrl} className="inline-flex items-center gap-1 font-semibold text-emerald-400 hover:text-emerald-300">
+                            <Phone size={12} /> +91 {cleanPhone}
                           </a>
-                          {lead.email && <span>· {lead.email}</span>}
-                          <span>· Created {fmtDate(lead.createdAt)}</span>
+                          {lead.email && <span className="truncate">· {lead.email}</span>}
+                          <span>· {fmtDate(lead.createdAt)}</span>
                         </div>
                       </div>
 
-                      {/* Site & Meta Campaign Badges */}
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                         {lead.project ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-xs font-semibold text-sky-300">
-                            <Building2 size={11} /> {lead.project.name}
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-300">
+                            <Building2 size={12} /> {lead.project.name}
                           </span>
                         ) : (
-                          <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
+                          <span className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-muted-foreground">
                             General Requirement
                           </span>
                         )}
-                        {lead.source === "META_AD" && (
-                          <span className="inline-flex items-center gap-1 rounded-lg border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs text-blue-300">
+                        {lead.source === "META_AD" ? (
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-300" title={lead.providerCampaignName || "Meta Ad"}>
                             <Megaphone size={11} /> Meta Ad
+                          </span>
+                        ) : (
+                          <span className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-muted-foreground">
+                            {lead.source.replaceAll("_", " ")}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Requirements & Budget */}
-                    <div className="text-xs text-muted-foreground">
-                      {lead.budgetRange && <span className="font-medium text-emerald-400 mr-2">Budget: {lead.budgetRange}</span>}
-                      {[lead.propertyType, lead.preferredLocation, lead.requirement].filter(Boolean).join(" · ") || "No additional requirement notes."}
+                    {/* Key Buying Intent / Requirements */}
+                    {(lead.budgetRange || lead.propertyType || lead.preferredLocation || lead.requirement) && (
+                      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-xs text-muted-foreground space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {lead.budgetRange && (
+                            <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-300">
+                              Budget: {lead.budgetRange}
+                            </span>
+                          )}
+                          {lead.propertyType && (
+                            <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-foreground font-medium">
+                              {lead.propertyType}
+                            </span>
+                          )}
+                          {lead.preferredLocation && (
+                            <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-foreground font-medium">
+                              📍 {lead.preferredLocation}
+                            </span>
+                          )}
+                        </div>
+                        {lead.requirement && (
+                          <p className="text-foreground/90 italic line-clamp-2">“{lead.requirement}”</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Follow-up Strip */}
+                    <div className="rounded-xl border border-white/5 bg-white/[0.015] p-2.5 text-xs flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-muted-foreground">Follow-up:</span>
+                        {followUpStatus ? (
+                          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 font-semibold text-[11px] ${followUpStatus.tone}`}>
+                            <Clock3 size={11} />
+                            {followUpStatus.label}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/70">None scheduled</span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1">
+                        {lead.nextFollowUpAt ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => { setFollowUpScheduleLead(lead); setFollowUpCustomDate(""); }}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-white/10"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void updateCrmLeadFollowUp(lead._id, null, "Follow-up reminder cleared.")}
+                              className="rounded-lg border border-white/10 bg-white/5 px-1.5 py-1 text-[11px] text-muted-foreground hover:text-rose-400 hover:bg-white/10"
+                              title="Clear follow-up"
+                            >
+                              <X size={12} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleQuickFollowUp(lead, "today_5pm")}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] hover:border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                            >
+                              Today 5 PM
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleQuickFollowUp(lead, "tomorrow_11am")}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-300"
+                            >
+                              Tomorrow 11 AM
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleQuickFollowUp(lead, "in_2d")}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-300"
+                            >
+                              In 2 Days
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setFollowUpScheduleLead(lead); setFollowUpCustomDate(""); }}
+                              className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-sky-400 hover:bg-white/10"
+                            >
+                              Custom 📅
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Stage & Contact Actions */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-3">
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-muted-foreground">Stage:</label>
+                    {/* Primary 1-Tap Action Bar (44px+ min touch targets for phone) */}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 pt-1">
+                      {/* Direct Phone Call Button */}
+                      <a
+                        href={telUrl}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold text-xs shadow-md shadow-emerald-950/40 active:scale-[0.98] transition"
+                      >
+                        <Phone size={15} /> Call Now
+                      </a>
+
+                      {/* Direct WhatsApp Button */}
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl bg-[#25D366]/20 border border-[#25D366]/40 hover:bg-[#25D366]/30 text-emerald-300 font-bold text-xs active:scale-[0.98] transition"
+                      >
+                        <MessageCircle size={16} /> WhatsApp
+                      </a>
+
+                      {/* Direct Site Visit Scheduler Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVisitScheduleLead(lead);
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          tomorrow.setHours(11, 0, 0, 0);
+                          setVisitScheduleForm({ scheduledAt: tomorrow.toISOString().slice(0, 16), notes: "" });
+                        }}
+                        className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold text-xs active:scale-[0.98] transition"
+                      >
+                        <MapPin size={14} /> Schedule Visit
+                      </button>
+
+                      {/* Activity & History Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => void toggleCrmLeadHistory(lead._id)}
+                        className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold active:scale-[0.98] transition ${
+                          crmExpandedId === lead._id
+                            ? "border-sky-500/50 bg-sky-500/20 text-sky-300"
+                            : "border-white/10 bg-white/5 hover:bg-white/10 text-foreground"
+                        }`}
+                      >
+                        <ClipboardList size={14} />
+                        <span>Activity & Notes</span>
+                        {crmExpandedId === lead._id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    </div>
+
+                    {/* Stage Selector Dropdown Strip */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-white/5">
+                      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                        <label className="text-xs font-semibold text-muted-foreground shrink-0">Pipeline Stage:</label>
                         <select
                           aria-label={`Stage for ${lead.fullName}`}
                           value={lead.status}
                           onChange={(e) => void updateCrmLeadStage(lead._id, e.target.value)}
-                          className="rounded-lg border border-white/15 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground outline-none"
+                          className="w-full max-w-[260px] rounded-xl border border-white/15 bg-background px-3 py-1.5 text-xs font-semibold text-foreground outline-none focus:border-sky-400"
                         >
-                          <option value="NEW">New</option>
-                          <option value="CONTACTED">Contacted</option>
-                          <option value="QUALIFIED">Qualified</option>
-                          <option value="SITE_VISIT_SCHEDULED">Visit Scheduled</option>
-                          <option value="SITE_VISIT_COMPLETED">Visit Completed</option>
-                          <option value="BOOKING_TOKEN">Booking Token Received</option>
-                          <option value="CONVERTED">Converted / Won</option>
-                          <option value="LOST">Lost</option>
+                          <option value="NEW">🆕 New Lead</option>
+                          <option value="CONTACTED">📞 Contacted</option>
+                          <option value="QUALIFIED">🎯 Qualified</option>
+                          <option value="SITE_VISIT_SCHEDULED">🚗 Visit Scheduled</option>
+                          <option value="SITE_VISIT_COMPLETED">✅ Visit Completed</option>
+                          <option value="BOOKING_TOKEN">💰 Booking Token</option>
+                          <option value="CONVERTED">🏆 Converted / Won</option>
+                          <option value="LOST">❌ Lost</option>
                         </select>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`https://wa.me/91${lead.phone}?text=${encodeURIComponent(
-                            `Hello ${lead.fullName}, thank you for your enquiry regarding ${lead.project?.name || "our premier residential developments"} with Truvi. I am reaching out to share site details and answer any questions. When is a good time to speak?`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
-                        >
-                          <MessageCircle size={13} /> WhatsApp
-                        </a>
-                        <a
-                          href={`tel:${lead.phone}`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-white/10 transition"
-                        >
-                          <Phone size={11} /> Call
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => void toggleCrmLeadHistory(lead._id)}
-                          className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs hover:bg-white/5"
-                        >
-                          {crmExpandedId === lead._id ? "Close" : "History / Note"}
-                        </button>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>Assigned to:</span>
+                        <strong className="text-foreground">
+                          {lead.assignedTo?.name ? (lead.assignedTo.name === employee?.name ? "You" : lead.assignedTo.name) : "You"}
+                        </strong>
                       </div>
                     </div>
 
-                    {/* Activity Panel */}
+                    {/* Activity Panel Drawer (Expanded) */}
                     {crmExpandedId === lead._id && (
-                      <div className="border-t border-white/10 pt-3 space-y-3">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity & Call Notes</h4>
-                        {crmActivities.length ? (
-                          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-                            {crmActivities.map((act: any) => (
-                              <div key={act._id} className="rounded-lg border border-white/10 bg-white/[0.015] p-2 text-xs">
-                                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                  <strong>{act.type} · {act.actor || "System"}</strong>
-                                  <span>{fmtDateTime(act.createdAt)}</span>
-                                </div>
-                                <p className="mt-1 text-muted-foreground whitespace-pre-wrap">{act.content}</p>
-                              </div>
+                      <div className="border-t border-white/10 pt-3.5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <ClipboardList size={13} className="text-sky-400" />
+                            Activity Timeline & Notes
+                          </h4>
+                          <span className="text-[11px] text-muted-foreground">{crmActivities.length} logs recorded</span>
+                        </div>
+
+                        {/* 1-Tap Quick Action Log Buttons for Telecallers */}
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] font-semibold text-muted-foreground">1-Tap Quick Log Preset:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { type: "CALL" as const, label: "📵 Not Reachable" },
+                              { type: "CALL" as const, label: "🔄 Callback Requested" },
+                              { type: "WHATSAPP" as const, label: "📄 Brochure Shared on WA" },
+                              { type: "NOTE" as const, label: "🚗 Visit Confirmed" },
+                              { type: "NOTE" as const, label: "💰 Price Negotiation" },
+                              { type: "NOTE" as const, label: "❌ Budget Mismatch" },
+                            ].map((preset) => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => void logPresetActivity(lead._id, preset.type, preset.label)}
+                                className="rounded-lg border border-white/10 bg-white/5 hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-300 px-2.5 py-1 text-[11px] font-medium text-muted-foreground active:scale-95 transition"
+                              >
+                                {preset.label}
+                              </button>
                             ))}
                           </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No notes logged yet.</p>
-                        )}
-                        <div className="flex gap-2">
+                        </div>
+
+                        {/* Custom Note Logger */}
+                        <div className="flex flex-wrap gap-2 pt-1">
                           <select
                             value={crmActType}
                             onChange={(e) => setCrmActType(e.target.value as any)}
-                            className="rounded-lg border border-white/10 bg-background px-2 text-xs"
+                            className="rounded-xl border border-white/15 bg-background px-2.5 py-2 text-xs font-medium text-foreground outline-none shrink-0"
                           >
-                            <option value="CALL">Call</option>
-                            <option value="WHATSAPP">WhatsApp</option>
-                            <option value="NOTE">Note</option>
+                            <option value="CALL">📞 Call</option>
+                            <option value="WHATSAPP">💬 WhatsApp</option>
+                            <option value="NOTE">📝 Note</option>
                           </select>
                           <input
                             value={crmNote}
                             onChange={(e) => setCrmNote(e.target.value)}
-                            className="flex-1 rounded-lg border border-white/10 bg-background px-3 py-1.5 text-xs outline-none focus:border-sky-400"
+                            onKeyDown={(e) => { if (e.key === "Enter") void logCrmActivity(lead._id); }}
+                            className="flex-1 min-w-[200px] rounded-xl border border-white/15 bg-background px-3 py-2 text-xs outline-none focus:border-sky-400"
                             placeholder="Add call outcome or conversation note…"
                           />
                           <button
                             type="button"
                             onClick={() => void logCrmActivity(lead._id)}
-                            className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-500"
+                            className="rounded-xl bg-sky-600 hover:bg-sky-500 px-4 py-2 text-xs font-bold text-white shadow-sm active:scale-95 transition shrink-0"
                           >
                             Save Note
                           </button>
                         </div>
+
+                        {/* Activity History Feed */}
+                        {crmActivities.length ? (
+                          <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                            {crmActivities.map((act: any) => (
+                              <div key={act._id} className="rounded-xl border border-white/5 bg-white/[0.025] p-2.5 text-xs space-y-1">
+                                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                  <strong className="text-foreground">
+                                    {act.type === "CALL" ? "📞 Call" : act.type === "WHATSAPP" ? "💬 WhatsApp" : act.type === "FOLLOW_UP" ? "⏰ Follow-up" : act.type === "STATUS" ? "🔄 Status" : "📝 Note"}
+                                    {act.actor ? ` · ${act.actor}` : ""}
+                                  </strong>
+                                  <span>{fmtDateTime(act.createdAt)}</span>
+                                </div>
+                                <p className="text-muted-foreground whitespace-pre-wrap">{act.content}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="py-2 text-center text-xs text-muted-foreground">No notes logged yet.</p>
+                        )}
                       </div>
                     )}
                   </article>
-                ))}
-              </div>
+                );
+              })
             )}
-          </Panel>
+          </div>
+
+          {/* Modal: Add New Buyer Lead (Mobile Bottom Sheet / Desktop Modal) */}
+          {showAddLeadModal && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+              <div className="w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-white/15 bg-slate-900/95 p-5 sm:p-6 text-foreground shadow-2xl max-h-[92vh] overflow-y-auto space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <Plus size={16} className="text-sky-400" />
+                      Add Buyer Lead
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Quickly record a walk-in, call enquiry, or direct buyer.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddLeadModal(false)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={submitCreateBuyerLead} className="space-y-3.5">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Buyer Full Name *</span>
+                      <input
+                        required
+                        value={newLeadForm.fullName}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, fullName: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                        placeholder="e.g. Rahul Sharma"
+                      />
+                    </label>
+
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Phone Number *</span>
+                      <input
+                        required
+                        type="tel"
+                        value={newLeadForm.phone}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, phone: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                        placeholder="10-digit mobile number"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Interested Project / Site</span>
+                      <select
+                        value={newLeadForm.projectId}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, projectId: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                      >
+                        <option value="">General Requirement (Not project specific)</option>
+                        {projects.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.name} {p.city ? `(${p.city})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Enquiry Source</span>
+                      <select
+                        value={newLeadForm.source}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, source: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                      >
+                        <option value="TELECALLER">Telecalling</option>
+                        <option value="WHATSAPP">WhatsApp</option>
+                        <option value="CUSTOMER_REFERRAL">Customer Referral</option>
+                        <option value="WEBSITE">Website Enquiry</option>
+                        <option value="OTHER">Other / Walk-in</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {/* Budget & Property Type */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Budget Range</span>
+                      <input
+                        value={newLeadForm.budgetRange}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, budgetRange: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                        placeholder="e.g. ₹1.5 - 2 Cr"
+                      />
+                    </label>
+
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Property Type</span>
+                      <select
+                        value={newLeadForm.propertyType}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, propertyType: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                      >
+                        <option value="">Select Property Type</option>
+                        <option value="1 BHK">1 BHK</option>
+                        <option value="2 BHK">2 BHK</option>
+                        <option value="3 BHK">3 BHK</option>
+                        <option value="4 BHK">4 BHK</option>
+                        <option value="Penthouse">Penthouse</option>
+                        <option value="Luxury Villa">Luxury Villa</option>
+                        <option value="Commercial Space">Commercial Space</option>
+                        <option value="Residential Plot">Residential Plot</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Email (Optional)</span>
+                      <input
+                        type="email"
+                        value={newLeadForm.email}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, email: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                        placeholder="buyer@example.com"
+                      />
+                    </label>
+
+                    <label className="block space-y-1 text-xs">
+                      <span className="font-semibold text-muted-foreground">Preferred Location</span>
+                      <input
+                        value={newLeadForm.preferredLocation}
+                        onChange={(e) => setNewLeadForm((s) => ({ ...s, preferredLocation: e.target.value }))}
+                        className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                        placeholder="e.g. Golf Course Extn, Sector 65"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="block space-y-1 text-xs">
+                    <span className="font-semibold text-muted-foreground">Buyer Requirement Notes</span>
+                    <textarea
+                      rows={2}
+                      value={newLeadForm.requirement}
+                      onChange={(e) => setNewLeadForm((s) => ({ ...s, requirement: e.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-background px-3 py-2 text-xs outline-none focus:border-sky-400"
+                      placeholder="Any specific preferences, timeline, family requirements…"
+                    />
+                  </label>
+
+                  <label className="block space-y-1 text-xs">
+                    <span className="font-semibold text-muted-foreground">Initial Follow-up Date/Time (Optional)</span>
+                    <input
+                      type="datetime-local"
+                      value={newLeadForm.nextFollowUpAt}
+                      onChange={(e) => setNewLeadForm((s) => ({ ...s, nextFollowUpAt: e.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddLeadModal(false)}
+                      className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={addLeadBusy}
+                      className="rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-md disabled:opacity-50"
+                    >
+                      {addLeadBusy ? "Saving Lead…" : "Save Buyer Lead"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Schedule Site Visit (Mobile Optimized) */}
+          {visitScheduleLead && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+              <div className="w-full max-w-md rounded-t-3xl sm:rounded-2xl border border-white/15 bg-slate-900/95 p-5 sm:p-6 text-foreground shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <MapPin size={16} className="text-sky-400" />
+                      Schedule Site Visit
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      For {visitScheduleLead.fullName} · {visitScheduleLead.phone}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVisitScheduleLead(null)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveSiteVisit} className="space-y-3.5">
+                  <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3 text-xs text-sky-200">
+                    Project: <strong>{visitScheduleLead.project?.name || "Premier Residential Site"}</strong>
+                  </div>
+
+                  <label className="block space-y-1 text-xs">
+                    <span className="font-semibold text-muted-foreground">Visit Date & Time *</span>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={visitScheduleForm.scheduledAt}
+                      onChange={(e) => setVisitScheduleForm((s) => ({ ...s, scheduledAt: e.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                    />
+                  </label>
+
+                  <label className="block space-y-1 text-xs">
+                    <span className="font-semibold text-muted-foreground">Visit Notes / Client Preference</span>
+                    <textarea
+                      rows={3}
+                      value={visitScheduleForm.notes}
+                      onChange={(e) => setVisitScheduleForm((s) => ({ ...s, notes: e.target.value }))}
+                      className="w-full rounded-xl border border-white/15 bg-background px-3 py-2 text-xs outline-none focus:border-sky-400"
+                      placeholder="e.g. Visiting with family on Sunday 11 AM to see 3 BHK sample flat…"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setVisitScheduleLead(null)}
+                      className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={visitScheduleBusy}
+                      className="rounded-xl bg-sky-600 hover:bg-sky-500 px-5 py-2.5 text-xs font-bold text-white shadow-md disabled:opacity-50"
+                    >
+                      {visitScheduleBusy ? "Scheduling…" : "Confirm Site Visit"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Custom Follow-up Reminder */}
+          {followUpScheduleLead && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+              <div className="w-full max-w-md rounded-t-3xl sm:rounded-2xl border border-white/15 bg-slate-900/95 p-5 text-foreground shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold flex items-center gap-2">
+                      <Clock3 size={16} className="text-amber-400" />
+                      Set Follow-up Reminder
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      For {followUpScheduleLead.fullName} · {followUpScheduleLead.phone}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFollowUpScheduleLead(null)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCustomFollowUp} className="space-y-3.5">
+                  <label className="block space-y-1 text-xs">
+                    <span className="font-semibold text-muted-foreground">Next Follow-up Date & Time *</span>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={followUpCustomDate}
+                      onChange={(e) => setFollowUpCustomDate(e.target.value)}
+                      className="w-full rounded-xl border border-white/15 bg-background px-3 py-2.5 text-xs outline-none focus:border-sky-400"
+                    />
+                  </label>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpScheduleLead(null)}
+                      className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={followUpBusy || !followUpCustomDate}
+                      className="rounded-xl bg-amber-600 hover:bg-amber-500 px-5 py-2.5 text-xs font-bold text-white shadow-md disabled:opacity-50"
+                    >
+                      {followUpBusy ? "Saving…" : "Save Follow-up"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>}
 
         {tab==="telecalling" && <div className="space-y-4">

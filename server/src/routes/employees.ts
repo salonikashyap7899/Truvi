@@ -56,8 +56,8 @@ const dateInIndia = (d = new Date()) => {
 const thisMonth = (d = new Date()) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 function employeeLeadScope(permissions: string[] | null | undefined, userId: string) {
   const scopes = [];
-  if (hasPermission(permissions, "lead.read.own")) scopes.push(eq(leads.submittedById, userId));
-  if (hasPermission(permissions, "lead.read.assigned")) scopes.push(eq(leads.assignedToId, userId));
+  if (hasPermission(permissions, "lead.read.own") || !permissions || permissions.length === 0) scopes.push(eq(leads.submittedById, userId));
+  if (hasPermission(permissions, "lead.read.assigned") || !permissions || permissions.length === 0) scopes.push(eq(leads.assignedToId, userId));
   return scopes;
 }
 async function getEmployeeForUser(userId: string) {

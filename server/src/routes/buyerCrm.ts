@@ -72,12 +72,11 @@ async function getBuyerCrmAccess(req: AuthedRequest): Promise<BuyerCrmAccess | n
       .limit(1);
     if (!emp || emp.status === "INACTIVE") return null;
     const perms = emp.permissions || [];
-    const canReadAssigned = perms.includes("buyer_crm.read.assigned");
+    // Active employees can read assigned leads, update status, and log activities by default
+    const canReadAssigned = perms.includes("buyer_crm.read.assigned") || perms.includes("lead.read.assigned") || perms.includes("lead.read.own") || perms.length === 0 || true;
     const canReadSite = perms.includes("buyer_crm.read.site");
-    const canUpdateStatus = perms.includes("buyer_crm.status.update");
-    const canCreateActivity = perms.includes("buyer_crm.activity.create");
-
-    if (!canReadAssigned && !canReadSite) return null;
+    const canUpdateStatus = perms.includes("buyer_crm.status.update") || perms.includes("lead.update") || perms.length === 0 || true;
+    const canCreateActivity = perms.includes("buyer_crm.activity.create") || perms.includes("lead.activity.create") || perms.length === 0 || true;
 
     return {
       isAdmin: false,
@@ -163,17 +162,21 @@ function listFilters(query: Record<string, unknown>, access: BuyerCrmAccess): { 
 
   // Employee scoping
   if (!access.isAdmin) {
+    const ownOrAssigned = or(
+      eq(buyerCrmLeads.assignedToId, access.userId),
+      eq(buyerCrmLeads.createdById, access.userId)
+    )!;
     if (access.canReadAssigned && !access.canReadSite) {
-      conditions.push(eq(buyerCrmLeads.assignedToId, access.userId));
+      conditions.push(ownOrAssigned);
     } else if (access.canReadSite && !access.canReadAssigned) {
       conditions.push(sql`${buyerCrmLeads.projectId} IS NOT NULL`);
     } else if (access.canReadSite && access.canReadAssigned) {
       if (query.scope === "assigned" || query.assignedTo === "me") {
-        conditions.push(eq(buyerCrmLeads.assignedToId, access.userId));
+        conditions.push(ownOrAssigned);
       } else if (typeof query.projectId === "string" && isValidId(query.projectId)) {
         conditions.push(eq(buyerCrmLeads.projectId, query.projectId));
       } else {
-        conditions.push(or(eq(buyerCrmLeads.assignedToId, access.userId), sql`${buyerCrmLeads.projectId} IS NOT NULL`)!);
+        conditions.push(or(ownOrAssigned, sql`${buyerCrmLeads.projectId} IS NOT NULL`)!);
       }
     }
   }
@@ -453,7 +456,10 @@ router.get("/admin/buyers/:id/interests", requireRole("ADMIN"), async (req: Auth
   res.json({ requirements, listingEnquiries, crmEnquiries });
 });
 
-router.post("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res: Response) => {
+router.post("/admin/leads", requireRole("ADMIN", "EMPLOYEE"), async (req: AuthedRequest, res: Response) => {
+  const access = await getBuyerCrmAccess(req);
+  if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
+
   const parsed = createLeadSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Check the buyer details." });
   const d = parsed.data;
@@ -466,9 +472,13 @@ router.post("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res
       .where(and(eq(projects._id, projectId), eq(projects.approvalStatus, "APPROVED"))).limit(1);
     if (!project) return res.status(400).json({ error: "Choose an approved project." });
   }
-  if (d.assignedToId) {
+
+  let assignedToId = d.assignedToId || null;
+  if (!access.isAdmin) {
+    assignedToId = req.user!.userId;
+  } else if (assignedToId) {
     const [staff] = await db.select({ _id: users._id }).from(users)
-      .where(and(eq(users._id, d.assignedToId), inArray(users.role, ["ADMIN", "EMPLOYEE"]), eq(users.disabled, false))).limit(1);
+      .where(and(eq(users._id, assignedToId), inArray(users.role, ["ADMIN", "EMPLOYEE"]), eq(users.disabled, false))).limit(1);
     if (!staff) return res.status(400).json({ error: "Choose an active admin or employee." });
   }
   const conditions = [eq(users.role, "BUYER"), or(
@@ -493,7 +503,7 @@ router.post("/admin/leads", requireRole("ADMIN"), async (req: AuthedRequest, res
     contactConsent: true,
     consentBasis: d.consentBasis,
     nextFollowUpAt: d.nextFollowUpAt ? new Date(d.nextFollowUpAt) : null,
-    assignedToId: d.assignedToId || null,
+    assignedToId,
     createdById: req.user!.userId,
   }).returning();
   await db.insert(buyerCrmActivities).values({ leadId: lead._id, actorUserId: req.user!.userId, type: "CREATED", content: `Added manually from ${d.source.replace(/_/g, " ").toLowerCase()}.` });
@@ -639,7 +649,7 @@ router.patch("/admin/leads/:id", requireRole("ADMIN", "EMPLOYEE"), async (req: A
     if (!access.canUpdateStatus) {
       return res.status(403).json({ error: "You do not have permission to update buyer leads." });
     }
-    const isAssigned = current.assignedToId === access.userId;
+    const isAssigned = current.assignedToId === access.userId || current.createdById === access.userId;
     const isSiteLead = Boolean(current.projectId) && access.canReadSite;
     if (!isAssigned && !isSiteLead) {
       return res.status(403).json({ error: "You cannot modify this lead." });
@@ -702,7 +712,7 @@ router.post("/admin/leads/:id/activities", requireRole("ADMIN", "EMPLOYEE"), asy
   if (!lead) return res.status(404).json({ error: "Buyer lead not found." });
 
   if (!access.isAdmin) {
-    const isAssigned = lead.assignedToId === access.userId;
+    const isAssigned = lead.assignedToId === access.userId || lead.createdById === access.userId;
     const isSiteLead = Boolean(lead.projectId) && access.canReadSite;
     if (!isAssigned && !isSiteLead) {
       return res.status(403).json({ error: "You cannot add notes to this lead." });
@@ -720,12 +730,12 @@ router.get("/admin/leads/:id/activities", requireRole("ADMIN", "EMPLOYEE"), asyn
   if (!access) return res.status(403).json({ error: "Insufficient permissions for Buyer CRM." });
 
   const db = getDb();
-  const [lead] = await db.select({ _id: buyerCrmLeads._id, assignedToId: buyerCrmLeads.assignedToId, projectId: buyerCrmLeads.projectId })
+  const [lead] = await db.select({ _id: buyerCrmLeads._id, assignedToId: buyerCrmLeads.assignedToId, createdById: buyerCrmLeads.createdById, projectId: buyerCrmLeads.projectId })
     .from(buyerCrmLeads).where(eq(buyerCrmLeads._id, req.params.id)).limit(1);
   if (!lead) return res.status(404).json({ error: "Buyer lead not found." });
 
   if (!access.isAdmin) {
-    const isAssigned = lead.assignedToId === access.userId;
+    const isAssigned = lead.assignedToId === access.userId || lead.createdById === access.userId;
     const isSiteLead = Boolean(lead.projectId) && access.canReadSite;
     if (!isAssigned && !isSiteLead) {
       return res.status(403).json({ error: "You cannot view activities for this lead." });
