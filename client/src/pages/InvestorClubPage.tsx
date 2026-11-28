@@ -442,7 +442,7 @@ export default function InvestorClubPage() {
             <button onClick={() => scrollTo("register")} className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#d8bd86]/50 px-5 py-2.5 text-sm font-semibold text-[#e2c58b] transition hover:bg-[#d8bd86]/10">Connect with Truvi <ArrowUpRight size={15} /></button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {benefits.map((benefit, index) => (
+            {benefits.map((benefit) => (
               <div key={benefit} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4 sm:p-5">
                 <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#d8bd86]/10 text-[#e2c58b]"><BadgeCheck size={17} /></span>
                 <span className="pt-1 text-sm leading-6 text-white/75">{benefit}</span>
