@@ -550,8 +550,8 @@ export default function InvestorClubPage() {
       </section>
 
       <section className="relative isolate overflow-hidden bg-[#071321] px-5 py-20 text-white sm:px-8 lg:py-24">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_80%_50%,rgba(216,189,134,0.13),transparent_42%)]" />
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 rounded-3xl border border-white/10 bg-white/[.035] p-7 backdrop-blur-xl sm:p-10 md:flex-row md:items-center">
+        <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_80%_50%,rgba(216,189,134,0.13),transparent_42%)]" />
+        <div className="relative z-10 mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 rounded-3xl border border-white/10 bg-white/[.035] p-7 backdrop-blur-xl sm:p-10 md:flex-row md:items-center">
           <div>
             <Eyebrow light>Start a conversation</Eyebrow>
             <h2 className="mt-4 max-w-3xl font-display text-3xl leading-tight sm:text-4xl">Explore real estate with a clearer perspective.</h2>
