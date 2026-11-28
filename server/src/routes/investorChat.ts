@@ -57,7 +57,8 @@ function hashVisitorToken(token: string): string {
 }
 
 function publicConversation(row: typeof investorConversations.$inferSelect) {
-  const { visitorTokenHash: _neverExpose, ...safe } = row;
+  const safe = { ...row };
+  delete (safe as Partial<typeof safe>).visitorTokenHash;
   return safe;
 }
 
