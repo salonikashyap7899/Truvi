@@ -741,7 +741,7 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
 
 // ------------------------- Employee project listing (separate from Admin OS)
 const employeeProjectCreateSchema = createProjectSchema
-  .omit({ commissionPercent: true, developerId: true })
+  .omit({ commissionPercent: true, developerId: true, salesContact: true, brochureUrl: true, priceListUrl: true })
   .extend({ developerId: z.string().min(1, "Choose a registered developer.") });
 
 async function employeeProjectSubmitter(req: AuthedRequest, res: import("express").Response) {
@@ -834,7 +834,7 @@ router.post("/projects", requireRole("EMPLOYEE"), async (req: AuthedRequest, res
       .limit(1);
     if (!developer) return res.status(400).json({ error: "The selected developer account is not active." });
 
-    const { possessionDate, brochureUrl, priceListUrl, developerId: _developerId, ...projectData } = data;
+    const { possessionDate, developerId: _developerId, ...projectData } = data;
     const [project] = await db.insert(projects).values({
       ...projectData,
       developerId: developer.id,
@@ -842,8 +842,6 @@ router.post("/projects", requireRole("EMPLOYEE"), async (req: AuthedRequest, res
       approvalStatus: "DRAFT",
       commissionPercent: 3,
       possessionDate: possessionDate ? new Date(possessionDate) : null,
-      brochureUrl: brochureUrl || null,
-      priceListUrl: priceListUrl || null,
     }).returning();
     await logAudit({
       userId: req.user!.userId,
