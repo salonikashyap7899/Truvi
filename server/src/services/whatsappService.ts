@@ -38,10 +38,17 @@ const DEFAULT_LANG = process.env.WHATSAPP_DEFAULT_LANG || "en";
 // campaign API sends an approved template you designed in their dashboard.
 const AISENSY_API_URL = process.env.AISENSY_API_URL || "https://backend.aisensy.com/campaign/t1/api/v2";
 const AISENSY_API_KEY = process.env.AISENSY_API_KEY || "";
+const AISENSY_MANUALLY_DISABLED = /^(0|false|no|off)$/i.test(process.env.AISENSY_ENABLED?.trim() || "");
+let aiSensyPlanDisabled = false;
 
-/** True when WhatsApp is wired through AiSensy. */
+/** True when AiSensy is configured and has not been manually/provider-disabled. */
 export function isAiSensyEnabled(): boolean {
-  return Boolean(AISENSY_API_KEY);
+  return Boolean(AISENSY_API_KEY) && !AISENSY_MANUALLY_DISABLED && !aiSensyPlanDisabled;
+}
+
+/** True after AiSensy explicitly reports that its assistant has no active plan. */
+export function isAiSensyPlanDisabled(): boolean {
+  return aiSensyPlanDisabled;
 }
 
 /** Event types that ALSO go to WhatsApp (for developer recipients). Overridable
@@ -226,8 +233,20 @@ export async function sendAiSensyCampaign(
         source: "truvi-app",
       }),
     });
+    const detail = await res.text().catch(() => "");
+    // AiSensy returns this account-level error for every campaign when the
+    // assistant subscription is inactive. Stop sending further requests in
+    // this process (including scheduler retries) and let configured Meta Cloud
+    // API templates take over instead. The state resets only after a process
+    // restart, which gives operators time to reactivate the provider plan.
+    if (/no\s+plan\s+active\s+on\s+assistant/i.test(detail)) {
+      if (!aiSensyPlanDisabled) {
+        aiSensyPlanDisabled = true;
+        console.warn("[aisensy] disabled for this process: AiSensy reports no active plan on the assistant. Activate the AiSensy plan or configure Meta WhatsApp Cloud API to resume WhatsApp delivery.");
+      }
+      return false;
+    }
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
       console.warn(`[aisensy] send failed ${res.status}: ${detail.slice(0, 300)}`);
       return false;
     }
@@ -267,7 +286,16 @@ export async function sendWhatsAppCampaign(
         console.warn(`[aisensy] no campaign configured for key ${K} (set AISENSY_CAMPAIGN_${K} in .env)`);
         return false;
       }
-      return await sendAiSensyCampaign(phone, campaign, name, name ? [name] : []);
+      const sent = await sendAiSensyCampaign(phone, campaign, name, name ? [name] : []);
+      if (sent) return true;
+      // Only fall back when AiSensy has explicitly confirmed its plan is
+      // inactive. Other failures may be transient and are not blindly retried
+      // through a second provider.
+      if (isAiSensyPlanDisabled() && isWhatsAppEnabled()) {
+        const metaTemplate = process.env[`WHATSAPP_TPL_${K}`];
+        if (metaTemplate) return await sendWhatsAppTemplate(phone ?? "", metaTemplate, name ? [name] : []);
+      }
+      return false;
     }
     if (isWhatsAppEnabled()) {
       const template = process.env[`WHATSAPP_TPL_${K}`];
