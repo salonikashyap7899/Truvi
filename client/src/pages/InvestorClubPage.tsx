@@ -78,7 +78,7 @@ function scrollTo(id: string) {
 }
 
 function Eyebrow({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
-  return <p className={`text-[11px] font-semibold uppercase tracking-[.24em] ${light ? "text-[#e2c58b]" : "text-[#92713d]"}`}>{children}</p>;
+  return <p className={`text-[11px] font-semibold uppercase tracking-[.24em] ${light ? "text-[#60a5fa]" : "text-[#2563eb]"}`}>{children}</p>;
 }
 
 function SectionHeading({ eyebrow, title, copy, light = false }: { eyebrow: string; title: string; copy?: string; light?: boolean }) {
@@ -197,7 +197,7 @@ export default function InvestorClubPage() {
       ["og:title", "TRUVI Investor Club | Structured Real Estate Investment Opportunities"],
       ["og:description", description],
       ["og:url", "https://truviventures.com/investor-club"],
-      ["og:image", "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2000&q=90"],
+      ["og:image", "https://truviventures.com/images/truvi-projects-dark-bg.jpg"],
     ];
     openGraph.forEach(([key, value]) => {
       let tag = document.querySelector<HTMLMetaElement>(`meta[property="${key}"]`);
@@ -217,35 +217,35 @@ export default function InvestorClubPage() {
 
   return (
     <main className="investor-club-page min-h-screen overflow-hidden bg-[#071321] text-white">
-      <section className="relative isolate min-h-[760px] overflow-hidden bg-[#071321] lg:min-h-[calc(100svh-5.5rem)]">
+      <section className="relative isolate min-h-[700px] overflow-hidden bg-[#071321] lg:min-h-[calc(100svh-5.5rem)]">
         <img
-          src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=2400&q=90"
+          src="/images/truvi-projects-dark-bg.jpg"
           alt="Modern commercial skyline at dusk"
           fetchPriority="high"
           className="absolute inset-0 z-0 h-full w-full object-cover object-center"
         />
-        <div className="absolute inset-0 z-10 bg-gradient-to-b from-[#071321]/55 via-[#071321]/65 to-[#071321]" />
-        <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#071321]/70 via-transparent to-[#071321]/55" />
-        <div className="absolute inset-0 z-10 opacity-30 [background-image:radial-gradient(circle_at_50%_38%,rgba(205,174,111,0.22),transparent_38%)]" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-b from-[#071321]/35 via-[#071321]/50 to-[#071321]/90" />
+        <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#071321]/55 via-[#071321]/25 to-[#071321]/55" />
+        <div className="absolute inset-0 z-10 opacity-30 [background-image:radial-gradient(circle_at_50%_38%,rgba(59,130,246,0.22),transparent_38%)]" />
 
-        <div className="relative z-20 flex min-h-[760px] items-center lg:min-h-[calc(100svh-5.5rem)]">
-          <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-20 text-center sm:px-8 sm:py-24 lg:py-28">
+        <div className="relative z-20 flex min-h-[700px] items-center lg:min-h-[calc(100svh-5.5rem)]">
+          <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-14 text-center sm:px-8 sm:py-16 lg:py-20">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }} className="flex max-w-4xl flex-col items-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#e2c58b]/35 bg-[#d8bd86]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#f1dfb9] backdrop-blur-md sm:text-xs">
-                <Sparkles size={13} className="text-[#e2c58b]" /> Real estate intelligence · Investor information
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#60a5fa]/35 bg-[#3b82f6]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#dbeafe] backdrop-blur-md sm:text-xs">
+                <Sparkles size={13} className="text-[#60a5fa]" /> Real estate intelligence · Investor information
               </span>
               <h1 className="mt-7 max-w-5xl font-display text-5xl font-medium leading-[1.04] tracking-[-.045em] text-white sm:text-6xl md:text-7xl lg:text-[84px]">
-                Capital meets <span className="block italic text-[#e2c58b]">real estate.</span>
+                Capital meets <span className="block italic text-[#60a5fa]">real estate.</span>
                 <span className="mt-1 block text-white/95">Opportunity meets insight.</span>
               </h1>
               <p className="mt-7 max-w-2xl text-sm leading-7 text-white/75 sm:text-base sm:leading-8">
                 A considered real-estate investment network connecting interested investors, strategic land opportunities and experienced development partners through project-level information.
               </p>
               <div className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
-                <button onClick={() => scrollTo("projects")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#d8bd86] px-7 py-3 text-sm font-semibold text-[#142235] shadow-xl shadow-[#d8bd86]/15 transition hover:-translate-y-0.5 hover:bg-[#ead5a9]">
+                <button onClick={() => scrollTo("projects")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-[#142235] shadow-xl shadow-[#3b82f6]/15 transition hover:-translate-y-0.5 hover:bg-[#93c5fd]">
                   Explore projects <ArrowUpRight size={16} />
                 </button>
-                <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 bg-white/[.06] px-7 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:border-[#e2c58b]/60 hover:bg-white/10">
+                <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 bg-white/[.06] px-7 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:border-[#60a5fa]/60 hover:bg-white/10">
                   Register your interest <ArrowRight size={16} />
                 </button>
               </div>
@@ -260,7 +260,7 @@ export default function InvestorClubPage() {
                 const Icon = item.icon;
                 return (
                   <div key={item.title} className="flex items-start gap-3 rounded-2xl border border-white/15 bg-[#071321]/55 p-4 backdrop-blur-lg sm:p-5">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#e2c58b]/25 bg-[#d8bd86]/10 text-[#e2c58b]"><Icon size={19} /></span>
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#60a5fa]/25 bg-[#3b82f6]/10 text-[#60a5fa]"><Icon size={19} /></span>
                     <span><span className="block text-sm font-semibold text-white">{item.title}</span><span className="mt-1 block text-xs leading-5 text-white/60">{item.copy}</span></span>
                   </div>
                 );
@@ -269,29 +269,29 @@ export default function InvestorClubPage() {
           </div>
         </div>
 
-        <button onClick={() => scrollTo("about")} className="absolute bottom-5 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-2 text-[9px] font-semibold uppercase tracking-[.25em] text-white/55 transition hover:text-[#e2c58b] md:flex">
+        <button onClick={() => scrollTo("about")} className="absolute bottom-5 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-2 text-[9px] font-semibold uppercase tracking-[.25em] text-white/55 transition hover:text-[#60a5fa] md:flex">
           Scroll to explore <span className="grid size-8 place-items-center rounded-full border border-white/20"><ArrowDown size={14} /></span>
         </button>
       </section>
 
-      <section id="about" className="scroll-mt-24 bg-[#f3f1eb] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section id="about" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[.94fr_1.06fr] lg:gap-20">
           <div>
             <Eyebrow>The ecosystem</Eyebrow>
-            <h2 className="mt-4 max-w-xl font-display text-4xl font-medium leading-[1.1] tracking-[-.035em] sm:text-5xl">A clearer view of <span className="italic text-[#92713d]">real-estate opportunity.</span></h2>
+            <h2 className="mt-4 max-w-xl font-display text-4xl font-medium leading-[1.1] tracking-[-.035em] sm:text-5xl">A clearer view of <span className="italic text-[#2563eb]">real-estate opportunity.</span></h2>
             <p className="mt-6 max-w-xl text-sm leading-7 text-slate-600 sm:text-base sm:leading-8">
               Truvi connects investor interest with landowners, strategic land opportunities and development capabilities. The objective is to create a clearer process for evaluating projects and understanding project-level participation.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               {["Investors", "Landowners", "Strategic land opportunities", "Grade A developers", "Grade B developers", "Emerging developers", "Project-level structures"].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-xl border border-[#d9d5ca] bg-white/70 px-4 py-3 text-sm font-medium text-[#27384c]">
-                  <CheckCircle2 size={16} className="shrink-0 text-[#a17e42]" /> {item}
+                <div key={item} className="flex items-center gap-3 rounded-xl border border-[#dbe4f0] bg-white/70 px-4 py-3 text-sm font-medium text-[#27384c]">
+                  <CheckCircle2 size={16} className="shrink-0 text-[#2563eb]" /> {item}
                 </div>
               ))}
             </div>
           </div>
           <div className="relative mx-auto w-full max-w-2xl">
-            <div className="absolute -inset-4 rounded-[2rem] border border-[#c7b58d]/50" />
+            <div className="absolute -inset-4 rounded-[2rem] border border-[#60a5fa]/50" />
             <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=90" alt="Contemporary residential development" loading="lazy" className="relative h-[420px] w-full rounded-[1.5rem] object-cover shadow-2xl shadow-slate-900/15 sm:h-[520px]" />
             <div className="absolute -bottom-6 left-4 right-4 rounded-2xl border border-white/15 bg-[#0b1725]/95 p-5 text-white shadow-2xl backdrop-blur-xl sm:left-8 sm:right-8 sm:p-6">
               <Eyebrow light>Truvi approach</Eyebrow>
@@ -311,14 +311,14 @@ export default function InvestorClubPage() {
             {lifecycle.map((step, index) => {
               const Icon = step.icon;
               return (
-                <motion.article key={step.n} initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.4, delay: index * 0.04 }} className="group rounded-2xl border border-white/10 bg-white/[.035] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#d8bd86]/35 hover:bg-white/[.06] sm:p-7">
+                <motion.article key={step.n} initial={{ opacity: 0, y: 14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.4, delay: index * 0.04 }} className="group rounded-2xl border border-white/10 bg-white/[.035] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#3b82f6]/35 hover:bg-white/[.06] sm:p-7">
                   <div className="flex items-center justify-between">
-                    <span className="font-display text-4xl text-[#d8bd86]">{step.n}</span>
-                    <span className="grid size-11 place-items-center rounded-xl border border-[#d8bd86]/25 bg-[#d8bd86]/10 text-[#e2c58b]"><Icon size={20} /></span>
+                    <span className="font-display text-4xl text-[#3b82f6]">{step.n}</span>
+                    <span className="grid size-11 place-items-center rounded-xl border border-[#3b82f6]/25 bg-[#3b82f6]/10 text-[#60a5fa]"><Icon size={20} /></span>
                   </div>
                   <h3 className="mt-7 text-lg font-semibold text-white">{step.title}</h3>
                   <p className="mt-3 text-sm leading-6 text-white/60">{step.copy}</p>
-                  <div className="mt-6 h-px w-10 bg-[#d8bd86]/60 transition-all duration-300 group-hover:w-16" />
+                  <div className="mt-6 h-px w-10 bg-[#3b82f6]/60 transition-all duration-300 group-hover:w-16" />
                 </motion.article>
               );
             })}
@@ -326,7 +326,7 @@ export default function InvestorClubPage() {
         </div>
       </section>
 
-      <section id="developers" className="scroll-mt-24 bg-[#f3f1eb] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section id="developers" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <SectionHeading eyebrow="Development network" title="The people behind the project." copy="Categories describe partner profiles Truvi may assess; they are not a list of appointed or verified partners." />
@@ -334,7 +334,7 @@ export default function InvestorClubPage() {
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
             {developerTypes.map((item, index) => (
-              <motion.article key={item.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.4, delay: index * 0.06 }} className="group overflow-hidden rounded-2xl border border-[#dedbd3] bg-white shadow-[0_18px_55px_-38px_rgba(19,34,53,.35)]">
+              <motion.article key={item.title} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.4, delay: index * 0.06 }} className="group overflow-hidden rounded-2xl border border-[#dbe4f0] bg-white shadow-[0_18px_55px_-38px_rgba(19,34,53,.35)]">
                 <div className="relative h-60 overflow-hidden">
                   <img src={item.image} alt={item.title + " real-estate development"} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#071321]/80 via-transparent to-transparent" />
@@ -357,8 +357,8 @@ export default function InvestorClubPage() {
             {capabilities.map((item) => {
               const Icon = item.icon;
               return (
-                <article key={item.title} className="rounded-2xl border border-white/10 bg-white/[.035] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#d8bd86]/35 hover:bg-white/[.06]">
-                  <span className="grid size-11 place-items-center rounded-xl border border-[#d8bd86]/25 bg-[#d8bd86]/10 text-[#e2c58b]"><Icon size={21} /></span>
+                <article key={item.title} className="rounded-2xl border border-white/10 bg-white/[.035] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#3b82f6]/35 hover:bg-white/[.06]">
+                  <span className="grid size-11 place-items-center rounded-xl border border-[#3b82f6]/25 bg-[#3b82f6]/10 text-[#60a5fa]"><Icon size={21} /></span>
                   <h3 className="mt-5 text-base font-semibold text-white">{item.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-white/60">{item.copy}</p>
                 </article>
@@ -368,13 +368,13 @@ export default function InvestorClubPage() {
         </div>
       </section>
 
-      <section className="bg-[#e9e8e3] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section className="bg-[#eff6ff] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto max-w-7xl">
           <SectionHeading eyebrow="Investment philosophy" title="Look beyond the land. Understand the whole project." copy="Weighing multiple dimensions helps distinguish a compelling narrative from a compelling project." />
           <div className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {pillars.map((pillar) => (
-              <article key={pillar.n} className="rounded-2xl border border-[#d2d0c8] bg-white/65 p-6 sm:p-7">
-                <span className="font-display text-4xl text-[#987842]">{pillar.n}</span>
+              <article key={pillar.n} className="rounded-2xl border border-[#cbd5e1] bg-white/65 p-6 sm:p-7">
+                <span className="font-display text-4xl text-[#2563eb]">{pillar.n}</span>
                 <h3 className="mt-6 text-lg font-semibold text-[#142235]">{pillar.title}</h3>
                 <p className="mt-3 text-sm leading-6 text-slate-600">{pillar.copy}</p>
               </article>
@@ -387,12 +387,12 @@ export default function InvestorClubPage() {
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[.85fr_1.15fr] lg:items-center">
           <div>
             <SectionHeading eyebrow="Investor experience" title="Visibility, context and informed conversations." copy="Potential benefits depend on the relevant project's final legal structure, eligibility requirements, agreements and disclosures." light />
-            <button onClick={() => scrollTo("register")} className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#d8bd86]/50 px-5 py-2.5 text-sm font-semibold text-[#e2c58b] transition hover:bg-[#d8bd86]/10">Connect with Truvi <ArrowUpRight size={15} /></button>
+            <button onClick={() => scrollTo("register")} className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#3b82f6]/50 px-5 py-2.5 text-sm font-semibold text-[#60a5fa] transition hover:bg-[#3b82f6]/10">Connect with Truvi <ArrowUpRight size={15} /></button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {benefits.map((benefit) => (
               <div key={benefit} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[.035] p-4 sm:p-5">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#d8bd86]/10 text-[#e2c58b]"><BadgeCheck size={17} /></span>
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#3b82f6]/10 text-[#60a5fa]"><BadgeCheck size={17} /></span>
                 <span className="pt-1 text-sm leading-6 text-white/75">{benefit}</span>
               </div>
             ))}
@@ -414,17 +414,17 @@ export default function InvestorClubPage() {
             </div>
           ) : projects.length === 0 ? (
             <div className="mt-12 rounded-3xl border border-white/10 bg-white/[.035] px-6 py-16 text-center">
-              <Building2 size={34} className="mx-auto text-[#e2c58b]" />
+              <Building2 size={34} className="mx-auto text-[#60a5fa]" />
               <h3 className="mt-4 font-display text-2xl">Projects are being curated.</h3>
               <p className="mt-2 text-sm text-white/55">There are no approved public projects to display right now.</p>
             </div>
           ) : (
             <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {projects.map((project) => (
-                <article key={project._id} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#10243a] shadow-xl shadow-black/10 transition hover:-translate-y-1 hover:border-[#d8bd86]/35">
+                <article key={project._id} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#10243a] shadow-xl shadow-black/10 transition hover:-translate-y-1 hover:border-[#3b82f6]/35">
                   <div className="relative h-56 overflow-hidden bg-slate-800">
                     {project.coverImageUrl ? <img src={project.coverImageUrl} alt={project.name} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" /> : <div className="grid h-full place-items-center text-white/30"><Building2 size={40} /></div>}
-                    <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-[#071321]/75 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.15em] text-[#e2c58b] backdrop-blur">{project.projectType || "Real estate"}</span>
+                    <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-[#071321]/75 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.15em] text-[#60a5fa] backdrop-blur">{project.projectType || "Real estate"}</span>
                   </div>
                   <div className="p-6">
                     <h3 className="font-display text-2xl">{project.name}</h3>
@@ -432,7 +432,7 @@ export default function InvestorClubPage() {
                     <p className="mt-4 text-xs text-white/50">Development partner: {project.developer || "Not disclosed"}</p>
                     <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
                       <span className="text-xs text-white/55">{project.availabilityStatus === "SOLD_OUT" ? "Sold out" : "Project listing"}</span>
-                      <Link to={"/projects/" + project._id} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#e2c58b] transition hover:text-white">View project <ArrowUpRight size={14} /></Link>
+                      <Link to={"/projects/" + project._id} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#60a5fa] transition hover:text-white">View project <ArrowUpRight size={14} /></Link>
                     </div>
                   </div>
                 </article>
@@ -443,14 +443,14 @@ export default function InvestorClubPage() {
         </div>
       </section>
 
-      <section className="bg-[#f3f1eb] px-5 py-20 text-[#142235] sm:px-8 lg:py-24">
+      <section className="bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-24">
         <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-2">
           <div className="rounded-3xl bg-[#0b1725] p-8 text-white sm:p-10">
             <Eyebrow light>Founder & leadership</Eyebrow>
             <h2 className="mt-5 max-w-lg font-display text-3xl leading-tight sm:text-4xl">Driven by vision. Built on real-estate intelligence.</h2>
             <p className="mt-5 max-w-xl text-sm leading-7 text-white/65">Truvi's vision is to bring structure, visibility and thoughtful diligence to real-estate opportunities and project partnerships.</p>
           </div>
-          <div className="rounded-3xl border border-[#dedbd3] bg-white p-8 sm:p-10">
+          <div className="rounded-3xl border border-[#dbe4f0] bg-white p-8 sm:p-10">
             <Eyebrow>Leadership</Eyebrow>
             <h3 className="mt-4 font-display text-2xl text-[#142235]">Leadership information</h3>
             <p className="mt-4 text-sm leading-7 text-slate-600">Founder name, photograph, biography and professional credentials will be published here only after the company verifies the final approved profile. No unverified credentials or achievements are displayed.</p>
@@ -462,14 +462,14 @@ export default function InvestorClubPage() {
         <div className="mx-auto grid max-w-7xl items-start gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16">
           <div className="lg:sticky lg:top-28">
             <SectionHeading eyebrow="Investor registration" title="Begin a conversation with Truvi." copy="Register your interest to receive information about our real-estate ecosystem, upcoming opportunities and investor network." light />
-            <div className="mt-8 rounded-2xl border border-[#d8bd86]/25 bg-[#d8bd86]/[.07] p-5">
-              <p className="text-sm font-semibold text-[#e2c58b]">Expression of interest only</p>
+            <div className="mt-8 rounded-2xl border border-[#3b82f6]/25 bg-[#3b82f6]/[.07] p-5">
+              <p className="text-sm font-semibold text-[#60a5fa]">Expression of interest only</p>
               <p className="mt-2 text-xs leading-6 text-white/60">The form does not collect money, create an investment commitment or begin KYC onboarding.</p>
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-[#f8f9fb] p-5 text-[#142235] shadow-2xl shadow-black/20 sm:p-8 lg:p-10">
             <div className="mb-7">
-              <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#92713d]">Truvi Investor Club</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#2563eb]">Truvi Investor Club</span>
               <h3 className="mt-2 font-display text-2xl text-[#142235] sm:text-3xl">Register your interest</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">Share a few details and our team can follow up with relevant information.</p>
             </div>
@@ -478,16 +478,16 @@ export default function InvestorClubPage() {
         </div>
       </section>
 
-      <section id="faqs" className="scroll-mt-24 bg-[#f3f1eb] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section id="faqs" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.72fr_1.28fr] lg:gap-20">
           <SectionHeading eyebrow="FAQs" title="Questions before you connect." copy="General information about the model. Definitive project documents and applicable legal advice take precedence." />
-          <div className="rounded-2xl border border-[#dedbd3] bg-white px-5 sm:px-7">
+          <div className="rounded-2xl border border-[#dbe4f0] bg-white px-5 sm:px-7">
             {faqs.map((item, index) => (
               <div key={item.q} className="border-b border-slate-200 last:border-b-0">
                 <h3>
                   <button aria-expanded={expandedFaq === index} aria-controls={"investor-faq-" + index} onClick={() => setExpandedFaq((current) => current === index ? null : index)} className="flex w-full items-center justify-between gap-4 py-5 text-left text-sm font-semibold text-[#142235] sm:text-base">
                     <span>{item.q}</span>
-                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#f1eee7] text-[#92713d]"><ChevronDown size={16} className={"transition-transform " + (expandedFaq === index ? "rotate-180" : "")} /></span>
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eff6ff] text-[#2563eb]"><ChevronDown size={16} className={"transition-transform " + (expandedFaq === index ? "rotate-180" : "")} /></span>
                   </button>
                 </h3>
                 {expandedFaq === index && <div id={"investor-faq-" + index} className="max-w-2xl pb-5 pr-8 text-sm leading-7 text-slate-600">{item.a}</div>}
@@ -505,7 +505,7 @@ export default function InvestorClubPage() {
             <h2 className="mt-4 max-w-3xl font-display text-3xl leading-tight sm:text-4xl">Explore real estate with a clearer perspective.</h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60">Connect with Truvi Investor Club and discover a more structured approach to real-estate opportunities.</p>
           </div>
-          <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#d8bd86] px-7 py-3 text-sm font-semibold text-[#142235] transition hover:bg-[#ead5a9]">Register your interest <ArrowRight size={16} /></button>
+          <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-[#142235] transition hover:bg-[#93c5fd]">Register your interest <ArrowRight size={16} /></button>
         </div>
       </section>
 
