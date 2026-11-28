@@ -1345,3 +1345,10 @@ html {
   color: #075985 !important;
 }
 
+
+/* Investor Club keeps its own deep-navy canvas instead of inheriting the
+   translucent dark overlay applied to generic full-screen app pages. */
+.investor-club-page.min-h-screen,
+:root[data-theme="light"] .investor-club-page.min-h-screen {
+  background-color: #050b14 !important;
+}
