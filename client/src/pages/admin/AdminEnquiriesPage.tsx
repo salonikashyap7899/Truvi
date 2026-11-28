@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useSocketEvent } from "@/lib/socket";
-import { User, Building2, Handshake, Search, FileText, Download } from "lucide-react";
+import { User, Building2, Handshake, Search, FileText, Download, MessageCircle, PhoneCall } from "lucide-react";
 
 type Purpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
+type EnquiryFilter = Purpose | "ALL" | "INVESTOR";
 
 interface Enquiry {
   _id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   name: string;
   purposeType: Purpose;
   message?: string;
@@ -24,6 +26,18 @@ const PURPOSE_META: Record<Purpose, { label: string; icon: React.ReactNode; vari
   CP: { label: "Channel Partner", icon: <Handshake size={13} />, variant: "success", color: "text-emerald-300 bg-emerald-900/30 border-emerald-700/50" },
   GUEST: { label: "Guest", icon: <Search size={13} />, variant: "default", color: "text-muted-foreground bg-white/5 border-white/15" },
 };
+
+function isInvestorConversation(enquiry: Enquiry) {
+  return Boolean(enquiry.message?.includes("[TRUVI INVESTOR CLUB — EXPRESSION OF INTEREST]"));
+}
+
+function investorWhatsAppLink(enquiry: Enquiry) {
+  const digits = (enquiry.phone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const phone = digits.length === 10 ? "91" + digits : digits;
+  const text = "Hello " + enquiry.name + ", thank you for contacting Truvi about " + (enquiry.projectName || "real-estate investment") + ". I am following up on your investor conversation request.";
+  return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+}
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
