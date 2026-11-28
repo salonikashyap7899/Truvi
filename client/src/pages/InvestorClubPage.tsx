@@ -296,7 +296,45 @@ export default function InvestorClubPage() {
         </button>
       </section>
 
-      <section id="about" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section id="register" className="scroll-mt-24 bg-[#0b1725] px-5 py-20 text-white sm:px-8 lg:py-28">
+        <div className="mx-auto grid max-w-7xl items-start gap-10 lg:grid-cols-[.78fr_1.22fr] lg:gap-16">
+          <div className="lg:sticky lg:top-28">
+            <Eyebrow light>Private investor conversation</Eyebrow>
+            <h2 className="mt-4 max-w-xl font-display text-4xl font-medium leading-[1.08] tracking-[-.035em] sm:text-5xl">Come with your questions. Talk through the opportunity.</h2>
+            <p className="mt-6 max-w-xl text-sm leading-7 text-white/65 sm:text-base">Tell us what you are considering. The Truvi team receives your request, reviews the project or investment topic you selected, and follows up so you can discuss it directly with the owner.</p>
+            <div className="mt-8 space-y-4">
+              {[
+                { n: "01", title: "Tell us what you have in mind", copy: "Choose a project or describe the investment you want to explore." },
+                { n: "02", title: "Truvi reviews your request", copy: "Your details go to the private Investor Enquiry inbox for owner/team follow-up." },
+                { n: "03", title: "Continue the conversation", copy: "Start a direct WhatsApp discussion or arrange a call at a suitable time." },
+              ].map((step) => (
+                <div key={step.n} className="flex gap-4">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full border border-[#60a5fa]/35 bg-[#3b82f6]/10 text-xs font-semibold text-[#93c5fd]">{step.n}</span>
+                  <div><p className="text-sm font-semibold text-white">{step.title}</p><p className="mt-1 text-xs leading-5 text-white/55">{step.copy}</p></div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 rounded-2xl border border-[#3b82f6]/25 bg-[#3b82f6]/[.07] p-5">
+              <p className="flex items-center gap-2 text-sm font-semibold text-[#93c5fd]"><MessageCircle size={17} /> Prefer to message now?</p>
+              <p className="mt-2 text-xs leading-6 text-white/60">Open a direct WhatsApp conversation with Truvi. You do not need an admin login or an Investor Club account.</p>
+              <a href={investorWhatsAppUrl("Hello Truvi, I am interested in discussing real-estate investment opportunities. Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#60a5fa]/40 px-4 py-2 text-xs font-semibold text-[#bfdbfe] transition hover:bg-[#3b82f6]/15"><MessageCircle size={15} /> Open WhatsApp chat <ArrowUpRight size={14} /></a>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-[#f8f9fb] p-5 text-[#142235] shadow-2xl shadow-black/20 sm:p-8 lg:p-10">
+            <div className="mb-7 flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><MessageSquareText size={21} /></span>
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#2563eb]">Private conversation request</span>
+                <h3 className="mt-1 font-display text-2xl text-[#142235] sm:text-3xl">What would you like to discuss?</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Your message is delivered to Truvi's investor enquiry inbox. Share only information you are comfortable providing.</p>
+              </div>
+            </div>
+            <InvestorInterestForm projects={projects} projectsLoaded={projectsLoaded} />
+          </div>
+        </div>
+      </section>
+
+            <section id="about" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[.94fr_1.06fr] lg:gap-20">
           <div>
             <Eyebrow>The ecosystem</Eyebrow>
@@ -476,26 +514,6 @@ export default function InvestorClubPage() {
             <Eyebrow>Leadership</Eyebrow>
             <h3 className="mt-4 font-display text-2xl text-[#142235]">Leadership information</h3>
             <p className="mt-4 text-sm leading-7 text-slate-600">Founder name, photograph, biography and professional credentials will be published here only after the company verifies the final approved profile. No unverified credentials or achievements are displayed.</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="register" className="scroll-mt-24 bg-[#0b1725] px-5 py-20 text-white sm:px-8 lg:py-28">
-        <div className="mx-auto grid max-w-7xl items-start gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16">
-          <div className="lg:sticky lg:top-28">
-            <SectionHeading eyebrow="Investor registration" title="Begin a conversation with Truvi." copy="Talk to the owner to receive information about our real-estate ecosystem, upcoming opportunities and investor network." light />
-            <div className="mt-8 rounded-2xl border border-[#3b82f6]/25 bg-[#3b82f6]/[.07] p-5">
-              <p className="text-sm font-semibold text-[#60a5fa]">Expression of interest only</p>
-              <p className="mt-2 text-xs leading-6 text-white/60">The form does not collect money, create an investment commitment or begin KYC onboarding.</p>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-[#f8f9fb] p-5 text-[#142235] shadow-2xl shadow-black/20 sm:p-8 lg:p-10">
-            <div className="mb-7">
-              <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#2563eb]">Truvi Investor Club</span>
-              <h3 className="mt-2 font-display text-2xl text-[#142235] sm:text-3xl">Register your interest</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">Share a few details and our team can follow up with relevant information.</p>
-            </div>
-            <InvestorInterestForm />
           </div>
         </div>
       </section>
