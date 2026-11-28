@@ -151,6 +151,13 @@ const PERMISSION_GROUPS = [
     ],
   },
   {
+    group: "Project Listings",
+    description: "Employee-submitted project inventory, kept separate from Admin access",
+    permissions: [
+      { key: "project.listing.submit", label: "Submit Project Listings", desc: "Create project drafts under a registered developer profile, upload photos, and send listings to Admin review. Does not grant Admin dashboard access." },
+    ],
+  },
+  {
     group: "Site Visits",
     description: "Booking and conducting property site visits",
     permissions: [
