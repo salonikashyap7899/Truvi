@@ -272,12 +272,13 @@ router.post(
 
     const extension = path.extname(req.file.originalname).toLowerCase();
     const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+    const employeeImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
     if (req.user!.role === "EMPLOYEE" && req.file.size > 12 * 1024 * 1024) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: "Employee project photos must be 12 MB or smaller." });
     }
     if (req.user!.role === "EMPLOYEE" &&
-        (parsed.data.category !== "GALLERY_IMAGE" || !imageExtensions.has(extension) || !req.file.mimetype.startsWith("image/"))) {
+        (parsed.data.category !== "GALLERY_IMAGE" || !employeeImageExtensions.has(extension) || !req.file.mimetype.startsWith("image/"))) {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: "Employees may only upload project gallery photos while completing their own draft." });
     }
