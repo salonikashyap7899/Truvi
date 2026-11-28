@@ -1,7 +1,7 @@
 /**
- * Project fields that only the owning developer and admins may see. The
- * developer's sales contact and the internal employee submitter ID are never
- * sent to buyers, partners or anonymous visitors — contact is routed through Truvi.
+ * Project fields that only the owning developer and admins may see. Sales
+ * contact stays private from buyers/partners. The internal employee submitter
+ * ID is stricter: it is visible only to Admin, never to developers or visitors.
  */
 export function withoutPrivateProjectFields<
   T extends { salesContact?: unknown; submittedById?: unknown },
@@ -10,7 +10,11 @@ export function withoutPrivateProjectFields<
   viewer?: { userId: string; role: string } | null,
   ownerId?: string | null,
 ): Omit<T, "salesContact" | "submittedById"> & Partial<Pick<T, "salesContact" | "submittedById">> {
-  if (viewer && (viewer.role === "ADMIN" || (ownerId && String(ownerId) === viewer.userId))) return project;
-  const { salesContact: _hiddenSalesContact, submittedById: _hiddenSubmitter, ...rest } = project;
-  return rest;
+  if (viewer?.role === "ADMIN") return project;
+
+  const { submittedById: _hiddenSubmitter, ...withoutSubmitter } = project;
+  if (viewer && ownerId && String(ownerId) === viewer.userId) return withoutSubmitter;
+
+  const { salesContact: _hiddenSalesContact, ...publicProject } = withoutSubmitter;
+  return publicProject;
 }
