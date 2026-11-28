@@ -576,4 +576,3 @@ export default function InvestorClubPage() {
     </main>
   );
 }
-}
