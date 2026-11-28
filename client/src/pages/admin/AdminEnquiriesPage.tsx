@@ -74,8 +74,8 @@ export default function AdminEnquiriesPage() {
       if (prev.some((e) => e._id === enquiry._id)) return prev;
       return [enquiry, ...prev];
     });
-    const meta = PURPOSE_META[enquiry.purposeType];
-    toast.info(`New ${meta.label} enquiry from ${enquiry.name}`);
+    const label = isInvestorConversation(enquiry) ? "Investor conversation" : PURPOSE_META[enquiry.purposeType].label + " enquiry";
+    toast.info(`New ${label} from ${enquiry.name}`);
   });
 
   const filtered = filter === "ALL"
