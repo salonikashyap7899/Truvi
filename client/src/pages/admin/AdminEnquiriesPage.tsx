@@ -98,7 +98,7 @@ export default function AdminEnquiriesPage() {
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
-        {(["ALL", "BUYER", "DEVELOPER", "CP", "GUEST"] as const).map((f) => (
+        {(["ALL", "INVESTOR", "BUYER", "DEVELOPER", "CP", "GUEST"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -108,8 +108,8 @@ export default function AdminEnquiriesPage() {
                 : "border-white/15 text-muted-foreground hover:border-white/30 hover:text-white"
             }`}
           >
-            {f !== "ALL" && PURPOSE_META[f as Purpose].icon}
-            {f === "ALL" ? "All" : PURPOSE_META[f as Purpose].label}
+            {f === "INVESTOR" ? <MessageCircle size={13} /> : f !== "ALL" ? PURPOSE_META[f as Purpose].icon : null}
+            {f === "ALL" ? "All" : f === "INVESTOR" ? "Investor conversations" : PURPOSE_META[f as Purpose].label}
             <span className="ml-0.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
               {counts[f] ?? 0}
             </span>
