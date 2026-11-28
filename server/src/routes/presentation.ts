@@ -11,6 +11,7 @@ import {
   projectAssets,
   units,
   users,
+  employees,
   ASSET_CATEGORIES,
   LEGAL_ASSET_CATEGORIES,
   IProject,
@@ -18,6 +19,7 @@ import {
   PresentationInfo,
 } from "../db/schema";
 import { isValidId } from "../lib/ids";
+import { hasEmployeePermission } from "../lib/employeeAccess";
 import { PROJECT_TYPE_VALUES } from "../lib/validations/inventory";
 import { authenticate, requireRole, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken, isExpiredAccessToken } from "../lib/jwt";
@@ -26,6 +28,7 @@ import { scoreImageFile } from "../services/ai/scoreImage";
 import { optimizeUploadedImage } from "../services/media/optimizeImage";
 import { generateThumbnail } from "../services/media/thumbnail";
 import { presentLegalAssetUrl } from "../services/protectedLegalFiles";
+import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 
 const router = Router();
 
@@ -99,6 +102,17 @@ function hasExpiredToken(req: AuthedRequest): boolean {
   return token ? isExpiredAccessToken(token) : false;
 }
 
+async function canEmployeeManageSubmittedProject(project: IProject, userId: string): Promise<boolean> {
+  if (String(project.submittedById ?? "") !== userId) return false;
+  const [employee] = await getDb().select({
+    permissions: employees.permissions,
+    status: employees.status,
+  }).from(employees)
+    .where(and(eq(employees.accountUserId, userId), eq(employees.status, "ACTIVE")))
+    .limit(1);
+  return Boolean(employee && hasEmployeePermission(employee.permissions, "project.listing.submit"));
+}
+
 // ── GET /api/presentation/:id — full presentation profile (public) ─────────
 router.get("/:id", async (req: AuthedRequest, res) => {
   if (!isValidId(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
@@ -118,7 +132,8 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   if (project.approvalStatus !== "APPROVED") {
     const user = optionalUser(req);
     const isOwner = user && String(project.developerId) === user.userId;
-    if (!user || (user.role !== "ADMIN" && !isOwner)) {
+    const isEmployeeSubmitter = user?.role === "EMPLOYEE" && await canEmployeeManageSubmittedProject(project, user.userId);
+    if (!user || (user.role !== "ADMIN" && !isOwner && !isEmployeeSubmitter)) {
       // An admin/owner whose 15-min access token just expired would otherwise
       // be silently downgraded to anonymous and hard-404'd out of their own
       // draft — with no recovery, since the client only refreshes on 401. Ask
@@ -142,7 +157,8 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   {
     const viewer = optionalUser(req);
     const isOwner = viewer && String(project.developerId) === viewer.userId;
-    if (!viewer || (viewer.role !== "ADMIN" && !isOwner)) {
+    const isEmployeeSubmitter = viewer?.role === "EMPLOYEE" && await canEmployeeManageSubmittedProject(project, viewer.userId);
+    if (!viewer || (viewer.role !== "ADMIN" && !isOwner && !isEmployeeSubmitter)) {
       assets = assets.filter((a) => a.verified || !LEGAL_ASSET_CATEGORIES.includes(a.category));
     }
   }
@@ -185,7 +201,11 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   const unitSummary = { total, listed: unitRows.length, available, byType };
 
   res.json({
-    project: { ...project, developerId: row.developer ?? project.developerId },
+    project: withoutPrivateProjectFields(
+      { ...project, developerId: row.developer ?? project.developerId },
+      optionalUser(req),
+      String(project.developerId),
+    ),
     // Pending legal files receive a short-lived URL for authenticated owners/admins.
     assets: assets.map((asset) => ({ ...asset, fileUrl: presentLegalAssetUrl(asset) })),
     unitSummary,
@@ -210,6 +230,16 @@ async function loadOwnedProject(req: AuthedRequest, res: any): Promise<IProject 
     res.status(403).json({ error: "Not your project" });
     return null;
   }
+  if (req.user!.role === "EMPLOYEE") {
+    if (!(await canEmployeeManageSubmittedProject(project, req.user!.userId))) {
+      res.status(403).json({ error: "You may only manage project drafts submitted by your own employee account." });
+      return null;
+    }
+    if (project.approvalStatus !== "DRAFT") {
+      res.status(409).json({ error: "Project assets are locked after submission for Admin review." });
+      return null;
+    }
+  }
   return project;
 }
 
@@ -217,11 +247,14 @@ async function loadOwnedProject(req: AuthedRequest, res: any): Promise<IProject 
 router.post(
   "/:id/assets",
   authenticate,
-  requireRole("DEVELOPER", "ADMIN"),
+  requireRole("DEVELOPER", "ADMIN", "EMPLOYEE"),
   assetUpload.single("file"),
   async (req: AuthedRequest, res) => {
     const project = await loadOwnedProject(req, res);
-    if (!project) return;
+    if (!project) {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      return;
+    }
 
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
@@ -239,6 +272,16 @@ router.post(
 
     const extension = path.extname(req.file.originalname).toLowerCase();
     const imageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+    const employeeImageExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+    if (req.user!.role === "EMPLOYEE" && req.file.size > 12 * 1024 * 1024) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Employee project photos must be 12 MB or smaller." });
+    }
+    if (req.user!.role === "EMPLOYEE" &&
+        (parsed.data.category !== "GALLERY_IMAGE" || !employeeImageExtensions.has(extension) || !req.file.mimetype.startsWith("image/"))) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: "Employees may only upload project gallery photos while completing their own draft." });
+    }
     if (parsed.data.category === "PROJECT_LAYOUT_PDF" && extension !== ".pdf") {
       fs.unlink(req.file.path, () => {});
       return res.status(400).json({ error: "Project Layout PDF accepts PDF files only." });
@@ -333,16 +376,23 @@ router.patch(
 router.delete(
   "/:id/assets/:assetId",
   authenticate,
-  requireRole("DEVELOPER", "ADMIN"),
+  requireRole("DEVELOPER", "ADMIN", "EMPLOYEE"),
   async (req: AuthedRequest, res) => {
     const project = await loadOwnedProject(req, res);
     if (!project) return;
 
     if (!isValidId(req.params.assetId)) return res.status(400).json({ error: "Invalid asset id" });
     const db = getDb();
-    const [asset] = await db
-      .delete(projectAssets)
+    const [existingAsset] = await db.select().from(projectAssets)
       .where(and(eq(projectAssets._id, req.params.assetId), eq(projectAssets.projectId, project._id)))
+      .limit(1);
+    if (!existingAsset) return res.status(404).json({ error: "Asset not found" });
+    if (req.user!.role === "EMPLOYEE" &&
+        (existingAsset.category !== "GALLERY_IMAGE" || String(existingAsset.uploadedBy) !== req.user!.userId)) {
+      return res.status(403).json({ error: "Employees may only remove gallery photos they uploaded to their own draft." });
+    }
+    const [asset] = await db.delete(projectAssets)
+      .where(eq(projectAssets._id, existingAsset._id))
       .returning();
     if (!asset) return res.status(404).json({ error: "Asset not found" });
 

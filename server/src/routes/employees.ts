@@ -11,12 +11,13 @@ import { getDb } from "../config/db";
 import {
   users, employees, employeeInvites, userConsentEvents, employeeTasks, employeeTaskHistory,
   employeeTaskComments, employeeTaskAssignments, employeeTaskAttachments, employeeLeaveRequests,
-  employeeAttendance, employeeSalaryRecords, projects, leads, leadActivities, leadFollowUps,
+  employeeAttendance, employeeSalaryRecords, projects, projectAssets, units, leads, leadActivities, leadFollowUps,
   siteVisits, notifications,
 } from "../db/schema";
 import { authenticate, requireRole, type AuthedRequest } from "../middleware/auth";
 import { isValidId } from "../lib/ids";
 import { zodMessage } from "../lib/validationError";
+import { createProjectSchema } from "../lib/validations/inventory";
 import { sendEmail } from "../services/emailService";
 import { logAudit } from "../services/audit";
 import { createNotifications } from "../services/notificationService";
@@ -735,6 +736,174 @@ router.patch("/:id", requireRole("ADMIN"), async (req: AuthedRequest, res, next)
     }
     await logAudit({ userId: req.user!.userId, action: d.status === "INACTIVE" ? "employee.deactivate" : "employee.update", resourceType: "employee", resourceId: String(req.params.id), metadata: { changedFields: Object.keys(d) } });
     return res.json({ employee: employeePublicShape(updated) });
+  } catch (err) { next(err); }
+});
+
+// ------------------------- Employee project listing (separate from Admin OS)
+const employeeProjectCreateSchema = createProjectSchema
+  .omit({ commissionPercent: true, developerId: true, salesContact: true, brochureUrl: true, priceListUrl: true })
+  .extend({ developerId: z.string().min(1, "Choose a registered developer.") });
+
+async function employeeProjectSubmitter(req: AuthedRequest, res: import("express").Response) {
+  const emp = await needEmployee(req, res);
+  if (!emp) return null;
+  if (!hasPermission(emp.permissions, "project.listing.submit")) {
+    res.status(403).json({ error: "Project listing submission is not enabled for this employee account. Ask an Admin to grant the Submit Project Listings permission." });
+    return null;
+  }
+  return emp;
+}
+
+router.get("/project-developers", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+  try {
+    const emp = await employeeProjectSubmitter(req, res);
+    if (!emp) return;
+    const rows = await getDb().select({
+      id: users._id,
+      name: users.name,
+      developerProfile: users.developerProfile,
+    }).from(users)
+      .where(and(eq(users.role, "DEVELOPER"), eq(users.disabled, false)))
+      .orderBy(users.name)
+      .limit(250);
+    return res.json({
+      developers: rows.map((row) => ({
+        id: String(row.id),
+        name: row.name,
+        companyName: row.developerProfile?.companyName ?? null,
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
+router.get("/projects", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+  try {
+    const emp = await employeeProjectSubmitter(req, res);
+    if (!emp) return;
+    const rows = await getDb().select({
+      project: projects,
+      developerName: users.name,
+    }).from(projects)
+      .leftJoin(users, eq(projects.developerId, users._id))
+      .where(eq(projects.submittedById, req.user!.userId))
+      .orderBy(desc(projects.createdAt))
+      .limit(100);
+    const projectIds = rows.map((row) => row.project._id);
+    const coverAssets = projectIds.length
+      ? await getDb().select({
+          projectId: projectAssets.projectId,
+          fileUrl: projectAssets.fileUrl,
+        }).from(projectAssets)
+          .where(and(inArray(projectAssets.projectId, projectIds), eq(projectAssets.category, "GALLERY_IMAGE")))
+          .orderBy(desc(projectAssets.createdAt))
+      : [];
+    const coverMap = new Map<string, string>();
+    for (const asset of coverAssets) {
+      if (!coverMap.has(String(asset.projectId))) coverMap.set(String(asset.projectId), asset.fileUrl);
+    }
+    return res.json({
+      projects: rows.map(({ project, developerName }) => ({
+        _id: String(project._id),
+        name: project.name,
+        city: project.city,
+        location: project.location,
+        description: project.description,
+        projectType: project.projectType,
+        approvalStatus: project.approvalStatus,
+        totalUnits: project.totalUnits,
+        createdAt: project.createdAt,
+        developerName: developerName ?? "Developer profile",
+        coverImageUrl: coverMap.get(String(project._id)) ?? null,
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
+router.post("/projects", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+  try {
+    const emp = await employeeProjectSubmitter(req, res);
+    if (!emp) return;
+    const parsed = employeeProjectCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
+    const data = parsed.data;
+    if (!isValidId(data.developerId)) return res.status(400).json({ error: "Choose a valid registered developer." });
+    const db = getDb();
+    const [developer] = await db.select({ id: users._id })
+      .from(users)
+      .where(and(eq(users._id, data.developerId), eq(users.role, "DEVELOPER"), eq(users.disabled, false)))
+      .limit(1);
+    if (!developer) return res.status(400).json({ error: "The selected developer account is not active." });
+
+    const { possessionDate, developerId: _developerId, ...projectData } = data;
+    const [project] = await db.insert(projects).values({
+      ...projectData,
+      developerId: developer.id,
+      submittedById: req.user!.userId,
+      approvalStatus: "DRAFT",
+      commissionPercent: 3,
+      possessionDate: possessionDate ? new Date(possessionDate) : null,
+    }).returning();
+    await logAudit({
+      userId: req.user!.userId,
+      action: "employee.project.create",
+      resourceType: "project",
+      resourceId: String(project._id),
+      metadata: { developerId: String(developer.id), projectName: project.name },
+    });
+    return res.status(201).json({ project: {
+      _id: String(project._id),
+      name: project.name,
+      approvalStatus: project.approvalStatus,
+    } });
+  } catch (err) { next(err); }
+});
+
+router.post("/projects/:id/submit", requireRole("EMPLOYEE"), async (req: AuthedRequest, res, next) => {
+  try {
+    const emp = await employeeProjectSubmitter(req, res);
+    if (!emp) return;
+    const projectId = String(req.params.id);
+    if (!isValidId(projectId)) return res.status(404).json({ error: "Project not found." });
+    const db = getDb();
+    const [project] = await db.select().from(projects)
+      .where(and(eq(projects._id, projectId), eq(projects.submittedById, req.user!.userId)))
+      .limit(1);
+    if (!project) return res.status(404).json({ error: "Project not found." });
+    if (project.approvalStatus !== "DRAFT") {
+      return res.status(409).json({ error: "Only your saved draft listings can be submitted for review." });
+    }
+    const [[photo], [unit]] = await Promise.all([
+      db.select({ id: projectAssets._id }).from(projectAssets)
+        .where(and(eq(projectAssets.projectId, project._id), eq(projectAssets.category, "GALLERY_IMAGE")))
+        .limit(1),
+      db.select({ id: units._id }).from(units).where(eq(units.projectId, project._id)).limit(1),
+    ]);
+    const missing: string[] = [];
+    if (!project.projectType) missing.push("Project type");
+    if (!photo) missing.push("At least one project photo");
+    if (!unit && !(project.totalUnits && project.totalUnits > 0)) missing.push("Inventory count");
+    if (missing.length) return res.status(400).json({ error: "Complete these before submitting: " + missing.join(", ") + ".", missing });
+
+    const [updated] = await db.update(projects)
+      .set({ approvalStatus: "PENDING" })
+      .where(eq(projects._id, project._id))
+      .returning();
+    await logAudit({
+      userId: req.user!.userId,
+      action: "employee.project.submit",
+      resourceType: "project",
+      resourceId: String(project._id),
+      metadata: { projectName: project.name, developerId: String(project.developerId) },
+    });
+    await notifyActiveAdmins({
+      type: "project_submitted",
+      title: "Employee submitted a project listing",
+      message: emp.name + " submitted " + project.name + " for Admin review.",
+      actorUserId: req.user!.userId,
+      href: "/admin/listings/" + String(project._id),
+      dedupeKey: "employee-project-submitted:" + String(project._id),
+    });
+    return res.json({ project: { _id: String(updated._id), approvalStatus: updated.approvalStatus } });
   } catch (err) { next(err); }
 });
 

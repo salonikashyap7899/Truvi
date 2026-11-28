@@ -62,6 +62,9 @@ async function ensureSchema(db: Db): Promise<void> {
     // Developers only see buyer contact details when an admin enables this
     // project-level permission; each lead must also have contact consent.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "developer_lead_details_enabled" boolean NOT NULL DEFAULT false`,
+    // Employee-created listings remain linked to the employee who submitted them for admin review.
+    `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "submitted_by_id" uuid REFERENCES "users"("id")`,
+    `CREATE INDEX IF NOT EXISTS "projects_submitter_idx" ON "projects" ("submitted_by_id", "created_at")`,
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "payment_plans" jsonb`,
     // Admin-curated, Truvi-verified ownership history + appreciation forecast.
     `ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "owner_history" jsonb`,
