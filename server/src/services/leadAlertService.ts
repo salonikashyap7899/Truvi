@@ -1,6 +1,6 @@
 import { getDb } from "../config/db";
 import { platformSettings } from "../db/schema";
-import { isAiSensyEnabled, isWhatsAppEnabled, sendAiSensyCampaign, sendWhatsAppTemplate, sendWhatsAppText } from "./whatsappService";
+import { isAiSensyEnabled, isAiSensyPlanDisabled, isWhatsAppEnabled, sendAiSensyCampaign, sendWhatsAppTemplate, sendWhatsAppText } from "./whatsappService";
 import { sendEmail, sendSms } from "./emailService";
 
 /**
@@ -80,6 +80,12 @@ export async function sendLeadAlert(a: LeadAlert, opts: { force?: boolean } = {}
     if (t.phone) {
       if (isAiSensyEnabled() && process.env.AISENSY_CAMPAIGN_NEW_LEAD_ALERT) {
         out.whatsapp = await sendAiSensyCampaign(t.phone, process.env.AISENSY_CAMPAIGN_NEW_LEAD_ALERT, "Truvi Admin", params);
+        // Switch this alert to Meta only after AiSensy confirms its assistant
+        // plan is inactive. Avoid duplicating messages for ordinary send errors.
+        if (!out.whatsapp && isAiSensyPlanDisabled() && isWhatsAppEnabled()) {
+          const tpl = process.env.WHATSAPP_TPL_NEW_LEAD_ALERT;
+          out.whatsapp = tpl ? await sendWhatsAppTemplate(t.phone, tpl, params) : await sendWhatsAppText(t.phone, textBody(a));
+        }
       } else if (isWhatsAppEnabled()) {
         const tpl = process.env.WHATSAPP_TPL_NEW_LEAD_ALERT;
         out.whatsapp = tpl ? await sendWhatsAppTemplate(t.phone, tpl, params) : await sendWhatsAppText(t.phone, textBody(a));
