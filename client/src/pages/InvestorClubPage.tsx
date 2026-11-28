@@ -292,7 +292,7 @@ export default function InvestorClubPage() {
           </div>
         </div>
 
-        <button onClick={() => scrollTo("about")} className="absolute bottom-5 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-2 text-[9px] font-semibold uppercase tracking-[.25em] text-white/55 transition hover:text-[#60a5fa] md:flex">
+        <button onClick={() => scrollTo("register")} className="absolute bottom-5 left-1/2 z-20 hidden -translate-x-1/2 flex-col items-center gap-2 text-[9px] font-semibold uppercase tracking-[.25em] text-white/55 transition hover:text-[#60a5fa] md:flex">
           Scroll to explore <span className="grid size-8 place-items-center rounded-full border border-white/20"><ArrowDown size={14} /></span>
         </button>
       </section>
