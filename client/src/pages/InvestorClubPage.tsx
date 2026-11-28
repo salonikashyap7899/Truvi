@@ -30,9 +30,9 @@ const lifecycle = [
 ];
 
 const developerTypes = [
-  { title: "Grade A developers", tag: "Established capability", copy: "Established developers with demonstrated project execution capabilities.", image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1100&q=85" },
-  { title: "Grade B developers", tag: "Growing operators", copy: "Growing developers with relevant development and operational experience.", image: "https://images.unsplash.com/photo-1487958449943-2429e8be8625?auto=format&fit=crop&w=1100&q=85" },
-  { title: "Emerging developers", tag: "Selected potential", copy: "Selected developers whose project capability and potential are subject to evaluation.", image: "https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1100&q=85" },
+  { title: "Grade A developers", tag: "Established capability", copy: "Established developers with demonstrated project execution capabilities.", image: "/images/truvi-projects-dark-bg.jpg" },
+  { title: "Grade B developers", tag: "Growing operators", copy: "Growing developers with relevant development and operational experience.", image: "/images/truvi-luxury-dark-bg.jpg" },
+  { title: "Emerging developers", tag: "Selected potential", copy: "Selected developers whose project capability and potential are subject to evaluation.", image: "/media/truvi-homepage-cityscape.webp" },
 ];
 
 const capabilities = [
@@ -292,7 +292,7 @@ export default function InvestorClubPage() {
           </div>
           <div className="relative mx-auto w-full max-w-2xl">
             <div className="absolute -inset-4 rounded-[2rem] border border-[#60a5fa]/50" />
-            <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=90" alt="Contemporary residential development" loading="lazy" className="relative h-[420px] w-full rounded-[1.5rem] object-cover shadow-2xl shadow-slate-900/15 sm:h-[520px]" />
+            <img src="/images/truvi-luxury-dark-bg.jpg" alt="Contemporary residential development" loading="lazy" className="relative h-[420px] w-full rounded-[1.5rem] object-cover shadow-2xl shadow-slate-900/15 sm:h-[520px]" />
             <div className="absolute -bottom-6 left-4 right-4 rounded-2xl border border-white/15 bg-[#0b1725]/95 p-5 text-white shadow-2xl backdrop-blur-xl sm:left-8 sm:right-8 sm:p-6">
               <Eyebrow light>Truvi approach</Eyebrow>
               <p className="mt-2 font-display text-2xl leading-tight sm:text-3xl">Project context before participation.</p>
