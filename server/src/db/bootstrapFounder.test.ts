@@ -7,6 +7,7 @@ import {
 } from "./bootstrapFounder";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
 
