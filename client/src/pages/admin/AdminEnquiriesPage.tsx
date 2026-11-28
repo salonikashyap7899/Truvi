@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useSocketEvent } from "@/lib/socket";
+import AdminInvestorChatsPanel from "./AdminInvestorChatsPanel";
 import { User, Building2, Handshake, Search, FileText, Download, MessageCircle, PhoneCall } from "lucide-react";
 
 type Purpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
@@ -54,6 +55,7 @@ export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<EnquiryFilter>("ALL");
+  const [activeView, setActiveView] = useState<"ENQUIRIES" | "LIVE_CHATS">(() => new URLSearchParams(window.location.search).get("view") === "investor-chats" ? "LIVE_CHATS" : "ENQUIRIES");
 
   async function load() {
     try {
@@ -96,6 +98,14 @@ export default function AdminEnquiriesPage() {
         Live feed of all visitor enquiries — tagged by purpose type.
       </p>
 
+      <div className="mb-6 flex flex-wrap gap-2 border-b border-white/10 pb-4">
+        <button onClick={() => setActiveView("ENQUIRIES")} className={"rounded-full px-4 py-2 text-xs font-semibold transition " + (activeView === "ENQUIRIES" ? "bg-blue-500 text-white" : "border border-white/10 text-white/60 hover:bg-white/5")}>Enquiry records</button>
+        <button onClick={() => setActiveView("LIVE_CHATS")} className={"inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition " + (activeView === "LIVE_CHATS" ? "bg-blue-500 text-white" : "border border-white/10 text-white/60 hover:bg-white/5")}><MessageCircle size={13} /> Live investor chats</button>
+      </div>
+      {activeView === "LIVE_CHATS" ? (
+        <AdminInvestorChatsPanel />
+      ) : (
+      <>
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
         {(["ALL", "INVESTOR", "BUYER", "DEVELOPER", "CP", "GUEST"] as const).map((f) => (
@@ -198,6 +208,8 @@ export default function AdminEnquiriesPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </main>
   );
