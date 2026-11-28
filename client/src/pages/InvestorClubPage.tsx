@@ -303,6 +303,48 @@ export default function InvestorClubPage() {
             <Eyebrow light>Private investor conversation</Eyebrow>
             <h2 className="mt-4 max-w-xl font-display text-4xl font-medium leading-[1.08] tracking-[-.035em] sm:text-5xl">Come with your questions. Talk through the opportunity.</h2>
             <p className="mt-6 max-w-xl text-sm leading-7 text-white/65 sm:text-base">Tell us what you are considering. The Truvi team receives your request, reviews the project or investment topic you selected, and follows up so you can discuss it directly with the owner.</p>
+
+            <div className="mt-8 overflow-hidden rounded-3xl border border-white/15 bg-[#071321]/80 shadow-2xl shadow-black/20 backdrop-blur-xl">
+              <div className="flex items-center gap-3 border-b border-white/10 bg-white/[.04] px-5 py-4">
+                <span className="grid size-10 place-items-center rounded-full border border-[#60a5fa]/30 bg-[#3b82f6]/15"><img src="/brand/icon-white.png" alt="" className="size-6 object-contain" /></span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white">Truvi Owner's Desk</p>
+                  <p className="text-[10px] uppercase tracking-[.16em] text-[#93c5fd]">Guided investor conversation</p>
+                </div>
+                <span className="ml-auto rounded-full border border-white/10 px-2.5 py-1 text-[9px] text-white/50">START HERE</span>
+              </div>
+              <div className="space-y-4 p-5">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#3b82f6]/20 text-[#93c5fd]"><MessageCircle size={14} /></span>
+                  <div className="max-w-[92%] rounded-2xl rounded-tl-sm border border-white/10 bg-white/[.07] px-4 py-3 text-sm leading-6 text-white/85">
+                    Welcome to Truvi Investor Club. What would you like to explore with our owner?
+                  </div>
+                </div>
+                <div className="pl-10">
+                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-[.16em] text-white/45">Choose a conversation starter</p>
+                  <div className="grid gap-2">
+                    {[
+                      "Discuss a specific project",
+                      "Explore investment opportunities",
+                      "Understand project structure and participation",
+                      "Land acquisition or joint venture",
+                      "Funding or development partnership",
+                      "Arrange a private meeting with the owner",
+                    ].map((choice) => (
+                      <button key={choice} type="button" onClick={() => setConversationTopic(choice)} className={"rounded-xl border px-3.5 py-2.5 text-left text-xs font-medium transition " + (conversationTopic === choice ? "border-[#60a5fa]/60 bg-[#3b82f6]/20 text-white" : "border-white/10 bg-white/[.03] text-white/70 hover:border-white/25 hover:bg-white/[.07]")}>
+                        {choice}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-xl border border-[#60a5fa]/20 bg-[#3b82f6]/10 px-3.5 py-3">
+                    <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#93c5fd]">Selected topic</p>
+                    <p className="mt-1 text-xs font-semibold text-white">{conversationTopic}</p>
+                    <p className="mt-1 text-[10px] leading-5 text-white/55">This choice will be included in your private request to Truvi.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-8 space-y-4">
               {[
                 { n: "01", title: "Tell us what you have in mind", copy: "Choose a project or describe the investment you want to explore." },
