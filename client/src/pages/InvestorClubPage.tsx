@@ -207,8 +207,8 @@ export default function InvestorClubPage() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
 
   useEffect(() => {
-    document.title = "TRUVI Investor Club | Structured Real Estate Investment Opportunities";
-    const description = "Explore Truvi Investor Club, a real estate investment ecosystem connecting investors, strategic land opportunities, and experienced development partners through structured project-level participation.";
+    document.title = "TRUVI Investor Club | Talk to the Owner";
+    const description = "Start a private real-estate investment conversation with Truvi. Discuss projects, land opportunities and development partnerships directly with our owner and team.";
     let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
     meta.content = description;
@@ -216,7 +216,7 @@ export default function InvestorClubPage() {
     if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
     canonical.href = "https://truviventures.com/investor-club";
     const openGraph: Array<[string, string]> = [
-      ["og:title", "TRUVI Investor Club | Structured Real Estate Investment Opportunities"],
+      ["og:title", "TRUVI Investor Club | Talk to the Owner"],
       ["og:description", description],
       ["og:url", "https://truviventures.com/investor-club"],
       ["og:image", "https://truviventures.com/images/truvi-projects-dark-bg.jpg"],
@@ -254,21 +254,21 @@ export default function InvestorClubPage() {
           <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-14 text-center sm:px-8 sm:py-16 lg:py-20">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }} className="flex max-w-4xl flex-col items-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#60a5fa]/35 bg-[#3b82f6]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#dbeafe] backdrop-blur-md sm:text-xs">
-                <Sparkles size={13} className="text-[#60a5fa]" /> Real estate intelligence · Investor information
+                <Sparkles size={13} className="text-[#60a5fa]" /> Private investor conversations · Truvi Ventures
               </span>
               <h1 className="mt-7 max-w-5xl font-display text-5xl font-medium leading-[1.04] tracking-[-.045em] text-white sm:text-6xl md:text-7xl lg:text-[84px]">
-                Capital meets <span className="block italic text-[#60a5fa]">real estate.</span>
-                <span className="mt-1 block text-white/95">Opportunity meets insight.</span>
+                Your investment goals.
+                <span className="block italic text-[#60a5fa]">A direct conversation.</span>
               </h1>
               <p className="mt-7 max-w-2xl text-sm leading-7 text-white/75 sm:text-base sm:leading-8">
-                A considered real-estate investment network connecting interested investors, strategic land opportunities and experienced development partners through project-level information.
+                Talk directly with Truvi about the projects, locations and investment structures you are exploring. Share your questions, then continue the discussion privately with our owner and team.
               </p>
               <div className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
-                <button onClick={() => scrollTo("projects")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-[#142235] shadow-xl shadow-[#3b82f6]/15 transition hover:-translate-y-0.5 hover:bg-[#93c5fd]">
-                  Explore projects <ArrowUpRight size={16} />
+                <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-white shadow-xl shadow-[#3b82f6]/15 transition hover:-translate-y-0.5 hover:bg-[#2563eb]">
+                  Talk to the owner <MessageCircle size={16} />
                 </button>
-                <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 bg-white/[.06] px-7 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:border-[#60a5fa]/60 hover:bg-white/10">
-                  Register your interest <ArrowRight size={16} />
+                <button onClick={() => scrollTo("projects")} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 bg-white/[.06] px-7 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:border-[#60a5fa]/60 hover:bg-white/10">
+                  Explore projects <ArrowUpRight size={16} />
                 </button>
               </div>
             </motion.div>
@@ -277,7 +277,7 @@ export default function InvestorClubPage() {
               {[
                 { icon: Landmark, title: "Project-level focus", copy: "Explore opportunities in their individual project context." },
                 { icon: FileCheck2, title: "Diligence-led process", copy: "Bring title, approvals and feasibility into the conversation." },
-                { icon: Network, title: "Connected expertise", copy: "Connect investor interest with land and developer networks." },
+                { icon: MessageCircle, title: "Direct owner discussion", copy: "Share your questions and discuss next steps privately with Truvi." },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
@@ -483,7 +483,7 @@ export default function InvestorClubPage() {
       <section id="register" className="scroll-mt-24 bg-[#0b1725] px-5 py-20 text-white sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-start gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16">
           <div className="lg:sticky lg:top-28">
-            <SectionHeading eyebrow="Investor registration" title="Begin a conversation with Truvi." copy="Register your interest to receive information about our real-estate ecosystem, upcoming opportunities and investor network." light />
+            <SectionHeading eyebrow="Investor registration" title="Begin a conversation with Truvi." copy="Talk to the owner to receive information about our real-estate ecosystem, upcoming opportunities and investor network." light />
             <div className="mt-8 rounded-2xl border border-[#3b82f6]/25 bg-[#3b82f6]/[.07] p-5">
               <p className="text-sm font-semibold text-[#60a5fa]">Expression of interest only</p>
               <p className="mt-2 text-xs leading-6 text-white/60">The form does not collect money, create an investment commitment or begin KYC onboarding.</p>
