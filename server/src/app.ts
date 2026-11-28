@@ -79,6 +79,7 @@ import employeeRoutes from "./routes/employees";
 import marketingOsRoutes from "./routes/marketingOs";
 import inventoryRoutes from "./routes/inventory";
 import enquiryRoutes from "./routes/enquiries";
+import investorConversationRoutes from "./routes/investorConversations";
 import investRoutes from "./routes/invest";
 import ambassadorKnowledgeRoutes from "./routes/ambassadorKnowledge";
 import presentationRoutes from "./routes/presentation";
@@ -307,6 +308,7 @@ export function createApp() {
   app.use("/api/marketing-os", marketingOsRoutes);
   app.use("/api/inventory", inventoryRoutes);
   app.use("/api/enquiries", enquiryRoutes);
+  app.use("/api/investor-conversations", investorConversationRoutes);
   app.use("/api/invest", investRoutes);
   app.use("/api/ambassador-knowledge", ambassadorKnowledgeRoutes);
   app.use("/api/presentation", presentationRoutes);
