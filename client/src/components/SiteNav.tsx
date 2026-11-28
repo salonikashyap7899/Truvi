@@ -57,6 +57,7 @@ const NAV_LINKS: NavLink[] = [
   { label: "Inventory", to: "/inventory" },
   { label: "For Developers", to: "/for-developers" },
   { label: "About", to: "/about" },
+  { label: "Investor Club", to: "/investor-club" },
 ];
 
 /**

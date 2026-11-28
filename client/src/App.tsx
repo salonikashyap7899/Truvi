@@ -46,6 +46,7 @@ const UnauthorizedPage = lazy(() => import("@/pages/UnauthorizedPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const LegalPage = lazy(() => import("@/pages/LegalPage"));
 const TruviInvestPage = lazy(() => import("@/pages/TruviInvestPage"));
+const InvestorClubPage = lazy(() => import("@/pages/InvestorClubPage"));
 const PrivacyCenterPage = lazy(() => import("@/pages/PrivacyCenterPage"));
 const RestoreAccountPage = lazy(() => import("@/pages/RestoreAccountPage"));
 const GrievancePage = lazy(() => import("@/pages/GrievancePage"));
@@ -379,6 +380,7 @@ export default function App() {
         <Route path="/help/meet" element={<ProtectedRoute roles={["ADMIN", "DEVELOPER", "CP", "BUYER", "AMBASSADOR", "VERIFIER", "EMPLOYEE"]}><MeetPage /></ProtectedRoute>} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/invest" element={<TruviInvestPage />} />
+        <Route path="/investor-club" element={<InvestorClubPage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/legal" element={<LegalPage />} />
