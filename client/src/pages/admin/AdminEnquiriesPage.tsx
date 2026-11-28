@@ -131,6 +131,8 @@ export default function AdminEnquiriesPage() {
         <div className="space-y-3 max-w-3xl">
           {filtered.map((e) => {
             const meta = PURPOSE_META[e.purposeType];
+            const investorConversation = isInvestorConversation(e);
+            const whatsappLink = investorConversation ? investorWhatsAppLink(e) : null;
             return (
               <div
                 key={e._id}
@@ -144,18 +146,14 @@ export default function AdminEnquiriesPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-white">{e.name}</p>
-                      <a
-                        href={`mailto:${e.email}`}
-                        className="text-xs text-blue-400 hover:underline"
-                      >
-                        {e.email}
-                      </a>
+                      {e.email && <a href={"mailto:" + e.email} className="block text-xs text-blue-400 hover:underline">{e.email}</a>}
+                      {e.phone && <a href={"tel:" + e.phone} className="mt-1 block text-xs text-muted-foreground hover:text-white">{e.phone}</a>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${meta.color}`}>
-                      {meta.icon}
-                      {meta.label}
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${investorConversation ? "border-blue-500/40 bg-blue-500/15 text-blue-200" : meta.color}`}>
+                      {investorConversation ? <MessageCircle size={13} /> : meta.icon}
+                      {investorConversation ? "Investor conversation" : meta.label}
                     </span>
                     <span className="text-[10px] text-muted-foreground">{timeAgo(e.createdAt)}</span>
                   </div>
@@ -172,6 +170,14 @@ export default function AdminEnquiriesPage() {
                 {e.message && (
                   <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-foreground/90">
                     {e.message}
+                  </div>
+                )}
+
+                {investorConversation && (
+                  <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                    {whatsappLink && <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"><MessageCircle size={14} /> Start WhatsApp conversation</a>}
+                    {e.phone && <a href={"tel:" + e.phone} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10"><PhoneCall size={14} /> Call investor</a>}
+                    {e.email && <a href={"mailto:" + e.email + "?subject=" + encodeURIComponent("Truvi Investor Club — following up on your request")} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10">Email investor</a>}
                   </div>
                 )}
 
