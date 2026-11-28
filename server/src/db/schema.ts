@@ -589,6 +589,7 @@ export const projects = pgTable(
   (t) => [
     index("projects_approval_tier_idx").on(t.approvalStatus, t.listingTier),
     index("projects_developer_idx").on(t.developerId),
+    index("projects_submitter_idx").on(t.submittedById, t.createdAt),
     index("projects_city_idx").on(t.city),
   ]
 );
