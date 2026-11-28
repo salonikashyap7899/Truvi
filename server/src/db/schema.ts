@@ -1255,6 +1255,55 @@ export const enquiries = pgTable(
   ]
 );
 
+/**
+ * Private Investor Club conversations. Visitors access only their own thread
+ * with a high-entropy, HttpOnly cookie; admins use the normal authenticated API.
+ */
+export const investorConversations = pgTable(
+  "investor_conversations",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    visitorTokenHash: text("visitor_token_hash").notNull(),
+    visitorName: text("visitor_name").notNull(),
+    visitorEmail: text("visitor_email").notNull(),
+    visitorPhone: text("visitor_phone").notNull(),
+    topic: text("topic").notNull(),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "set null" }),
+    projectName: text("project_name"),
+    status: text("status").$type<"OPEN" | "CLOSED">().notNull().default("OPEN"),
+    ownerUnread: integer("owner_unread").notNull().default(0),
+    investorUnread: integer("investor_unread").notNull().default(0),
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    privacyAcknowledgedAt: timestamp("privacy_acknowledged_at", { withTimezone: true, mode: "date" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("investor_conversations_token_hash_idx").on(t.visitorTokenHash),
+    index("investor_conversations_last_message_idx").on(t.status, t.lastMessageAt),
+  ],
+);
+
+export const investorConversationMessages = pgTable(
+  "investor_conversation_messages",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id").notNull().references(() => investorConversations._id, { onDelete: "cascade" }),
+    senderRole: text("sender_role").$type<"INVESTOR" | "OWNER">().notNull(),
+    senderUserId: uuid("sender_user_id").references(() => users._id, { onDelete: "set null" }),
+    senderName: text("sender_name").notNull(),
+    body: text("body").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("investor_conversation_messages_thread_idx").on(t.conversationId, t.createdAt),
+    index("investor_conversation_messages_unread_idx").on(t.conversationId, t.senderRole, t.readAt),
+  ],
+);
+
 export const buyerDocuments = pgTable(
   "buyer_documents",
   {
@@ -1863,6 +1912,8 @@ export type IPost = typeof posts.$inferSelect;
 export type IInvestment = typeof investments.$inferSelect;
 export type ILoanCheck = typeof loanChecks.$inferSelect;
 export type IEnquiry = typeof enquiries.$inferSelect;
+export type IInvestorConversation = typeof investorConversations.$inferSelect;
+export type IInvestorConversationMessage = typeof investorConversationMessages.$inferSelect;
 export type IBuyerDocument = typeof buyerDocuments.$inferSelect;
 export type ISharedDocument = typeof sharedDocuments.$inferSelect;
 export type IProjectAsset = typeof projectAssets.$inferSelect;
