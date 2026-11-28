@@ -202,6 +202,18 @@ router.post("/start", enquiryLimiter, async (req, res) => {
   });
 });
 
+// End the current guest session without deleting its conversation history.
+router.post("/session/close", async (req, res) => {
+  const conversation = await visitorConversation(req as AuthedRequest);
+  if (conversation && conversation.status === "OPEN") {
+    await getDb().update(investorConversations)
+      .set({ status: "CLOSED", updatedAt: new Date() })
+      .where(eq(investorConversations._id, conversation._id));
+  }
+  res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: undefined });
+  return res.json({ ok: true });
+});
+
 // Restore a guest's private thread on a page revisit and return its messages.
 router.get("/session", async (req, res) => {
   markPrivate(res);
