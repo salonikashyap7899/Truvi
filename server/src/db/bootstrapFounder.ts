@@ -51,9 +51,11 @@ export function assertFounderPasswordsConfigured(founders: ResolvedFounder[]): v
  *   - account missing → create it with a hashed password;
  *   - account present → left untouched (a founder who rotated their password is
  *     never reset), except an accidentally-disabled account is re-enabled.
+ *   - account missing and password unset → skip provisioning and warn; this must
+ *     not prevent the rest of the database-backed application from starting.
  * To change an existing founder's email/password, use syncFounders() (npm run
  * founders) instead — this boot path deliberately never overwrites a live login.
- * Missing credentials are fatal when an account would otherwise be created.
+ * Founder passwords are never generated or defaulted by this function.
  */
 export async function ensureDefaultFounder(db: Db): Promise<void> {
   const { founders } = founderDefaults();
@@ -68,7 +70,16 @@ export async function ensureDefaultFounder(db: Db): Promise<void> {
     if (existing) existingByEmail.set(founder.email, existing);
   }
 
-  assertFounderPasswordsConfigured(founders.filter((founder) => !existingByEmail.has(founder.email)));
+  const missingPasswordEmails = founders
+    .filter((founder) => !existingByEmail.has(founder.email) && !founder.password)
+    .map((founder) => founder.email);
+  if (missingPasswordEmails.length) {
+    console.warn(
+      "[startup] Automatic founder provisioning skipped for accounts without configured passwords: " +
+      missingPasswordEmails.join(", ") +
+      ". Set FOUNDER1_PASSWORD / FOUNDER2_PASSWORD (or FOUNDER_PASSWORD) to provision them. Database startup will continue.",
+    );
+  }
 
   for (const founder of founders) {
     const existing = existingByEmail.get(founder.email);
@@ -79,6 +90,11 @@ export async function ensureDefaultFounder(db: Db): Promise<void> {
       }
       continue;
     }
+
+    // Never create a new admin account with an empty or generated password.
+    // Missing founder credentials are an account-provisioning issue, not a
+    // reason to keep all public/database-backed API routes offline.
+    if (!founder.password) continue;
 
     const hashed = await bcrypt.hash(founder.password, 12);
     await db.insert(users).values({
