@@ -28,6 +28,7 @@ import { scoreImageFile } from "../services/ai/scoreImage";
 import { optimizeUploadedImage } from "../services/media/optimizeImage";
 import { generateThumbnail } from "../services/media/thumbnail";
 import { presentLegalAssetUrl } from "../services/protectedLegalFiles";
+import { withoutPrivateProjectFields } from "../lib/projectPrivacy";
 
 const router = Router();
 
@@ -200,7 +201,11 @@ router.get("/:id", async (req: AuthedRequest, res) => {
   const unitSummary = { total, listed: unitRows.length, available, byType };
 
   res.json({
-    project: { ...project, developerId: row.developer ?? project.developerId },
+    project: withoutPrivateProjectFields(
+      { ...project, developerId: row.developer ?? project.developerId },
+      optionalUser(req),
+      String(project.developerId),
+    ),
     // Pending legal files receive a short-lived URL for authenticated owners/admins.
     assets: assets.map((asset) => ({ ...asset, fileUrl: presentLegalAssetUrl(asset) })),
     unitSummary,
