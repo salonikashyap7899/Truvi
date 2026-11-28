@@ -235,7 +235,7 @@ function PageTransition({ children }: { children: ReactNode }) {
   const navOffset = globalNavVisible && !ownShell;
   const user = useAuthStore((s) => s.user);
   // The "← Back" link sits just under the app-level navbar, in the page flow.
-  const pageBack = navOffset && showsNavBack(pathname, user ? dashboardPath(user) : null);
+  const pageBack = navOffset && pathname !== "/investor-club" && showsNavBack(pathname, user ? dashboardPath(user) : null);
   return (
     <motion.div
       key={transitionKey}
