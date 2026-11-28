@@ -86,7 +86,7 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
     const {
       name, phone, city, experience, capacity, horizon, contactTime, website,
     } = parsed.data;
-    const validPhone = /^(?:\\+?91[\\-\\s]?)?[6-9]\\d{9}$/.test((phone || "").replace(/[()]/g, "").trim());
+    const validPhone = /^(?:\+?91[-\s]?)?[6-9]\d{9}$/.test((phone || "").replace(/[()]/g, "").trim());
     const allowedExperience = ["New to real-estate investing", "Exploring real-estate investment", "Some prior experience", "Experienced investor"];
     const allowedCapacity = ["Prefer to discuss", "Below ₹10 lakh", "₹10–25 lakh", "₹25–50 lakh", "₹50 lakh–₹1 crore", "₹1–5 crore", "Above ₹5 crore"];
     const allowedHorizon = ["Below 2 years", "2–3 years", "3–5 years", "5+ years", "To be discussed"];
@@ -121,7 +121,7 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
   const { email, name, purposeType, message, projectId, projectName } = parsed.data;
   const investorClub = parsed.data.investorClub === true;
   const normalizedPhone = investorClub
-    ? (parsed.data.phone || "").replace(/[^\\d]/g, "").replace(/^91(?=\\d{10}$)/, "")
+    ? (parsed.data.phone || "").replace(/[^\d]/g, "").replace(/^91(?=\d{10}$)/, "")
     : undefined;
   const storedMessage = investorClub
     ? [
@@ -134,7 +134,7 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
         `Preferred investment horizon: ${parsed.data.horizon}`,
         `Preferred contact time: ${parsed.data.contactTime}`,
         message || "",
-      ].filter(Boolean).join("\\n")
+      ].filter(Boolean).join("\n")
     : message;
 
   let uploadUrl: string | undefined;
