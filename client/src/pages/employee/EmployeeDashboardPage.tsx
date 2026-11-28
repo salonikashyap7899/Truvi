@@ -12,7 +12,7 @@ import { DashboardSkeleton } from "@/components/ui/PageSkeleton";
 import { useAuthStore } from "@/store/authStore";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-type Tab = "home" | "tasks" | "leads" | "buyer_leads" | "telecalling" | "visits" | "attendance" | "leave" | "profile" | "salary" | "notifications";
+type Tab = "home" | "tasks" | "leads" | "buyer_leads" | "telecalling" | "visits" | "projects" | "attendance" | "leave" | "profile" | "salary" | "notifications";
 type Employee = { id: string; accountUserId?: string; employeeCode?: string; name: string; officialEmail: string; phone?: string; department: string; designation?: string; joiningDate?: string; reportingManagerId?: string; recruitmentSource?: string; status: string; permissions?: string[] };
 type TaskAttachment = { _id: string; originalFileName: string; mimeType: string; sizeBytes: number; uploadedByUserId: string; createdAt: string };
 type TaskHistoryItem = { _id: string; actorUserId: string; action: string; beforeValue?: Record<string, unknown> | null; afterValue?: Record<string, unknown> | null; reason?: string | null; createdAt: string };
@@ -23,6 +23,8 @@ type Task = { _id: string; title: string; description?: string; taskType: string
 type LeaveRequest = { _id: string; employeeId: string; leaveType: string; startDate: string; endDate: string; totalDays: number; reason: string; status: string; reviewNotes?: string | null; createdAt: string };
 type Lead = { _id: string; leadNo?: number; clientName: string; clientPhone: string; clientEmail?: string; projectId: string | { _id: string; name: string }; stage: string; source: string; leadTemperature?: string; nextFollowUpAt?: string | null; siteVisitStatus?: string; budgetRange?: string; createdAt: string };
 type Project = { _id: string; name: string; city?: string; location?: string };
+type ProjectDeveloperOption = { id: string; name: string; companyName?: string | null };
+type EmployeeProjectSubmission = { _id: string; name: string; city: string; location: string; description: string; projectType?: string | null; approvalStatus: string; totalUnits?: number | null; createdAt: string; developerName: string; coverImageUrl?: string | null };
 type SiteVisit = { _id: string; leadId?: string; projectId: string | { _id: string; name: string }; projectName?: string; clientName?: string; scheduledAt: string; status: string; reportNotes?: string };
 type Attendance = { _id: string; attendanceDate: string; status: string; checkInAt?: string | null; checkOutAt?: string | null; workingMinutes?: number | null };
 type Salary = { _id: string; monthKey: string; grossSalary: number; allowances: number; deductions: number; netPayable: number; status: string; paymentDate?: string | null; paymentReference?: string | null };
@@ -45,7 +47,7 @@ const baseTabItems: { id: Tab; label: string }[] = [
 ];
 const tabIcons = {
   home: LayoutDashboard, tasks: ListChecks, leads: Users, buyer_leads: Megaphone, telecalling: PhoneCall,
-  visits: MapPin, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
+  visits: MapPin, projects: Building2, attendance: CalendarCheck, leave: CalendarDays, profile: UserRound,
   salary: Wallet, notifications: Bell,
 } as const;
 
@@ -98,6 +100,17 @@ export default function EmployeeDashboardPage() {
   const [taskCommentDraft, setTaskCommentDraft] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectSubmissions, setProjectSubmissions] = useState<EmployeeProjectSubmission[]>([]);
+  const [projectDevelopers, setProjectDevelopers] = useState<ProjectDeveloperOption[]>([]);
+  const [projectCenterLoading, setProjectCenterLoading] = useState(false);
+  const [projectSaving, setProjectSaving] = useState(false);
+  const [projectActionBusyId, setProjectActionBusyId] = useState<string | null>(null);
+  const [projectPhoto, setProjectPhoto] = useState<File | null>(null);
+  const [projectForm, setProjectForm] = useState({
+    name: "", description: "", city: "", location: "", developerId: "",
+    projectType: "VILLA", approvalAuthority: "RERA", reraNumber: "",
+    totalUnits: "", possessionDate: "",
+  });
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -164,19 +177,23 @@ export default function EmployeeDashboardPage() {
   const [followUpCustomDate, setFollowUpCustomDate] = useState("");
   const [followUpBusy, setFollowUpBusy] = useState(false);
 
-  const tabItems = useMemo(() => {
-    return baseTabItems;
-  }, []);
+  const canSubmitProjects = employee?.permissions?.includes("project.listing.submit") === true;
+  const tabItems = useMemo(() => (
+    canSubmitProjects
+      ? [...baseTabItems, { id: "projects" as Tab, label: "Project listings" }]
+      : baseTabItems
+  ), [canSubmitProjects]);
 
-  const navigationGroups = useMemo(() => [
-    { label: "Workspace", items: ["home", "tasks"] as Tab[] },
-    {
-      label: "Sales & field",
-      items: ["buyer_leads", "leads", "telecalling", "visits"] as Tab[],
-    },
-    { label: "People & time", items: ["attendance", "leave"] as Tab[] },
-    { label: "Account", items: ["profile", "salary", "notifications"] as Tab[] },
-  ], []);
+  const navigationGroups = useMemo(() => {
+    const groups: { label: string; items: Tab[] }[] = [
+      { label: "Workspace", items: ["home", "tasks"] },
+      { label: "Sales & field", items: ["buyer_leads", "leads", "telecalling", "visits"] },
+      { label: "People & time", items: ["attendance", "leave"] },
+      { label: "Account", items: ["profile", "salary", "notifications"] },
+    ];
+    if (canSubmitProjects) groups.splice(2, 0, { label: "Project tools", items: ["projects"] });
+    return groups;
+  }, [canSubmitProjects]);
 
   const loadCrmLeads = useCallback(async () => {
     setCrmLoading(true);
@@ -493,6 +510,104 @@ export default function EmployeeDashboardPage() {
     } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, []);
+
+  async function refreshProjectCenter() {
+    if (!canSubmitProjects) return;
+    setProjectCenterLoading(true);
+    try {
+      const [developerResponse, projectResponse] = await Promise.all([
+        api.get("/employees/project-developers"),
+        api.get("/employees/projects"),
+      ]);
+      setProjectDevelopers(developerResponse.data.developers ?? []);
+      setProjectSubmissions(projectResponse.data.projects ?? []);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Could not load project listings.");
+    } finally {
+      setProjectCenterLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab === "projects" && canSubmitProjects) void refreshProjectCenter();
+  }, [tab, canSubmitProjects]);
+
+  async function uploadProjectGalleryPhoto(projectId: string, file: File) {
+    if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) {
+      throw new Error("Choose an image file up to 12 MB.");
+    }
+    const form = new FormData();
+    form.append("file", file);
+    form.append("category", "GALLERY_IMAGE");
+    form.append("title", file.name.replace(/\\.[^.]+$/, "") || "Project cover photo");
+    await api.post("/presentation/" + projectId + "/assets", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  }
+
+  async function submitSavedProject(projectId: string, photo?: File) {
+    if (!canSubmitProjects) return;
+    setProjectActionBusyId(projectId);
+    try {
+      if (photo) await uploadProjectGalleryPhoto(projectId, photo);
+      await api.post("/employees/projects/" + projectId + "/submit", {});
+      toast.success("Project submitted to Admin for review.");
+      await refreshProjectCenter();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || "Could not submit this project.");
+    } finally {
+      setProjectActionBusyId(null);
+    }
+  }
+
+  async function createEmployeeProject(event: FormEvent) {
+    event.preventDefault();
+    if (!canSubmitProjects) return;
+    if (projectForm.name.trim().length < 2 || projectForm.description.trim().length < 10 ||
+        projectForm.city.trim().length < 2 || projectForm.location.trim().length < 2 ||
+        !projectForm.developerId || !projectForm.projectType || !projectForm.totalUnits ||
+        Number(projectForm.totalUnits) <= 0) {
+      toast.error("Complete the required project details and choose a registered developer.");
+      return;
+    }
+    setProjectSaving(true);
+    try {
+      const response = await api.post("/employees/projects", {
+        name: projectForm.name.trim(),
+        description: projectForm.description.trim(),
+        city: projectForm.city.trim(),
+        location: projectForm.location.trim(),
+        developerId: projectForm.developerId,
+        projectType: projectForm.projectType,
+        approvalAuthority: projectForm.approvalAuthority,
+        reraNumber: projectForm.reraNumber.trim() || undefined,
+        totalUnits: Number(projectForm.totalUnits),
+        possessionDate: projectForm.possessionDate || undefined,
+      });
+      const projectId = String(response.data.project?._id || "");
+      if (!projectId) throw new Error("The project draft was saved but no project ID was returned.");
+      if (projectPhoto) {
+        await uploadProjectGalleryPhoto(projectId, projectPhoto);
+        await api.post("/employees/projects/" + projectId + "/submit", {});
+        toast.success("Project submitted to Admin for review.");
+      } else {
+        toast.success("Project draft saved. Add a cover photo to submit it for review.");
+      }
+      setProjectForm({
+        name: "", description: "", city: "", location: "", developerId: "",
+        projectType: "VILLA", approvalAuthority: "RERA", reraNumber: "",
+        totalUnits: "", possessionDate: "",
+      });
+      setProjectPhoto(null);
+      await refreshProjectCenter();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || "Could not create project listing.");
+      await refreshProjectCenter();
+    } finally {
+      setProjectSaving(false);
+    }
+  }
+
   useEffect(() => {
     setProfileNameDraft(employee?.name || currentUser?.name || "");
     setProfileBioDraft(currentUser?.bio || "");
@@ -2035,6 +2150,80 @@ export default function EmployeeDashboardPage() {
             <button className="self-end rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Save call activity</button>
           </form></Panel>
           <Panel title="Schedule a follow-up"><form onSubmit={addFollowUp} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Select label="Buyer lead" required value={followupForm.leadId} onChange={(v)=>setFollowupForm((s)=>({...s,leadId:v}))} options={[{value:"",label:"Choose buyer"},...leads.map((l)=>({value:l._id,label:`${l.clientName} · ${l.clientPhone}`}))]}/><Input label="Due date/time" required type="datetime-local" value={followupForm.dueAt} onChange={(v)=>setFollowupForm((s)=>({...s,dueAt:v}))}/><Select label="Channel" value={followupForm.channel} onChange={(v)=>setFollowupForm((s)=>({...s,channel:v}))} options={["CALL","WHATSAPP","EMAIL","MEETING"].map((v)=>({value:v,label:v}))}/><Input label="Notes" value={followupForm.note} onChange={(v)=>setFollowupForm((s)=>({...s,note:v}))}/><button className="w-fit rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Schedule follow-up</button></form></Panel>
+        </div>}
+
+        {tab==="projects" && canSubmitProjects && <div className="space-y-4">
+          <Panel
+            title="Submit a project listing"
+            note="Use your own employee login. Choose the registered developer whose project this is; Truvi keeps your employee ID privately for tracking. Every listing is reviewed by Admin before it can appear publicly."
+          >
+            <form onSubmit={createEmployeeProject} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <Input label="Project name *" value={projectForm.name} onChange={(v)=>setProjectForm((s)=>({...s,name:v}))} required />
+              <Select label="Registered developer *" required value={projectForm.developerId} onChange={(v)=>setProjectForm((s)=>({...s,developerId:v}))}
+                options={[{value:"",label:"Choose developer"},...projectDevelopers.map((d)=>({value:d.id,label:d.companyName ? d.name + " · " + d.companyName : d.name}))]} />
+              <Select label="Project type *" required value={projectForm.projectType} onChange={(v)=>setProjectForm((s)=>({...s,projectType:v}))}
+                options={[
+                  {value:"VILLA",label:"Villa"},{value:"PLOTTED",label:"Plotted development"},
+                  {value:"APARTMENT",label:"Apartment"},{value:"COMMERCIAL",label:"Commercial"},
+                  {value:"LAND",label:"Land"},{value:"INDUSTRIAL",label:"Industrial"},
+                  {value:"MIXED_USE",label:"Mixed use"},{value:"RESIDENTIAL",label:"Residential"},
+                ]} />
+              <Input label="City *" value={projectForm.city} onChange={(v)=>setProjectForm((s)=>({...s,city:v}))} required />
+              <Input label="Locality / location *" value={projectForm.location} onChange={(v)=>setProjectForm((s)=>({...s,location:v}))} required />
+              <Input label="Total plots / units *" type="number" value={projectForm.totalUnits} onChange={(v)=>setProjectForm((s)=>({...s,totalUnits:v}))} required />
+              <Select label="Approval authority" value={projectForm.approvalAuthority} onChange={(v)=>setProjectForm((s)=>({...s,approvalAuthority:v}))}
+                options={[{value:"RERA",label:"RERA"},{value:"DISTRICT_PANCHAYAT",label:"District Panchayat"},{value:"DTCP",label:"DTCP"}]} />
+              <Input label="RERA / approval number" value={projectForm.reraNumber} onChange={(v)=>setProjectForm((s)=>({...s,reraNumber:v}))} />
+              <Input label="Expected possession date" type="date" value={projectForm.possessionDate} onChange={(v)=>setProjectForm((s)=>({...s,possessionDate:v}))} />
+              <label className="block space-y-1.5 text-sm sm:col-span-2 xl:col-span-3">
+                <span className="text-muted-foreground">Project description *</span>
+                <textarea required minLength={10} maxLength={8000} rows={4} value={projectForm.description}
+                  onChange={(e)=>setProjectForm((s)=>({...s,description:e.target.value}))}
+                  className="w-full rounded-xl border border-white/10 bg-background px-3 py-2.5 outline-none focus:border-primary"
+                  placeholder="Describe the project, facilities, development and key details…" />
+              </label>
+              <label className="block space-y-1.5 text-sm sm:col-span-2 xl:col-span-3">
+                <span className="text-muted-foreground">Cover photo (JPG, PNG, WEBP) · optional while saving a draft</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e)=>setProjectPhoto(e.target.files?.[0] ?? null)}
+                  className="block w-full rounded-xl border border-white/10 bg-background px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-primary-foreground" />
+                {projectPhoto && <span className="text-xs text-emerald-300">Selected: {projectPhoto.name}</span>}
+              </label>
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-3">
+                <button type="submit" disabled={projectSaving || projectDevelopers.length===0}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
+                  <Plus size={16}/>{projectSaving ? "Saving listing…" : "Create project draft & submit"}
+                </button>
+                <span className="text-xs text-muted-foreground">No admin credentials are needed. Your employee account remains separate.</span>
+              </div>
+              {projectDevelopers.length===0 && <p className="text-xs text-amber-300 sm:col-span-2 xl:col-span-3">No active developer accounts are available. Ask Admin to register or activate the developer profile for this project.</p>}
+            </form>
+          </Panel>
+
+          <Panel title="My submitted project listings" note="Track drafts and review status. Only listings submitted by your own employee account appear here.">
+            {projectCenterLoading ? <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><RefreshCw size={16} className="animate-spin"/>Loading your project listings…</div>
+              : projectSubmissions.length===0 ? <div className="py-8 text-center text-sm text-muted-foreground"><Building2 size={24} className="mx-auto mb-2"/>No project listings submitted yet.</div>
+              : <div className="grid gap-3 lg:grid-cols-2">
+                {projectSubmissions.map((project)=>(
+                  <article key={project._id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025]">
+                    {project.coverImageUrl ? <img src={project.coverImageUrl} alt={project.name} className="h-40 w-full object-cover"/> : <div className="grid h-32 place-items-center bg-white/[0.03] text-muted-foreground"><Building2 size={28}/></div>}
+                    <div className="space-y-3 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div><h3 className="font-semibold">{project.name}</h3><p className="mt-1 text-xs text-muted-foreground">{project.location}, {project.city} · {project.developerName}</p></div>
+                        <Badge value={project.approvalStatus}/>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{project.projectType || "Type pending"} · {project.totalUnits ?? "—"} plots / units · Created {fmtDate(project.createdAt)}</p>
+                      {project.approvalStatus==="DRAFT" && <div className="space-y-2 border-t border-white/10 pt-3">
+                        {!project.coverImageUrl && <label className="block text-xs text-muted-foreground">Upload a project photo to complete your listing<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="mt-2 block w-full text-xs" onChange={(e)=>{const file=e.target.files?.[0];if(file)void submitSavedProject(project._id,file);e.currentTarget.value="";}}/></label>}
+                        {project.coverImageUrl && <button type="button" disabled={projectActionBusyId===project._id} onClick={()=>void submitSavedProject(project._id)} className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{projectActionBusyId===project._id?"Submitting…":"Submit draft for Admin review"}</button>}
+                      </div>}
+                      {project.approvalStatus==="PENDING" && <p className="border-t border-amber-500/20 pt-3 text-xs text-amber-300">Submitted. Waiting for Admin review.</p>}
+                      {project.approvalStatus==="APPROVED" && <p className="border-t border-emerald-500/20 pt-3 text-xs text-emerald-300">Approved by Admin.</p>}
+                      {project.approvalStatus==="REJECTED" && <p className="border-t border-rose-500/20 pt-3 text-xs text-rose-300">Returned by Admin. Contact Admin for the correction notes before creating a revised listing.</p>}
+                    </div>
+                  </article>
+                ))}
+              </div>}
+          </Panel>
         </div>}
 
         {tab==="visits" && <div className="space-y-4">
