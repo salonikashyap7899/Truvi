@@ -153,8 +153,13 @@ function InvestorInterestForm({ projects, projectsLoaded, topic, onTopicChange }
       setSubmittedEnquiryId(response.data?.enquiryId ?? null);
       setSuccess(true);
     } catch (cause: unknown) {
-      const failure = cause as { response?: { data?: { error?: string } }; message?: string };
-      setError(failure.response?.data?.error || failure.message || "We could not submit your request. Please try again.");
+      const failure = cause as { response?: { status?: number; data?: { error?: string } }; message?: string };
+      const errorCode = failure.response?.data?.error;
+      if (failure.response?.status === 503 || errorCode === "database_starting") {
+        setError("Truvi's enquiry service is temporarily unavailable while the database reconnects. Your request has not been sent. Please use the WhatsApp option on this page or try again shortly.");
+      } else {
+        setError(failure.response?.data?.error || failure.message || "We could not submit your request. Please try again.");
+      }
     } finally {
       setBusy(false);
     }

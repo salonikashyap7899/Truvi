@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assertFounderPasswordsConfigured,
+  ensureDefaultFounder,
   founderDefaults,
   FounderProvisioningConfigError,
 } from "./bootstrapFounder";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
 
@@ -19,6 +21,27 @@ describe("founderDefaults", () => {
 
     expect(founders.map((founder) => founder.password)).toEqual(["", ""]);
     expect(() => assertFounderPasswordsConfigured(founders)).toThrow(FounderProvisioningConfigError);
+  });
+
+  it("does not block database startup when new founder accounts have no passwords configured", async () => {
+    vi.stubEnv("FOUNDER1_PASSWORD", "");
+    vi.stubEnv("FOUNDER2_PASSWORD", "");
+    vi.stubEnv("FOUNDER_PASSWORD", "");
+
+    const limit = vi.fn().mockResolvedValue([]);
+    const where = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where }));
+    const select = vi.fn(() => ({ from }));
+    const values = vi.fn().mockResolvedValue(undefined);
+    const insert = vi.fn(() => ({ values }));
+    const db = { select, insert } as unknown as Parameters<typeof ensureDefaultFounder>[0];
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(ensureDefaultFounder(db)).resolves.toBeUndefined();
+
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(insert).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining("Database startup will continue."));
   });
 
   it("prefers individual founder secrets and supports the shared fallback", () => {
