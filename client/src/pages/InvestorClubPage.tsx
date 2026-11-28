@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BadgeCheck, Building2, CheckCircle2,
   ChevronDown, Compass, FileCheck2, Handshake, Landmark, Layers3, MapPin,
-  MessageCircle, MessageSquareText, Network, Sparkles, Target, TrendingUp, Users, Wallet,
+  Network, Sparkles, Target, TrendingUp, Users, Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import InvestorConversationScene from "@/components/investor/InvestorConversationScene";
 
 type PublicProject = {
   _id: string;
@@ -67,7 +68,7 @@ const faqs = [
   { q: "How are developer partners selected?", a: "Potential partners may be evaluated on relevant execution experience, financial and operational capacity, project references, delivery plan and proposed joint-venture terms. No partner is represented as appointed unless verified and disclosed." },
   { q: "How are project returns calculated and distributed?", a: "Any project outcome would be calculated using the applicable project's definitive agreements, realised cash flows, costs, taxes and distribution waterfall. There is no standard return and no return is guaranteed." },
   { q: "What are the potential risks?", a: "Real-estate projects may face title or approval issues, construction delays, cost escalation, market and liquidity risk, counterparty failure, financing risk, regulatory changes and loss of capital. Review project-specific risk disclosures and obtain independent advice." },
-  { q: "How do I speak with the Truvi owner?", a: "Send a private conversation request on this page or start a WhatsApp chat with Truvi. Your request is routed to the owner/team enquiry inbox for follow-up. It does not create an investor account, KYC profile or investment commitment." },
+  { q: "How do I speak with the Truvi owner?", a: "Start the private dialogue on this page, choose a topic, and send your opening message. The conversation is saved securely and the authorised Truvi owner/admin team can reply to you in the same chat." },
   { q: "Are returns or capital appreciation guaranteed?", a: "No. Returns, rental income, resale values and capital appreciation are uncertain and are not guaranteed by Truvi or any developer." },
 ];
 
@@ -95,122 +96,10 @@ function SectionHeading({ eyebrow, title, copy, light = false }: { eyebrow: stri
   );
 }
 
-function InvestorInterestForm({ projects, projectsLoaded, topic, onTopicChange }: { projects: PublicProject[]; projectsLoaded: boolean; topic: string; onTopicChange: (topic: string) => void }) {
-  const [values, setValues] = useState({
-    name: "", phone: "", email: "", city: "", profession: "", projectId: "",
-    experience: "Exploring real-estate investment",
-    geography: "", capacity: "Prefer to discuss",
-    horizon: "2–3 years", contactTime: "Business hours",
-  });
-  const [consent, setConsent] = useState(false);
-  const [website, setWebsite] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [submittedEnquiryId, setSubmittedEnquiryId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-
-  const update = (key: keyof typeof values, value: string) => setValues((v) => ({ ...v, [key]: value }));
-  const validPhone = /^(?:\+?91[\s-]?)?[6-9]\d{9}$/.test(values.phone.replace(/[()]/g, "").trim());
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    if (values.name.trim().length < 2) return setError("Please enter your full name.");
-    if (!validPhone) return setError("Enter a valid Indian mobile number.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(values.email.trim())) return setError("Enter a valid email address.");
-    if (values.city.trim().length < 2) return setError("Please enter your city.");
-    if (!consent) return setError("Please read and accept the privacy acknowledgement.");
-
-    setBusy(true);
-    try {
-      const formData = new FormData();
-      formData.append("name", values.name.trim());
-      formData.append("phone", values.phone.trim());
-      formData.append("email", values.email.trim());
-      formData.append("purposeType", "GUEST");
-      formData.append("city", values.city.trim());
-      formData.append("profession", values.profession.trim());
-      formData.append("experience", values.experience);
-      formData.append("geography", values.geography.trim());
-      formData.append("capacity", values.capacity);
-      formData.append("horizon", values.horizon);
-      formData.append("contactTime", values.contactTime);
-      formData.append("investorClub", "true");
-      formData.append("privacyNoticeAcknowledged", "true");
-      formData.append("website", website);
-      const selectedProject = projects.find((project) => project._id === values.projectId);
-      if (selectedProject) {
-        formData.append("projectId", selectedProject._id);
-        formData.append("projectName", selectedProject.name);
-      }
-      formData.append("message", [
-        "Discussion topic: " + topic,
-        note.trim() ? "Message to the owner: " + note.trim() : "",
-      ].filter(Boolean).join("\n\n"));
-      const response = await api.post("/enquiries", formData);
-      if (response.status !== 201) throw new Error("The request could not be saved.");
-      setSubmittedEnquiryId(response.data?.enquiryId ?? null);
-      setSuccess(true);
-    } catch (cause: unknown) {
-      const failure = cause as { response?: { status?: number; data?: { error?: string } }; message?: string };
-      const errorCode = failure.response?.data?.error;
-      if (failure.response?.status === 503 || errorCode === "database_starting") {
-        setError("Truvi's enquiry service is temporarily unavailable while the database reconnects. Your request has not been sent. Please use the WhatsApp option on this page or try again shortly.");
-      } else {
-        setError(failure.response?.data?.error || failure.message || "We could not submit your request. Please try again.");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (success) {
-    return (
-      <div role="status" className="rounded-2xl border border-blue-200 bg-blue-50 p-7 text-center">
-        <span className="mx-auto grid size-14 place-items-center rounded-full bg-blue-100 text-blue-700"><MessageCircle size={26} /></span>
-        <h3 className="mt-4 font-display text-2xl text-[#142235]">Your conversation request is with Truvi.</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Your details and discussion note have been sent to the Truvi team. You can now continue directly with our owner on WhatsApp.</p>
-        {submittedEnquiryId && <p className="mt-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-500">Reference · {submittedEnquiryId.slice(0, 8).toUpperCase()}</p>}
-        <a href={investorWhatsAppUrl("Hello Truvi, I have submitted an Investor Club conversation request. My name is " + values.name + ". I would like to discuss " + topic.toLowerCase() + ". Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#16a34a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#15803d] sm:w-auto">
-          <MessageCircle size={17} /> Continue on WhatsApp
-        </a>
-        <p className="mt-4 text-xs leading-5 text-slate-500">This is a discussion request only, not an investment offer or commitment.</p>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-slate-700">Which project would you like to discuss?</span><select className={fieldClass} value={values.projectId} onChange={(e) => update("projectId", e.target.value)}><option value="">{projectsLoaded ? "General investment discussion / Not sure yet" : "Loading approved projects…"}</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}{project.city ? " · " + project.city : ""}</option>)}</select></label>
-        <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-slate-700">What would you like to talk about?</span><select className={fieldClass} value={topic} onChange={(e) => onTopicChange(e.target.value)}><option>Discuss a specific project</option><option>Explore investment opportunities</option><option>Understand project structure and participation</option><option>Land acquisition or joint venture</option><option>Funding or development partnership</option><option>Arrange a private meeting with the owner</option></select></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Full Name *</span><input required autoComplete="name" maxLength={120} className={fieldClass} value={values.name} onChange={(e) => update("name", e.target.value)} placeholder="Your full name" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Mobile Number *</span><input required autoComplete="tel" inputMode="tel" maxLength={18} className={fieldClass} value={values.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+91 98765 43210" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Email Address *</span><input required autoComplete="email" type="email" maxLength={254} className={fieldClass} value={values.email} onChange={(e) => update("email", e.target.value)} placeholder="name@example.com" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">City *</span><input required autoComplete="address-level2" maxLength={100} className={fieldClass} value={values.city} onChange={(e) => update("city", e.target.value)} placeholder="Your city" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Profession / Business</span><input maxLength={120} className={fieldClass} value={values.profession} onChange={(e) => update("profession", e.target.value)} placeholder="Profession or business" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Investment Experience</span><select className={fieldClass} value={values.experience} onChange={(e) => update("experience", e.target.value)}><option>New to real-estate investing</option><option>Exploring real-estate investment</option><option>Some prior experience</option><option>Experienced investor</option></select></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Preferred Investment Geography</span><input maxLength={160} className={fieldClass} value={values.geography} onChange={(e) => update("geography", e.target.value)} placeholder="e.g. North India, Lucknow, NCR" /></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Indicative Investment Capacity</span><select className={fieldClass} value={values.capacity} onChange={(e) => update("capacity", e.target.value)}><option>Prefer to discuss</option><option>Below ₹10 lakh</option><option>₹10–25 lakh</option><option>₹25–50 lakh</option><option>₹50 lakh–₹1 crore</option><option>₹1–5 crore</option><option>Above ₹5 crore</option></select></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Preferred Investment Horizon</span><select className={fieldClass} value={values.horizon} onChange={(e) => update("horizon", e.target.value)}><option>Below 2 years</option><option>2–3 years</option><option>3–5 years</option><option>5+ years</option><option>To be discussed</option></select></label>
-        <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Preferred Contact Time</span><select className={fieldClass} value={values.contactTime} onChange={(e) => update("contactTime", e.target.value)}><option>Business hours</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label>
-      </div>
-      <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Your message to the owner</span><textarea rows={4} maxLength={2000} className={fieldClass + " resize-y"} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Tell us what you are looking for, your questions, or what you would like to discuss…" /></label>
-      <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} /></label></div>
-      <label className="flex items-start gap-3 text-xs leading-6 text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 shrink-0 accent-[#3b82f6]" /><span>I acknowledge the <Link className="font-semibold text-[#2563eb] underline" to="/privacy-policy">Privacy Policy</Link> and consent to Truvi using these details to respond to this investor-interest request.</span></label>
-      {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>}
-      <button type="submit" disabled={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#2563eb] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60">{busy ? "Sending request…" : "Send conversation request"} <ArrowRight size={16} /></button>
-      <p className="text-[11px] leading-5 text-slate-500">Your request is sent privately to Truvi for follow-up. It does not constitute an offer, investment application, allotment, or commitment. Any investment, where legally permitted, will be subject to eligibility checks, applicable regulatory requirements, disclosures, and definitive documentation.</p>
-    </form>
-  );
-}
-
 export default function InvestorClubPage() {
   const [projects, setProjects] = useState<PublicProject[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
-  const [conversationTopic, setConversationTopic] = useState("Discuss a specific project");
 
   useEffect(() => {
     document.title = "TRUVI Investor Club | Talk to the Owner";
@@ -302,87 +191,9 @@ export default function InvestorClubPage() {
         </button>
       </section>
 
-      <section id="register" className="scroll-mt-24 bg-[#0b1725] px-5 py-20 text-white sm:px-8 lg:py-28">
-        <div className="mx-auto grid max-w-7xl items-start gap-10 lg:grid-cols-[.78fr_1.22fr] lg:gap-16">
-          <div className="lg:sticky lg:top-28">
-            <Eyebrow light>Private investor conversation</Eyebrow>
-            <h2 className="mt-4 max-w-xl font-display text-4xl font-medium leading-[1.08] tracking-[-.035em] sm:text-5xl">Come with your questions. Talk through the opportunity.</h2>
-            <p className="mt-6 max-w-xl text-sm leading-7 text-white/65 sm:text-base">Tell us what you are considering. The Truvi team receives your request, reviews the project or investment topic you selected, and follows up so you can discuss it directly with the owner.</p>
+      <InvestorConversationScene projects={projects} projectsLoaded={projectsLoaded} />
 
-            <div className="mt-8 overflow-hidden rounded-3xl border border-white/15 bg-[#071321]/80 shadow-2xl shadow-black/20 backdrop-blur-xl">
-              <div className="flex items-center gap-3 border-b border-white/10 bg-white/[.04] px-5 py-4">
-                <span className="grid size-10 place-items-center rounded-full border border-[#60a5fa]/30 bg-[#3b82f6]/15"><img src="/brand/icon-white.png" alt="" className="size-6 object-contain" /></span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-white">Truvi Owner's Desk</p>
-                  <p className="text-[10px] uppercase tracking-[.16em] text-[#93c5fd]">Guided investor conversation</p>
-                </div>
-                <span className="ml-auto rounded-full border border-white/10 px-2.5 py-1 text-[9px] text-white/50">START HERE</span>
-              </div>
-              <div className="space-y-4 p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#3b82f6]/20 text-[#93c5fd]"><MessageCircle size={14} /></span>
-                  <div className="max-w-[92%] rounded-2xl rounded-tl-sm border border-white/10 bg-white/[.07] px-4 py-3 text-sm leading-6 text-white/85">
-                    Welcome to Truvi Investor Club. What would you like to explore with our owner?
-                  </div>
-                </div>
-                <div className="pl-10">
-                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-[.16em] text-white/45">Choose a conversation starter</p>
-                  <div className="grid gap-2">
-                    {[
-                      "Discuss a specific project",
-                      "Explore investment opportunities",
-                      "Understand project structure and participation",
-                      "Land acquisition or joint venture",
-                      "Funding or development partnership",
-                      "Arrange a private meeting with the owner",
-                    ].map((choice) => (
-                      <button key={choice} type="button" onClick={() => setConversationTopic(choice)} className={"rounded-xl border px-3.5 py-2.5 text-left text-xs font-medium transition " + (conversationTopic === choice ? "border-[#60a5fa]/60 bg-[#3b82f6]/20 text-white" : "border-white/10 bg-white/[.03] text-white/70 hover:border-white/25 hover:bg-white/[.07]")}>
-                        {choice}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-4 rounded-xl border border-[#60a5fa]/20 bg-[#3b82f6]/10 px-3.5 py-3">
-                    <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#93c5fd]">Selected topic</p>
-                    <p className="mt-1 text-xs font-semibold text-white">{conversationTopic}</p>
-                    <p className="mt-1 text-[10px] leading-5 text-white/55">This choice will be included in your private request to Truvi.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 space-y-4">
-              {[
-                { n: "01", title: "Tell us what you have in mind", copy: "Choose a project or describe the investment you want to explore." },
-                { n: "02", title: "Truvi reviews your request", copy: "Your details go to the private Investor Enquiry inbox for owner/team follow-up." },
-                { n: "03", title: "Continue the conversation", copy: "Start a direct WhatsApp discussion or arrange a call at a suitable time." },
-              ].map((step) => (
-                <div key={step.n} className="flex gap-4">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full border border-[#60a5fa]/35 bg-[#3b82f6]/10 text-xs font-semibold text-[#93c5fd]">{step.n}</span>
-                  <div><p className="text-sm font-semibold text-white">{step.title}</p><p className="mt-1 text-xs leading-5 text-white/55">{step.copy}</p></div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-8 rounded-2xl border border-[#3b82f6]/25 bg-[#3b82f6]/[.07] p-5">
-              <p className="flex items-center gap-2 text-sm font-semibold text-[#93c5fd]"><MessageCircle size={17} /> Prefer to message now?</p>
-              <p className="mt-2 text-xs leading-6 text-white/60">Open a direct WhatsApp conversation with Truvi. You do not need an admin login or an Investor Club account.</p>
-              <a href={investorWhatsAppUrl("Hello Truvi, I am interested in discussing real-estate investment opportunities. Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#60a5fa]/40 px-4 py-2 text-xs font-semibold text-[#bfdbfe] transition hover:bg-[#3b82f6]/15"><MessageCircle size={15} /> Open WhatsApp chat <ArrowUpRight size={14} /></a>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-[#f8f9fb] p-5 text-[#142235] shadow-2xl shadow-black/20 sm:p-8 lg:p-10">
-            <div className="mb-7 flex items-start gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-100 text-blue-700"><MessageSquareText size={21} /></span>
-              <div>
-                <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#2563eb]">Private conversation request</span>
-                <h3 className="mt-1 font-display text-2xl text-[#142235] sm:text-3xl">What would you like to discuss?</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Your message is delivered to Truvi's investor enquiry inbox. Share only information you are comfortable providing.</p>
-              </div>
-            </div>
-            <InvestorInterestForm projects={projects} projectsLoaded={projectsLoaded} topic={conversationTopic} onTopicChange={setConversationTopic} />
-          </div>
-        </div>
-      </section>
-
-            <section id="about" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
+      <section id="about" className="scroll-mt-24 bg-[#f8fafc] px-5 py-20 text-[#142235] sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[.94fr_1.06fr] lg:gap-20">
           <div>
             <Eyebrow>The ecosystem</Eyebrow>
@@ -591,9 +402,9 @@ export default function InvestorClubPage() {
           <div>
             <Eyebrow light>Start a conversation</Eyebrow>
             <h2 className="mt-4 max-w-3xl font-display text-3xl leading-tight sm:text-4xl">Explore real estate with a clearer perspective.</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60">Connect with Truvi Investor Club and discover a more structured approach to real-estate opportunities.</p>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/60">Start a private, on-site conversation with Truvi’s owner about projects, investment structures and partnership opportunities.</p>
           </div>
-          <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-[#142235] transition hover:bg-[#93c5fd]">Register your interest <ArrowRight size={16} /></button>
+          <button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#3b82f6] px-7 py-3 text-sm font-semibold text-[#142235] transition hover:bg-[#93c5fd]">Talk to the owner <ArrowRight size={16} /></button>
         </div>
       </section>
 
