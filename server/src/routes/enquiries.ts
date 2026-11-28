@@ -53,10 +53,20 @@ const enquirySchema = z.object({
   email: z.string().email("Valid email required"),
   name: z.string().min(1, "Name required"),
   purposeType: z.enum(["BUYER", "DEVELOPER", "CP", "GUEST"]),
-  message: z.string().optional(),
+  message: z.string().max(4000).optional(),
   projectId: z.string().optional(),
   projectName: z.string().optional(),
   privacyNoticeAcknowledged: z.preprocess((value) => value === true || value === "true", z.literal(true)),
+  phone: z.string().trim().optional(),
+  investorClub: z.preprocess((value) => value === true || value === "true", z.boolean()).optional(),
+  city: z.string().trim().max(100).optional(),
+  profession: z.string().trim().max(120).optional(),
+  experience: z.string().max(80).optional(),
+  geography: z.string().trim().max(160).optional(),
+  capacity: z.string().max(80).optional(),
+  horizon: z.string().max(40).optional(),
+  contactTime: z.string().max(40).optional(),
+  website: z.string().max(200).optional(),
 });
 
 /** Remove a just-uploaded attachment from a rejected enquiry (never stored data). */
@@ -72,12 +82,60 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
     discardUpload(req.file);
     return res.status(400).json({ error: zodMessage(parsed.error), issues: parsed.error.flatten() });
   }
+  if (parsed.data.investorClub) {
+    const {
+      name, phone, city, experience, capacity, horizon, contactTime, website,
+    } = parsed.data;
+    const validPhone = /^(?:\\+?91[\\-\\s]?)?[6-9]\\d{9}$/.test((phone || "").replace(/[()]/g, "").trim());
+    const allowedExperience = ["New to real-estate investing", "Exploring real-estate investment", "Some prior experience", "Experienced investor"];
+    const allowedCapacity = ["Prefer to discuss", "Below ₹10 lakh", "₹10–25 lakh", "₹25–50 lakh", "₹50 lakh–₹1 crore", "₹1–5 crore", "Above ₹5 crore"];
+    const allowedHorizon = ["Below 2 years", "2–3 years", "3–5 years", "5+ years", "To be discussed"];
+    const allowedContactTime = ["Business hours", "Morning", "Afternoon", "Evening"];
+    if (name.trim().length < 2 || name.length > 120) {
+      discardUpload(req.file);
+      return res.status(400).json({ error: "Please enter your full name." });
+    }
+    if (!validPhone) {
+      discardUpload(req.file);
+      return res.status(400).json({ error: "Please enter a valid Indian mobile number." });
+    }
+    if ((city || "").trim().length < 2) {
+      discardUpload(req.file);
+      return res.status(400).json({ error: "Please enter your city." });
+    }
+    if (!experience || !allowedExperience.includes(experience) ||
+        !capacity || !allowedCapacity.includes(capacity) ||
+        !horizon || !allowedHorizon.includes(horizon) ||
+        !contactTime || !allowedContactTime.includes(contactTime)) {
+      discardUpload(req.file);
+      return res.status(400).json({ error: "Please check the investor preference fields and try again." });
+    }
+    // Quietly accept honeypot submissions without creating an enquiry record.
+    if (website?.trim()) return res.status(201).json({ ok: true });
+  }
   if (req.file && !fileMatchesExtension(req.file.path, path.extname(req.file.filename))) {
     discardUpload(req.file);
     return res.status(400).json({ error: "That file doesn't look like a valid PDF, image or Word document." });
   }
 
   const { email, name, purposeType, message, projectId, projectName } = parsed.data;
+  const investorClub = parsed.data.investorClub === true;
+  const normalizedPhone = investorClub
+    ? (parsed.data.phone || "").replace(/[^\\d]/g, "").replace(/^91(?=\\d{10}$)/, "")
+    : undefined;
+  const storedMessage = investorClub
+    ? [
+        "[TRUVI INVESTOR CLUB — EXPRESSION OF INTEREST]",
+        `City: ${parsed.data.city}`,
+        `Profession / business: ${parsed.data.profession || "Not provided"}`,
+        `Investment experience: ${parsed.data.experience}`,
+        `Preferred investment geography: ${parsed.data.geography || "Not specified"}`,
+        `Indicative investment capacity: ${parsed.data.capacity}`,
+        `Preferred investment horizon: ${parsed.data.horizon}`,
+        `Preferred contact time: ${parsed.data.contactTime}`,
+        message || "",
+      ].filter(Boolean).join("\\n")
+    : message;
 
   let uploadUrl: string | undefined;
   let uploadFileName: string | undefined;
@@ -95,8 +153,9 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
     .values({
       email,
       name,
+      phone: normalizedPhone,
       purposeType,
-      message,
+      message: storedMessage,
       privacyNoticeVersion: CURRENT_POLICY_VERSIONS.PRIVACY_NOTICE,
       privacyNoticeAcknowledgedAt: new Date(),
       uploadUrl,
@@ -112,7 +171,8 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
     email,
     name,
     purposeType,
-    message,
+    message: storedMessage,
+    phone: normalizedPhone,
     uploadUrl,
     uploadFileName,
     projectName,
@@ -126,8 +186,10 @@ router.post("/", enquiryLimiter, enquiryUpload.single("file"), async (req, res) 
   try {
     await notifyRole("ADMIN", {
       type: "new_enquiry",
-      title: "New enquiry",
-      message: `${name || "Someone"} sent an enquiry${projectName ? ` about ${projectName}` : ""}.`,
+      title: investorClub ? "New Investor Club interest" : "New enquiry",
+      message: investorClub
+        ? `${name} registered Investor Club interest.`
+        : `${name || "Someone"} sent an enquiry${projectName ? ` about ${projectName}` : ""}.`,
       data: { href: "/admin/enquiries" },
     });
   } catch {
