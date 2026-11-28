@@ -3,18 +3,21 @@
  * contact stays private from buyers/partners. The internal employee submitter
  * ID is stricter: it is visible only to Admin, never to developers or visitors.
  */
+type PublicProjectView<T extends { salesContact?: unknown; submittedById?: unknown }> =
+  Omit<T, "salesContact" | "submittedById"> & Partial<Pick<T, "salesContact" | "submittedById">>;
+
 export function withoutPrivateProjectFields<
   T extends { salesContact?: unknown; submittedById?: unknown },
 >(
   project: T,
   viewer?: { userId: string; role: string } | null,
   ownerId?: string | null,
-): Omit<T, "salesContact" | "submittedById"> & Partial<Pick<T, "salesContact" | "submittedById">> {
+): PublicProjectView<T> {
   if (viewer?.role === "ADMIN") return project;
 
   const { submittedById: _hiddenSubmitter, ...withoutSubmitter } = project;
-  if (viewer && ownerId && String(ownerId) === viewer.userId) return withoutSubmitter;
+  if (viewer && ownerId && String(ownerId) === viewer.userId) return withoutSubmitter as PublicProjectView<T>;
 
   const { salesContact: _hiddenSalesContact, ...publicProject } = withoutSubmitter;
-  return publicProject;
+  return publicProject as PublicProjectView<T>;
 }
