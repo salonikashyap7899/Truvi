@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useSocketEvent } from "@/lib/socket";
-import { User, Building2, Handshake, Search, FileText, Download } from "lucide-react";
+import { User, Building2, Handshake, Search, FileText, Download, MessageCircle, PhoneCall } from "lucide-react";
 
 type Purpose = "BUYER" | "DEVELOPER" | "CP" | "GUEST";
+type EnquiryFilter = Purpose | "ALL" | "INVESTOR";
 
 interface Enquiry {
   _id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
   name: string;
   purposeType: Purpose;
   message?: string;
@@ -25,6 +27,18 @@ const PURPOSE_META: Record<Purpose, { label: string; icon: React.ReactNode; vari
   GUEST: { label: "Guest", icon: <Search size={13} />, variant: "default", color: "text-muted-foreground bg-white/5 border-white/15" },
 };
 
+function isInvestorConversation(enquiry: Enquiry) {
+  return Boolean(enquiry.message?.includes("[TRUVI INVESTOR CLUB — EXPRESSION OF INTEREST]"));
+}
+
+function investorWhatsAppLink(enquiry: Enquiry) {
+  const digits = (enquiry.phone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const phone = digits.length === 10 ? "91" + digits : digits;
+  const text = "Hello " + enquiry.name + ", thank you for contacting Truvi about " + (enquiry.projectName || "real-estate investment") + ". I am following up on your investor conversation request.";
+  return "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -39,7 +53,7 @@ function timeAgo(dateStr: string) {
 export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Purpose | "ALL">("ALL");
+  const [filter, setFilter] = useState<EnquiryFilter>("ALL");
 
   async function load() {
     try {
@@ -60,17 +74,19 @@ export default function AdminEnquiriesPage() {
       if (prev.some((e) => e._id === enquiry._id)) return prev;
       return [enquiry, ...prev];
     });
-    const meta = PURPOSE_META[enquiry.purposeType];
-    toast.info(`New ${meta.label} enquiry from ${enquiry.name}`);
+    const label = isInvestorConversation(enquiry) ? "Investor conversation" : PURPOSE_META[enquiry.purposeType].label + " enquiry";
+    toast.info(`New ${label} from ${enquiry.name}`);
   });
 
   const filtered = filter === "ALL"
     ? enquiries
-    : enquiries.filter((e) => e.purposeType === filter);
+    : filter === "INVESTOR"
+      ? enquiries.filter(isInvestorConversation)
+      : enquiries.filter((e) => e.purposeType === filter && !isInvestorConversation(e));
 
-  const counts: Record<string, number> = { ALL: enquiries.length };
+  const counts: Record<string, number> = { ALL: enquiries.length, INVESTOR: enquiries.filter(isInvestorConversation).length };
   (["BUYER", "DEVELOPER", "CP", "GUEST"] as Purpose[]).forEach((p) => {
-    counts[p] = enquiries.filter((e) => e.purposeType === p).length;
+    counts[p] = enquiries.filter((e) => e.purposeType === p && !isInvestorConversation(e)).length;
   });
 
   return (
@@ -82,7 +98,7 @@ export default function AdminEnquiriesPage() {
 
       {/* Filter tabs */}
       <div className="flex flex-wrap gap-2 mb-6">
-        {(["ALL", "BUYER", "DEVELOPER", "CP", "GUEST"] as const).map((f) => (
+        {(["ALL", "INVESTOR", "BUYER", "DEVELOPER", "CP", "GUEST"] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -92,8 +108,8 @@ export default function AdminEnquiriesPage() {
                 : "border-white/15 text-muted-foreground hover:border-white/30 hover:text-white"
             }`}
           >
-            {f !== "ALL" && PURPOSE_META[f as Purpose].icon}
-            {f === "ALL" ? "All" : PURPOSE_META[f as Purpose].label}
+            {f === "INVESTOR" ? <MessageCircle size={13} /> : f !== "ALL" ? PURPOSE_META[f as Purpose].icon : null}
+            {f === "ALL" ? "All" : f === "INVESTOR" ? "Investor conversations" : PURPOSE_META[f as Purpose].label}
             <span className="ml-0.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px]">
               {counts[f] ?? 0}
             </span>
@@ -115,6 +131,8 @@ export default function AdminEnquiriesPage() {
         <div className="space-y-3 max-w-3xl">
           {filtered.map((e) => {
             const meta = PURPOSE_META[e.purposeType];
+            const investorConversation = isInvestorConversation(e);
+            const whatsappLink = investorConversation ? investorWhatsAppLink(e) : null;
             return (
               <div
                 key={e._id}
@@ -128,18 +146,14 @@ export default function AdminEnquiriesPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-white">{e.name}</p>
-                      <a
-                        href={`mailto:${e.email}`}
-                        className="text-xs text-blue-400 hover:underline"
-                      >
-                        {e.email}
-                      </a>
+                      {e.email && <a href={"mailto:" + e.email} className="block text-xs text-blue-400 hover:underline">{e.email}</a>}
+                      {e.phone && <a href={"tel:" + e.phone} className="mt-1 block text-xs text-muted-foreground hover:text-white">{e.phone}</a>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${meta.color}`}>
-                      {meta.icon}
-                      {meta.label}
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${investorConversation ? "border-blue-500/40 bg-blue-500/15 text-blue-200" : meta.color}`}>
+                      {investorConversation ? <MessageCircle size={13} /> : meta.icon}
+                      {investorConversation ? "Investor conversation" : meta.label}
                     </span>
                     <span className="text-[10px] text-muted-foreground">{timeAgo(e.createdAt)}</span>
                   </div>
@@ -156,6 +170,14 @@ export default function AdminEnquiriesPage() {
                 {e.message && (
                   <div className="rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-foreground/90">
                     {e.message}
+                  </div>
+                )}
+
+                {investorConversation && (
+                  <div className="flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                    {whatsappLink && <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"><MessageCircle size={14} /> Start WhatsApp conversation</a>}
+                    {e.phone && <a href={"tel:" + e.phone} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10"><PhoneCall size={14} /> Call investor</a>}
+                    {e.email && <a href={"mailto:" + e.email + "?subject=" + encodeURIComponent("Truvi Investor Club — following up on your request")} className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/10">Email investor</a>}
                   </div>
                 )}
 
