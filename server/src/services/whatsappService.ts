@@ -239,7 +239,7 @@ export async function sendAiSensyCampaign(
     // this process (including scheduler retries) and let configured Meta Cloud
     // API templates take over instead. The state resets only after a process
     // restart, which gives operators time to reactivate the provider plan.
-    if (/no\\s+plan\\s+active\\s+on\\s+assistant/i.test(detail)) {
+    if (/no\s+plan\s+active\s+on\s+assistant/i.test(detail)) {
       if (!aiSensyPlanDisabled) {
         aiSensyPlanDisabled = true;
         console.warn("[aisensy] disabled for this process: AiSensy reports no active plan on the assistant. Activate the AiSensy plan or configure Meta WhatsApp Cloud API to resume WhatsApp delivery.");
