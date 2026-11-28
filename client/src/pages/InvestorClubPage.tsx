@@ -67,7 +67,7 @@ const faqs = [
   { q: "How are developer partners selected?", a: "Potential partners may be evaluated on relevant execution experience, financial and operational capacity, project references, delivery plan and proposed joint-venture terms. No partner is represented as appointed unless verified and disclosed." },
   { q: "How are project returns calculated and distributed?", a: "Any project outcome would be calculated using the applicable project's definitive agreements, realised cash flows, costs, taxes and distribution waterfall. There is no standard return and no return is guaranteed." },
   { q: "What are the potential risks?", a: "Real-estate projects may face title or approval issues, construction delays, cost escalation, market and liquidity risk, counterparty failure, financing risk, regulatory changes and loss of capital. Review project-specific risk disclosures and obtain independent advice." },
-  { q: "How can I register investor interest?", a: "Complete the expression-of-interest form on this page. The submission is routed to Truvi's existing enquiries workflow for team follow-up; it does not create an investor account, KYC profile or commitment." },
+  { q: "How do I speak with the Truvi owner?", a: "Send a private conversation request on this page or start a WhatsApp chat with Truvi. Your request is routed to the owner/team enquiry inbox for follow-up. It does not create an investor account, KYC profile or investment commitment." },
   { q: "Are returns or capital appreciation guaranteed?", a: "No. Returns, rental income, resale values and capital appreciation are uncertain and are not guaranteed by Truvi or any developer." },
 ];
 
