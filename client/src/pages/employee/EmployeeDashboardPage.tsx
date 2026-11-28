@@ -539,7 +539,7 @@ export default function EmployeeDashboardPage() {
     const form = new FormData();
     form.append("file", file);
     form.append("category", "GALLERY_IMAGE");
-    form.append("title", file.name.replace(/\\.[^.]+$/, "") || "Project cover photo");
+    form.append("title", file.name.replace(/\.[^.]+$/, "") || "Project cover photo");
     await api.post("/presentation/" + projectId + "/assets", form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
@@ -614,7 +614,7 @@ export default function EmployeeDashboardPage() {
     setProfileEmailDraft(currentUser?.email || employee?.officialEmail || "");
     setProfilePhoneDraft(employee?.phone || currentUser?.phone || "");
   }, [employee?.id, currentUser?._id]);
-  useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams]);
+  useEffect(() => { const requested = searchParams.get("tab"); if (requested && tabItems.some((item) => item.id === requested)) setTab(requested as Tab); }, [searchParams, tabItems]);
   useEffect(() => {
     if (!searchTarget) return;
     const frame = window.requestAnimationFrame(() => {
@@ -2191,7 +2191,7 @@ export default function EmployeeDashboardPage() {
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2 xl:col-span-3">
                 <button type="submit" disabled={projectSaving || projectDevelopers.length===0}
                   className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
-                  <Plus size={16}/>{projectSaving ? "Saving listing…" : "Create project draft & submit"}
+                  <Plus size={16}/>{projectSaving ? "Saving listing…" : "Save draft (submit when complete)"}
                 </button>
                 <span className="text-xs text-muted-foreground">No admin credentials are needed. Your employee account remains separate.</span>
               </div>
