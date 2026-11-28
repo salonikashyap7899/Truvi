@@ -53,7 +53,7 @@ function timeAgo(dateStr: string) {
 export default function AdminEnquiriesPage() {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Purpose | "ALL">("ALL");
+  const [filter, setFilter] = useState<EnquiryFilter>("ALL");
 
   async function load() {
     try {
@@ -80,11 +80,13 @@ export default function AdminEnquiriesPage() {
 
   const filtered = filter === "ALL"
     ? enquiries
-    : enquiries.filter((e) => e.purposeType === filter);
+    : filter === "INVESTOR"
+      ? enquiries.filter(isInvestorConversation)
+      : enquiries.filter((e) => e.purposeType === filter && !isInvestorConversation(e));
 
-  const counts: Record<string, number> = { ALL: enquiries.length };
+  const counts: Record<string, number> = { ALL: enquiries.length, INVESTOR: enquiries.filter(isInvestorConversation).length };
   (["BUYER", "DEVELOPER", "CP", "GUEST"] as Purpose[]).forEach((p) => {
-    counts[p] = enquiries.filter((e) => e.purposeType === p).length;
+    counts[p] = enquiries.filter((e) => e.purposeType === p && !isInvestorConversation(e)).length;
   });
 
   return (
