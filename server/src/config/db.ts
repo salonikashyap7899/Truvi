@@ -2040,6 +2040,42 @@ async function ensureSchema(db: Db): Promise<void> {
        "created_at" timestamptz NOT NULL DEFAULT now()
      )`,
     `CREATE INDEX IF NOT EXISTS "buyer_crm_activities_lead_created_idx" ON "buyer_crm_activities" ("lead_id", "created_at")`,
+    // Private investor-owner dialogue. Access is protected by a one-time
+    // high-entropy browser capability token whose SHA-256 hash is stored here.
+    `CREATE TABLE IF NOT EXISTS "investor_conversations" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "public_code" text NOT NULL UNIQUE,
+       "investor_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "investor_name" text NOT NULL,
+       "investor_email" text NOT NULL,
+       "investor_phone" text NOT NULL,
+       "topic" text NOT NULL,
+       "project_id" uuid REFERENCES "projects"("id") ON DELETE SET NULL,
+       "project_name" text,
+       "status" text NOT NULL DEFAULT 'WAITING_OWNER',
+       "access_token_hash" text NOT NULL UNIQUE,
+       "last_message_preview" text NOT NULL DEFAULT '',
+       "unread_owner_count" integer NOT NULL DEFAULT 1,
+       "unread_investor_count" integer NOT NULL DEFAULT 0,
+       "privacy_notice_version" text NOT NULL,
+       "privacy_notice_acknowledged_at" timestamptz NOT NULL,
+       "last_message_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversations_status_last_message_idx" ON "investor_conversations" ("status", "last_message_at")`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversations_investor_user_idx" ON "investor_conversations" ("investor_user_id", "created_at")`,
+    `CREATE TABLE IF NOT EXISTS "investor_conversation_messages" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "conversation_id" uuid NOT NULL REFERENCES "investor_conversations"("id") ON DELETE CASCADE,
+       "sender_type" text NOT NULL,
+       "sender_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "sender_name" text NOT NULL,
+       "body" text NOT NULL,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversation_messages_thread_idx" ON "investor_conversation_messages" ("conversation_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversation_messages_sender_idx" ON "investor_conversation_messages" ("sender_user_id", "created_at")`,
     // Verification-engine extensions + vector/pgcrypto objects (Phase 1).
     ...VERIFICATION_BOOT_SQL,
   ];
