@@ -139,9 +139,18 @@ function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicPr
       formData.append("investorClub", "true");
       formData.append("privacyNoticeAcknowledged", "true");
       formData.append("website", website);
-      formData.append("message", "Investor Club expression of interest");
+      const selectedProject = projects.find((project) => project._id === values.projectId);
+      if (selectedProject) {
+        formData.append("projectId", selectedProject._id);
+        formData.append("projectName", selectedProject.name);
+      }
+      formData.append("message", [
+        "Discussion topic: " + values.topic,
+        note.trim() ? "Message to the owner: " + note.trim() : "",
+      ].filter(Boolean).join("\n\n"));
       const response = await api.post("/enquiries", formData);
       if (response.status !== 201) throw new Error("The request could not be saved.");
+      setSubmittedEnquiryId(response.data?.enquiryId ?? null);
       setSuccess(true);
     } catch (cause: unknown) {
       const failure = cause as { response?: { data?: { error?: string } }; message?: string };
@@ -153,11 +162,15 @@ function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicPr
 
   if (success) {
     return (
-      <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-7 text-center">
-        <CheckCircle2 className="mx-auto text-emerald-700" size={34} />
-        <h3 className="mt-4 font-display text-2xl text-[#142235]">Thank you for registering your interest.</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Your request has been received by Truvi. A team member may contact you using the details you supplied.</p>
-        <p className="mt-4 text-xs leading-5 text-slate-500">This does not constitute an offer, investment application, allotment or commitment.</p>
+      <div role="status" className="rounded-2xl border border-blue-200 bg-blue-50 p-7 text-center">
+        <span className="mx-auto grid size-14 place-items-center rounded-full bg-blue-100 text-blue-700"><MessageCircle size={26} /></span>
+        <h3 className="mt-4 font-display text-2xl text-[#142235]">Your conversation request is with Truvi.</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Your details and discussion note have been sent to the Truvi team. You can now continue directly with our owner on WhatsApp.</p>
+        {submittedEnquiryId && <p className="mt-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-500">Reference · {submittedEnquiryId.slice(0, 8).toUpperCase()}</p>}
+        <a href={investorWhatsAppUrl("Hello Truvi, I have submitted an Investor Club conversation request. My name is " + values.name + ". I would like to discuss " + values.topic.toLowerCase() + ". Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#16a34a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#15803d] sm:w-auto">
+          <MessageCircle size={17} /> Continue on WhatsApp
+        </a>
+        <p className="mt-4 text-xs leading-5 text-slate-500">This is a discussion request only, not an investment offer or commitment.</p>
       </div>
     );
   }
