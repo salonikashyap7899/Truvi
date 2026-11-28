@@ -77,14 +77,14 @@ function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-[.24em] text-[#1d4ed8]">{children}</p>;
+function Eyebrow({ children, light = false }: { children: React.ReactNode; light?: boolean }) {
+  return <p className={`text-[11px] font-semibold uppercase tracking-[.24em] ${light ? "text-sky-300" : "text-[#1d4ed8]"}`}>{children}</p>;
 }
 
 function SectionHeading({ eyebrow, title, copy, light = false }: { eyebrow: string; title: string; copy?: string; light?: boolean }) {
   return (
     <div className="max-w-3xl">
-      <Eyebrow>{eyebrow}</Eyebrow>
+      <Eyebrow light={light}>{eyebrow}</Eyebrow>
       <h2 className={`mt-4 font-display text-3xl font-medium leading-tight tracking-[-.035em] sm:text-4xl lg:text-[46px] ${light ? "text-white" : "text-[#142235]"}`}>{title}</h2>
       {copy && <p className={`mt-4 max-w-2xl text-sm leading-7 sm:text-base ${light ? "text-white/65" : "text-slate-600"}`}>{copy}</p>}
     </div>
@@ -344,7 +344,7 @@ export default function InvestorClubPage() {
 
       <section className="bg-[#f8fafc] px-5 py-24 sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[.8fr_1.2fr]">
-          <div className="bg-[#142235] p-10 text-white"><Eyebrow>Founder & leadership</Eyebrow><h2 className="mt-5 font-display text-3xl leading-tight">Driven by Vision. Built on Real Estate Intelligence.</h2><p className="mt-4 text-sm leading-7 text-white/65">Truvi's vision is to bring structure, visibility and thoughtful diligence to real-estate opportunities and project partnerships.</p></div>
+          <div className="bg-[#142235] p-10 text-white"><Eyebrow light>Founder & leadership</Eyebrow><h2 className="mt-5 font-display text-3xl leading-tight">Driven by Vision. Built on Real Estate Intelligence.</h2><p className="mt-4 text-sm leading-7 text-white/65">Truvi's vision is to bring structure, visibility and thoughtful diligence to real-estate opportunities and project partnerships.</p></div>
           <div className="border border-slate-200 bg-white p-8 sm:p-10"><Eyebrow>Leadership</Eyebrow><h3 className="mt-3 font-display text-2xl text-[#142235]">Leadership information</h3><p className="mt-3 text-sm leading-7 text-slate-600">Founder name, photograph, biography and professional credentials will be published here only after the company verifies the final approved profile. No unverified credentials or achievements are displayed.</p></div>
         </div>
       </section>
@@ -362,7 +362,7 @@ export default function InvestorClubPage() {
         </div>
       </section>
 
-      <section className="bg-[#142235] px-5 py-20 text-white sm:px-8"><div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-center"><div><Eyebrow>Start a conversation</Eyebrow><h2 className="mt-4 max-w-3xl font-display text-3xl leading-tight sm:text-4xl">Let's Explore the Future of Real Estate Together.</h2><p className="mt-4 text-sm text-white/60">Connect with Truvi Investor Club and discover a more structured approach to real-estate opportunities.</p></div><button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#60a5fa] px-7 py-3 text-sm font-semibold text-[#142235]">Register Your Interest <ArrowRight size={16} /></button></div></section>
+      <section className="bg-[#142235] px-5 py-20 text-white sm:px-8"><div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-center"><div><Eyebrow light>Start a conversation</Eyebrow><h2 className="mt-4 max-w-3xl font-display text-3xl leading-tight sm:text-4xl">Let's Explore the Future of Real Estate Together.</h2><p className="mt-4 text-sm text-white/60">Connect with Truvi Investor Club and discover a more structured approach to real-estate opportunities.</p></div><button onClick={() => scrollTo("register")} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-[#60a5fa] px-7 py-3 text-sm font-semibold text-[#142235]">Register Your Interest <ArrowRight size={16} /></button></div></section>
 
       <footer className="bg-[#050b14] px-5 py-12 text-white/65 sm:px-8">
         <div className="mx-auto grid max-w-7xl gap-9 md:grid-cols-[1.4fr_1fr_1fr]">
