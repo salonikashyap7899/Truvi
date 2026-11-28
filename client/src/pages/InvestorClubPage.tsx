@@ -95,9 +95,9 @@ function SectionHeading({ eyebrow, title, copy, light = false }: { eyebrow: stri
   );
 }
 
-function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicProject[]; projectsLoaded: boolean }) {
+function InvestorInterestForm({ projects, projectsLoaded, topic, onTopicChange }: { projects: PublicProject[]; projectsLoaded: boolean; topic: string; onTopicChange: (topic: string) => void }) {
   const [values, setValues] = useState({
-    name: "", phone: "", email: "", city: "", profession: "", projectId: "", topic: "Discuss a specific project",
+    name: "", phone: "", email: "", city: "", profession: "", projectId: "",
     experience: "Exploring real-estate investment",
     geography: "", capacity: "Prefer to discuss",
     horizon: "2–3 years", contactTime: "Business hours",
@@ -145,7 +145,7 @@ function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicPr
         formData.append("projectName", selectedProject.name);
       }
       formData.append("message", [
-        "Discussion topic: " + values.topic,
+        "Discussion topic: " + topic,
         note.trim() ? "Message to the owner: " + note.trim() : "",
       ].filter(Boolean).join("\n\n"));
       const response = await api.post("/enquiries", formData);
@@ -167,7 +167,7 @@ function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicPr
         <h3 className="mt-4 font-display text-2xl text-[#142235]">Your conversation request is with Truvi.</h3>
         <p className="mt-2 text-sm leading-6 text-slate-600">Your details and discussion note have been sent to the Truvi team. You can now continue directly with our owner on WhatsApp.</p>
         {submittedEnquiryId && <p className="mt-3 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-500">Reference · {submittedEnquiryId.slice(0, 8).toUpperCase()}</p>}
-        <a href={investorWhatsAppUrl("Hello Truvi, I have submitted an Investor Club conversation request. My name is " + values.name + ". I would like to discuss " + values.topic.toLowerCase() + ". Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#16a34a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#15803d] sm:w-auto">
+        <a href={investorWhatsAppUrl("Hello Truvi, I have submitted an Investor Club conversation request. My name is " + values.name + ". I would like to discuss " + topic.toLowerCase() + ". Please connect me with the owner.")} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#16a34a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#15803d] sm:w-auto">
           <MessageCircle size={17} /> Continue on WhatsApp
         </a>
         <p className="mt-4 text-xs leading-5 text-slate-500">This is a discussion request only, not an investment offer or commitment.</p>
@@ -179,7 +179,7 @@ function InvestorInterestForm({ projects, projectsLoaded }: { projects: PublicPr
     <form onSubmit={submit} className="space-y-5" noValidate>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-slate-700">Which project would you like to discuss?</span><select className={fieldClass} value={values.projectId} onChange={(e) => update("projectId", e.target.value)}><option value="">{projectsLoaded ? "General investment discussion / Not sure yet" : "Loading approved projects…"}</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}{project.city ? " · " + project.city : ""}</option>)}</select></label>
-        <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-slate-700">What would you like to talk about?</span><select className={fieldClass} value={values.topic} onChange={(e) => update("topic", e.target.value)}><option>Discuss a specific project</option><option>Explore investment opportunities</option><option>Understand project structure and participation</option><option>Land acquisition or joint venture</option><option>Funding or development partnership</option><option>Arrange a private meeting with the owner</option></select></label>
+        <label className="block sm:col-span-2"><span className="mb-2 block text-xs font-semibold text-slate-700">What would you like to talk about?</span><select className={fieldClass} value={topic} onChange={(e) => onTopicChange(e.target.value)}><option>Discuss a specific project</option><option>Explore investment opportunities</option><option>Understand project structure and participation</option><option>Land acquisition or joint venture</option><option>Funding or development partnership</option><option>Arrange a private meeting with the owner</option></select></label>
         <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Full Name *</span><input required autoComplete="name" maxLength={120} className={fieldClass} value={values.name} onChange={(e) => update("name", e.target.value)} placeholder="Your full name" /></label>
         <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Mobile Number *</span><input required autoComplete="tel" inputMode="tel" maxLength={18} className={fieldClass} value={values.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+91 98765 43210" /></label>
         <label className="block"><span className="mb-2 block text-xs font-semibold text-slate-700">Email Address *</span><input required autoComplete="email" type="email" maxLength={254} className={fieldClass} value={values.email} onChange={(e) => update("email", e.target.value)} placeholder="name@example.com" /></label>
@@ -205,6 +205,7 @@ export default function InvestorClubPage() {
   const [projects, setProjects] = useState<PublicProject[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
+  const [conversationTopic, setConversationTopic] = useState("Discuss a specific project");
 
   useEffect(() => {
     document.title = "TRUVI Investor Club | Talk to the Owner";
@@ -329,7 +330,7 @@ export default function InvestorClubPage() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">Your message is delivered to Truvi's investor enquiry inbox. Share only information you are comfortable providing.</p>
               </div>
             </div>
-            <InvestorInterestForm projects={projects} projectsLoaded={projectsLoaded} />
+            <InvestorInterestForm projects={projects} projectsLoaded={projectsLoaded} topic={conversationTopic} onTopicChange={setConversationTopic} />
           </div>
         </div>
       </section>
