@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   ArrowDown, ArrowRight, ArrowUpRight, BadgeCheck, Building2, CheckCircle2,
   ChevronDown, Compass, FileCheck2, Handshake, Landmark, Layers3, MapPin,
-  Menu, Network, Sparkles, Target, TrendingUp, Users, Wallet, X,
+  Network, Sparkles, Target, TrendingUp, Users, Wallet,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -183,7 +183,6 @@ export default function InvestorClubPage() {
   const [projects, setProjects] = useState<PublicProject[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
-  const [mobileMenu, setMobileMenu] = useState(false);
 
   useEffect(() => {
     document.title = "TRUVI Investor Club | Structured Real Estate Investment Opportunities";
@@ -216,14 +215,6 @@ export default function InvestorClubPage() {
     return () => { active = false; };
   }, []);
 
-  const navItems = [
-    ["Approach", "about"],
-    ["How it works", "process"],
-    ["Developers", "developers"],
-    ["Projects", "projects"],
-    ["FAQs", "faqs"],
-  ] as const;
-
   return (
     <main className="investor-club-page min-h-screen overflow-hidden bg-[#071321] text-white">
       <section className="relative isolate min-h-[760px] overflow-hidden bg-[#071321] lg:min-h-[calc(100svh-5.5rem)]">
@@ -238,50 +229,7 @@ export default function InvestorClubPage() {
         <div className="absolute inset-0 z-10 opacity-30 [background-image:radial-gradient(circle_at_50%_38%,rgba(205,174,111,0.22),transparent_38%)]" />
 
         <div className="relative z-20">
-          <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-8 sm:pt-7">
-            <nav className="flex items-center justify-between gap-4 rounded-2xl border border-white/15 bg-[#081321]/65 px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur-xl sm:rounded-full sm:px-6" aria-label="Investor Club navigation">
-              <Link to="/" className="flex min-w-0 items-center gap-3" aria-label="Truvi Ventures home">
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#d8bd86]/50 bg-[#d8bd86] text-[#142235] shadow-lg shadow-[#d8bd86]/10">
-                  <img src="/brand/icon.png" alt="" className="size-7 object-contain" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold tracking-[.17em] text-white">TRUVI</span>
-                  <span className="block text-[9px] font-semibold uppercase tracking-[.22em] text-[#e2c58b]">Investor Club</span>
-                </span>
-              </Link>
-
-              <div className="hidden items-center gap-6 xl:flex">
-                {navItems.map(([label, id]) => (
-                  <button key={id} onClick={() => scrollTo(id)} className="text-xs font-medium text-white/75 transition hover:text-[#e2c58b]">{label}</button>
-                ))}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                <button onClick={() => scrollTo("register")} className="hidden min-h-10 items-center gap-2 rounded-full bg-[#d8bd86] px-5 text-xs font-semibold text-[#142235] shadow-lg shadow-[#d8bd86]/15 transition hover:bg-[#ead5a9] sm:inline-flex">
-                  Register interest <ArrowUpRight size={14} />
-                </button>
-                <button
-                  className="grid size-10 place-items-center rounded-full border border-white/20 bg-white/5 text-white xl:hidden"
-                  aria-label={mobileMenu ? "Close navigation" : "Open navigation"}
-                  aria-expanded={mobileMenu}
-                  onClick={() => setMobileMenu((open) => !open)}
-                >
-                  {mobileMenu ? <X size={18} /> : <Menu size={18} />}
-                </button>
-              </div>
-            </nav>
-
-            {mobileMenu && (
-              <nav className="mt-2 grid gap-1 rounded-2xl border border-white/10 bg-[#081321]/95 p-3 shadow-2xl backdrop-blur-xl xl:hidden" aria-label="Mobile Investor Club navigation">
-                {navItems.map(([label, id]) => (
-                  <button key={id} onClick={() => { scrollTo(id); setMobileMenu(false); }} className="rounded-xl px-4 py-3 text-left text-sm text-white/85 transition hover:bg-white/10">{label}</button>
-                ))}
-                <button onClick={() => { scrollTo("register"); setMobileMenu(false); }} className="mt-1 rounded-xl bg-[#d8bd86] px-4 py-3 text-left text-sm font-semibold text-[#142235]">Register interest</button>
-              </nav>
-            )}
-          </div>
-
-          <div className="mx-auto flex max-w-7xl flex-col items-center px-5 pb-16 pt-24 text-center sm:px-8 sm:pt-28 lg:pt-32">
+            <div className="mx-auto flex max-w-7xl flex-col items-center px-5 pb-16 pt-24 text-center sm:px-8 sm:pt-28 lg:pt-32">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }} className="flex max-w-4xl flex-col items-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#e2c58b]/35 bg-[#d8bd86]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#f1dfb9] backdrop-blur-md sm:text-xs">
                 <Sparkles size={13} className="text-[#e2c58b]" /> Real estate intelligence · Investor information
