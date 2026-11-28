@@ -228,8 +228,8 @@ export default function InvestorClubPage() {
         <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#071321]/70 via-transparent to-[#071321]/55" />
         <div className="absolute inset-0 z-10 opacity-30 [background-image:radial-gradient(circle_at_50%_38%,rgba(205,174,111,0.22),transparent_38%)]" />
 
-        <div className="relative z-20">
-            <div className="mx-auto flex max-w-7xl flex-col items-center px-5 pb-16 pt-24 text-center sm:px-8 sm:pt-28 lg:pt-32">
+        <div className="relative z-20 flex min-h-[760px] items-center lg:min-h-[calc(100svh-5.5rem)]">
+          <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-20 text-center sm:px-8 sm:py-24 lg:py-28">
             <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.2, 0.8, 0.2, 1] }} className="flex max-w-4xl flex-col items-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#e2c58b]/35 bg-[#d8bd86]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[.2em] text-[#f1dfb9] backdrop-blur-md sm:text-xs">
                 <Sparkles size={13} className="text-[#e2c58b]" /> Real estate intelligence · Investor information
