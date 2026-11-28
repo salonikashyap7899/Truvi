@@ -72,12 +72,6 @@ const faqs = [
   { q: "Are returns or capital appreciation guaranteed?", a: "No. Returns, rental income, resale values and capital appreciation are uncertain and are not guaranteed by Truvi or any developer." },
 ];
 
-const TRUVI_OWNER_WHATSAPP = "917054280101";
-function investorWhatsAppUrl(message: string) {
-  return "https://wa.me/" + TRUVI_OWNER_WHATSAPP + "?text=" + encodeURIComponent(message);
-}
-const fieldClass = "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#60a5fa] focus:ring-2 focus:ring-[#60a5fa]/20 disabled:opacity-60";
-
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
