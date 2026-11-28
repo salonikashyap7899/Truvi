@@ -509,6 +509,8 @@ export const projects = pgTable(
   {
     _id: uuid("id").defaultRandom().primaryKey(),
     developerId: uuid("developer_id").notNull().references(() => users._id),
+    // Internal employee submitter for staff-created listings; hidden from public project responses.
+    submittedById: uuid("submitted_by_id").references(() => users._id),
     name: text("name").notNull(),
     description: text("description").notNull(),
     city: text("city").notNull(),
