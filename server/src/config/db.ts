@@ -239,6 +239,40 @@ async function ensureSchema(db: Db): Promise<void> {
     // Structured, server-timestamped privacy permission for public enquiry submissions.
     `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_version" text`,
     `ALTER TABLE "enquiries" ADD COLUMN IF NOT EXISTS "privacy_notice_acknowledged_at" timestamptz`,
+    // Private Investor Club live conversations. The visitor credential is stored
+    // only as a SHA-256 hash; the raw value exists only in an HttpOnly cookie.
+    `CREATE TABLE IF NOT EXISTS "investor_conversations" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "visitor_token_hash" text NOT NULL UNIQUE,
+       "visitor_name" text NOT NULL,
+       "visitor_email" text NOT NULL,
+       "visitor_phone" text NOT NULL,
+       "topic" text NOT NULL,
+       "project_id" uuid REFERENCES "projects"("id") ON DELETE SET NULL,
+       "project_name" text,
+       "status" text NOT NULL DEFAULT 'OPEN',
+       "owner_unread" integer NOT NULL DEFAULT 0,
+       "investor_unread" integer NOT NULL DEFAULT 0,
+       "privacy_notice_version" text NOT NULL,
+       "privacy_acknowledged_at" timestamptz NOT NULL,
+       "expires_at" timestamptz NOT NULL,
+       "last_message_at" timestamptz NOT NULL DEFAULT now(),
+       "created_at" timestamptz NOT NULL DEFAULT now(),
+       "updated_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversations_last_message_idx" ON "investor_conversations" ("status", "last_message_at")`,
+    `CREATE TABLE IF NOT EXISTS "investor_conversation_messages" (
+       "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+       "conversation_id" uuid NOT NULL REFERENCES "investor_conversations"("id") ON DELETE CASCADE,
+       "sender_role" text NOT NULL,
+       "sender_user_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+       "sender_name" text NOT NULL,
+       "body" text NOT NULL,
+       "read_at" timestamptz,
+       "created_at" timestamptz NOT NULL DEFAULT now()
+     )`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversation_messages_thread_idx" ON "investor_conversation_messages" ("conversation_id", "created_at")`,
+    `CREATE INDEX IF NOT EXISTS "investor_conversation_messages_unread_idx" ON "investor_conversation_messages" ("conversation_id", "sender_role", "read_at")`,
     // Config tables ensureVerificationDefaults depends on — created here too so
     // a deploy without `drizzle-kit push` never spams boot warnings.
     `CREATE TABLE IF NOT EXISTS "score_thresholds" (
