@@ -31,6 +31,8 @@ import {
 export type Role = "ADMIN" | "DEVELOPER" | "CP" | "BUYER" | "AMBASSADOR" | "VERIFIER" | "EMPLOYEE" | "MARKETING_PARTNER";
 export type AmbassadorTaskStatus = "AVAILABLE" | "LOCKED" | "COMPLETED";
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type InvestorConversationStatus = "WAITING_OWNER" | "WAITING_INVESTOR" | "CLOSED";
+export type InvestorConversationSenderType = "INVESTOR" | "OWNER";
 export type HabitatProviderStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
 export type HabitatPricingModel = "FIXED" | "STARTING_PRICE" | "QUOTE";
 export type HabitatBookingStatus =
@@ -1253,6 +1255,54 @@ export const enquiries = pgTable(
     index("enquiries_created_idx").on(t.createdAt),
     index("enquiries_purpose_idx").on(t.purposeType),
   ]
+);
+
+export const investorConversations = pgTable(
+  "investor_conversations",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    publicCode: text("public_code").notNull(),
+    investorUserId: uuid("investor_user_id").references(() => users._id, { onDelete: "set null" }),
+    investorName: text("investor_name").notNull(),
+    investorEmail: text("investor_email").notNull(),
+    investorPhone: text("investor_phone").notNull(),
+    topic: text("topic").notNull(),
+    projectId: uuid("project_id").references(() => projects._id, { onDelete: "set null" }),
+    projectName: text("project_name"),
+    status: text("status").$type<InvestorConversationStatus>().notNull().default("WAITING_OWNER"),
+    accessTokenHash: text("access_token_hash").notNull(),
+    lastMessagePreview: text("last_message_preview").notNull().default(""),
+    unreadOwnerCount: integer("unread_owner_count").notNull().default(1),
+    unreadInvestorCount: integer("unread_investor_count").notNull().default(0),
+    privacyNoticeVersion: text("privacy_notice_version").notNull(),
+    privacyNoticeAcknowledgedAt: timestamp("privacy_notice_acknowledged_at", { withTimezone: true, mode: "date" }).notNull(),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("investor_conversations_code_uidx").on(t.publicCode),
+    uniqueIndex("investor_conversations_token_uidx").on(t.accessTokenHash),
+    index("investor_conversations_status_last_message_idx").on(t.status, t.lastMessageAt),
+    index("investor_conversations_investor_user_idx").on(t.investorUserId, t.createdAt),
+  ],
+);
+
+export const investorConversationMessages = pgTable(
+  "investor_conversation_messages",
+  {
+    _id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id").notNull().references(() => investorConversations._id, { onDelete: "cascade" }),
+    senderType: text("sender_type").$type<InvestorConversationSenderType>().notNull(),
+    senderUserId: uuid("sender_user_id").references(() => users._id, { onDelete: "set null" }),
+    senderName: text("sender_name").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("investor_conversation_messages_thread_idx").on(t.conversationId, t.createdAt),
+    index("investor_conversation_messages_sender_idx").on(t.senderUserId, t.createdAt),
+  ],
 );
 
 export const buyerDocuments = pgTable(
