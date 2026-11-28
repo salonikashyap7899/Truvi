@@ -153,6 +153,8 @@ function NavItem({
 export function SiteNav({ global = false, hideBack = false, transparent = false }: { global?: boolean; hideBack?: boolean; transparent?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  // Investor Club uses a full-bleed global header so no black side gutters remain.
+  const fullBleedInvestorNav = global && pathname === "/investor-club";
   const { user, isAuthenticated, logout } = useAuth();
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const sessionRestoreFailed = useAuthStore((s) => s.sessionRestoreFailed);
@@ -195,15 +197,15 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
   return (
     <InNavbarContext.Provider value={true}>
     <header
-      className="fixed top-0 left-0 right-0 z-50 px-4 pb-4 sm:px-6 md:px-12 md:pb-5"
+      className={`fixed top-0 left-0 right-0 z-50 ${fullBleedInvestorNav ? "px-0 pb-0" : "px-4 pb-4 sm:px-6 md:px-12 md:pb-5"}`}
       /* On the native app / notched phones the WebView runs edge-to-edge under
          the status bar (time, battery, signal). Add the device's safe-area
          inset on top of the normal padding so the glass bar never hides behind
          the status bar. On the desktop browser env() is 0, so this is a no-op. */
-      style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+      style={{ paddingTop: fullBleedInvestorNav ? "0px" : "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
     >
       <div
-        className="truvi-global-nav-surface mx-auto flex max-w-[1048px] items-center justify-between gap-2 rounded-full glass px-4 py-2.5 sm:px-5"
+        className={`truvi-global-nav-surface mx-auto flex items-center justify-between gap-2 glass px-4 py-2.5 sm:px-5 ${fullBleedInvestorNav ? "w-full max-w-none rounded-none border-x-0 border-t-0" : "max-w-[1048px] rounded-full"}`}
         /* Keep the default surface opaque enough for readability; the homepage
            can opt into a little more transparency to reveal its cityscape. */
         style={{ backgroundColor: transparent ? "rgba(10,13,20,0.76)" : "rgba(10,13,20,0.9)" }}
@@ -280,7 +282,7 @@ export function SiteNav({ global = false, hideBack = false, transparent = false 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="truvi-global-nav-mobile mx-auto mt-2 flex max-w-[1048px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden"
+              className={`truvi-global-nav-mobile mx-auto mt-2 flex flex-col overflow-hidden border border-white/10 bg-[#0a0d14]/95 shadow-2xl shadow-black/50 backdrop-blur-xl lg:hidden ${fullBleedInvestorNav ? "w-full max-w-none rounded-none border-x-0" : "max-w-[1048px] rounded-2xl"}`}
             >
               {/* Drop the dashboard entry here — the auth section below renders
                   a richer "My {role} Dashboard" link, so we avoid duplicating it. */}
