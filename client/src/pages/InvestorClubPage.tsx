@@ -78,7 +78,7 @@ function scrollTo(id: string) {
 }
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-semibold uppercase tracking-[.24em] text-[#3b82f6]">{children}</p>;
+  return <p className="text-[11px] font-semibold uppercase tracking-[.24em] text-[#1d4ed8]">{children}</p>;
 }
 
 function SectionHeading({ eyebrow, title, copy, light = false }: { eyebrow: string; title: string; copy?: string; light?: boolean }) {
@@ -173,7 +173,7 @@ function InvestorInterestForm() {
       <div className="hidden" aria-hidden="true"><label>Website<input tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} /></label></div>
       <label className="flex items-start gap-3 text-xs leading-6 text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 shrink-0 accent-[#3b82f6]" /><span>I acknowledge the <Link className="font-semibold text-[#2563eb] underline" to="/privacy-policy">Privacy Policy</Link> and consent to Truvi using these details to respond to this investor-interest request.</span></label>
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>}
-      <button type="submit" disabled={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#142235] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60">{busy ? "Submitting…" : "Submit Investor Interest"} <ArrowRight size={16} /></button>
+      <button type="submit" disabled={busy} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#2563eb] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-60">{busy ? "Submitting…" : "Submit Investor Interest"} <ArrowRight size={16} /></button>
       <p className="text-[11px] leading-5 text-slate-500">Submitting this form only registers your interest. It does not constitute an offer, investment application, allotment, or commitment. Any investment, where legally permitted, will be subject to eligibility checks, applicable regulatory requirements, disclosures, and definitive documentation.</p>
     </form>
   );
@@ -237,13 +237,13 @@ export default function InvestorClubPage() {
             {navItems.map(([label, id]) => <button key={id} onClick={() => scrollTo(id)} className="text-xs font-semibold text-slate-300 transition hover:text-white">{label}</button>)}
           </nav>
           <div className="flex items-center gap-2">
-            <button onClick={() => scrollTo("register")} className="hidden rounded-full bg-[#3b82f6] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#2563eb] sm:inline-flex">Register interest <ArrowUpRight size={14} /></button>
+            <button onClick={() => scrollTo("register")} className="hidden rounded-full bg-[#2563eb] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#1d4ed8] sm:inline-flex">Register interest <ArrowUpRight size={14} /></button>
             <button className="grid size-10 place-items-center rounded-full border border-white/15 text-white lg:hidden" aria-label={mobileMenu ? "Close navigation" : "Open navigation"} aria-expanded={mobileMenu} onClick={() => setMobileMenu((open) => !open)}>{mobileMenu ? <X size={18} /> : <Menu size={18} />}</button>
           </div>
         </div>
         {mobileMenu && <nav className="grid gap-1 border-t border-white/10 bg-[#0a0d14] px-5 py-3 lg:hidden" aria-label="Mobile Investor Club navigation">
           {navItems.map(([label, id]) => <button key={id} onClick={() => { scrollTo(id); setMobileMenu(false); }} className="rounded-lg px-3 py-3 text-left text-sm font-medium text-slate-200 transition hover:bg-white/5">{label}</button>)}
-          <button onClick={() => { scrollTo("register"); setMobileMenu(false); }} className="mt-1 rounded-lg bg-[#3b82f6] px-3 py-3 text-left text-sm font-semibold text-white">Register interest</button>
+          <button onClick={() => { scrollTo("register"); setMobileMenu(false); }} className="mt-1 rounded-lg bg-[#2563eb] px-3 py-3 text-left text-sm font-semibold text-white">Register interest</button>
         </nav>}
       </header>
 
